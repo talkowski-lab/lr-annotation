@@ -5,8 +5,8 @@ import "Structs.wdl"
 workflow STRAnalysis {
     input {
         String sample_id
-        File input_vcf
-        File input_vcf_index
+        File vcf
+        File vcf_index
         File high_confidence_bed
         File ref_fasta
         File ref_fasta_fai
@@ -25,8 +25,8 @@ workflow STRAnalysis {
     call FilterVcfToSTR {
         input:
             sample_id = sample_id,
-            input_vcf = input_vcf,
-            input_vcf_index = input_vcf_index,
+            vcf = vcf,
+            vcf_index = vcf_index,
             high_confidence_bed = high_confidence_bed,
             ref_fasta = ref_fasta,
             ref_fasta_fai = ref_fasta_fai,
@@ -56,8 +56,8 @@ workflow STRAnalysis {
 task FilterVcfToSTR {
     input {
         String sample_id
-        File input_vcf
-        File input_vcf_index
+        File vcf
+        File vcf_index
         File high_confidence_bed
         File ref_fasta
         File ref_fasta_fai
@@ -76,7 +76,7 @@ task FilterVcfToSTR {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 16,
-        disk_gb: ceil(size(input_vcf, "GB") + size(ref_fasta, "GB") + size(high_confidence_bed, "GB")) + 20,
+        disk_gb: ceil(size(vcf, "GB") + size(ref_fasta, "GB") + size(high_confidence_bed, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -97,7 +97,7 @@ task FilterVcfToSTR {
         fi
 
         bedtools intersect -header -f 1 -wa -u \
-            -a ~{input_vcf} \
+            -a ~{vcf} \
             -b ~{high_confidence_bed} \
             | bgzip > ~{sample_id}.high_confidence_regions.vcf.gz
 
