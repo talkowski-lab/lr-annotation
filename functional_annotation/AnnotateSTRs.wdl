@@ -2,7 +2,7 @@ version 1.0
 
 import "Structs.wdl"
 
-workflow STRAnalysis {
+workflow AnnotateSTRs {
     input {
         String sample_id
         File vcf

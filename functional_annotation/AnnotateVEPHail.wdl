@@ -14,7 +14,7 @@ struct RuntimeAttr {
     Int? max_retries
 }
 
-workflow VepAnnotateHail {
+workflow AnnotateVEPHail {
 
     input {
         File? vcf_file
