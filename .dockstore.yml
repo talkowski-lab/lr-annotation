@@ -1,0 +1,19 @@
+version: 1.2
+workflows:
+  - subclass: WDL
+    name: GatherSampleEvidence
+    primaryDescriptorPath: /functional_annotation/AnalyzeSTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: VepAnnotateHail
+    primaryDescriptorPath: /functional_annotation/VepAnnotateHail.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
