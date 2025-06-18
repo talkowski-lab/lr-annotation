@@ -1,15 +1,17 @@
 version 1.0
 
-workflow AnalyzeSTRs {
+import "Structs.wdl"
+
+workflow STRAnalysis {
     input {
         String sample_id
-        File vcf
-        File vcf_index
+        File input_vcf
+        File input_vcf_index
         File high_confidence_bed
         File ref_fasta
         File ref_fasta_fai
+        String docker_image
 
-        String? docker_image
         Boolean exclude_homopolymers = false
         Boolean only_pure_repeats = false
         Boolean keep_loci_that_have_overlapping_variants = false
@@ -17,16 +19,14 @@ workflow AnalyzeSTRs {
         Int min_str_repeats = 3
         String output_suffix = "_str_variants"
 
-        Int preemptible_tries = 3
-        Int machine_mem_gb = 16
-        Int machine_cpu = 2
+        RuntimeAttr? runtime_attr_override
     }
 
     call FilterVcfToSTR {
         input:
             sample_id = sample_id,
-            vcf = vcf,
-            vcf_index = vcf_index,
+            input_vcf = input_vcf,
+            input_vcf_index = input_vcf_index,
             high_confidence_bed = high_confidence_bed,
             ref_fasta = ref_fasta,
             ref_fasta_fai = ref_fasta_fai,
@@ -37,9 +37,7 @@ workflow AnalyzeSTRs {
             min_str_length = min_str_length,
             min_str_repeats = min_str_repeats,
             output_suffix = output_suffix,
-            preemptible_tries = preemptible_tries,
-            machine_mem_gb = machine_mem_gb,
-            machine_cpu = machine_cpu
+            runtime_attr_override = runtime_attr_override
     }
 
     output {
@@ -58,13 +56,13 @@ workflow AnalyzeSTRs {
 task FilterVcfToSTR {
     input {
         String sample_id
-        File vcf
-        File vcf_index
+        File input_vcf
+        File input_vcf_index
         File high_confidence_bed
         File ref_fasta
         File ref_fasta_fai
+        String docker_image
 
-        String? docker_image
         Boolean exclude_homopolymers
         Boolean only_pure_repeats
         Boolean keep_loci_that_have_overlapping_variants
@@ -72,17 +70,23 @@ task FilterVcfToSTR {
         Int min_str_repeats
         String output_suffix
 
-        Int preemptible_tries
-        Int machine_mem_gb
-        Int machine_cpu
+        RuntimeAttr? runtime_attr_override
     }
 
-    Int machine_disk_gb = ceil(size(vcf, "GB") + size(ref_fasta, "GB") + size(high_confidence_bed, "GB")) + 20
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: ceil(size(input_vcf, "GB") + size(ref_fasta, "GB") + size(high_confidence_bed, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
 
     String min_repeat_unit_length = if exclude_homopolymers then "2" else "1"
     String allow_interruptions = if only_pure_repeats then "no" else "only-if-pure-repeats-not-found"
     String keep_loci_arg = if keep_loci_that_have_overlapping_variants then "--keep-loci-that-have-overlapping-variants" else ""
-    String docker = select_first([docker_image, "broadinstitute/gatk:latest"])
 
     command <<<
         set -exuo pipefail
@@ -93,7 +97,7 @@ task FilterVcfToSTR {
         fi
 
         bedtools intersect -header -f 1 -wa -u \
-            -a ~{vcf} \
+            -a ~{input_vcf} \
             -b ~{high_confidence_bed} \
             | bgzip > ~{sample_id}.high_confidence_regions.vcf.gz
 
@@ -113,11 +117,13 @@ task FilterVcfToSTR {
     >>>
 
     runtime {
-        docker: docker
-        memory: machine_mem_gb + " GB"
-        cpu: machine_cpu
-        disks: "local-disk " + machine_disk_gb + " HDD"
-        preemptible: preemptible_tries
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker_image
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 
     output {
