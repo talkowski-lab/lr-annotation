@@ -7,6 +7,7 @@ workflow AnnotateSVAnnotate {
         String prefix
         File coding_gtf
         File noncoding_bed
+        Int? min_svlen
 
         Array[String] contigs
 
@@ -25,6 +26,7 @@ workflow AnnotateSVAnnotate {
                 vcf_index = vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
+                min_svlen = min_svlen,
                 runtime_attr_override = runtime_attr_subset_vcf
           }
 
@@ -47,6 +49,16 @@ workflow AnnotateSVAnnotate {
         }
     }
 
+    call ConcatVcfs as ConcatUnannotated {
+        input:
+            vcfs=SubsetVcf.unannotated_vcf,
+            vcfs_idx=SubsetVcf.unannotated_tbi,
+            allow_overlaps=true,
+            outfile_prefix="~{prefix}.unannotated.concat",
+            sv_base_mini_docker=sv_base_mini_docker,
+            runtime_attr_override=runtime_attr_concat
+    }
+
     call ConcatVcfs {
         input:
             vcfs=AnnotateFunctionalConsequences.anno_vcf,
@@ -57,9 +69,31 @@ workflow AnnotateSVAnnotate {
             runtime_attr_override=runtime_attr_concat
     }
 
+    call MergeVcf {
+        input:
+            annotated_vcf = ConcatVcfs.concat_vcf,
+            annotated_tbi = ConcatVcfs.concat_vcf_idx,
+            unannotated_vcf = ConcatUnannotated.concat_vcf,
+            unannotated_tbi = ConcatUnannotated.concat_vcf_idx,
+            prefix = prefix,
+            runtime_attr_override = runtime_attr_concat
+    }
+
+    call RevertSymbolicAlts {
+        input:
+            annotated_vcf = MergeVcf.merged_vcf,
+            annotated_tbi = MergeVcf.merged_vcf_idx,
+            original_vcf = vcf,
+            original_tbi = vcf_idx,
+            prefix = prefix,
+            runtime_attr_override = runtime_attr_concat
+    }
+
     output {
-        File annotated_vcf = ConcatVcfs.concat_vcf
-        File annotated_vcf_index = ConcatVcfs.concat_vcf_idx
+        File svannotated_vcf = MergeVcf.merged_vcf
+        File svannotated_vcf_index = MergeVcf.merged_vcf_idx
+        File svannotated_reverted_vcf = RevertSymbolicAlts.reverted_vcf
+        File svannotated_reverted_vcf_index = RevertSymbolicAlts.reverted_tbi
     }
 }
 
@@ -69,22 +103,30 @@ task SubsetVcf {
         File vcf_index
         String locus
         String prefix = "subset"
+        Int? min_svlen
 
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 2*ceil(size([vcf, vcf_index], "GB")) + 1
+    Int disk_size = 4*ceil(size([vcf, vcf_index], "GB")) + 2
+
+    String filter_cmd = if defined(min_svlen) then "--include 'abs(INFO/SVLEN)>=~{min_svlen}'" else ""
+    String unannotated_cmd = if defined(min_svlen) then "bcftools view ~{vcf} --regions ~{locus} --include 'abs(INFO/SVLEN)<~{min_svlen}' | bgzip > ~{prefix}.unannotated.vcf.gz; tabix -p vcf ~{prefix}.unannotated.vcf.gz" else "touch ~{prefix}.unannotated.vcf.gz; touch ~{prefix}.unannotated.vcf.gz.tbi"
 
     command <<<
         set -euxo pipefail
 
-        bcftools view ~{vcf} --regions ~{locus} | bgzip > ~{prefix}.vcf.gz
+        bcftools view ~{vcf} --regions ~{locus} ~{filter_cmd} | bgzip > ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
+
+        ~{unannotated_cmd}
     >>>
 
     output {
         File subset_vcf = "~{prefix}.vcf.gz"
         File subset_tbi = "~{prefix}.vcf.gz.tbi"
+        File unannotated_vcf = "~{prefix}.unannotated.vcf.gz"
+        File unannotated_tbi = "~{prefix}.unannotated.vcf.gz.tbi"
     }
 
     #########################
@@ -271,6 +313,96 @@ task ConcatVcfs {
     }
 }
 
+task MergeVcf {
+    input {
+        File annotated_vcf
+        File annotated_tbi
+        File? unannotated_vcf
+        File? unannotated_tbi
+        String prefix
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String vcf_list = if (defined(unannotated_vcf))
+        then "~{annotated_vcf} ~{unannotated_vcf}"
+        else "~{annotated_vcf}"
+
+    command <<<
+        set -euxo pipefail
+        bcftools concat -a -Oz -o ~{prefix}.merged.vcf.gz ~{vcf_list}
+        tabix -p vcf ~{prefix}.merged.vcf.gz
+    >>>
+
+    output {
+        File merged_vcf = "~{prefix}.merged.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.merged.vcf.gz.tbi"
+    }
+
+    #########################
+    RuntimeAttr  runtime_default = object {
+        cpu_cores:          1,
+        mem_gb:             4,
+        disk_gb:            ceil(10 + size(annotated_vcf, "GB")*2 + size(unannotated_vcf, "GB")*2),
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        1,
+        docker:             "quay.io/ymostovoy/lr-utils-basic:latest"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, runtime_default])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         runtime_default.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            runtime_default.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           runtime_default.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      runtime_default.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       runtime_default.max_retries])
+        docker:                 select_first([runtime_attr.docker,            runtime_default.docker])
+    }
+}
+
+task RevertSymbolicAlts {
+    input {
+        File annotated_vcf
+        File annotated_tbi
+        File original_vcf
+        File original_tbi
+        String prefix
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+        
+        python /revert_symbalts.py ~{annotated_vcf} ~{original_vcf} | bcftools view -Oz -o ~{prefix}.reverted.vcf.gz
+        tabix -p vcf ~{prefix}.reverted.vcf.gz
+    >>>
+
+    output {
+        File reverted_vcf = "~{prefix}.reverted.vcf.gz"
+        File reverted_tbi = "~{prefix}.reverted.vcf.gz.tbi"
+    }
+
+    #########################
+    RuntimeAttr  runtime_default = object {
+        cpu_cores:          1,
+        mem_gb:             8,
+        disk_gb:            ceil(10 + size(annotated_vcf, "GB")*2 + size(original_vcf, "GB")),
+        boot_disk_gb:       10,
+        preemptible_tries:  2,
+        max_retries:        1,
+        docker:             "quay.io/ymostovoy/lr-process-mendelian:latest"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, runtime_default])
+    runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         runtime_default.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            runtime_default.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           runtime_default.disk_gb]) + " HDD"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      runtime_default.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       runtime_default.max_retries])
+        docker:                 select_first([runtime_attr.docker,            runtime_default.docker])
+    }
+}
 
 struct RuntimeAttr {
     Float? mem_gb

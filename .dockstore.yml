@@ -1,8 +1,26 @@
 version: 1.2
 workflows:
   - subclass: WDL
+    name: AnnotateAF
+    primaryDescriptorPath: /wdl/AnnotateAF.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+  
+  - subclass: WDL
     name: AnnotateSTRs
-    primaryDescriptorPath: /functional_annotation/AnnotateSTRs.wdl
+    primaryDescriptorPath: /wdl/AnnotateSTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateSVAnnotate
+    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
     filters:
       branches:
         - main
@@ -11,7 +29,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateVEPHail
-    primaryDescriptorPath: /functional_annotation/AnnotateVEPHail.wdl
+    primaryDescriptorPath: /wdl/AnnotateVEPHail.wdl
     filters:
       branches:
         - main

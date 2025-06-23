@@ -41,15 +41,15 @@ workflow AnnotateSTRs {
     }
 
     output {
-        File filtered_vcf = FilterVcfToSTR.filtered_vcf
-        File filtered_vcf_index = FilterVcfToSTR.filtered_vcf_index
-        File variants_tsv = FilterVcfToSTR.variants_tsv
-        File alleles_tsv = FilterVcfToSTR.alleles_tsv
-        File variants_bed = FilterVcfToSTR.variants_bed
-        File variants_bed_index = FilterVcfToSTR.variants_bed_index
-        File filter_log = FilterVcfToSTR.filter_log
-        File high_confidence_vcf = FilterVcfToSTR.high_confidence_vcf
-        File high_confidence_vcf_index = FilterVcfToSTR.high_confidence_vcf_index
+        File str_filtered_vcf = FilterVcfToSTR.filtered_vcf
+        File str_filtered_vcf_index = FilterVcfToSTR.filtered_vcf_index
+        File str_variants_tsv = FilterVcfToSTR.variants_tsv
+        File str_alleles_tsv = FilterVcfToSTR.alleles_tsv
+        File str_variants_bed = FilterVcfToSTR.variants_bed
+        File str_variants_bed_index = FilterVcfToSTR.variants_bed_index
+        File str_filter_log = FilterVcfToSTR.filter_log
+        File str_high_confidence_vcf = FilterVcfToSTR.high_confidence_vcf
+        File str_high_confidence_vcf_index = FilterVcfToSTR.high_confidence_vcf_index
     }
 }
 

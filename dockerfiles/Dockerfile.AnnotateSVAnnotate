@@ -1,0 +1,10 @@
+FROM quay.io/ymostovoy/lr-utils-basic:2.0
+
+MAINTAINER Yulia Mostovoy
+
+COPY ./scripts/annotate_svannotate/symbalts.py /
+COPY ./scripts/annotate_svannotate/revert_symbalts.py /
+
+RUN apt-get update && apt-get install python3-pip -y
+
+RUN pip3 install pysam

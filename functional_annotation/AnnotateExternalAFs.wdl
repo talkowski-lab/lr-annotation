@@ -1,6 +1,6 @@
 version 1.0
 
-workflow AnnotateAF {
+workflow AnnotateExternalAFs {
     input {
         File vcf
         File vcf_idx

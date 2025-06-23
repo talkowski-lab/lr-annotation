@@ -1,0 +1,13 @@
+FROM quay.io/ymostovoy/lr-utils-basic:2.0
+
+MAINTAINER Yulia Mostovoy
+
+COPY ./scripts/annotate_external_afs/dup_to_ins_LR.py /
+COPY ./scripts/annotate_external_afs/ins_to_dup.py /
+COPY ./scripts/annotate_external_afs/ins_to_dup_collapse.py /
+COPY ./scripts/annotate_external_afs/abs_svlen.py /
+COPY ./scripts/annotate_external_afs/orig_dup_to_dup.py /
+
+RUN apt-get update && apt-get install python3-pip -y
+
+RUN pip3 install pysam
