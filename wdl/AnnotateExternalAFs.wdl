@@ -71,8 +71,8 @@ workflow AnnotateExternalAFs {
     }
 
     output {
-        File annotated_vcf = PostprocessVcf.final_vcf
-        File annotated_vcf_index = PostprocessVcf.final_tbi
+        File externalaf_vcf = PostprocessVcf.final_vcf
+        File externalaf_index = PostprocessVcf.final_tbi
     }
 }
 
