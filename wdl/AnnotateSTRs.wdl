@@ -49,16 +49,41 @@ workflow AnnotateSTRs {
                 output_suffix = output_suffix,
                 runtime_attr_override = runtime_attr_override
         }
+
+        call RestoreVariantID {
+            input:
+                vcf = FilterVcfToSTR.filtered_vcf,
+                vcf_index = FilterVcfToSTR.filtered_vcf_index,
+                sample_id = sample_id,
+                output_suffix = output_suffix,
+                docker_image = docker_image,
+                runtime_attr_override = runtime_attr_override
+        }
+    }
+
+    call MergeSTRVcfs {
+        input:
+            vcfs = RestoreVariantID.restored_id_vcf,
+            vcf_indices = RestoreVariantID.restored_id_vcf_index,
+            prefix = sample_ids[0],
+            docker_image = docker_image,
+            runtime_attr_override = runtime_attr_override
+    }
+
+    call CombineWithOriginalVcf {
+        input:
+            original_vcf = vcf,
+            original_vcf_index = vcf_index,
+            str_vcf = MergeSTRVcfs.merged_vcf,
+            str_vcf_index = MergeSTRVcfs.merged_vcf_index,
+            prefix = sample_ids[0],
+            docker_image = docker_image,
+            runtime_attr_override = runtime_attr_override
     }
 
     output {
-        Array[File] str_filtered_vcfs = FilterVcfToSTR.filtered_vcf
-        Array[File] str_filtered_vcf_indices = FilterVcfToSTR.filtered_vcf_index
-        Array[File] str_variants_tsvs = FilterVcfToSTR.variants_tsv
-        Array[File] str_alleles_tsvs = FilterVcfToSTR.alleles_tsv
-        Array[File] str_variants_beds = FilterVcfToSTR.variants_bed
-        Array[File] str_variants_bed_indices = FilterVcfToSTR.variants_bed_index
-        Array[File] str_filter_logs = FilterVcfToSTR.filter_log
+        File str_filtered_vcf = CombineWithOriginalVcf.final_vcf
+        File str_filtered_vcf_index = CombineWithOriginalVcf.final_vcf_index
     }
 }
 
@@ -196,5 +221,147 @@ task FilterVcfToSTR {
         File variants_bed = "~{sample_id}~{output_suffix}.variants.bed.gz"
         File variants_bed_index = "~{sample_id}~{output_suffix}.variants.bed.gz.tbi"
         File filter_log = "~{sample_id}~{output_suffix}.filter_vcf.log"
+    }
+}
+
+task RestoreVariantID {
+    input {
+        String sample_id
+        File vcf
+        File vcf_index
+        String output_suffix
+        String docker_image
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+    command <<<
+        set -exuo pipefail
+
+        if [[ $(zgrep -vc "^#" ~{vcf}) -eq 0 ]]; then
+            touch ~{sample_id}~{output_suffix}.restored_id.vcf.gz
+            touch ~{sample_id}~{output_suffix}.restored_id.vcf.gz.tbi
+        else
+            bcftools annotate --set-id '%INFO/ID' ~{vcf} -Oz -o ~{sample_id}~{output_suffix}.restored_id.vcf.gz
+            tabix ~{sample_id}~{output_suffix}.restored_id.vcf.gz
+        fi
+    >>>
+
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker_image
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+
+    output {
+        File restored_id_vcf = "~{sample_id}~{output_suffix}.restored_id.vcf.gz"
+        File restored_id_vcf_index = "~{sample_id}~{output_suffix}.restored_id.vcf.gz.tbi"
+    }
+}
+
+task MergeSTRVcfs {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_indices
+        String prefix
+        String docker_image
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: ceil(size(vcfs, "GB") * 1.5) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+    command <<<
+        set -exuo pipefail
+
+        ls ~{sep=' ' vcfs} > vcf_list.txt
+        bcftools merge --file-list vcf_list.txt -Oz -o ~{prefix}.merged.vcf.gz
+        tabix ~{prefix}.merged.vcf.gz
+    >>>
+
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker_image
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+
+    output {
+        File merged_vcf = "~{prefix}.merged.vcf.gz"
+        File merged_vcf_index = "~{prefix}.merged.vcf.gz.tbi"
+    }
+}
+
+task CombineWithOriginalVcf {
+    input {
+        File original_vcf
+        File original_vcf_index
+        File str_vcf
+        File str_vcf_index
+        String prefix
+        String docker_image
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: ceil(size(original_vcf, "GB") + size(str_vcf, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+    command <<<
+        set -exuo pipefail
+
+        bcftools query -f '%ID\n' ~{str_vcf} > str_ids.txt
+
+        bcftools view ~{original_vcf} -e 'ID=@str_ids.txt' -Oz -o non_str_variants.vcf.gz
+
+        bcftools concat -a -D -Oz -o ~{prefix}.final.vcf.gz non_str_variants.vcf.gz ~{str_vcf}
+        tabix ~{prefix}.final.vcf.gz
+    >>>
+
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker_image
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+
+    output {
+        File final_vcf = "~{prefix}.final.vcf.gz"
+        File final_vcf_index = "~{prefix}.final.vcf.gz.tbi"
     }
 } 
