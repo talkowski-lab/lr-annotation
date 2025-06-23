@@ -110,16 +110,21 @@ task SubsetVcf {
 
     Int disk_size = 4*ceil(size([vcf, vcf_index], "GB")) + 2
 
-    String filter_cmd = if defined(min_svlen) then "--include 'abs(INFO/SVLEN)>=~{min_svlen}'" else ""
-    String unannotated_cmd = if defined(min_svlen) then "bcftools view ~{vcf} --regions ~{locus} --include 'abs(INFO/SVLEN)<~{min_svlen}' | bgzip > ~{prefix}.unannotated.vcf.gz; tabix -p vcf ~{prefix}.unannotated.vcf.gz" else "touch ~{prefix}.unannotated.vcf.gz; touch ~{prefix}.unannotated.vcf.gz.tbi"
-
     command <<<
         set -euxo pipefail
 
-        bcftools view ~{vcf} --regions ~{locus} ~{filter_cmd} | bgzip > ~{prefix}.vcf.gz
+        VCF_FILE="~{vcf}"
+
+        bcftools view $VCF_FILE --regions ~{locus} ${if defined(min_svlen) then "--include 'abs(INFO/SVLEN)>=~{select_first([min_svlen])}'" else ""} | bgzip > ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
 
-        ~{unannotated_cmd}
+        if ${defined(min_svlen)}; then
+            bcftools view $VCF_FILE --regions ~{locus} --include 'abs(INFO/SVLEN)<~{select_first([min_svlen])}' | bgzip > ~{prefix}.unannotated.vcf.gz
+            tabix -p vcf ~{prefix}.unannotated.vcf.gz
+        else
+            touch ~{prefix}.unannotated.vcf.gz
+            touch ~{prefix}.unannotated.vcf.gz.tbi
+        fi
     >>>
 
     output {
