@@ -114,16 +114,20 @@ task SubsetVcf {
         set -euxo pipefail
 
         VCF_FILE="~{vcf}"
+        MIN_SVLEN="~{min_svlen}"
 
-        bcftools view $VCF_FILE --regions ~{locus} ${if defined(min_svlen) then "--include 'abs(INFO/SVLEN)>=~{select_first([min_svlen])}'" else ""} | bgzip > ~{prefix}.vcf.gz
-        tabix -p vcf ~{prefix}.vcf.gz
+        if [ -n "$MIN_SVLEN" ]; then
+            bcftools view "$VCF_FILE" --regions "~{locus}" --include "abs(INFO/SVLEN)>=$MIN_SVLEN" | bgzip > "~{prefix}.vcf.gz"
+            tabix -p vcf "~{prefix}.vcf.gz"
 
-        if ${defined(min_svlen)}; then
-            bcftools view $VCF_FILE --regions ~{locus} --include 'abs(INFO/SVLEN)<~{select_first([min_svlen])}' | bgzip > ~{prefix}.unannotated.vcf.gz
-            tabix -p vcf ~{prefix}.unannotated.vcf.gz
+            bcftools view "$VCF_FILE" --regions "~{locus}" --include "abs(INFO/SVLEN)<$MIN_SVLEN" | bgzip > "~{prefix}.unannotated.vcf.gz"
+            tabix -p vcf "~{prefix}.unannotated.vcf.gz"
         else
-            touch ~{prefix}.unannotated.vcf.gz
-            touch ~{prefix}.unannotated.vcf.gz.tbi
+            bcftools view "$VCF_FILE" --regions "~{locus}" | bgzip > "~{prefix}.vcf.gz"
+            tabix -p vcf "~{prefix}.vcf.gz"
+            
+            touch "~{prefix}.unannotated.vcf.gz"
+            touch "~{prefix}.unannotated.vcf.gz.tbi"
         fi
     >>>
 
