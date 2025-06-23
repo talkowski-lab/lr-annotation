@@ -171,7 +171,6 @@ task FilterVcfToSTR {
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
-
     String min_repeat_unit_length = if exclude_homopolymers then "2" else "1"
     String allow_interruptions = if only_pure_repeats then "no" else "only-if-pure-repeats-not-found"
     String keep_loci_arg = if keep_loci_that_have_overlapping_variants then "--keep-loci-that-have-overlapping-variants" else ""
@@ -179,16 +178,19 @@ task FilterVcfToSTR {
     command <<<
         set -exuo pipefail
 
-        if [[ $(zgrep -vc "^#" ~{vcf}) -eq 0 ]]; then
-            touch ~{sample_id}~{output_suffix}.vcf.gz
-            touch ~{sample_id}~{output_suffix}.vcf.gz.tbi
-            touch ~{sample_id}~{output_suffix}.variants.tsv.gz
-            touch ~{sample_id}~{output_suffix}.alleles.tsv.gz
-            touch ~{sample_id}~{output_suffix}.variants.bed.gz
-            touch ~{sample_id}~{output_suffix}.variants.bed.gz.tbi
-            touch ~{sample_id}~{output_suffix}.filter_vcf.log
-            exit 0
-        fi
+        FINAL_PREFIX="~{sample_id}~{output_suffix}"
+
+        # Create a header file with missing INFO field definitions
+        cat <<EOT >> header.txt
+##INFO=<ID=LocusId,Number=1,Type=String,Description="Locus ID">
+##INFO=<ID=Locus,Number=1,Type=String,Description="Locus coordinates">
+##INFO=<ID=Motif,Number=1,Type=String,Description="Repeat motif">
+##INFO=<ID=NumRepeatsShortAllele,Number=1,Type=Integer,Description="Number of repeats in the shorter allele">
+##INFO=<ID=NumRepeatsLongAllele,Number=A,Type=Integer,Description="Number of repeats in the longer allele">
+##INFO=<ID=NumRepeatsInReference,Number=1,Type=Float,Description="Number of repeats in the reference">
+##INFO=<ID=IsPureRepeat,Number=1,Type=String,Description="Whether the repeat is pure">
+##INFO=<ID=MotifInterruptionIndex,Number=A,Type=Integer,Description="Index of motif interruption">
+EOT
 
         python3 -u -m str_analysis.filter_vcf_to_STR_variants \
             -R ~{ref_fasta} \
@@ -198,9 +200,13 @@ task FilterVcfToSTR {
             --min-str-repeats ~{min_str_repeats} \
             --min-repeat-unit-length ~{min_repeat_unit_length} \
             ~{keep_loci_arg} \
-            --output-prefix ~{sample_id}~{output_suffix} \
+            --output-prefix ${FINAL_PREFIX} \
             --verbose \
-            ~{vcf} |& tee ~{sample_id}~{output_suffix}.filter_vcf.log
+            ~{vcf} |& tee ${FINAL_PREFIX}.filter_vcf.log
+
+        bcftools reheader -h header.txt ${FINAL_PREFIX}.vcf.gz | bgzip > ${FINAL_PREFIX}.reheadered.vcf.gz
+        mv ${FINAL_PREFIX}.reheadered.vcf.gz ${FINAL_PREFIX}.vcf.gz
+        tabix -f ${FINAL_PREFIX}.vcf.gz
     >>>
 
     runtime {
