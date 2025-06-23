@@ -1,8 +1,8 @@
 version: 1.2
 workflows:
   - subclass: WDL
-    name: AnnotateAF
-    primaryDescriptorPath: /wdl/AnnotateAF.wdl
+    name: AnnotateExternalAFs
+    primaryDescriptorPath: /wdl/AnnotateExternalAFs.wdl
     filters:
       branches:
         - main
