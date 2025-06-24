@@ -204,7 +204,7 @@ EOT
             --verbose \
             ~{vcf} |& tee ${FINAL_PREFIX}.filter_vcf.log
 
-        bcftools reheader -h header.txt ${FINAL_PREFIX}.vcf.gz | bgzip > ${FINAL_PREFIX}.reheadered.vcf.gz
+        gunzip -c ${FINAL_PREFIX}.vcf.gz | bcftools reheader -h header.txt - | bgzip > ${FINAL_PREFIX}.reheadered.vcf.gz
         mv ${FINAL_PREFIX}.reheadered.vcf.gz ${FINAL_PREFIX}.vcf.gz
         tabix -f ${FINAL_PREFIX}.vcf.gz
     >>>
