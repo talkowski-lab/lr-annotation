@@ -94,8 +94,6 @@ workflow AnnotateSVAnnotate {
     }
 
     output {
-        File svannotated_vcf = MergeVcf.merged_vcf
-        File svannotated_vcf_index = MergeVcf.merged_vcf_idx
         File svannotated_reverted_vcf = RevertSymbolicAlts.reverted_vcf
         File svannotated_reverted_vcf_index = RevertSymbolicAlts.reverted_tbi
     }

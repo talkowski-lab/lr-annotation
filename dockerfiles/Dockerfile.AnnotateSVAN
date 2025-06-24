@@ -52,13 +52,18 @@ RUN cd /opt && \
 
 # Install TRF (Tandem Repeat Finder)
 RUN cd /opt && \
-    wget http://tandem.bu.edu/trf/downloads/trf409.linux64 && \
-    chmod +x trf409.linux64 && \
-    ln -s /opt/trf409.linux64 /usr/local/bin/trf
+    git clone https://github.com/Benson-Genomics-Lab/TRF.git && \
+    cd TRF && \
+    mkdir build && \
+    cd build && \
+    ../configure && \
+    make && \
+    cp src/trf /usr/local/bin/trf
 
-# Create app directory and copy SVAN
-RUN mkdir -p /app
-COPY SVAN/ /app/SVAN/
+# Create app directory and clone SVAN
+RUN mkdir -p /app && \
+    cd /app && \
+    git clone https://github.com/REPBIO-LAB/SVAN.git
 
 # Set PYTHONPATH to include SVAN modules
 ENV PYTHONPATH="/app/SVAN:${PYTHONPATH}"
