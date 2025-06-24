@@ -1,16 +1,8 @@
-
 version 1.0
 
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-}
+import "Structs.wdl"
 
-workflow mergeVCFs_workflow {
+workflow MergeVCFs {
     input {
         Array[File] vcf_files
         String sv_base_mini_docker
@@ -18,7 +10,7 @@ workflow mergeVCFs_workflow {
         Boolean sort_after_merge
     }
 
-    call mergeVCFs {
+    call CombineVCFs {
         input:
         vcf_files=vcf_files,
         sv_base_mini_docker=sv_base_mini_docker,
@@ -27,12 +19,12 @@ workflow mergeVCFs_workflow {
     }
 
     output {
-        File merged_vcf_file = mergeVCFs.merged_vcf_file
-        File merged_vcf_idx = mergeVCFs.merged_vcf_idx
+        File merged_vcf_file = CombineVCFs.merged_vcf_file
+        File merged_vcf_idx = CombineVCFs.merged_vcf_idx
     }
 }
 
-task mergeVCFSamples {
+task CombineVCFSamples {
     input {
         Array[File] vcf_files
         String merged_filename
@@ -54,13 +46,11 @@ task mergeVCFSamples {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: sv_base_mini_docker
@@ -85,7 +75,7 @@ task mergeVCFSamples {
     }
 }
 
-task mergeVCFs {
+task CombineVCFs {
     input {
         Array[File] vcf_files
         String sv_base_mini_docker
@@ -114,11 +104,9 @@ task mergeVCFs {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
 
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
         cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])

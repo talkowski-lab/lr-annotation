@@ -1,18 +1,9 @@
 version 1.0
 
-import "helpers.wdl" as helpers
+import "Structs.wdl"
+import "Helpers.wdl" as Helpers
 
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-}
-
-workflow scatterVCF_workflow {
-
+workflow ScatterVCF {
     input {
         File file
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
@@ -36,7 +27,7 @@ workflow scatterVCF_workflow {
         if (!localize_vcf) {
             String vcf_uri = file
             if (get_chromosome_sizes) {
-                call getChromosomeSizes {
+                call GetChromosomeSizes {
                     input:
                         vcf_file=vcf_uri,
                         has_index=select_first([has_index]),
@@ -45,13 +36,14 @@ workflow scatterVCF_workflow {
             }
         }
 
-        Map[String, Array[String]] chromosomes_dict = 
-            {'GRCh38': ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22", "chrX", "chrY"],
-            'GRCh37': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 'X', 'Y']}
+        Map[String, Array[String]] chromosomes_dict = {
+            'GRCh38': ["chr1", "chr2", "chr3", "chr4", "chr5", "chr6", "chr7", "chr8", "chr9", "chr10", "chr11", "chr12", "chr13", "chr14", "chr15", "chr16", "chr17", "chr18", "chr19", "chr20", "chr21", "chr22", "chrX", "chrY"],
+            'GRCh37': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 'X', 'Y']
+        }
         Array[String] chromosomes = chromosomes_dict[genome_build]
         scatter (chromosome in chromosomes) {
             if (localize_vcf) {
-                call splitByChromosome {
+                call SplitByChromosome {
                     input:
                         vcf_file=file,
                         chromosome=chromosome,
@@ -63,9 +55,9 @@ workflow scatterVCF_workflow {
                 String vcf_uri = file
                 Float input_size_ = if (get_chromosome_sizes) then 
                 # chrom_length * ceil(n_samples*0.001) / 1000000
-                    select_first([getChromosomeSizes.contig_lengths])[chromosome] * ceil(select_first([getChromosomeSizes.n_samples])*0.001) / 1000000 
+                    select_first([GetChromosomeSizes.contig_lengths])[chromosome] * ceil(select_first([GetChromosomeSizes.n_samples])*0.001) / 1000000 
                     else size(vcf_uri, 'GB')
-                call splitByChromosomeRemote {
+                call SplitByChromosomeRemote {
                     input:
                         vcf_file=vcf_uri,
                         chromosome=chromosome,
@@ -75,8 +67,8 @@ workflow scatterVCF_workflow {
                         runtime_attr_override=runtime_attr_split_by_chr
                 }
             }
-            File splitChromosomeShards = select_first([splitByChromosome.shards, splitByChromosomeRemote.shards])
-            Float splitChromosomeContigLengths = select_first([splitByChromosome.contig_lengths, splitByChromosomeRemote.contig_lengths])
+            File splitChromosomeShards = select_first([SplitByChromosome.shards, SplitByChromosomeRemote.shards])
+            Float splitChromosomeContigLengths = select_first([SplitByChromosome.contig_lengths, SplitByChromosomeRemote.contig_lengths])
             Pair[File, Float] split_chromosomes = (splitChromosomeShards, splitChromosomeContigLengths)
         }
     }
@@ -88,7 +80,7 @@ workflow scatterVCF_workflow {
                 File chrom_shard = select_first([chrom_pair.left])
                 Float chrom_n_records = select_first([chrom_pair.right])
                 Int chrom_n_shards = ceil(chrom_n_records / select_first([records_per_shard, 0]))
-                call scatterVCF as scatterChromosomes {
+                call ExecuteScattering as scatterChromosomes {
                     input:
                         vcf_file=chrom_shard,
                         split_vcf_hail_script=split_vcf_hail_script,
@@ -104,25 +96,25 @@ workflow scatterVCF_workflow {
         
         if (!defined(split_chromosomes)) {
             if (localize_vcf) {
-                call scatterVCF {
-                input:
-                    vcf_file=file,
-                    split_vcf_hail_script=split_vcf_hail_script,
-                    n_shards=select_first([n_shards]),
-                    records_per_shard=select_first([records_per_shard, 0]),
-                    hail_docker=hail_docker,
-                    genome_build=genome_build,
-                    runtime_attr_override=runtime_attr_split_into_shards
-                }
+                call ExecuteScattering {
+                    input:
+                        vcf_file=file,
+                        split_vcf_hail_script=split_vcf_hail_script,
+                        n_shards=select_first([n_shards]),
+                        records_per_shard=select_first([records_per_shard, 0]),
+                        hail_docker=hail_docker,
+                        genome_build=genome_build,
+                        runtime_attr_override=runtime_attr_split_into_shards
+                    }
             }
             if (!localize_vcf) {
                 String mt_uri = file
-                call helpers.getHailMTSize as getHailMTSize {
+                call Helpers.GetHailMTSize as getHailMTSize {
                 input:
                     mt_uri=mt_uri,
                     hail_docker=hail_docker
                 }
-                call scatterVCFRemote {
+                call ScatterVCFRemote {
                 input:
                     vcf_file=mt_uri,
                     input_size=getHailMTSize.mt_size,
@@ -138,23 +130,21 @@ workflow scatterVCF_workflow {
     }    
 
     output {
-    Array[File] vcf_shards = select_first([scatterVCF.shards, scatterVCFRemote.shards, chromosome_shards, 
-                                        splitChromosomeShards, [file]])
+        Array[File] vcf_shards = select_first([ExecuteScattering.shards, ScatterVCFRemote.shards, chromosome_shards, splitChromosomeShards, [file]])
     }
 }   
 
-task getChromosomeSizes {
+task GetChromosomeSizes {
     input {
         String vcf_file
         String sv_base_mini_docker
         Boolean has_index
         RuntimeAttr? runtime_attr_override
     }
+    
     Float base_disk_gb = 10.0
-    Float input_disk_scale = 5.0
-        String filename = basename(vcf_file)
+    String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
 
     RuntimeAttr runtime_default = object {
         mem_gb: 4,
@@ -169,13 +159,14 @@ task getChromosomeSizes {
 
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb])} HDD"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
         cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: sv_base_mini_docker
         bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
     }
+    
     command <<<        
         set -euo pipefail
         if [[ "~{has_index}" == "false" ]]; then
@@ -194,23 +185,20 @@ task getChromosomeSizes {
     }
 }
 
-task splitByChromosomeRemote { 
+task SplitByChromosomeRemote { 
     input {
         String vcf_file
         String chromosome
         String sv_base_mini_docker
         Float input_size
-        # Float chrom_length
-        # Float n_samples
         Boolean has_index
         RuntimeAttr? runtime_attr_override
     }
-    # Float input_size = chrom_length * ceil(n_samples*0.001) / 1000000  # assume ~1 million records == 1 GB for 375 samples, and sample scale is 0.001
+    
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
-        String filename = basename(vcf_file)
+    String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
 
     RuntimeAttr runtime_default = object {
         mem_gb: 4,
@@ -225,7 +213,7 @@ task splitByChromosomeRemote {
 
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb])} HDD"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
         cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
@@ -235,12 +223,6 @@ task splitByChromosomeRemote {
 
     command <<<        
         set -euo pipefail
-        # if [[ "~{has_index}" == "false" ]]; then
-        #     mkfifo /tmp/token_fifo
-        #     ( while true ; do curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token > /tmp/token_fifo ; done ) &
-        #     HTS_AUTH_LOCATION=/tmp/token_fifo tabix --verbosity 3 ~{vcf_file}
-        # fi;
-        # export GCS_OAUTH_TOKEN=`/google-cloud-sdk/bin/gcloud auth application-default print-access-token`
         mkfifo /tmp/token_fifo
         ( while true ; do curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token > /tmp/token_fifo ; done ) &
         HTS_AUTH_LOCATION=/tmp/token_fifo tabix --verbosity 3 -h ~{vcf_file} ~{chromosome} | bgzip -c > ~{prefix}."~{chromosome}".vcf.gz
@@ -257,13 +239,14 @@ task splitByChromosomeRemote {
     }
 }
 
-task splitByChromosome { 
+task SplitByChromosome { 
     input {
         File vcf_file
         String chromosome
         String sv_base_mini_docker
         RuntimeAttr? runtime_attr_override
     }
+    
     Float input_size = size(vcf_file, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 2.0
@@ -309,7 +292,7 @@ task splitByChromosome {
     }
 }
 
-task scatterVCF {
+task ExecuteScattering {
     input {
         File vcf_file
         Int n_shards
@@ -326,7 +309,6 @@ task scatterVCF {
     String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
 
-
     RuntimeAttr runtime_default = object {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
@@ -337,14 +319,11 @@ task scatterVCF {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -354,7 +333,7 @@ task scatterVCF {
     command <<<
         set -euo pipefail
         curl  ~{split_vcf_hail_script} > split_vcf.py
-        python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{cpu_cores} ~{memory} ~{genome_build}
+        python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} ~{genome_build}
         for file in $(ls ~{prefix}.vcf.bgz | grep '.bgz'); do
             shard_num=$(echo $file | cut -d '-' -f2);
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz
@@ -366,7 +345,7 @@ task scatterVCF {
     }
 }
 
-task scatterVCFRemote {
+task ScatterVCFRemote {
     input {
         String vcf_file
         Float input_size
@@ -393,13 +372,11 @@ task scatterVCFRemote {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -409,7 +386,7 @@ task scatterVCFRemote {
     command <<<
         set -euo pipefail
         curl  ~{split_vcf_hail_script} > split_vcf.py
-        python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{cpu_cores} ~{memory} ~{genome_build}
+        python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} ~{genome_build}
         for file in $(ls ~{prefix}.vcf.bgz | grep '.bgz'); do
             shard_num=$(echo $file | cut -d '-' -f2);
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz

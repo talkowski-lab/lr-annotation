@@ -1,18 +1,10 @@
 
 version 1.0
 
-import "mergeVCFs.wdl" as mergeVCFs
+import "Structs.wdl"
+import "MergeVCFs.wdl" as MergeVCFs
 
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-}
-
-task splitFile {
+task SplitFile {
     input {
         File file
         Int shards_per_chunk

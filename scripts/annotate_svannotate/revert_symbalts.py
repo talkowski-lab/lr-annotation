@@ -27,7 +27,8 @@ def main():
                 # Create a new record to avoid modifying the original
                 new_record = annotated_record.copy()
 
-                # Revert ALT and SVLEN
+                # Revert REF, ALT and SVLEN
+                new_record.ref = original_record.ref
                 new_record.alts = original_record.alts
                 if 'SVLEN' in original_record.info:
                     new_record.info['SVLEN'] = original_record.info['SVLEN']

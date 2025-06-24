@@ -1,21 +1,12 @@
 version 1.0
     
-import "scatterVCF.wdl" as scatterVCF
-import "mergeSplitVCF.wdl" as mergeSplitVCF
-import "mergeVCFs.wdl" as mergeVCFs
-import "helpers.wdl" as helpers
-
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-}
+import "Structs.wdl"
+import "ScatterVCF.wdl" as ScatterVCF
+import "MergeSplitVCF.wdl" as MergeSplitVCF
+import "MergeVCFs.wdl" as MergeVCFs
+import "Helpers.wdl" as Helpers
 
 workflow AnnotateVEPHail {
-
     input {
         File? vcf_file
 
@@ -60,7 +51,7 @@ workflow AnnotateVEPHail {
     # input is not a single VCF file, so merge shards in chunks, then run VEP on merged chunks
     if (merge_split_vcf) { 
         # combine pre-sharded VCFs into chunks
-        call mergeSplitVCF.splitFile as splitFile {
+        call MergeSplitVCF.SplitFile as splitFile {
             input:
                 file=file,
                 shards_per_chunk=shards_per_chunk,
@@ -68,7 +59,7 @@ workflow AnnotateVEPHail {
                 hail_docker=hail_docker
         }
         scatter (chunk_file in splitFile.chunks) {
-            call mergeVCFs.mergeVCFs as mergeVCFs {
+            call MergeVCFs.CombineVCFs {
                 input:
                     vcf_files=read_lines(chunk_file),
                     vcf_indices=[chunk_file],  # dummy input
@@ -78,9 +69,9 @@ workflow AnnotateVEPHail {
                     cohort_prefix=basename(chunk_file),
                     runtime_attr_override=runtime_attr_merge_vcfs
             }
-            call vepAnnotate as vepAnnotateMergedShards {
+            call VepAnnotate as VepAnnotateMergedShards {
                 input:
-                    vcf_file=mergeVCFs.merged_vcf_file,
+                    vcf_file=CombineVCFs.merged_vcf_file,
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
@@ -94,10 +85,10 @@ workflow AnnotateVEPHail {
                     runtime_attr_override=runtime_attr_vep_annotate
             }
 
-            call helpers.addGenotypes as addGenotypesMergedShards {
+            call Helpers.AddGenotypes as AddGenotypesMergedShards {
                 input:
-                annot_vcf_file=vepAnnotateMergedShards.vep_vcf_file,
-                vcf_file=mergeVCFs.merged_vcf_file,
+                annot_vcf_file=VepAnnotateMergedShards.vep_vcf_file,
+                vcf_file=CombineVCFs.merged_vcf_file,
                 hail_docker=hail_docker,
                 genome_build=genome_build,
                 runtime_attr_override=runtime_attr_annotate_add_genotypes
@@ -107,7 +98,7 @@ workflow AnnotateVEPHail {
 
     if (!merge_split_vcf) {
         if (!defined(vcf_shards)) {
-            call scatterVCF.scatterVCF_workflow as scatterVCF {
+            call ScatterVCF.ScatterVCF {
                 input:
                     file=file,
                     split_vcf_hail_script=split_vcf_hail_script,
@@ -119,10 +110,10 @@ workflow AnnotateVEPHail {
                     split_into_shards=split_into_shards,
             }
         }
-        Array[File] vcf_shards_ = select_first([scatterVCF.vcf_shards, vcf_shards])
+        Array[File] vcf_shards_ = select_first([ScatterVCF.vcf_shards, vcf_shards])
     
         scatter (vcf_shard in vcf_shards_) {
-            call vepAnnotate {
+            call VepAnnotate {
                 input:
                     vcf_file=vcf_shard,
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
@@ -137,9 +128,9 @@ workflow AnnotateVEPHail {
                     genome_build=genome_build,
                     runtime_attr_override=runtime_attr_vep_annotate
             }
-            call helpers.addGenotypes as addGenotypes {
+            call Helpers.AddGenotypes as AddGenotypes {
                 input:
-                annot_vcf_file=vepAnnotate.vep_vcf_file,
+                annot_vcf_file=VepAnnotate.vep_vcf_file,
                 vcf_file=vcf_shard,
                 hail_docker=hail_docker,
                 genome_build=genome_build,
@@ -149,12 +140,12 @@ workflow AnnotateVEPHail {
     }
 
     output {
-        Array[File] vep_vcfs = select_first([addGenotypesMergedShards.combined_vcf_file, addGenotypes.combined_vcf_file])
-        Array[File] vep_vcfs_index = select_first([addGenotypesMergedShards.combined_vcf_idx, addGenotypes.combined_vcf_idx])
+        Array[File] vep_vcfs = select_first([AddGenotypesMergedShards.combined_vcf_file, AddGenotypes.combined_vcf_file])
+        Array[File] vep_vcfs_index = select_first([AddGenotypesMergedShards.combined_vcf_idx, AddGenotypes.combined_vcf_idx])
     }
 }   
 
-task vepAnnotate {
+task VepAnnotate {
     input {
         File vcf_file
         File top_level_fa
@@ -188,13 +179,11 @@ task vepAnnotate {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: vep_hail_docker
@@ -237,7 +226,7 @@ task vepAnnotate {
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
         proj_id=$(gcloud config get-value project)
-        python3.9 vep_annotate.py -i ~{vcf_file} -o ~{vep_annotated_vcf_name} --cores ~{cpu_cores} --mem ~{memory} \
+        python3.9 vep_annotate.py -i ~{vcf_file} -o ~{vep_annotated_vcf_name} --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
         --reannotate-ac-af ~{reannotate_ac_af} --build ~{genome_build} --project-id $proj_id
         cp $(ls . | grep hail*.log) hail_log.txt
         bcftools index -t ~{vep_annotated_vcf_name}

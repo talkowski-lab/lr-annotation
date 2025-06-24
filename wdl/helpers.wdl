@@ -1,16 +1,8 @@
 version 1.0
 
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-}
+import "Structs.wdl"
 
-
-task addGenotypes {
+task AddGenotypes {
     input {
         File annot_vcf_file
         File vcf_file
@@ -31,8 +23,6 @@ task addGenotypes {
                                       boot_disk_gb: 10
                                   }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
@@ -131,7 +121,7 @@ task addGenotypes {
     hl.export_vcf(dataset=annot_mt, output=combined_vcf_name, metadata=header, tabix=True)
     EOF
 
-    python3 merge_vcfs.py -i ~{vcf_file} -a ~{annot_vcf_file} -o ~{combined_vcf_name} --cores ~{cpu_cores} --mem ~{memory} \
+    python3 merge_vcfs.py -i ~{vcf_file} -a ~{annot_vcf_file} -o ~{combined_vcf_name} --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
         --build ~{genome_build}
     >>>
 
@@ -142,7 +132,7 @@ task addGenotypes {
 
 }
 
-task splitFileWithHeader {
+task SplitFileWithHeader {
     input {
         File file
         Int shards_per_chunk
@@ -164,13 +154,11 @@ task splitFileWithHeader {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -208,7 +196,7 @@ task splitFileWithHeader {
     }
 }
 
-task splitSamples {
+task SplitSamples {
     input {
         File vcf_file
         Int samples_per_chunk
@@ -231,13 +219,11 @@ task splitSamples {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: sv_base_mini_docker
@@ -278,7 +264,7 @@ task splitSamples {
     }
 }
 
-task splitFamilies {
+task SplitFamilies {
     input {
         File ped_uri
         Int families_per_chunk
@@ -301,13 +287,11 @@ task splitFamilies {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: sv_base_mini_docker
@@ -348,7 +332,7 @@ task splitFamilies {
     }
 }
 
-task mergeResultsPython {
+task MergeResultsPython {
      input {
         Array[String] tsvs
         String hail_docker
@@ -369,13 +353,11 @@ task mergeResultsPython {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
 
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -410,7 +392,7 @@ task mergeResultsPython {
     }   
 }
 
-task mergeResults {
+task MergeResults {
     input {
         Array[File] tsvs
         String hail_docker
@@ -431,13 +413,11 @@ task mergeResults {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
 
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -454,7 +434,7 @@ task mergeResults {
     }
 }
 
-task getHailMTSize {
+task GetHailMTSize {
     input {
         String mt_uri
         String hail_docker
@@ -474,13 +454,11 @@ task getHailMTSize {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -509,7 +487,7 @@ task getHailMTSize {
     }
 }
 
-task getHailMTSizes {
+task GetHailMTSizes {
     input {
         Array[String] mt_uris
         String hail_docker
@@ -529,13 +507,11 @@ task getHailMTSizes {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -564,7 +540,7 @@ task getHailMTSizes {
     }
 }
 
-task filterIntervalsToMT {
+task FilterIntervalsToMT {
     input {
         File bed_file
         Float input_size
@@ -588,13 +564,11 @@ task filterIntervalsToMT {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -631,7 +605,7 @@ task filterIntervalsToMT {
     pd.Series([filename]).to_csv('mt_uri.txt', index=False, header=None)
     EOF
     
-    python3 filter_intervals.py ~{mt_uri} ~{bed_file} ~{cpu_cores} ~{memory} ~{bucket_id}
+    python3 filter_intervals.py ~{mt_uri} ~{bed_file} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} ~{bucket_id}
     >>>
 
     output {
@@ -639,7 +613,7 @@ task filterIntervalsToMT {
     }
 }
 
-task filterIntervalsToVCF {
+task FilterIntervalsToVCF {
     input {
         File bed_file
         Float input_size
@@ -662,13 +636,11 @@ task filterIntervalsToVCF {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -715,7 +687,7 @@ task filterIntervalsToVCF {
     hl.export_vcf(mt_filt, filename)
     EOF
     
-    python3 filter_intervals.py ~{mt_uri} ~{bed_file} ~{cpu_cores} ~{memory}
+    python3 filter_intervals.py ~{mt_uri} ~{bed_file} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])}
     >>>
 
     output {
@@ -723,7 +695,7 @@ task filterIntervalsToVCF {
     }
 }
 
-task subsetVCFSamplesHail {
+task SubsetVCFSamplesHail {
     input {
         File vcf_file
         File samples_file  # .txt extension  
@@ -746,13 +718,11 @@ task subsetVCFSamplesHail {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -801,7 +771,7 @@ task subsetVCFSamplesHail {
     hl.export_vcf(mt_filt, os.path.basename(samples_file).split('.txt')[0]+'.vcf.bgz', metadata=header)
     EOF
 
-    python3 subset_samples.py ~{vcf_file} ~{samples_file} ~{cpu_cores} ~{memory} ~{genome_build}
+    python3 subset_samples.py ~{vcf_file} ~{samples_file} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} ~{genome_build}
     >>>
 
     output {
@@ -809,7 +779,7 @@ task subsetVCFSamplesHail {
     }
 }
 
-task mergeMTs {
+task MergeMTs {
     input {
         Array[String] mt_uris
         String cohort_prefix
@@ -832,13 +802,11 @@ task mergeMTs {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -880,7 +848,7 @@ task mergeMTs {
     pd.Series([filename]).to_csv('mt_uri.txt', index=False, header=None)
     EOF
 
-    python3 merge_mts.py ~{sep=',' mt_uris} ~{cohort_prefix}_merged ~{cpu_cores} ~{memory} ~{bucket_id}
+    python3 merge_mts.py ~{sep=',' mt_uris} ~{cohort_prefix}_merged ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} ~{bucket_id}
     >>>
 
     output {
@@ -888,7 +856,7 @@ task mergeMTs {
     }
 }
 
-task mergeHTs {
+task MergeHTs {
     input {
         Array[String] ht_uris
         String merged_filename
@@ -911,13 +879,11 @@ task mergeHTs {
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
 
-    Float memory = select_first([runtime_override.mem_gb, runtime_default.mem_gb])
-    Int cpu_cores = select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
     
     runtime {
-        memory: "~{memory} GB"
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: cpu_cores
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
         docker: hail_docker
@@ -955,7 +921,7 @@ task mergeHTs {
     merged_df.to_csv(f"{merged_filename}.tsv", sep='\t', index=False)
     EOF
 
-    python3 merge_hts.py ~{sep=',' ht_uris} ~{merged_filename} ~{cpu_cores} ~{memory}
+    python3 merge_hts.py ~{sep=',' ht_uris} ~{merged_filename} ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])}
     >>>
 
     output {
@@ -963,7 +929,7 @@ task mergeHTs {
     }
 }
 
-task subsetVCFs {
+task SubsetVCFs {
     input {
         File vcf_uri
         File vcf_idx
