@@ -10,7 +10,7 @@ workflow AnnotateSTRs {
         File high_confidence_bed
         File ref_fasta
         File ref_fasta_fai
-        String docker_image
+        String pipeline_docker
 
         Boolean exclude_homopolymers = false
         Boolean only_pure_repeats = false
@@ -29,7 +29,7 @@ workflow AnnotateSTRs {
                 vcf = vcf,
                 vcf_index = vcf_index,
                 high_confidence_bed = high_confidence_bed,
-                docker_image = docker_image,
+                pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_override
         }
 
@@ -40,7 +40,7 @@ workflow AnnotateSTRs {
                 vcf_index = PreprocessVcfSingleSample.high_confidence_vcf_index,
                 ref_fasta = ref_fasta,
                 ref_fasta_fai = ref_fasta_fai,
-                docker_image = docker_image,
+                pipeline_docker = pipeline_docker,
                 exclude_homopolymers = exclude_homopolymers,
                 only_pure_repeats = only_pure_repeats,
                 keep_loci_that_have_overlapping_variants = keep_loci_that_have_overlapping_variants,
@@ -56,7 +56,7 @@ workflow AnnotateSTRs {
                 vcf_index = FilterVcfToSTR.filtered_vcf_index,
                 sample_id = sample_id,
                 output_suffix = output_suffix,
-                docker_image = docker_image,
+                pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_override
         }
     }
@@ -66,7 +66,7 @@ workflow AnnotateSTRs {
             vcfs = RestoreVariantID.restored_id_vcf,
             vcf_indices = RestoreVariantID.restored_id_vcf_index,
             prefix = sample_ids[0],
-            docker_image = docker_image,
+            pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
 
@@ -77,7 +77,7 @@ workflow AnnotateSTRs {
             str_vcf = MergeSTRVcfs.merged_vcf,
             str_vcf_index = MergeSTRVcfs.merged_vcf_index,
             prefix = sample_ids[0],
-            docker_image = docker_image,
+            pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
 
@@ -93,14 +93,14 @@ task PreprocessVcfSingleSample {
         File vcf
         File vcf_index
         File high_confidence_bed
-        String docker_image
+        String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
+        cpu_cores: 1,
+        mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB") + size(high_confidence_bed, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
@@ -131,7 +131,7 @@ task PreprocessVcfSingleSample {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -149,7 +149,7 @@ task FilterVcfToSTR {
         File vcf_index
         File ref_fasta
         File ref_fasta_fai
-        String docker_image
+        String pipeline_docker
 
         Boolean exclude_homopolymers
         Boolean only_pure_repeats
@@ -161,16 +161,6 @@ task FilterVcfToSTR {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
-        disk_gb: ceil(size(vcf, "GB") + size(ref_fasta, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     String min_repeat_unit_length = if exclude_homopolymers then "2" else "1"
     String allow_interruptions = if only_pure_repeats then "no" else "only-if-pure-repeats-not-found"
     String keep_loci_arg = if keep_loci_that_have_overlapping_variants then "--keep-loci-that-have-overlapping-variants" else ""
@@ -179,18 +169,6 @@ task FilterVcfToSTR {
         set -exuo pipefail
 
         FINAL_PREFIX="~{sample_id}~{output_suffix}"
-
-        # Create a header file with missing INFO field definitions
-        cat <<EOT >> header.txt
-##INFO=<ID=LocusId,Number=1,Type=String,Description="Locus ID">
-##INFO=<ID=Locus,Number=1,Type=String,Description="Locus coordinates">
-##INFO=<ID=Motif,Number=1,Type=String,Description="Repeat motif">
-##INFO=<ID=NumRepeatsShortAllele,Number=1,Type=Integer,Description="Number of repeats in the shorter allele">
-##INFO=<ID=NumRepeatsLongAllele,Number=A,Type=Integer,Description="Number of repeats in the longer allele">
-##INFO=<ID=NumRepeatsInReference,Number=1,Type=Float,Description="Number of repeats in the reference">
-##INFO=<ID=IsPureRepeat,Number=1,Type=String,Description="Whether the repeat is pure">
-##INFO=<ID=MotifInterruptionIndex,Number=A,Type=Integer,Description="Index of motif interruption">
-EOT
 
         python3 -u -m str_analysis.filter_vcf_to_STR_variants \
             -R ~{ref_fasta} \
@@ -204,8 +182,19 @@ EOT
             --verbose \
             ~{vcf} |& tee ${FINAL_PREFIX}.filter_vcf.log
 
-        gunzip -c ${FINAL_PREFIX}.vcf.gz | bcftools reheader -h header.txt - | bgzip > ${FINAL_PREFIX}.reheadered.vcf.gz
-        mv ${FINAL_PREFIX}.reheadered.vcf.gz ${FINAL_PREFIX}.vcf.gz
+        cat <<EOT > new_header_fields.txt
+##INFO=<ID=LocusId,Number=1,Type=String,Description="Locus ID">
+##INFO=<ID=Locus,Number=1,Type=String,Description="Locus coordinates">
+##INFO=<ID=Motif,Number=1,Type=String,Description="Repeat motif">
+##INFO=<ID=NumRepeatsShortAllele,Number=1,Type=Integer,Description="Number of repeats in the shorter allele">
+##INFO=<ID=NumRepeatsLongAllele,Number=A,Type=Integer,Description="Number of repeats in the longer allele">
+##INFO=<ID=NumRepeatsInReference,Number=1,Type=Float,Description="Number of repeats in the reference">
+##INFO=<ID=IsPureRepeat,Number=1,Type=String,Description="Whether the repeat is pure">
+##INFO=<ID=MotifInterruptionIndex,Number=A,Type=Integer,Description="Index of motif interruption">
+EOT
+        
+        bcftools annotate --header-lines new_header_fields.txt -o ${FINAL_PREFIX}.annotated.vcf.gz -Oz ${FINAL_PREFIX}.vcf.gz
+        mv ${FINAL_PREFIX}.annotated.vcf.gz ${FINAL_PREFIX}.vcf.gz
         tabix -f ${FINAL_PREFIX}.vcf.gz
     >>>
 
@@ -214,7 +203,7 @@ EOT
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -228,6 +217,16 @@ EOT
         File variants_bed_index = "~{sample_id}~{output_suffix}.variants.bed.gz.tbi"
         File filter_log = "~{sample_id}~{output_suffix}.filter_vcf.log"
     }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") + size(ref_fasta, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 }
 
 task RestoreVariantID {
@@ -236,20 +235,10 @@ task RestoreVariantID {
         File vcf
         File vcf_index
         String output_suffix
-        String docker_image
+        String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -exuo pipefail
@@ -268,7 +257,7 @@ task RestoreVariantID {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -277,6 +266,16 @@ task RestoreVariantID {
         File restored_id_vcf = "~{sample_id}~{output_suffix}.restored_id.vcf.gz"
         File restored_id_vcf_index = "~{sample_id}~{output_suffix}.restored_id.vcf.gz.tbi"
     }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 }
 
 task MergeSTRVcfs {
@@ -284,20 +283,10 @@ task MergeSTRVcfs {
         Array[File] vcfs
         Array[File] vcf_indices
         String prefix
-        String docker_image
+        String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
-        disk_gb: ceil(size(vcfs, "GB") * 1.5) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -exuo pipefail
@@ -312,7 +301,7 @@ task MergeSTRVcfs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -321,6 +310,16 @@ task MergeSTRVcfs {
         File merged_vcf = "~{prefix}.merged.vcf.gz"
         File merged_vcf_index = "~{prefix}.merged.vcf.gz.tbi"
     }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcfs, "GB") * 1.5) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 }
 
 task CombineWithOriginalVcf {
@@ -330,20 +329,10 @@ task CombineWithOriginalVcf {
         File str_vcf
         File str_vcf_index
         String prefix
-        String docker_image
+        String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
-        disk_gb: ceil(size(original_vcf, "GB") + size(str_vcf, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -exuo pipefail
@@ -361,7 +350,7 @@ task CombineWithOriginalVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -370,4 +359,14 @@ task CombineWithOriginalVcf {
         File final_vcf = "~{prefix}.final.vcf.gz"
         File final_vcf_index = "~{prefix}.final.vcf.gz.tbi"
     }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(original_vcf, "GB") + size(str_vcf, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 } 
