@@ -1,5 +1,5 @@
-# gnomAD Long-Read
-Methods and tools for callset analysis, QC and post-processing for the processing of gnomAD Long-Read data.
+# Long-Read Annotation
+Tools for callset annotation in long-read cohorts.
 
 
 ##  Short Tandem Repeats (STRs)

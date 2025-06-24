@@ -85,9 +85,11 @@ task CreateDummySampleVcf {
     command <<<
         set -exuo pipefail
 
-        bcftools view --drop-genotypes ~{vcf} | \
+        SAMPLE=$(bcftools query -l ~{vcf} | head -n 1)
+
+        bcftools view -s "${SAMPLE}" -O v --no-version ~{vcf} | \
             bcftools reheader --samples <(echo "input_sample") | \
-            bcftools +setGT -- -t q -n '0/1' | \
+            bcftools +setGT -- -t a -n c:'0/1' | \
             bgzip > "dummy_sample.vcf.gz"
 
         tabix "dummy_sample.vcf.gz"
@@ -169,8 +171,14 @@ task FilterVcfToSTR {
 ##INFO=<ID=MotifInterruptionIndex,Number=A,Type=Integer,Description="Index of motif interruption">
 EOT
         
-        bcftools annotate --header-lines new_header_fields.txt -o ${FINAL_PREFIX}.annotated.vcf.gz -Oz ${FINAL_PREFIX}.vcf.gz
-        mv ${FINAL_PREFIX}.annotated.vcf.gz ${FINAL_PREFIX}.vcf.gz
+        bcftools view -h ${FINAL_PREFIX}.vcf.gz > current_header.txt
+        head -n -1 current_header.txt > new_full_header.txt
+        cat new_header_fields.txt >> new_full_header.txt
+        tail -n 1 current_header.txt >> new_full_header.txt
+        
+        bcftools reheader -h new_full_header.txt ${FINAL_PREFIX}.vcf.gz -o ${FINAL_PREFIX}.reheadered.vcf.gz
+        mv ${FINAL_PREFIX}.reheadered.vcf.gz ${FINAL_PREFIX}.vcf.gz
+
         tabix -f ${FINAL_PREFIX}.vcf.gz
     >>>
 
