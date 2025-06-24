@@ -221,7 +221,7 @@ task AnnotateFunctionalConsequences {
     }
 
     RuntimeAttr runtime_default = object {
-        mem_gb: 2,
+        mem_gb: 8,
         disk_gb: ceil(10 + size(vcf, "GB") * 5),
         cpu_cores: 2,
         preemptible_tries: 3,
