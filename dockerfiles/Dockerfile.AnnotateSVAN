@@ -1,0 +1,70 @@
+FROM ubuntu:20.04
+
+LABEL maintainer="Karan Jaisingh"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    curl \
+    git \
+    python3 \
+    python3-pip \
+    python3-dev \
+    pkg-config \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libcurl4-gnutls-dev \
+    libssl-dev \
+    tabix \
+    bcftools \
+    samtools \
+    autoconf \
+    automake \
+    libtool \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python packages
+RUN pip3 install --no-cache-dir \
+    pysam \
+    cigar \
+    biopython \
+    pandas \
+    scipy \
+    numpy
+
+# Install BWA
+RUN cd /opt && \
+    git clone https://github.com/lh3/bwa.git && \
+    cd bwa && \
+    make && \
+    ln -s /opt/bwa/bwa /usr/local/bin/bwa
+
+# Install minimap2
+RUN cd /opt && \
+    git clone https://github.com/lh3/minimap2.git && \
+    cd minimap2 && \
+    make && \
+    ln -s /opt/minimap2/minimap2 /usr/local/bin/minimap2 && \
+    ln -s /opt/minimap2/misc/paftools.js /usr/local/bin/paftools.js
+
+# Install TRF (Tandem Repeat Finder)
+RUN cd /opt && \
+    wget http://tandem.bu.edu/trf/downloads/trf409.linux64 && \
+    chmod +x trf409.linux64 && \
+    ln -s /opt/trf409.linux64 /usr/local/bin/trf
+
+# Create app directory and copy SVAN
+RUN mkdir -p /app
+COPY SVAN/ /app/SVAN/
+
+# Set PYTHONPATH to include SVAN modules
+ENV PYTHONPATH="/app/SVAN:${PYTHONPATH}"
+
+# Create working directory
+WORKDIR /app
+
+# Set default command
+CMD ["/bin/bash"]

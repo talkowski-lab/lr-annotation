@@ -1,15 +1,6 @@
 version: 1.2
 workflows:
   - subclass: WDL
-    name: AnnotateExternalAFs
-    primaryDescriptorPath: /wdl/AnnotateExternalAFs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-  
-  - subclass: WDL
     name: AnnotateSTRs
     primaryDescriptorPath: /wdl/AnnotateSTRs.wdl
     filters:
@@ -30,6 +21,24 @@ workflows:
   - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/AnnotateVEPHail.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateSVAN
+    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateExternalAFs
+    primaryDescriptorPath: /wdl/AnnotateExternalAFs.wdl
     filters:
       branches:
         - main
