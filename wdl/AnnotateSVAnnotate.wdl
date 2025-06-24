@@ -78,6 +78,7 @@ workflow AnnotateSVAnnotate {
             unannotated_vcf = ConcatUnannotated.concat_vcf,
             unannotated_tbi = ConcatUnannotated.concat_vcf_idx,
             prefix = prefix,
+            pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -88,6 +89,7 @@ workflow AnnotateSVAnnotate {
             original_vcf = vcf,
             original_tbi = vcf_idx,
             prefix = prefix,
+            pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -309,6 +311,7 @@ task MergeVcf {
         File unannotated_vcf
         File unannotated_tbi
         String prefix
+        String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -341,7 +344,7 @@ task MergeVcf {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-utils-basic:latest"
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
     }
@@ -354,6 +357,7 @@ task RevertSymbolicAlts {
         File original_vcf
         File original_tbi
         String prefix
+        String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -383,7 +387,7 @@ task RevertSymbolicAlts {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
     }
