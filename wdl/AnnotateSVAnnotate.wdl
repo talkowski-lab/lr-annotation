@@ -94,8 +94,8 @@ workflow AnnotateSVAnnotate {
     }
 
     output {
-        File svannotated_reverted_vcf = RevertSymbolicAlts.reverted_vcf
-        File svannotated_reverted_vcf_index = RevertSymbolicAlts.reverted_tbi
+        File sv_annotated_vcf = RevertSymbolicAlts.reverted_vcf
+        File sv_annotated_vcf_index = RevertSymbolicAlts.reverted_tbi
     }
 }
 

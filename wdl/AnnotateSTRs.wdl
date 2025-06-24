@@ -69,8 +69,8 @@ workflow AnnotateSTRs {
     }
 
     output {
-        File str_filtered_vcf = AnnotateOriginalVcf.final_vcf
-        File str_filtered_vcf_index = AnnotateOriginalVcf.final_vcf_index
+        File str_annotated_vcf = AnnotateOriginalVcf.final_vcf
+        File str_annotated_vcf_index = AnnotateOriginalVcf.final_vcf_index
     }
 }
 

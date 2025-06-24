@@ -88,18 +88,8 @@ workflow AnnotateSVAN {
     }
 
     output {
-        File annotated_vcf = MergeAnnotatedVcfs.merged_vcf
-        File annotated_vcf_index = MergeAnnotatedVcfs.merged_vcf_index
-        
-        File? ins_vcf = SeparateInsertionsDeletions.ins_vcf
-        File? del_vcf = SeparateInsertionsDeletions.del_vcf
-        File other_vcf = SeparateInsertionsDeletions.other_vcf
-        
-        File? ins_trf_output = GenerateTRFForInsertions.trf_output
-        File? del_trf_output = GenerateTRFForDeletions.trf_output
-        
-        File? annotated_ins_vcf = AnnotateInsertions.annotated_vcf
-        File? annotated_del_vcf = AnnotateDeletions.annotated_vcf
+        File svan_annotated_vcf = MergeAnnotatedVcfs.merged_vcf
+        File svan_annotated_vcf_index = MergeAnnotatedVcfs.merged_vcf_index
     }
 }
 

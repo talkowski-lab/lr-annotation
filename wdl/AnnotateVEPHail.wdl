@@ -140,8 +140,8 @@ workflow AnnotateVEPHail {
     }
 
     output {
-        Array[File] vep_vcfs = select_first([AddGenotypesMergedShards.combined_vcf_file, AddGenotypes.combined_vcf_file])
-        Array[File] vep_vcfs_index = select_first([AddGenotypesMergedShards.combined_vcf_idx, AddGenotypes.combined_vcf_idx])
+        Array[File] vep_annotated_vcfs = select_first([AddGenotypesMergedShards.combined_vcf_file, AddGenotypes.combined_vcf_file])
+        Array[File] vep_annotated_vcfs_index = select_first([AddGenotypesMergedShards.combined_vcf_idx, AddGenotypes.combined_vcf_idx])
     }
 }   
 
