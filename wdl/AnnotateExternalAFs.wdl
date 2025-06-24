@@ -1,4 +1,6 @@
-import "Structs.wdl"version 1.0
+version 1.0
+
+import "Structs.wdl"
 
 workflow AnnotateExternalAFs {
     input {
@@ -11,7 +13,6 @@ workflow AnnotateExternalAFs {
 
         Array[String] contigs
 
-        String pipeline_docker
         String pipeline_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -47,7 +48,7 @@ workflow AnnotateExternalAFs {
                 ref_prefixes = ref_prefixes,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.anno_func_AFs",
-                sv_pipeline_docker = pipeline_docker,
+                pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_annotate_external,
         }
     }
@@ -105,8 +106,7 @@ task SubsetVcf {
         disk_gb: disk_size,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
-        docker: "quay.io/ymostovoy/lr-utils-basic:latest"
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, runtime_default])
     runtime {
@@ -114,9 +114,9 @@ task SubsetVcf {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-utils-basic:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: select_first([runtime_attr.docker, runtime_default.docker])
     }
 }
 
@@ -157,10 +157,10 @@ task PreprocessMergedVcf {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
@@ -202,10 +202,10 @@ task AnnotateFunctionalConsequences {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-svannotate:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: "quay.io/ymostovoy/lr-svannotate:latest"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
@@ -245,10 +245,10 @@ task CollapseDoubledDups {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
@@ -260,7 +260,7 @@ task AnnotateExternalAFs {
         Array[String] ref_prefixes
         String prefix
         String contig
-        String sv_pipeline_docker
+        String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
     }
@@ -390,10 +390,10 @@ task AnnotateExternalAFs {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: sv_pipeline_docker
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
@@ -449,10 +449,10 @@ task ConcatVcfs {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: pipeline_docker
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
@@ -491,10 +491,10 @@ task PostprocessVcf {
         memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 }
 
