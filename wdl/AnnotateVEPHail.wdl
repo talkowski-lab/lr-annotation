@@ -101,6 +101,7 @@ workflow AnnotateVEPHail {
             call ScatterVCF.ScatterVCF {
                 input:
                     file=file,
+                    has_index=true,
                     split_vcf_hail_script=split_vcf_hail_script,
                     cohort_prefix=cohort_prefix,
                     genome_build=genome_build,
