@@ -6,5 +6,12 @@
 *.bed
 *.bed.gz
 *.bed.gz.tbi
+*.fa
+*.fa.gz
+*.fa.gz.tbi
+*.fai
+*.fai.gz
+*.fai.gz.tbi
 *.fasta
 *.fasta.fai
+*.fasta.fai.gz
