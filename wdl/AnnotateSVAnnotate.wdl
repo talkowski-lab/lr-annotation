@@ -16,9 +16,12 @@ workflow AnnotateSVAnnotate {
         String pipeline_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_concat
         RuntimeAttr? runtime_attr_preprocess
         RuntimeAttr? runtime_attr_annotate_func
+        RuntimeAttr? runtime_attr_concat_unannotated
+        RuntimeAttr? runtime_attr_concat_annotated
+        RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_postprocess
     }
 
     scatter (contig in contigs) {
@@ -32,7 +35,7 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_subset_vcf
           }
 
-        call PreprocessMergedVcf {
+        call PreprocessVcf {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_tbi,
@@ -42,8 +45,8 @@ workflow AnnotateSVAnnotate {
 
         call AnnotateFunctionalConsequences {
             input:
-                vcf = PreprocessMergedVcf.processed_vcf,
-                vcf_idx = PreprocessMergedVcf.processed_tbi,
+                vcf = PreprocessVcf.processed_vcf,
+                vcf_idx = PreprocessVcf.processed_tbi,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.doubled.anno_func",
@@ -58,31 +61,31 @@ workflow AnnotateSVAnnotate {
             allow_overlaps=true,
             outfile_prefix="~{prefix}.unannotated.concat",
             pipeline_docker=pipeline_docker,
-            runtime_attr_override=runtime_attr_concat
+            runtime_attr_override=runtime_attr_concat_unannotated
     }
 
-    call ConcatVcfs {
+    call ConcatVcfs as ConcatAnnotated {
         input:
             vcfs=AnnotateFunctionalConsequences.anno_vcf,
             vcfs_idx=AnnotateFunctionalConsequences.anno_tbi,
             allow_overlaps=true,
             outfile_prefix="~{prefix}.concat",
             pipeline_docker=pipeline_docker,
-            runtime_attr_override=runtime_attr_concat
+            runtime_attr_override=runtime_attr_concat_annotated
     }
 
     call MergeVcf {
         input:
-            annotated_vcf = ConcatVcfs.concat_vcf,
-            annotated_tbi = ConcatVcfs.concat_vcf_idx,
+            annotated_vcf = ConcatAnnotated.concat_vcf,
+            annotated_tbi = ConcatAnnotated.concat_vcf_idx,
             unannotated_vcf = ConcatUnannotated.concat_vcf,
             unannotated_tbi = ConcatUnannotated.concat_vcf_idx,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_merge
     }
 
-    call RevertSymbolicAlts {
+    call PostprocessVcf {
         input:
             annotated_vcf = MergeVcf.merged_vcf,
             annotated_tbi = MergeVcf.merged_vcf_idx,
@@ -90,12 +93,12 @@ workflow AnnotateSVAnnotate {
             original_tbi = vcf_idx,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_postprocess
     }
 
     output {
-        File sv_annotated_vcf = RevertSymbolicAlts.reverted_vcf
-        File sv_annotated_vcf_index = RevertSymbolicAlts.reverted_tbi
+        File sv_annotated_vcf = PostprocessVcf.reverted_vcf
+        File sv_annotated_vcf_index = PostprocessVcf.reverted_tbi
     }
 }
 
@@ -148,7 +151,7 @@ task SubsetVcf {
     }
 }
 
-task PreprocessMergedVcf {
+task PreprocessVcf {
     input {
         File vcf
         File vcf_idx
@@ -348,7 +351,7 @@ task MergeVcf {
     }
 }
 
-task RevertSymbolicAlts {
+task PostprocessVcf {
     input {
         File annotated_vcf
         File annotated_tbi

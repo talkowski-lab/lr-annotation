@@ -11,7 +11,7 @@ workflow AnnotateSVAN {
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File consensus_fasta
+        File mei_fasta
         File reference_fasta
         File reference_fasta_fai
         
@@ -47,7 +47,7 @@ workflow AnnotateSVAN {
             vntr_bed = vntr_bed,
             exons_bed = exons_bed,
             repeats_bed = repeats_bed,
-            consensus_fasta = consensus_fasta,
+            mei_fasta = mei_fasta,
             reference_fasta = reference_fasta,
             prefix = prefix,
             svan_docker = svan_docker,
@@ -69,7 +69,7 @@ workflow AnnotateSVAN {
             vntr_bed = vntr_bed,
             exons_bed = exons_bed,
             repeats_bed = repeats_bed,
-            consensus_fasta = consensus_fasta,
+            mei_fasta = mei_fasta,
             reference_fasta = reference_fasta,
             prefix = prefix,
             svan_docker = svan_docker,
@@ -242,7 +242,7 @@ task AnnotateInsertions {
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File consensus_fasta
+        File mei_fasta
         File reference_fasta
         String prefix
         String svan_docker
@@ -260,7 +260,7 @@ task AnnotateInsertions {
             ~{vntr_bed} \
             ~{exons_bed} \
             ~{repeats_bed} \
-            ~{consensus_fasta} \
+            ~{mei_fasta} \
             ~{reference_fasta} \
             ~{prefix}.svan_annotated \
             -o work_dir
@@ -277,7 +277,7 @@ task AnnotateInsertions {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: ceil(size([vcf, reference_fasta, consensus_fasta], "GB") * 8) + 100,
+        disk_gb: ceil(size([vcf, reference_fasta, mei_fasta], "GB") * 8) + 100,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -301,7 +301,7 @@ task AnnotateDeletions {
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File consensus_fasta
+        File mei_fasta
         File reference_fasta
         String prefix
         String svan_docker
@@ -319,7 +319,7 @@ task AnnotateDeletions {
             ~{vntr_bed} \
             ~{exons_bed} \
             ~{repeats_bed} \
-            ~{consensus_fasta} \
+            ~{mei_fasta} \
             ~{reference_fasta} \
             ~{prefix}.svan_annotated \
             -o work_dir
@@ -336,7 +336,7 @@ task AnnotateDeletions {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: ceil(size([vcf, reference_fasta, consensus_fasta], "GB") * 8) + 100,
+        disk_gb: ceil(size([vcf, reference_fasta, mei_fasta], "GB") * 8) + 100,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
