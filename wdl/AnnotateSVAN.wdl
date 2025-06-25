@@ -13,10 +13,10 @@ workflow AnnotateSVAN {
         File repeats_bed
         File mei_fasta
         File reference_fasta
-        File reference_fasta_fai
         
         String svan_docker
         
+        RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
@@ -29,12 +29,13 @@ workflow AnnotateSVAN {
             vcf_index = vcf_index,
             prefix = prefix,
             svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_merge
+            runtime_attr_override = runtime_attr_separate
     }
 
     call GenerateTRFForInsertions {
         input:
             vcf = SeparateInsertionsDeletions.ins_vcf,
+            vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
             prefix = prefix,
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_generate_trf
@@ -43,6 +44,7 @@ workflow AnnotateSVAN {
     call AnnotateInsertions {
         input:
             vcf = SeparateInsertionsDeletions.ins_vcf,
+            vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
             trf_output = GenerateTRFForInsertions.trf_output,
             vntr_bed = vntr_bed,
             exons_bed = exons_bed,
@@ -57,6 +59,7 @@ workflow AnnotateSVAN {
     call GenerateTRFForDeletions {
         input:
             vcf = SeparateInsertionsDeletions.del_vcf,
+            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
             prefix = prefix,
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_generate_trf
@@ -65,6 +68,7 @@ workflow AnnotateSVAN {
     call AnnotateDeletions {
         input:
             vcf = SeparateInsertionsDeletions.del_vcf,
+            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
             trf_output = GenerateTRFForDeletions.trf_output,
             vntr_bed = vntr_bed,
             exons_bed = exons_bed,
@@ -78,10 +82,10 @@ workflow AnnotateSVAN {
 
     call MergeAnnotatedVcfs {
         input:
-            original_vcf = vcf,
             annotated_ins_vcf = AnnotateInsertions.annotated_vcf,
+            annotated_ins_vcf_index = AnnotateInsertions.annotated_vcf_index,
             annotated_del_vcf = AnnotateDeletions.annotated_vcf,
-            other_variants_vcf = SeparateInsertionsDeletions.other_vcf,
+            annotated_del_vcf_index = AnnotateDeletions.annotated_vcf_index,
             prefix = prefix,
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_merge
@@ -106,15 +110,15 @@ task SeparateInsertionsDeletions {
         set -euo pipefail
 
         bcftools view ~{vcf} \
-            --include 'INFO/SVTYPE="INS" && INFO/SVLEN > 0' \
+            --include 'INFO/SVTYPE="INS"' \
             -O z -o ~{prefix}.insertions.vcf.gz
         
         bcftools view ~{vcf} \
-            --include 'INFO/SVTYPE="DEL" && INFO/SVLEN < 0' \
+            --include 'INFO/SVTYPE="DEL"' \
             -O z -o ~{prefix}.deletions.vcf.gz
         
         bcftools view ~{vcf} \
-            --exclude '(INFO/SVTYPE="INS" && INFO/SVLEN > 0) || (INFO/SVTYPE="DEL" && INFO/SVLEN < 0)' \
+            --exclude '(INFO/SVTYPE="INS" || INFO/SVTYPE="DEL"' \
             -O z -o ~{prefix}.other_variants.vcf.gz
         
         tabix -p vcf ~{prefix}.insertions.vcf.gz
@@ -133,8 +137,8 @@ task SeparateInsertionsDeletions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size([vcf, vcf_index], "GB") * 4) + 20,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -154,6 +158,7 @@ task SeparateInsertionsDeletions {
 task GenerateTRFForInsertions {
     input {
         File vcf
+        File vcf_index
         String prefix
         String svan_docker
         RuntimeAttr? runtime_attr_override
@@ -175,8 +180,8 @@ task GenerateTRFForInsertions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: ceil(size(vcf, "GB") * 10) + 50,
+        mem_gb: 7.5,
+        disk_gb: ceil(size(vcf, "GB") * 3) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -196,6 +201,7 @@ task GenerateTRFForInsertions {
 task GenerateTRFForDeletions {
     input {
         File vcf
+        File vcf_index
         String prefix
         String svan_docker
         RuntimeAttr? runtime_attr_override
@@ -217,8 +223,8 @@ task GenerateTRFForDeletions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: ceil(size(vcf, "GB") * 10) + 50,
+        mem_gb: 7.5,
+        disk_gb: ceil(size(vcf, "GB") * 3) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -238,6 +244,7 @@ task GenerateTRFForDeletions {
 task AnnotateInsertions {
     input {
         File vcf
+        File vcf_index
         File trf_output
         File vntr_bed
         File exons_bed
@@ -276,8 +283,8 @@ task AnnotateInsertions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 16,
-        disk_gb: ceil(size([vcf, reference_fasta, mei_fasta], "GB") * 8) + 100,
+        mem_gb: 15,
+        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB")) + 50,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -297,6 +304,7 @@ task AnnotateInsertions {
 task AnnotateDeletions {
     input {
         File vcf
+        File vcf_index
         File trf_output
         File vntr_bed
         File exons_bed
@@ -335,8 +343,8 @@ task AnnotateDeletions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 16,
-        disk_gb: ceil(size([vcf, reference_fasta, mei_fasta], "GB") * 8) + 100,
+        mem_gb: 15,
+        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB")) + 50,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -353,12 +361,13 @@ task AnnotateDeletions {
     }
 }
 
+# TODO: Add other variants to the merge
 task MergeAnnotatedVcfs {
     input {
-        File original_vcf
-        File? annotated_ins_vcf
-        File? annotated_del_vcf
-        File other_variants_vcf
+        File annotated_ins_vcf
+        File annotated_ins_vcf_index
+        File annotated_del_vcf
+        File annotated_del_vcf_index
         String prefix
         String svan_docker
         RuntimeAttr? runtime_attr_override
@@ -366,22 +375,12 @@ task MergeAnnotatedVcfs {
 
     command <<<
         set -euo pipefail
-
-        # Create list of VCFs to merge
-        echo "~{other_variants_vcf}" > vcf_list.txt
         
-        if [[ "~{annotated_ins_vcf}" != "" ]]; then
-            echo "~{annotated_ins_vcf}" >> vcf_list.txt
-        fi
-        
-        if [[ "~{annotated_del_vcf}" != "" ]]; then
-            echo "~{annotated_del_vcf}" >> vcf_list.txt
-        fi
+        echo "~{annotated_ins_vcf}" >> vcf_list.txt
+        echo "~{annotated_del_vcf}" >> vcf_list.txt
 
-        # Sort list for consistent merging
         sort vcf_list.txt > sorted_vcf_list.txt
         
-        # Merge VCFs maintaining original header and variant order
         bcftools concat -f sorted_vcf_list.txt -O z -o ~{prefix}.svan_annotated.vcf.gz
         
         tabix -p vcf ~{prefix}.svan_annotated.vcf.gz
@@ -394,8 +393,8 @@ task MergeAnnotatedVcfs {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: ceil(size([original_vcf, annotated_ins_vcf, annotated_del_vcf, other_variants_vcf], "GB") * 3) + 50,
+        mem_gb: 7.5,
+        disk_gb: 50,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1

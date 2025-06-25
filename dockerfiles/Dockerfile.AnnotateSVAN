@@ -33,7 +33,9 @@ RUN pip3 install --no-cache-dir \
     biopython \
     pandas \
     scipy \
-    numpy
+    numpy \
+    mappy \
+    pybedtools
 
 # Install BWA
 RUN cd /opt && \
@@ -65,8 +67,8 @@ RUN mkdir -p /app && \
     cd /app && \
     git clone https://github.com/REPBIO-LAB/SVAN.git
 
-# Set PYTHONPATH to include SVAN modules
-ENV PYTHONPATH="/app/SVAN:${PYTHONPATH}"
+# Set PYTHONPATH to include SVAN modules and GAPI directory
+ENV PYTHONPATH="/app/SVAN:/app/SVAN/GAPI:${PYTHONPATH}"
 
 # Create working directory
 WORKDIR /app

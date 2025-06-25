@@ -17,24 +17,27 @@ workflow AnnotateSTRs {
         Int min_str_repeats = 3
         String output_suffix = "_str_variants"
 
-        RuntimeAttr? runtime_attr_override
+        RuntimeAttr? runtime_attr_preprocess
+        RuntimeAttr? runtime_attr_filter
+        RuntimeAttr? runtime_attr_postprocess
+        RuntimeAttr? runtime_attr_annotate
     }
 
     String prefix = "str_annotation"
 
-    call CreateDummySampleVcf {
+    call PreprocessVcf {
         input:
             vcf = vcf,
             vcf_index = vcf_index,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_preprocess
     }
 
     call FilterVcfToSTR {
         input:
             prefix = prefix,
-            vcf = CreateDummySampleVcf.dummy_vcf,
-            vcf_index = CreateDummySampleVcf.dummy_vcf_index,
+            vcf = PreprocessVcf.dummy_vcf,
+            vcf_index = PreprocessVcf.dummy_vcf_index,
             ref_fasta = ref_fasta,
             ref_fasta_fai = ref_fasta_fai,
             pipeline_docker = pipeline_docker,
@@ -44,28 +47,28 @@ workflow AnnotateSTRs {
             min_str_length = min_str_length,
             min_str_repeats = min_str_repeats,
             output_suffix = output_suffix,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_filter
     }
 
-    call RestoreVariantID {
+    call PostprocessVcf {
         input:
             vcf = FilterVcfToSTR.filtered_vcf,
             vcf_index = FilterVcfToSTR.filtered_vcf_index,
             prefix = prefix,
             output_suffix = output_suffix,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_postprocess
     }
 
     call AnnotateOriginalVcf {
         input:
             original_vcf = vcf,
             original_vcf_index = vcf_index,
-            str_vcf = RestoreVariantID.restored_id_vcf,
-            str_vcf_index = RestoreVariantID.restored_id_vcf_index,
+            str_vcf = PostprocessVcf.restored_id_vcf,
+            str_vcf_index = PostprocessVcf.restored_id_vcf_index,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_annotate
     }
 
     output {
@@ -74,7 +77,7 @@ workflow AnnotateSTRs {
     }
 }
 
-task CreateDummySampleVcf {
+task PreprocessVcf {
     input {
         File vcf
         File vcf_index
@@ -213,7 +216,7 @@ EOT
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 }
 
-task RestoreVariantID {
+task PostprocessVcf {
     input {
         String prefix
         File vcf

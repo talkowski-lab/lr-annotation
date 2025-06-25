@@ -51,14 +51,14 @@ workflow AnnotateVEPHail {
     # input is not a single VCF file, so merge shards in chunks, then run VEP on merged chunks
     if (merge_split_vcf) { 
         # combine pre-sharded VCFs into chunks
-        call MergeSplitVCF.SplitFile as splitFile {
+        call MergeSplitVCF.SplitFile as SplitFile {
             input:
                 file=file,
                 shards_per_chunk=shards_per_chunk,
                 cohort_prefix=cohort_prefix,
                 hail_docker=hail_docker
         }
-        scatter (chunk_file in splitFile.chunks) {
+        scatter (chunk_file in SplitFile.chunks) {
             call MergeVCFs.CombineVCFs {
                 input:
                     vcf_files=read_lines(chunk_file),
