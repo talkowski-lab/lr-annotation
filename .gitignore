@@ -1,4 +1,5 @@
 **__py_cache/
+data/
 .DS_Store
 *.vcf
 *.vcf.gz

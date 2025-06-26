@@ -86,6 +86,8 @@ workflow AnnotateSVAN {
             annotated_ins_vcf_index = AnnotateInsertions.annotated_vcf_index,
             annotated_del_vcf = AnnotateDeletions.annotated_vcf,
             annotated_del_vcf_index = AnnotateDeletions.annotated_vcf_index,
+            other_vcf = SeparateInsertionsDeletions.other_vcf,
+            other_vcf_index = SeparateInsertionsDeletions.other_vcf_index,
             prefix = prefix,
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_merge
@@ -118,7 +120,7 @@ task SeparateInsertionsDeletions {
             -O z -o ~{prefix}.deletions.vcf.gz
         
         bcftools view ~{vcf} \
-            --exclude '(INFO/SVTYPE="INS" || INFO/SVTYPE="DEL"' \
+            --exclude '(INFO/SVTYPE="INS" || INFO/SVTYPE="DEL")' \
             -O z -o ~{prefix}.other_variants.vcf.gz
         
         tabix -p vcf ~{prefix}.insertions.vcf.gz
@@ -361,13 +363,14 @@ task AnnotateDeletions {
     }
 }
 
-# TODO: Add other variants to the merge
 task MergeAnnotatedVcfs {
     input {
         File annotated_ins_vcf
         File annotated_ins_vcf_index
         File annotated_del_vcf
         File annotated_del_vcf_index
+        File other_vcf
+        File other_vcf_index
         String prefix
         String svan_docker
         RuntimeAttr? runtime_attr_override
@@ -376,14 +379,17 @@ task MergeAnnotatedVcfs {
     command <<<
         set -euo pipefail
         
-        echo "~{annotated_ins_vcf}" >> vcf_list.txt
+        echo "~{annotated_ins_vcf}" > vcf_list.txt
         echo "~{annotated_del_vcf}" >> vcf_list.txt
-
-        sort vcf_list.txt > sorted_vcf_list.txt
+        echo "~{other_vcf}" >> vcf_list.txt
         
-        bcftools concat -f sorted_vcf_list.txt -O z -o ~{prefix}.svan_annotated.vcf.gz
+        bcftools concat -a -f vcf_list.txt -O z -o ~{prefix}.unsorted.vcf.gz
+        
+        bcftools sort ~{prefix}.unsorted.vcf.gz -O z -o ~{prefix}.svan_annotated.vcf.gz
         
         tabix -p vcf ~{prefix}.svan_annotated.vcf.gz
+        
+        rm ~{prefix}.unsorted.vcf.gz
     >>>
 
     output {
