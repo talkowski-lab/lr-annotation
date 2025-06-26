@@ -171,7 +171,14 @@ task GenerateTRFForInsertions {
 
         mkdir -p work_dir
 
-        python3 /app/SVAN/scripts/ins2fasta.py ~{vcf} work_dir
+        if [[ ~{vcf} == *.gz ]]; then
+            gunzip -c ~{vcf} > work_dir/input.vcf
+            vcf_input="work_dir/input.vcf"
+        else
+            vcf_input="~{vcf}"
+        fi
+
+        python3 /app/SVAN/scripts/ins2fasta.py "$vcf_input" work_dir
         
         trf work_dir/insertions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.ins_trf.out
     >>>
@@ -214,7 +221,14 @@ task GenerateTRFForDeletions {
 
         mkdir -p work_dir
 
-        python3 /app/SVAN/scripts/del2fasta.py ~{vcf} work_dir
+        if [[ ~{vcf} == *.gz ]]; then
+            gunzip -c ~{vcf} > work_dir/input.vcf
+            vcf_input="work_dir/input.vcf"
+        else
+            vcf_input="~{vcf}"
+        fi
+
+        python3 /app/SVAN/scripts/del2fasta.py "$vcf_input" work_dir
         
         trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.del_trf.out
     >>>
@@ -263,8 +277,16 @@ task AnnotateInsertions {
 
         mkdir -p work_dir
 
+        # Decompress VCF if it's gzipped
+        if [[ ~{vcf} == *.gz ]]; then
+            gunzip -c ~{vcf} > work_dir/input.vcf
+            vcf_input="work_dir/input.vcf"
+        else
+            vcf_input="~{vcf}"
+        fi
+
         python3 /app/SVAN/SVAN-INS.py \
-            ~{vcf} \
+            "$vcf_input" \
             ~{trf_output} \
             ~{vntr_bed} \
             ~{exons_bed} \
@@ -323,8 +345,16 @@ task AnnotateDeletions {
 
         mkdir -p work_dir
 
+        # Decompress VCF if it's gzipped
+        if [[ ~{vcf} == *.gz ]]; then
+            gunzip -c ~{vcf} > work_dir/input.vcf
+            vcf_input="work_dir/input.vcf"
+        else
+            vcf_input="~{vcf}"
+        fi
+
         python3 /app/SVAN/SVAN-DEL.py \
-            ~{vcf} \
+            "$vcf_input" \
             ~{trf_output} \
             ~{vntr_bed} \
             ~{exons_bed} \
