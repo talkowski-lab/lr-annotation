@@ -295,7 +295,7 @@ task AnnotateInsertions {
             ~{prefix}.svan_annotated \
             -o work_dir
 
-        bgzip -c work_dir/~{prefix}.svan_annotated.vcf > ~{prefix}.ins_annotated.vcf.gz
+        bcftools sort work_dir/~{prefix}.svan_annotated.vcf -O z -o ~{prefix}.ins_annotated.vcf.gz
         tabix -p vcf ~{prefix}.ins_annotated.vcf.gz
     >>>
 
@@ -362,7 +362,7 @@ task AnnotateDeletions {
             ~{prefix}.svan_annotated \
             -o work_dir
 
-        bgzip -c work_dir/~{prefix}.svan_annotated.vcf > ~{prefix}.del_annotated.vcf.gz
+        bcftools sort work_dir/~{prefix}.svan_annotated.vcf -O z -o ~{prefix}.del_annotated.vcf.gz
         tabix -p vcf ~{prefix}.del_annotated.vcf.gz
     >>>
 
