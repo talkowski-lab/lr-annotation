@@ -28,14 +28,15 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python packages
 RUN pip3 install --no-cache-dir \
+    "numpy>=1.19.5,<1.27.0" \
     pysam \
     cigar \
     biopython \
     pandas \
     scipy \
-    numpy \
     mappy \
-    pybedtools
+    pybedtools \
+    scikit-learn
 
 # Install BWA
 RUN cd /opt && \
