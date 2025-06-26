@@ -66,7 +66,7 @@ RUN cd /opt && \
 # Create app directory and clone SVAN
 RUN mkdir -p /app && \
     cd /app && \
-    git clone https://github.com/REPBIO-LAB/SVAN.git
+    git clone https://github.com/kjaisingh/SVAN.git
 
 # Set PYTHONPATH to include SVAN modules and GAPI directory
 ENV PYTHONPATH="/app/SVAN:/app/SVAN/GAPI:${PYTHONPATH}"

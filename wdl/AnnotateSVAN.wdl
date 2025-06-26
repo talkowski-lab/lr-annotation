@@ -277,7 +277,6 @@ task AnnotateInsertions {
 
         mkdir -p work_dir
 
-        # Decompress VCF if it's gzipped
         if [[ ~{vcf} == *.gz ]]; then
             gunzip -c ~{vcf} > work_dir/input.vcf
             vcf_input="work_dir/input.vcf"
@@ -345,7 +344,6 @@ task AnnotateDeletions {
 
         mkdir -p work_dir
 
-        # Decompress VCF if it's gzipped
         if [[ ~{vcf} == *.gz ]]; then
             gunzip -c ~{vcf} > work_dir/input.vcf
             vcf_input="work_dir/input.vcf"
