@@ -8,6 +8,7 @@ workflow AnnotateSVAN {
         File vcf
         File vcf_index
         String prefix
+        Int min_svlen
         
         File vntr_bed
         File exons_bed
@@ -28,12 +29,21 @@ workflow AnnotateSVAN {
 
     Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
 
+    call FilterBySvlen {
+        input:
+            vcf = vcf,
+            vcf_index = vcf_index,
+            min_svlen = min_svlen,
+            prefix = prefix,
+            svan_docker = svan_docker
+    }
+
     call Helpers.SplitVcfIntoShards {
         input:
-            input_vcf = vcf,
-            input_vcf_index = vcf_index,
+            input_vcf = FilterBySvlen.filtered_vcf,
+            input_vcf_index = FilterBySvlen.filtered_vcf_index,
             variants_per_shard = variants_per_shard_eff,
-            output_prefix = prefix,
+            output_prefix = prefix + "_filtered",
             docker_image = svan_docker
     }
 
@@ -134,14 +144,117 @@ workflow AnnotateSVAN {
             annotated_del_vcf_index = ConcatDel.concat_vcf_idx,
             other_vcf = ConcatOther.concat_vcf,
             other_vcf_index = ConcatOther.concat_vcf_idx,
-            prefix = prefix,
+            prefix = prefix + "_annotated_filtered",
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
+    call MergeWithOriginal {
+        input:
+            original_vcf = vcf,
+            original_vcf_index = vcf_index,
+            annotated_vcf = MergeAnnotatedVcfs.merged_vcf,
+            annotated_vcf_index = MergeAnnotatedVcfs.merged_vcf_index,
+            prefix = prefix,
+            svan_docker = svan_docker
+    }
+
     output {
-        File svan_annotated_vcf = MergeAnnotatedVcfs.merged_vcf
-        File svan_annotated_vcf_index = MergeAnnotatedVcfs.merged_vcf_index
+        File svan_annotated_vcf = MergeWithOriginal.final_vcf
+        File svan_annotated_vcf_index = MergeWithOriginal.final_vcf_index
+    }
+}
+
+task FilterBySvlen {
+    input {
+        File vcf
+        File vcf_index
+        Int min_svlen
+        String prefix
+        String svan_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view ~{vcf} \
+            --include 'abs(INFO/SVLEN) > ~{min_svlen}' \
+            -O z -o ~{prefix}_filtered.vcf.gz
+        
+        tabix -p vcf ~{prefix}_filtered.vcf.gz
+    >>>
+
+    output {
+        File filtered_vcf = "~{prefix}_filtered.vcf.gz"
+        File filtered_vcf_index = "~{prefix}_filtered.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: svan_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeWithOriginal {
+    input {
+        File original_vcf
+        File original_vcf_index
+        File annotated_vcf
+        File annotated_vcf_index
+        String prefix
+        String svan_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools annotate \
+            -a ~{annotated_vcf} \
+            -c "INFO" \
+            -O z -o "~{prefix}.svan_annotated.vcf.gz" \
+            ~{original_vcf}
+
+        tabix -p vcf "~{prefix}.svan_annotated.vcf.gz"
+    >>>
+
+    output {
+        File final_vcf = "~{prefix}.svan_annotated.vcf.gz"
+        File final_vcf_index = "~{prefix}.svan_annotated.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(original_vcf, "GB") + size(annotated_vcf, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: svan_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
