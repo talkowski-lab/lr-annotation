@@ -1,6 +1,7 @@
 version 1.0
 
 import "Structs.wdl"
+import "Helpers.wdl" as Helpers
 
 workflow AnnotateSTRs {
     input {
@@ -16,6 +17,7 @@ workflow AnnotateSTRs {
         Int min_str_length = 9
         Int min_str_repeats = 3
         String output_suffix = "_str_variants"
+        Int? variants_per_shard
 
         RuntimeAttr? runtime_attr_preprocess
         RuntimeAttr? runtime_attr_filter
@@ -23,49 +25,72 @@ workflow AnnotateSTRs {
         RuntimeAttr? runtime_attr_annotate
     }
 
-    String prefix = "str_annotation"
+    String prefix = basename(vcf, ".vcf.gz")
 
-    call PreprocessVcf {
+    Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
+
+    call Helpers.SplitVcfIntoShards {
         input:
-            vcf = vcf,
-            vcf_index = vcf_index,
-            pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_preprocess
+            input_vcf = vcf,
+            input_vcf_index = vcf_index,
+            variants_per_shard = variants_per_shard_eff,
+            output_prefix = prefix,
+            docker_image = pipeline_docker
     }
 
-    call FilterVcfToSTR {
-        input:
-            prefix = prefix,
-            vcf = PreprocessVcf.dummy_vcf,
-            vcf_index = PreprocessVcf.dummy_vcf_index,
-            ref_fasta = ref_fasta,
-            ref_fasta_fai = ref_fasta_fai,
-            pipeline_docker = pipeline_docker,
-            exclude_homopolymers = exclude_homopolymers,
-            only_pure_repeats = only_pure_repeats,
-            keep_loci_that_have_overlapping_variants = keep_loci_that_have_overlapping_variants,
-            min_str_length = min_str_length,
-            min_str_repeats = min_str_repeats,
-            output_suffix = output_suffix,
-            runtime_attr_override = runtime_attr_filter
+    scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
+        String shard_prefix = basename(shard.left, ".vcf.gz")
+        
+        call PreprocessVcf {
+            input:
+                vcf = shard.left,
+                vcf_index = shard.right,
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_preprocess
+        }
+
+        call FilterVcfToSTR {
+            input:
+                prefix = shard_prefix,
+                vcf = PreprocessVcf.dummy_vcf,
+                vcf_index = PreprocessVcf.dummy_vcf_index,
+                ref_fasta = ref_fasta,
+                ref_fasta_fai = ref_fasta_fai,
+                pipeline_docker = pipeline_docker,
+                exclude_homopolymers = exclude_homopolymers,
+                only_pure_repeats = only_pure_repeats,
+                keep_loci_that_have_overlapping_variants = keep_loci_that_have_overlapping_variants,
+                min_str_length = min_str_length,
+                min_str_repeats = min_str_repeats,
+                output_suffix = output_suffix,
+                runtime_attr_override = runtime_attr_filter
+        }
+
+        call PostprocessVcf {
+            input:
+                vcf = FilterVcfToSTR.filtered_vcf,
+                vcf_index = FilterVcfToSTR.filtered_vcf_index,
+                prefix = shard_prefix,
+                output_suffix = output_suffix,
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_postprocess
+        }
     }
 
-    call PostprocessVcf {
+    call Helpers.ConcatVcfs as ConcatSTRs {
         input:
-            vcf = FilterVcfToSTR.filtered_vcf,
-            vcf_index = FilterVcfToSTR.filtered_vcf_index,
-            prefix = prefix,
-            output_suffix = output_suffix,
-            pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_postprocess
+            vcfs = PostprocessVcf.restored_id_vcf,
+            vcfs_idx = PostprocessVcf.restored_id_vcf_index,
+            outfile_prefix = prefix,
+            docker_image = pipeline_docker
     }
 
     call AnnotateOriginalVcf {
         input:
             original_vcf = vcf,
             original_vcf_index = vcf_index,
-            str_vcf = PostprocessVcf.restored_id_vcf,
-            str_vcf_index = PostprocessVcf.restored_id_vcf_index,
+            str_vcf = ConcatSTRs.concat_vcf,
+            str_vcf_index = ConcatSTRs.concat_vcf_idx,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_annotate

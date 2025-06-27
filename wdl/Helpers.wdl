@@ -970,3 +970,114 @@ task SubsetVCFs {
         File subset_vcf_idx = output_name + '.tbi'
     }
 }
+
+task SplitVcfIntoShards {
+  input {
+    File input_vcf       # .vcf.gz
+    File input_vcf_index # .vcf.gz.tbi
+    Int variants_per_shard    # number of varians in each splitted variants
+    String output_prefix   # e.g. "chr1"
+    String docker_image
+    RuntimeAttr? runtime_attr_override
+  }
+
+  command <<<
+    set -e
+
+    mkdir chunks
+
+    # Extract header
+    bcftools view -h ~{input_vcf} > chunks/header.vcf
+
+    # Output body lines (no header), then split
+    bcftools view -H ~{input_vcf} | split -l ~{variants_per_shard} - chunks/body_
+
+    # Reconstruct chunked VCFs with header
+    for body in chunks/body_*; do
+      chunk_name=chunks/~{output_prefix}_$(basename "$body")
+      cat chunks/header.vcf "$body" | bgzip -c > "${chunk_name}.vcf.gz"
+      tabix -p vcf "${chunk_name}.vcf.gz"
+    done
+ 
+   >>>
+
+  output {
+    Array[File] split_vcfs = glob("chunks/*.vcf.gz")
+    Array[File] split_vcf_indexes = glob("chunks/*.vcf.gz.tbi")
+  }
+
+  RuntimeAttr default_attr = object {
+    cpu_cores: 1,
+    mem_gb:  10,
+    disk_gb: 10 + ceil(size(input_vcf,"GiB")*1.5),
+    boot_disk_gb: 10,
+    preemptible_tries: 1,
+    max_retries: 1
+  }
+
+  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+  runtime {
+    cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: docker_image
+    preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+    maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+  }
+}
+
+task ConcatVcfs {
+  input {
+    Array[File] vcfs
+    Array[File]? vcfs_idx
+    Boolean merge_sort = false
+    String outfile_prefix = "concat"
+    String docker_image
+    RuntimeAttr? runtime_attr_override
+  }
+
+  String outfile_name = outfile_prefix + ".vcf.gz"
+  String merge_flag = if merge_sort then "--allow-overlaps" else ""
+
+  # when filtering/sorting/etc, memory usage will likely go up (much of the data will have to
+  # be held in memory or disk while working, potentially in a form that takes up more space)
+  Float input_size = size(vcfs, "GB")
+  Float compression_factor = 5.0
+  Float base_disk_gb = 5.0
+  Float base_mem_gb = 2.0
+  RuntimeAttr runtime_default = object {
+    mem_gb: base_mem_gb + compression_factor * input_size,
+    disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
+    cpu_cores: 1,
+    preemptible_tries: 3,
+    max_retries: 1,
+    boot_disk_gb: 10
+  }
+  RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
+  runtime {
+    memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
+    disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
+    cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
+    preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
+    maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
+    docker: docker_image
+    bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+  }
+
+  command <<<
+    set -euo pipefail
+    VCFS_FILE="~{write_lines(vcfs)}"
+    if ~{!defined(vcfs_idx)}; then
+      cat ${VCFS_FILE} | xargs -n1 tabix
+    fi
+    bcftools concat -a ~{merge_flag} --output-type z --file-list ${VCFS_FILE} --output "~{outfile_name}"
+    tabix -p vcf -f "~{outfile_name}"
+  >>>
+
+  output {
+    File concat_vcf = outfile_name
+    File concat_vcf_idx = outfile_name + ".tbi"
+  }
+}

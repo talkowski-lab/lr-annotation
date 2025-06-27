@@ -1,6 +1,7 @@
 version 1.0
     
 import "Structs.wdl"
+import "Helpers.wdl" as Helpers
 
 workflow AnnotateSVAN {
     input {
@@ -15,6 +16,7 @@ workflow AnnotateSVAN {
         File reference_fasta
         
         String svan_docker
+        Int? variants_per_shard
         
         RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf_ins
@@ -24,75 +26,114 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_merge
     }
 
-    call SeparateInsertionsDeletions {
+    Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
+
+    call Helpers.SplitVcfIntoShards {
         input:
-            vcf = vcf,
-            vcf_index = vcf_index,
-            prefix = prefix,
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_separate
+            input_vcf = vcf,
+            input_vcf_index = vcf_index,
+            variants_per_shard = variants_per_shard_eff,
+            output_prefix = prefix,
+            docker_image = svan_docker
     }
 
-    call GenerateTRF as GenerateTRFForInsertions {
+    scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
+        String shard_prefix = basename(shard.left, ".vcf.gz")
+
+        call SeparateInsertionsDeletions {
+            input:
+                vcf = shard.left,
+                vcf_index = shard.right,
+                prefix = shard_prefix,
+                svan_docker = svan_docker,
+                runtime_attr_override = runtime_attr_separate
+        }
+
+        call GenerateTRF as GenerateTRFForInsertions {
+            input:
+                vcf = SeparateInsertionsDeletions.ins_vcf,
+                vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
+                prefix = shard_prefix,
+                mode = "ins",
+                svan_docker = svan_docker,
+                runtime_attr_override = runtime_attr_generate_trf_ins
+        }
+
+        call GenerateTRF as GenerateTRFForDeletions {
+            input:
+                vcf = SeparateInsertionsDeletions.del_vcf,
+                vcf_index = SeparateInsertionsDeletions.del_vcf_index,
+                prefix = shard_prefix,
+                mode = "del",
+                svan_docker = svan_docker,
+                runtime_attr_override = runtime_attr_generate_trf_del
+        }
+
+        call RunSvanAnnotation as AnnotateInsertions {
+            input:
+                vcf = SeparateInsertionsDeletions.ins_vcf,
+                vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
+                trf_output = GenerateTRFForInsertions.trf_output,
+                vntr_bed = vntr_bed,
+                exons_bed = exons_bed,
+                repeats_bed = repeats_bed,
+                mei_fasta = mei_fasta,
+                reference_fasta = reference_fasta,
+                prefix = shard_prefix,
+                mode = "ins",
+                svan_docker = svan_docker,
+                runtime_attr_override = runtime_attr_annotate_ins
+        }
+
+        call RunSvanAnnotation as AnnotateDeletions {
+            input:
+                vcf = SeparateInsertionsDeletions.del_vcf,
+                vcf_index = SeparateInsertionsDeletions.del_vcf_index,
+                trf_output = GenerateTRFForDeletions.trf_output,
+                vntr_bed = vntr_bed,
+                exons_bed = exons_bed,
+                repeats_bed = repeats_bed,
+                mei_fasta = mei_fasta,
+                reference_fasta = reference_fasta,
+                prefix = shard_prefix,
+                mode = "del",
+                svan_docker = svan_docker,
+                runtime_attr_override = runtime_attr_annotate_del
+        }
+    }
+    
+    call Helpers.ConcatVcfs as ConcatIns {
         input:
-            vcf = SeparateInsertionsDeletions.ins_vcf,
-            vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
-            prefix = prefix,
-            mode = "ins",
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_generate_trf_ins
+            vcfs = AnnotateInsertions.annotated_vcf,
+            vcfs_idx = AnnotateInsertions.annotated_vcf_index,
+            outfile_prefix = prefix + ".insertions",
+            docker_image = svan_docker
     }
 
-    call GenerateTRF as GenerateTRFForDeletions {
+    call Helpers.ConcatVcfs as ConcatDel {
         input:
-            vcf = SeparateInsertionsDeletions.del_vcf,
-            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
-            prefix = prefix,
-            mode = "del",
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_generate_trf_del
+            vcfs = AnnotateDeletions.annotated_vcf,
+            vcfs_idx = AnnotateDeletions.annotated_vcf_index,
+            outfile_prefix = prefix + ".deletions",
+            docker_image = svan_docker
     }
 
-    call RunSvanAnnotation as AnnotateInsertions {
+    call Helpers.ConcatVcfs as ConcatOther {
         input:
-            vcf = SeparateInsertionsDeletions.ins_vcf,
-            vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
-            trf_output = GenerateTRFForInsertions.trf_output,
-            vntr_bed = vntr_bed,
-            exons_bed = exons_bed,
-            repeats_bed = repeats_bed,
-            mei_fasta = mei_fasta,
-            reference_fasta = reference_fasta,
-            prefix = prefix,
-            mode = "ins",
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_annotate_ins
-    }
-
-    call RunSvanAnnotation as AnnotateDeletions {
-        input:
-            vcf = SeparateInsertionsDeletions.del_vcf,
-            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
-            trf_output = GenerateTRFForDeletions.trf_output,
-            vntr_bed = vntr_bed,
-            exons_bed = exons_bed,
-            repeats_bed = repeats_bed,
-            mei_fasta = mei_fasta,
-            reference_fasta = reference_fasta,
-            prefix = prefix,
-            mode = "del",
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_annotate_del
+            vcfs = SeparateInsertionsDeletions.other_vcf,
+            vcfs_idx = SeparateInsertionsDeletions.other_vcf_index,
+            outfile_prefix = prefix + ".other",
+            docker_image = svan_docker
     }
 
     call MergeAnnotatedVcfs {
         input:
-            annotated_ins_vcf = AnnotateInsertions.annotated_vcf,
-            annotated_ins_vcf_index = AnnotateInsertions.annotated_vcf_index,
-            annotated_del_vcf = AnnotateDeletions.annotated_vcf,
-            annotated_del_vcf_index = AnnotateDeletions.annotated_vcf_index,
-            other_vcf = SeparateInsertionsDeletions.other_vcf,
-            other_vcf_index = SeparateInsertionsDeletions.other_vcf_index,
+            annotated_ins_vcf = ConcatIns.concat_vcf,
+            annotated_ins_vcf_index = ConcatIns.concat_vcf_idx,
+            annotated_del_vcf = ConcatDel.concat_vcf,
+            annotated_del_vcf_index = ConcatDel.concat_vcf_idx,
+            other_vcf = ConcatOther.concat_vcf,
+            other_vcf_index = ConcatOther.concat_vcf_idx,
             prefix = prefix,
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_merge
