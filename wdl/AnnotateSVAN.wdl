@@ -17,7 +17,8 @@ workflow AnnotateSVAN {
         String svan_docker
         
         RuntimeAttr? runtime_attr_separate
-        RuntimeAttr? runtime_attr_generate_trf
+        RuntimeAttr? runtime_attr_generate_trf_ins
+        RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
         RuntimeAttr? runtime_attr_merge
@@ -32,16 +33,27 @@ workflow AnnotateSVAN {
             runtime_attr_override = runtime_attr_separate
     }
 
-    call GenerateTRFForInsertions {
+    call GenerateTRF as GenerateTRFForInsertions {
         input:
             vcf = SeparateInsertionsDeletions.ins_vcf,
             vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
             prefix = prefix,
+            mode = "ins",
             svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_generate_trf
+            runtime_attr_override = runtime_attr_generate_trf_ins
     }
 
-    call AnnotateInsertions {
+    call GenerateTRF as GenerateTRFForDeletions {
+        input:
+            vcf = SeparateInsertionsDeletions.del_vcf,
+            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
+            prefix = prefix,
+            mode = "del",
+            svan_docker = svan_docker,
+            runtime_attr_override = runtime_attr_generate_trf_del
+    }
+
+    call RunSvanAnnotation as AnnotateInsertions {
         input:
             vcf = SeparateInsertionsDeletions.ins_vcf,
             vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
@@ -52,20 +64,12 @@ workflow AnnotateSVAN {
             mei_fasta = mei_fasta,
             reference_fasta = reference_fasta,
             prefix = prefix,
+            mode = "ins",
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_annotate_ins
     }
 
-    call GenerateTRFForDeletions {
-        input:
-            vcf = SeparateInsertionsDeletions.del_vcf,
-            vcf_index = SeparateInsertionsDeletions.del_vcf_index,
-            prefix = prefix,
-            svan_docker = svan_docker,
-            runtime_attr_override = runtime_attr_generate_trf
-    }
-
-    call AnnotateDeletions {
+    call RunSvanAnnotation as AnnotateDeletions {
         input:
             vcf = SeparateInsertionsDeletions.del_vcf,
             vcf_index = SeparateInsertionsDeletions.del_vcf_index,
@@ -76,6 +80,7 @@ workflow AnnotateSVAN {
             mei_fasta = mei_fasta,
             reference_fasta = reference_fasta,
             prefix = prefix,
+            mode = "del",
             svan_docker = svan_docker,
             runtime_attr_override = runtime_attr_annotate_del
     }
@@ -157,11 +162,12 @@ task SeparateInsertionsDeletions {
     }
 }
 
-task GenerateTRFForInsertions {
+task GenerateTRF {
     input {
         File vcf
         File vcf_index
         String prefix
+        String mode
         String svan_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -178,13 +184,20 @@ task GenerateTRFForInsertions {
             vcf_input="~{vcf}"
         fi
 
-        python3 /app/SVAN/scripts/ins2fasta.py "$vcf_input" work_dir
-        
-        trf work_dir/insertions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.ins_trf.out
+        if [[ "~{mode}" == "ins" ]]; then
+            python3 /app/SVAN/scripts/ins2fasta.py "$vcf_input" work_dir
+            trf work_dir/insertions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.~{mode}_trf.out
+        elif [[ "~{mode}" == "del" ]]; then
+            python3 /app/SVAN/scripts/del2fasta.py "$vcf_input" work_dir
+            trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.~{mode}_trf.out
+        else
+            echo "Invalid mode provided to GenerateTRF task: ~{mode}"
+            exit 1
+        fi
     >>>
 
     output {
-        File trf_output = "~{prefix}.ins_trf.out"
+        File trf_output = "~{prefix}.~{mode}_trf.out"
     }
 
     RuntimeAttr default_attr = object {
@@ -207,11 +220,18 @@ task GenerateTRFForInsertions {
     }
 }
 
-task GenerateTRFForDeletions {
+task RunSvanAnnotation {
     input {
         File vcf
         File vcf_index
+        File trf_output
+        File vntr_bed
+        File exons_bed
+        File repeats_bed
+        File mei_fasta
+        File reference_fasta
         String prefix
+        String mode
         String svan_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -227,64 +247,18 @@ task GenerateTRFForDeletions {
         else
             vcf_input="~{vcf}"
         fi
-
-        python3 /app/SVAN/scripts/del2fasta.py "$vcf_input" work_dir
         
-        trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.del_trf.out
-    >>>
-
-    output {
-        File trf_output = "~{prefix}.del_trf.out"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 7.5,
-        disk_gb: ceil(size(vcf, "GB") * 3) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task AnnotateInsertions {
-    input {
-        File vcf
-        File vcf_index
-        File trf_output
-        File vntr_bed
-        File exons_bed
-        File repeats_bed
-        File mei_fasta
-        File reference_fasta
-        String prefix
-        String svan_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        mkdir -p work_dir
-
-        if [[ ~{vcf} == *.gz ]]; then
-            gunzip -c ~{vcf} > work_dir/input.vcf
-            vcf_input="work_dir/input.vcf"
+        svan_script_name=""
+        if [[ "~{mode}" == "ins" ]]; then
+            svan_script_name="SVAN-INS.py"
+        elif [[ "~{mode}" == "del" ]]; then
+            svan_script_name="SVAN-DEL.py"
         else
-            vcf_input="~{vcf}"
+            echo "Invalid mode provided to RunSvanAnnotation task: ~{mode}"
+            exit 1
         fi
 
-        python3 /app/SVAN/SVAN-INS.py \
+        python3 /app/SVAN/$svan_script_name \
             "$vcf_input" \
             ~{trf_output} \
             ~{vntr_bed} \
@@ -292,83 +266,80 @@ task AnnotateInsertions {
             ~{repeats_bed} \
             ~{mei_fasta} \
             ~{reference_fasta} \
-            ~{prefix}.svan_annotated \
+            svan_annotated \
             -o work_dir
 
-        bcftools sort work_dir/~{prefix}.svan_annotated.vcf -O z -o ~{prefix}.ins_annotated.vcf.gz
-        tabix -p vcf ~{prefix}.ins_annotated.vcf.gz
+        python3 <<'CODE'
+import sys
+
+def get_new_info_fields(svan_vcf_path):
+    new_info_fields = {}
+    with open(svan_vcf_path, 'r') as f:
+        for line in f:
+            if line.startswith('##INFO=<ID='):
+                parts = line.strip().split(',', 1)
+                field_id = parts[0][len('##INFO=<ID='):]
+                new_info_fields[field_id] = line.strip()
+            elif line.startswith('#CHROM'):
+                break
+    return new_info_fields
+
+def get_svan_annotations(svan_vcf_path):
+    annotations = {}
+    with open(svan_vcf_path, 'r') as f:
+        for line in f:
+            if line.startswith('#'):
+                continue
+            parts = line.strip().split('\t')
+            chrom, pos, vcf_id, _, _, _, _, info = parts[:8]
+            annotations[(chrom, pos, vcf_id)] = info
+    return annotations
+
+def merge_vcfs(original_vcf_path, svan_vcf_path, output_vcf_path):
+    new_info_header_lines = get_new_info_fields(svan_vcf_path)
+    svan_annotations = get_svan_annotations(svan_vcf_path)
+
+    with open(original_vcf_path, 'r') as original_vcf, open(output_vcf_path, 'w') as out_vcf:
+        original_info_fields = set()
+        
+        for line in original_vcf:
+            if line.startswith('##INFO=<ID='):
+                field_id = line.strip().split(',', 1)[0][len('##INFO=<ID='):]
+                original_info_fields.add(field_id)
+                out_vcf.write(line)
+            elif line.startswith('##'):
+                out_vcf.write(line)
+            elif line.startswith('#CHROM'):
+                for field_id, header_line in new_info_header_lines.items():
+                    if field_id not in original_info_fields:
+                        out_vcf.write(header_line + '\n')
+                out_vcf.write(line)
+                break
+        
+        for line in original_vcf:
+            parts = line.strip().split('\t')
+            chrom, pos, vcf_id, _, _, _, _, info = parts[:8]
+            
+            key = (chrom, pos, vcf_id)
+            if key in svan_annotations:
+                new_info = svan_annotations[key]
+                if info == '.':
+                    parts[7] = new_info
+                else:
+                    parts[7] = f"{info};{new_info}"
+            
+            out_vcf.write('\t'.join(parts) + '\n')
+
+merge_vcfs('work_dir/input.vcf', 'work_dir/svan_annotated.vcf', 'work_dir/merged_annotated.vcf')
+CODE
+
+        bcftools sort work_dir/merged_annotated.vcf -O z -o ~{prefix}.~{mode}_annotated.vcf.gz
+        tabix -p vcf ~{prefix}.~{mode}_annotated.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.ins_annotated.vcf.gz"
-        File annotated_vcf_index = "~{prefix}.ins_annotated.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 15,
-        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB")) + 50,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task AnnotateDeletions {
-    input {
-        File vcf
-        File vcf_index
-        File trf_output
-        File vntr_bed
-        File exons_bed
-        File repeats_bed
-        File mei_fasta
-        File reference_fasta
-        String prefix
-        String svan_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        mkdir -p work_dir
-
-        if [[ ~{vcf} == *.gz ]]; then
-            gunzip -c ~{vcf} > work_dir/input.vcf
-            vcf_input="work_dir/input.vcf"
-        else
-            vcf_input="~{vcf}"
-        fi
-
-        python3 /app/SVAN/SVAN-DEL.py \
-            "$vcf_input" \
-            ~{trf_output} \
-            ~{vntr_bed} \
-            ~{exons_bed} \
-            ~{repeats_bed} \
-            ~{mei_fasta} \
-            ~{reference_fasta} \
-            ~{prefix}.svan_annotated \
-            -o work_dir
-
-        bcftools sort work_dir/~{prefix}.svan_annotated.vcf -O z -o ~{prefix}.del_annotated.vcf.gz
-        tabix -p vcf ~{prefix}.del_annotated.vcf.gz
-    >>>
-
-    output {
-        File annotated_vcf = "~{prefix}.del_annotated.vcf.gz"
-        File annotated_vcf_index = "~{prefix}.del_annotated.vcf.gz.tbi"
+        File annotated_vcf = "~{prefix}.~{mode}_annotated.vcf.gz"
+        File annotated_vcf_index = "~{prefix}.~{mode}_annotated.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
