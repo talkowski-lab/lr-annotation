@@ -101,7 +101,6 @@ task AddGenotypes {
         return mt
 
     mt = hl.import_vcf(vcf_file, force_bgz=True, array_elements_required=False, call_fields=[], reference_genome=build)
-    mt = split_multi_ssc(mt)
     try:
         # for haploid (e.g. chrY)
         mt = mt.annotate_entries(
