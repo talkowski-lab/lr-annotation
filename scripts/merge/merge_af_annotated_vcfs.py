@@ -28,7 +28,7 @@ def merge_vcf_files(input_files, output_file):
     iterators = [iter(vcf) for vcf in vcf_files]
     
     for records in zip(*iterators):
-        positions = [(r.chrom, r.pos, r.id) for r in records]
+        positions = [(r.chrom, r.pos) for r in records]
         if len(set(positions)) != 1:
             print(f"Error: Records don't match - {positions}")
             sys.exit(1)

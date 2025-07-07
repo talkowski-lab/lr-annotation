@@ -4,7 +4,6 @@ import "Structs.wdl"
 import "ScatterVCF.wdl" as ScatterVCF
 import "MergeSplitVCF.wdl" as MergeSplitVCF
 import "MergeVCFs.wdl" as MergeVCFs
-import "Helpers.wdl" as Helpers
 
 workflow AnnotateVEPHail {
     input {
@@ -34,9 +33,9 @@ workflow AnnotateVEPHail {
         Boolean split_into_shards 
         Boolean merge_split_vcf
         Boolean reannotate_ac_af=false
-        Int shards_per_chunk=10  # combine pre-sharded VCFs
+        Int shards_per_chunk=10
         
-        Array[File]? vcf_shards  # if scatterVCF.wdl already run before VEP
+        Array[File]? vcf_shards
         
         RuntimeAttr? runtime_attr_merge_vcfs
         RuntimeAttr? runtime_attr_vep_annotate
@@ -48,9 +47,7 @@ workflow AnnotateVEPHail {
     }
     String file = select_first([file_, vcf_file])
 
-    # input is not a single VCF file, so merge shards in chunks, then run VEP on merged chunks
     if (merge_split_vcf) { 
-        # combine pre-sharded VCFs into chunks
         call MergeSplitVCF.SplitFile as SplitFile {
             input:
                 file=file,
@@ -62,7 +59,7 @@ workflow AnnotateVEPHail {
             call MergeVCFs.CombineVCFs {
                 input:
                     vcf_files=read_lines(chunk_file),
-                    vcf_indices=[chunk_file],  # dummy input
+                    vcf_indices=[chunk_file],
                     naive=true,
                     allow_overlaps=false,
                     sv_base_mini_docker=sv_base_mini_docker,
@@ -83,15 +80,6 @@ workflow AnnotateVEPHail {
                     reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
                     runtime_attr_override=runtime_attr_vep_annotate
-            }
-
-            call Helpers.AddGenotypes as AddGenotypesMergedShards {
-                input:
-                annot_vcf_file=VepAnnotateMergedShards.vep_vcf_file,
-                vcf_file=CombineVCFs.merged_vcf_file,
-                hail_docker=hail_docker,
-                genome_build=genome_build,
-                runtime_attr_override=runtime_attr_annotate_add_genotypes
             }
         }
     }
@@ -129,20 +117,12 @@ workflow AnnotateVEPHail {
                     genome_build=genome_build,
                     runtime_attr_override=runtime_attr_vep_annotate
             }
-            call Helpers.AddGenotypes as AddGenotypes {
-                input:
-                annot_vcf_file=VepAnnotate.vep_vcf_file,
-                vcf_file=vcf_shard,
-                hail_docker=hail_docker,
-                genome_build=genome_build,
-                runtime_attr_override=runtime_attr_annotate_add_genotypes
-            }
         }
     }
 
     output {
-        Array[File] vep_annotated_vcfs = select_first([AddGenotypesMergedShards.combined_vcf_file, AddGenotypes.combined_vcf_file])
-        Array[File] vep_annotated_vcfs_index = select_first([AddGenotypesMergedShards.combined_vcf_idx, AddGenotypes.combined_vcf_idx])
+        Array[File] vep_annotated_vcfs = select_first([VepAnnotateMergedShards.vep_vcf_file, VepAnnotate.vep_vcf_file])
+        Array[File] vep_annotated_vcfs_index = select_first([VepAnnotateMergedShards.vep_vcf_idx, VepAnnotate.vep_vcf_idx])
     }
 }   
 
@@ -150,9 +130,6 @@ task VepAnnotate {
     input {
         File vcf_file
         File top_level_fa
-        # File human_ancestor_fa
-        # File human_ancestor_fa_fai
-        # File gerp_conservation_scores
         File ref_vep_cache
 
         File alpha_missense_file
@@ -167,7 +144,7 @@ task VepAnnotate {
         RuntimeAttr? runtime_attr_override
     }
 
-    Float input_size = size(vcf_file, "GB") + size(ref_vep_cache, "GB")# + size(gerp_conservation_scores, "GB")
+    Float input_size = size(vcf_file, "GB") + size(ref_vep_cache, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 10.0
     RuntimeAttr runtime_default = object {
