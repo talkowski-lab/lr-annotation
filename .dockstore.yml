@@ -44,3 +44,12 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: RunTRGT
+    primaryDescriptorPath: /wdl/RunTRGT.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
