@@ -46,6 +46,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateSingletonReads
+    primaryDescriptorPath: /wdl/AnnotateSingletonReads.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: RunTRGT
     primaryDescriptorPath: /wdl/RunTRGT.wdl
     filters:
