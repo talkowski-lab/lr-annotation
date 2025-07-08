@@ -6,7 +6,7 @@ import "Utils.wdl"
 
 workflow RunTRGT {
     meta {
-        description: "Uses TRGT to size TRs in a bam file."
+        description: "Uses TRGT to size TRs in an input BAM file."
     }
 
     input {
