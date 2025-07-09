@@ -15,11 +15,11 @@ The [AnnotateSVAN.wdl](wdl/AnnotateSVAN.wdl) workflow leverages [SVAN](https://g
 
 References:
 - `SVAN Package`: [Current version](https://github.com/REPBIO-LAB/SVAN) from the Github repository, which is built directly in the [docker](dockerfiles/Dockerfile.AnnotateSVAN).
-- `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the featured workspace.
-- `vntr_bed`: From the [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) in the SVAN repository.
-- `exons_bed`: From the [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) in the SVAN repository.
-- `repeats_bed`: From the [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) in the SVAN repository.
-- `mei_fasta`: From the [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) in the SVAN repository.
+- `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the GATK-SV featured workspace.
+- `vntr_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
+- `exons_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
+- `repeats_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
+- `mei_fasta`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
 
 
 ## Functional Consequences
@@ -30,10 +30,10 @@ References:
 - `VEP Package`: [v105](https://github.com/REPBIO-LAB/SVAN) from the VEP Dockerhub repository, which is used as the base image in the [docker](dockerfiles/Dockerfile.AnnotateVEPHail).
 - `Hail Package`: [Current version](https://github.com/REPBIO-LAB/SVAN) from the Github repository, which is built directly using `pip` in the [docker](dockerfiles/Dockerfile.AnnotateVEPHail).
 - `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the GATK-SV featured workspace.
-- `top_level_fa`: [TODO - hg38](https://console.cloud.google.com/storage/browser/_details/fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz;tab=live_object?authuser=0&inv=1&invt=Ab2UpA).
-- `alpha_missense_file`: [TODO - hg38](https://console.cloud.google.com/storage/browser/_details/fc-0bc12741-801b-4c10-8d3c-92075b188d3c/resources/annotations/AlphaMissense_hg38.tsv.gz;tab=live_object?authuser=0&inv=1&invt=Ab2Uow).
-- `eve_data`: [TODO - hg38](https://console.cloud.google.com/storage/browser/_details/fc-0bc12741-801b-4c10-8d3c-92075b188d3c/resources/EVE/eve_merged.vcf.gz;tab=live_object?authuser=0&inv=1&invt=Ab2UpA).
-- `ref_vep_cache`: [v105](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache) from the VEP site, downloaded using FTP.
+- `top_level_fa`: [Ensemble hg38](https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/dna/).
+- `alpha_missense_file`: [Alpha Missense hg38](https://zenodo.org/records/8208688).
+- `eve_data`: [EVE hg38](https://evemodel.org/api/proteins/bulk/download/).
+- `ref_vep_cache`: [v105](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
 - Additional References: Based on the pre-defined references used in the installed version of VEP, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache). These additional references include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc.
 
 
