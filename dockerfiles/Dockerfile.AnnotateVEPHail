@@ -2,7 +2,6 @@ FROM ensemblorg/ensembl-vep:release_105.0
 
 LABEL maintainer="Karan Jaisingh"
 
-# Switch to root user to fix permissions
 USER root
 
 # Fix apt system and install Java 11 (required for Hail)
@@ -18,7 +17,19 @@ RUN rm -rf /var/lib/apt/lists/* && \
     liblapack3 \
     wget \
     curl \
+    gnupg \
+    lsb-release \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Google Cloud SDK
+ENV GCLOUD_SDK_VERSION="485.0.0"
+RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && /google-cloud-sdk/install.sh -q \
+    && /google-cloud-sdk/bin/gcloud components update --quiet \
+    && rm google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz
+
+ENV PATH=/google-cloud-sdk/bin:$PATH
 
 # Upgrade pip and install Hail
 RUN python3 -m pip install --upgrade pip

@@ -7,7 +7,7 @@ The [AnnotateSTRs.wdl](wdl/AnnotateSTRs.wdl) workflow is based on a [script](htt
 
 References:
 - `STR Analysis Package`: [Current version](https://github.com/broadinstitute/str-analysis/tree/main) from the Github repository, which is built directly in the [docker](dockerfiles/Dockerfile.AnnotateSTRs).
-- `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the GATK-SV featured workspace.
+- `reference_fasta`: [hg38](gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta) from the GATK-SV featured workspace.
 
 
 ## Insertions
@@ -15,7 +15,7 @@ The [AnnotateSVAN.wdl](wdl/AnnotateSVAN.wdl) workflow leverages [SVAN](https://g
 
 References:
 - `SVAN Package`: [Current version](https://github.com/REPBIO-LAB/SVAN) from the Github repository, which is built directly in the [docker](dockerfiles/Dockerfile.AnnotateSVAN).
-- `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the GATK-SV featured workspace.
+- `reference_fasta`: [hg38](gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta) from the GATK-SV featured workspace.
 - `vntr_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
 - `exons_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
 - `repeats_bed`: From the recommended [hg38 inputs](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the repository.
@@ -29,8 +29,8 @@ The [AnnotateVEPHail.wdl](wdl/AnnotateVEPHail.wdl) leverages the [Ensembl Varian
 References:
 - `VEP Package`: [v105](https://github.com/REPBIO-LAB/SVAN) from the VEP Dockerhub repository, which is used as the base image in the [docker](dockerfiles/Dockerfile.AnnotateVEPHail).
 - `Hail Package`: [Current version](https://github.com/REPBIO-LAB/SVAN) from the Github repository, which is built directly using `pip` in the [docker](dockerfiles/Dockerfile.AnnotateVEPHail).
-- `reference_fasta`: [hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta;tab=live_object?authuser=0&inv=1&invt=Ab2UZA) from the GATK-SV featured workspace.
-- `top_level_fa`: [Ensemble hg38](https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/dna/).
+- `reference_fasta`: [hg38](gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta) from the GATK-SV featured workspace.
+- `top_level_fa`: [Ensemble hg38 - Release 76](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
 - `alpha_missense_file`: [Alpha Missense hg38](https://zenodo.org/records/8208688).
 - `eve_data`: [EVE hg38](https://evemodel.org/api/proteins/bulk/download/).
 - `ref_vep_cache`: [v105](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
@@ -42,8 +42,8 @@ The [AnnotateSVAnnotate.wdl](wdl/AnnotateSVAnnotate.wdl) workflow employs the GA
 
 References:
 - `GATK Package`: [v4.5.0.0](https://github.com/broadinstitute/gatk), which is built in the base image `quay.io/ymostovoy/lr-utils-basic:2.0` that is used in the [docker](dockerfiles/Dockerfile.AnnotateSVAnnotate).
-- `coding_gtf`: [MANE GRCh38 ​v1.​2](https://console.cloud.google.com/storage/browser/_details/gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/MANE.GRCh38.v1.2.ensembl_genomic.gtf;tab=live_object?authuser=0&inv=1&invt=Ab2UlQ) from the GATK-SV featured workspace.
-- `noncoding_bed`: [Panel for hg38](https://console.cloud.google.com/storage/browser/_details/gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed;tab=live_object?authuser=0&inv=1&invt=Ab2Ulw) from the GATK-SV featured workspace.
+- `coding_gtf`: [Gencode v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from gnomAD.
+- `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
 
 
 ## Internal Allele Frequency (AF)
@@ -51,7 +51,7 @@ The [AnnotateVcf.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_gnomad_l
 
 References:
 - `GATK-SV Package`: [v1.0.5](https://github.com/broadinstitute/gatk), which is used in the base image that is used in the [docker](dockerfiles/Dockerfile.AnnotateSVAnnotate).
-- `par_bed`: [Panel for hg38](https://console.cloud.google.com/storage/browser/_details/gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed;tab=live_object?authuser=kjaising@broadinstitute.org) from the GATK-SV featured workspace.
+- `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
 
 
 ## External Allele Frequency (AF)
