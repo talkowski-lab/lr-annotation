@@ -1,0 +1,28 @@
+FROM ensemblorg/ensembl-vep:release_105.0
+
+LABEL maintainer="Karan Jaisingh"
+
+# Switch to root user to fix permissions
+USER root
+
+# Fix apt system and install Java 11 (required for Hail)
+RUN rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/lib/apt/lists/partial && \
+    chmod -R 755 /var/lib/apt && \
+    apt-get clean && \
+    apt-get update && apt-get install -y \
+    openjdk-11-jre-headless \
+    g++ \
+    python3-pip \
+    libopenblas-base \
+    liblapack3 \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip and install Hail
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install hail
+
+# Set default command
+CMD ["/bin/bash"]

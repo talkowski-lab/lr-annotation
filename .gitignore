@@ -16,3 +16,4 @@ data/
 *.fasta
 *.fasta.fai
 *.fasta.fai.gz
+homo_sapiens_vep_105_GRCh38.tar.gz

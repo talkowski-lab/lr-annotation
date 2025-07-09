@@ -9,24 +9,18 @@ workflow AnnotateVEPHail {
     input {
         File? vcf_file
 
-        File ref_fasta
-        File ref_fasta_fai
-        File human_ancestor_fa
-        File human_ancestor_fa_fai
         File top_level_fa
-        File gerp_conservation_scores
-        File ref_vep_cache
-
         File alpha_missense_file
         File eve_data
+        File ref_vep_cache
 
         String cohort_prefix
         String hail_docker
         String vep_hail_docker
         String sv_base_mini_docker
         
-        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/vep_annotate_hail_v0.1.py"
-        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
+        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
+        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail.py"
 
         String genome_build='GRCh38'
         Boolean split_by_chromosome
