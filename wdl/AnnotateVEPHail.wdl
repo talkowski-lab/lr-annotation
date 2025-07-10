@@ -198,7 +198,7 @@ task VepAnnotate {
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
         proj_id=$(gcloud config get-value project)
-        python3.9 vep_annotate.py -i ~{vcf_file} -o ~{vep_annotated_vcf_name} --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
+        python3 vep_annotate.py -i ~{vcf_file} -o ~{vep_annotated_vcf_name} --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
         --reannotate-ac-af ~{reannotate_ac_af} --build ~{genome_build} --project-id $proj_id
         cp $(ls . | grep hail*.log) hail_log.txt
         bcftools index -t ~{vep_annotated_vcf_name}
