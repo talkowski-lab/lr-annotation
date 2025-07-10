@@ -21,19 +21,37 @@ RUN rm -rf /var/lib/apt/lists/* && \
     lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Google Cloud SDK
+# Install Google Cloud SDK with more robust method
 ENV GCLOUD_SDK_VERSION="485.0.0"
-RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
-    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
-    && /google-cloud-sdk/install.sh -q \
-    && /google-cloud-sdk/bin/gcloud components update --quiet \
-    && rm google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz
+RUN echo "Installing Google Cloud SDK..." && \
+    cd /tmp && \
+    wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz && \
+    echo "Extracting Google Cloud SDK..." && \
+    tar xzf google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz && \
+    echo "Contents after extraction:" && \
+    ls -la google-cloud-sdk/ && \
+    echo "Installing Google Cloud SDK..." && \
+    ./google-cloud-sdk/install.sh -q --path-update=false --command-completion=false && \
+    echo "Moving to final location..." && \
+    mv google-cloud-sdk /opt/ && \
+    echo "Cleaning up..." && \
+    rm google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz
 
-ENV PATH=/google-cloud-sdk/bin:$PATH
+ENV PATH=/opt/google-cloud-sdk/bin:$PATH
 
-# Upgrade pip and install Hail
-RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install hail
+# Upgrade pip
+RUN echo "Upgrading pip..." && \
+    python3 -m pip install --upgrade pip --no-cache-dir
+
+# Install Hail with timeout and specific version constraints
+RUN echo "Installing Hail..." && \
+    python3 -m pip install --no-cache-dir --timeout=300 hail
+
+# Verify installations
+RUN echo "Verifying installations..." && \
+    java -version && \
+    gcloud version && \
+    python3 -c "import hail; print('Hail version:', hail.__version__)"
 
 # Set default command
 CMD ["/bin/bash"]

@@ -33,7 +33,7 @@ References:
 - `top_level_fa`: [Ensemble hg38 - Release 76](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
 - `alpha_missense_file`: [Alpha Missense hg38](https://zenodo.org/records/8208688).
 - `eve_data`: [EVE hg38](https://evemodel.org/api/proteins/bulk/download/).
-- `ref_vep_cache`: [v105](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
+- `ref_vep_cache`: [v105](gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz).
 - Additional References: Based on the pre-defined references used in the installed version of VEP, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache). These additional references include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc.
 
 
@@ -52,6 +52,15 @@ The [AnnotateVcf.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_gnomad_l
 References:
 - `GATK-SV Package`: [v1.0.5](https://github.com/broadinstitute/gatk), which is used in the base image that is used in the [docker](dockerfiles/Dockerfile.AnnotateSVAnnotate).
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
+
+
+##  TRGT
+The [RunTRGT.wdl](wdl/RunTRGT.wdl) workflow is based on a [tool](https://github.com/PacificBiosciences/trgt) developed by PacBio to annotate STRs from long-reads. It requires a reference context file that indicates tandem-repeat regions, and genotypes these to identify STRs.
+
+References:
+- `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), which is the current version in the repository, and is included directly in the manually-listed docker in the [TRGT workflow](wdl/TRGT.wdl).
+- `reference_fasta`: TBD.
+- `repeat_catalog`: TBD.
 
 
 ## External Allele Frequency (AF)
