@@ -22,7 +22,7 @@ workflow AnnotateVEPHail {
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail.py"
 
-        String genome_build='GRCh38'
+        String genome_build="GRCh38"
         Boolean split_by_chromosome
         Boolean split_into_shards 
         Boolean merge_split_vcf
@@ -67,9 +67,9 @@ workflow AnnotateVEPHail {
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
                     alpha_missense_file=alpha_missense_file,
-                    alpha_missense_file_idx=alpha_missense_file+'.tbi',
+                    alpha_missense_file_idx=alpha_missense_file+".tbi",
                     eve_data=eve_data,
-                    eve_data_idx=eve_data+'.tbi',
+                    eve_data_idx=eve_data+".tbi",
                     vep_hail_docker=vep_hail_docker,
                     reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
@@ -103,9 +103,9 @@ workflow AnnotateVEPHail {
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
                     alpha_missense_file=alpha_missense_file,
-                    alpha_missense_file_idx=alpha_missense_file+'.tbi',
+                    alpha_missense_file_idx=alpha_missense_file+".tbi",
                     eve_data=eve_data,
-                    eve_data_idx=eve_data+'.tbi',
+                    eve_data_idx=eve_data+".tbi",
                     vep_hail_docker=vep_hail_docker,
                     reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
@@ -201,7 +201,7 @@ task VepAnnotate {
 
     output {
         File vep_vcf_file = vep_annotated_vcf_name
-        File vep_vcf_idx = vep_annotated_vcf_name + '.tbi'
+        File vep_vcf_idx = vep_annotated_vcf_name+".tbi"
         File hail_log = "hail_log.txt"
     }
 }
