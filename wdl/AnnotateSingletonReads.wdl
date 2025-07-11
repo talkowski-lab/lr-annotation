@@ -8,25 +8,37 @@ workflow AnnotateSingletonReads {
         File vcf
         File vcf_index
         String pipeline_docker
+        String prefix
+        File contigs_list
         
-        String output_suffix = "_singleton_filtered"
         Int? variants_per_shard
 
+        RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_filter
-        RuntimeAttr? runtime_attr_postprocess
+        RuntimeAttr? runtime_attr_concat
     }
-
-    String prefix = basename(vcf, ".vcf.gz")
 
     Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
 
+    call SubsetVcfToContigs {
+        input:
+            vcf = vcf,
+            vcf_index = vcf_index,
+            contigs_list = contigs_list,
+            prefix = prefix,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_subset
+    }
+
     call Helpers.SplitVcfIntoShards {
         input:
-            input_vcf = vcf,
-            input_vcf_index = vcf_index,
+            input_vcf = SubsetVcfToContigs.subset_vcf,
+            input_vcf_index = SubsetVcfToContigs.subset_vcf_index,
             variants_per_shard = variants_per_shard_eff,
             output_prefix = prefix,
-            docker_image = pipeline_docker
+            docker_image = pipeline_docker,
+            runtime_attr_override = runtime_attr_split
     }
 
     scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
@@ -37,7 +49,6 @@ workflow AnnotateSingletonReads {
                 vcf = shard.left,
                 vcf_index = shard.right,
                 prefix = shard_prefix,
-                output_suffix = output_suffix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_filter
         }
@@ -48,22 +59,13 @@ workflow AnnotateSingletonReads {
             vcfs = FilterSingletonReads.filtered_vcf,
             vcfs_idx = FilterSingletonReads.filtered_vcf_index,
             outfile_prefix = prefix,
-            docker_image = pipeline_docker
-    }
-
-    call PostprocessVcf {
-        input:
-            vcf = ConcatFilteredVcfs.concat_vcf,
-            vcf_index = ConcatFilteredVcfs.concat_vcf_idx,
-            prefix = prefix,
-            output_suffix = output_suffix,
-            pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_postprocess
+            docker_image = pipeline_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File singleton_filtered_vcf = PostprocessVcf.final_vcf
-        File singleton_filtered_vcf_index = PostprocessVcf.final_vcf_index
+        File singleton_filtered_vcf = ConcatFilteredVcfs.concat_vcf
+        File singleton_filtered_vcf_index = ConcatFilteredVcfs.concat_vcf_idx
     }
 }
 
@@ -72,7 +74,6 @@ task FilterSingletonReads {
         File vcf
         File vcf_index
         String prefix
-        String output_suffix
         String pipeline_docker
 
         RuntimeAttr? runtime_attr_override
@@ -90,15 +91,16 @@ vcf_in = VariantFile("~{vcf}")
 header = vcf_in.header
 header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by only one read in a single sample")
 
-vcf_out = VariantFile("~{prefix}~{output_suffix}.vcf", 'w', header=header)
+vcf_out = VariantFile("~{prefix}.filtered.vcf", 'w', header=header)
 
 samples = list(vcf_in.header.samples)
 
 for rec in vcf_in:
     is_suspicious = False
-    if 'AC' in rec.info and rec.info['AC'][0] <= 2:  # Only check variants with AC <= 2
+    
+    if 'AC' in rec.info and rec.info['AC'][0] <= 2:
         alt_AD_in_called_samples = []
-        for sample in samples:  # Add alt_AD for each sample if it's >0
+        for sample in samples:
             if 'AD' in rec.samples[sample]:
                 ad_values = rec.samples[sample]['AD']
                 if ad_values is not None and len(ad_values) == 2:
@@ -118,13 +120,13 @@ vcf_in.close()
 vcf_out.close()
 EOF
 
-        bgzip "~{prefix}~{output_suffix}.vcf"
-        tabix "~{prefix}~{output_suffix}.vcf.gz"
+        bgzip "~{prefix}.filtered.vcf"
+        tabix "~{prefix}.filtered.vcf.gz"
     >>>
 
     output {
-        File filtered_vcf = "~{prefix}~{output_suffix}.vcf.gz"
-        File filtered_vcf_index = "~{prefix}~{output_suffix}.vcf.gz.tbi"
+        File filtered_vcf = "~{prefix}.filtered.vcf.gz"
+        File filtered_vcf_index = "~{prefix}.filtered.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -147,34 +149,32 @@ EOF
     }
 }
 
-task PostprocessVcf {
+task SubsetVcfToContigs {
     input {
         File vcf
         File vcf_index
+        File contigs_list
         String prefix
-        String output_suffix
         String pipeline_docker
-
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
-        set -exuo pipefail
+        set -euxo pipefail
 
-        # Simply copy the filtered VCF as final output
-        cp ~{vcf} ~{prefix}~{output_suffix}.final.vcf.gz
-        cp ~{vcf_index} ~{prefix}~{output_suffix}.final.vcf.gz.tbi
+        bcftools view ~{vcf} --regions-file ~{contigs_list} -Oz -o ~{prefix}.subset.vcf.gz
+        tabix -p vcf ~{prefix}.subset.vcf.gz
     >>>
 
     output {
-        File final_vcf = "~{prefix}~{output_suffix}.final.vcf.gz"
-        File final_vcf_index = "~{prefix}~{output_suffix}.final.vcf.gz.tbi"
+        File subset_vcf = "~{prefix}.subset.vcf.gz"
+        File subset_vcf_index = "~{prefix}.subset.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(size(vcf, "GB")) + 5,
+        disk_gb: ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
