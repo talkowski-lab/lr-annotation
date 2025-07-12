@@ -9,7 +9,7 @@ workflow AnnotateSingletonReads {
         File vcf_index
         String pipeline_docker
         String prefix
-        File contigs_list
+        Array[String] contigs
         
         Int? variants_per_shard
 
@@ -25,7 +25,7 @@ workflow AnnotateSingletonReads {
         input:
             vcf = vcf,
             vcf_index = vcf_index,
-            contigs_list = contigs_list,
+            contigs = contigs,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_subset
@@ -153,7 +153,7 @@ task SubsetVcfToContigs {
     input {
         File vcf
         File vcf_index
-        File contigs_list
+        Array[String] contigs
         String prefix
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
@@ -162,7 +162,7 @@ task SubsetVcfToContigs {
     command <<<
         set -euxo pipefail
 
-        bcftools view ~{vcf} --regions-file ~{contigs_list} -Oz -o ~{prefix}.subset.vcf.gz
+        bcftools view ~{vcf} --regions ~{sep=',' contigs} -Oz -o ~{prefix}.subset.vcf.gz
         tabix -p vcf ~{prefix}.subset.vcf.gz
     >>>
 
