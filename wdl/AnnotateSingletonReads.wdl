@@ -98,17 +98,17 @@ samples = list(vcf_in.header.samples)
 for rec in vcf_in:
     is_suspicious = False
     
-    if rec.info['AC'][0] > 2:
+    if rec.info['AC'][0] <= 2:
         alt_AD_in_called_samples = []
         for sample in samples:
             if 'AD' in rec.samples[sample]:
                 if len(rec.samples[sample]['AD']) == 2:
-                    alt_AD=rec.samples[sample]['AD'][1]
-                    if alt_AD>0:
+                    alt_AD = rec.samples[sample]['AD'][1]
+                    if alt_AD > 0:
                         alt_AD_in_called_samples.append(alt_AD)
         if len(alt_AD_in_called_samples)==1 and alt_AD_in_called_samples[0]==1:
             is_suspicious = True
-
+    
     if is_suspicious:
         rec.filter.add("SINGLE_READ_SUPPORT")
     
