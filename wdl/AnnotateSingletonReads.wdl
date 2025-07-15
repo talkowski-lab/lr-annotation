@@ -15,6 +15,7 @@ workflow AnnotateSingletonReads {
 
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
+        RuntimeAttr? runtime_attr_populate_tags
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_concat
     }
@@ -44,10 +45,19 @@ workflow AnnotateSingletonReads {
     scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
         String shard_prefix = basename(shard.left, ".vcf.gz")
         
-        call FilterSingletonReads {
+        call PopulateTags {
             input:
                 vcf = shard.left,
                 vcf_index = shard.right,
+                prefix = shard_prefix,
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_populate_tags
+        }
+        
+        call FilterSingletonReads {
+            input:
+                vcf = PopulateTags.tagged_vcf,
+                vcf_index = PopulateTags.tagged_vcf_index,
                 prefix = shard_prefix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_filter
@@ -66,6 +76,48 @@ workflow AnnotateSingletonReads {
     output {
         File singleton_filtered_vcf = ConcatFilteredVcfs.concat_vcf
         File singleton_filtered_vcf_index = ConcatFilteredVcfs.concat_vcf_idx
+    }
+}
+
+task PopulateTags {
+    input {
+        File vcf
+        File vcf_index
+        String prefix
+        String pipeline_docker
+
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -exuo pipefail
+
+        bcftools +fill-tags ~{vcf} -Oz -o ~{prefix}.tagged.vcf.gz -- -t AC
+        tabix -p vcf ~{prefix}.tagged.vcf.gz
+    >>>
+
+    output {
+        File tagged_vcf = "~{prefix}.tagged.vcf.gz"
+        File tagged_vcf_index = "~{prefix}.tagged.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
