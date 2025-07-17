@@ -31,8 +31,6 @@ References:
 - `Hail Package`: [Current version](https://github.com/REPBIO-LAB/SVAN) from the Github repository, which is built directly using `pip` in the [docker](dockerfiles/Dockerfile.AnnotateVEPHail).
 - `reference_fasta`: [hg38](gs://gcp-public-data--broad-references/hg38/v0/Homo_sapiens_assembly38.fasta) from the GATK-SV featured workspace.
 - `top_level_fa`: [hg38 Release 76](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
-- `alpha_missense_file`: [hg38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/resources/annotations/AlphaMissense_hg38.tsv.gz) from [Alpha Missense](https://zenodo.org/records/8208688).
-- `eve_data`: [hg38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/resources/EVE/eve_merged.vcf.gz) from [EVE](https://evemodel.org/api/proteins/bulk/download/).
 - `ref_vep_cache`: [v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/).
 - Additional References: Based on the pre-defined references used in the installed version of VEP, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache). These additional references include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc.
 

@@ -10,8 +10,6 @@ workflow AnnotateVEPHail {
         File? vcf_file
 
         File top_level_fa
-        File alpha_missense_file
-        File eve_data
         File ref_vep_cache
 
         String cohort_prefix
@@ -66,10 +64,6 @@ workflow AnnotateVEPHail {
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
-                    alpha_missense_file=alpha_missense_file,
-                    alpha_missense_file_idx=alpha_missense_file+".tbi",
-                    eve_data=eve_data,
-                    eve_data_idx=eve_data+".tbi",
                     vep_hail_docker=vep_hail_docker,
                     reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
@@ -102,10 +96,6 @@ workflow AnnotateVEPHail {
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
-                    alpha_missense_file=alpha_missense_file,
-                    alpha_missense_file_idx=alpha_missense_file+".tbi",
-                    eve_data=eve_data,
-                    eve_data_idx=eve_data+".tbi",
                     vep_hail_docker=vep_hail_docker,
                     reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
@@ -125,11 +115,6 @@ task VepAnnotate {
         File vcf_file
         File top_level_fa
         File ref_vep_cache
-
-        File alpha_missense_file
-        File alpha_missense_file_idx
-        File eve_data
-        File eve_data_idx
 
         String vep_hail_docker
         String genome_build
