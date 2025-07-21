@@ -948,10 +948,10 @@ task SubsetVCFs {
 
 task SplitVcfIntoShards {
   input {
-    File input_vcf       # .vcf.gz
-    File input_vcf_index # .vcf.gz.tbi
-    Int variants_per_shard    # number of varians in each splitted variants
-    String output_prefix   # e.g. "chr1"
+    File input_vcf
+    File input_vcf_index
+    Int variants_per_shard
+    String output_prefix
     String docker_image
     RuntimeAttr? runtime_attr_override
   }
