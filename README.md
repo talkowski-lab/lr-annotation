@@ -63,3 +63,39 @@ References:
 - `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), which is the current version in the repository, and is included directly in the manually-listed docker in the [TRGT workflow](wdl/TRGT.wdl).
 - `reference_fasta`: [hg38 with no alts](gs://fc-8c3900db-633f-477f-96b3-fb31ae265c44/resources/references/grch38_noalt/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa) from the All of Us workspace.
 - `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us.
+
+
+##  Downstream Steps
+### Merge AF Annotated VCFs
+The [merge_af_annotated_vcfs.py](scripts/merge/merge_af_annotated_vcfs.py) script takes in multiple VCFs containing various AF-related annotations, as produced by the [Internal Allele Frequency](#internal-allele-frequency-af) workflow, and synthesizes them into a single VCF in which each record contains the annotations for that record across all the input VCFs.
+
+Below illustrates an example of its use:
+```
+python ./scripts/merge/merge_af_annotated_vcfs.py \
+	./data/annotated_af/annotated.ancestry_sex.vcf.gz \
+	./data/annotated_af/annotated.ancestry.vcf.gz \
+	./data/annotated_af/annotated.sex.vcf.gz \
+	-o ./data/annotated_af/annotated_af.vcf.gz
+```
+
+### Merge Funcitonally Annotated VCFs
+The [merge_functionally_annotated_vcfs.py](scripts/merge/merge_functionally_annotated_vcfs.py) script takes in VCFs produced by the [Small Variants](#small-variants--50-bp) and [Structural Variants](#structural-variants--50-bp) functional annotation workflows, and synthesizes them into a single VCF in which any < 50 b.p. contains only the VEP annotations while any variant ≥ 50 b.p. contains only SVAnnotate annotations.
+
+Below illustrates an example of its use:
+```
+python ./scripts/merge/merge_functionally_annotated_vcfs.py \
+	--vep-vcf ./data/functionally_annotated/vep.vcf.gz \
+	--svannotate-vcf ./data/functionally_annotated/svannotate.vcf.gz \
+	-o ./data/functionally_annotated/functionally_annotated.vcf.gz
+```
+
+### Merge AF & Functionally Annotated VCFs
+The [merge_af_annotated_vcfs.py](scripts/merge/merge_af_annotated_vcfs.py) script can also be applied to merge the AF and functionally annotated VCFs into a single one, including INFO fields across each for a given variant in the output. 
+
+Below illustrates an example of its use:
+```
+python ./scripts/merge/merge_af_annotated_vcfs.py \
+	./data/annotated_af/annotated_af.vcf.gz \
+	./data/functionally_annotated/functionally_annotated.vcf.gz \
+	-o ./data/annotated_merged/af_functionally_annotated.vcf.gz
+```
