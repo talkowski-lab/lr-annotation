@@ -26,7 +26,7 @@ workflow BenchmarkSNVAnnotations {
     }
 
     Array[String] contigs = read_lines(primary_contigs_list)
-    Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
+    Int variants_per_shard_eff = select_first([variants_per_shard, 100000000])
 
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetEvalVcf {
