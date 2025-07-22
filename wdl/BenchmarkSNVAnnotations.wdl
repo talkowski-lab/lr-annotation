@@ -17,8 +17,10 @@ workflow BenchmarkSNVAnnotations {
         Int? variants_per_shard
         
         RuntimeAttr? runtime_attr_subset_contig
-        RuntimeAttr? runtime_attr_split_vcf
-        RuntimeAttr? runtime_attr_parse_vcf
+        RuntimeAttr? runtime_attr_split_eval_vcf
+        RuntimeAttr? runtime_attr_split_truth_vcf
+        RuntimeAttr? runtime_attr_parse_eval_vcf
+        RuntimeAttr? runtime_attr_parse_truth_vcf
         RuntimeAttr? runtime_attr_concat_tsv
         RuntimeAttr? runtime_attr_benchmark
         RuntimeAttr? runtime_attr_merge_summaries
@@ -56,8 +58,8 @@ workflow BenchmarkSNVAnnotations {
                 prefix = "~{prefix}.~{contig}.eval",
                 variants_per_shard = variants_per_shard_eff,
                 pipeline_docker = pipeline_docker,
-                runtime_attr_split_vcf = runtime_attr_split_vcf,
-                runtime_attr_parse_vcf = runtime_attr_parse_vcf,
+                runtime_attr_split_vcf = runtime_attr_split_eval_vcf,
+                runtime_attr_parse_vcf = runtime_attr_parse_eval_vcf,
                 runtime_attr_concat_tsv = runtime_attr_concat_tsv
         }
 
@@ -68,8 +70,8 @@ workflow BenchmarkSNVAnnotations {
                 prefix = "~{prefix}.~{contig}.truth",
                 variants_per_shard = variants_per_shard_eff,
                 pipeline_docker = pipeline_docker,
-                runtime_attr_split_vcf = runtime_attr_split_vcf,
-                runtime_attr_parse_vcf = runtime_attr_parse_vcf,
+                runtime_attr_split_vcf = runtime_attr_split_truth_vcf,
+                runtime_attr_parse_vcf = runtime_attr_parse_truth_vcf,
                 runtime_attr_concat_tsv = runtime_attr_concat_tsv
         }
 
@@ -103,43 +105,6 @@ workflow BenchmarkSNVAnnotations {
     output {
         File merged_summary = MergeSummaries.merged_file
         File merged_plot_tarball = MergePlotTarballs.merged_tarball
-    }
-}
-
-task ParseVcfToTsv {
-    input {
-        File vcf
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euxo pipefail
-        python3 /opt/gnomad-lr/scripts/benchmark/parse_vcf_to_tsv.py ~{vcf} ~{prefix}.tsv
-    >>>
-
-    output {
-        File output_tsv = "~{prefix}.tsv"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 

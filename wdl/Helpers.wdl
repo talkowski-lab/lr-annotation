@@ -983,8 +983,8 @@ task SplitVcfIntoShards {
 
   RuntimeAttr default_attr = object {
     cpu_cores: 1,
-    mem_gb: 3.75 + ceil(size(input_vcf,"GiB")*1.5),
-    disk_gb: 10 + ceil(size(input_vcf,"GiB")*1.5),
+    mem_gb: 3.75 + ceil(size(input_vcf,"GiB")*2.5),
+    disk_gb: 10 + ceil(size(input_vcf,"GiB")*2.5),
     boot_disk_gb: 10,
     preemptible_tries: 1,
     max_retries: 1
