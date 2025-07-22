@@ -55,6 +55,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: BenchmarkSNVAnnotations
+    primaryDescriptorPath: /wdl/BenchmarkSNVAnnotations.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: RunTRGT
     primaryDescriptorPath: /wdl/RunTRGT.wdl
     filters:
