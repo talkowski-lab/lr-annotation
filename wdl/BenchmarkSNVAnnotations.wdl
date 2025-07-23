@@ -16,12 +16,14 @@ workflow BenchmarkSNVAnnotations {
 
         Int? variants_per_shard
         
-        RuntimeAttr? runtime_attr_subset_contig
+        RuntimeAttr? runtime_attr_subset_eval_contig
+        RuntimeAttr? runtime_attr_subset_truth_contig
         RuntimeAttr? runtime_attr_split_eval_vcf
         RuntimeAttr? runtime_attr_split_truth_vcf
         RuntimeAttr? runtime_attr_parse_eval_vcf
         RuntimeAttr? runtime_attr_parse_truth_vcf
-        RuntimeAttr? runtime_attr_concat_tsv
+        RuntimeAttr? runtime_attr_concat_eval_tsv
+        RuntimeAttr? runtime_attr_concat_truth_tsv
         RuntimeAttr? runtime_attr_benchmark
         RuntimeAttr? runtime_attr_merge_summaries
         RuntimeAttr? runtime_attr_merge_tarballs
@@ -38,7 +40,7 @@ workflow BenchmarkSNVAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.eval",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+                runtime_attr_override = runtime_attr_subset_eval_contig
         }
 
         call Helpers.SubsetVcfToContig as SubsetTruthVcf {
@@ -48,7 +50,7 @@ workflow BenchmarkSNVAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+                runtime_attr_override = runtime_attr_subset_truth_contig
         }
 
         call ParseVcf.ParseVcfSharded as ParseEvalVcf {
@@ -60,7 +62,7 @@ workflow BenchmarkSNVAnnotations {
                 pipeline_docker = pipeline_docker,
                 runtime_attr_split_vcf = runtime_attr_split_eval_vcf,
                 runtime_attr_parse_vcf = runtime_attr_parse_eval_vcf,
-                runtime_attr_concat_tsv = runtime_attr_concat_tsv
+                runtime_attr_concat_tsv = runtime_attr_concat_eval_tsv
         }
 
         call ParseVcf.ParseVcfSharded as ParseTruthVcf {
@@ -72,7 +74,7 @@ workflow BenchmarkSNVAnnotations {
                 pipeline_docker = pipeline_docker,
                 runtime_attr_split_vcf = runtime_attr_split_truth_vcf,
                 runtime_attr_parse_vcf = runtime_attr_parse_truth_vcf,
-                runtime_attr_concat_tsv = runtime_attr_concat_tsv
+                runtime_attr_concat_tsv = runtime_attr_concat_truth_tsv
         }
 
         call BenchmarkContig {
