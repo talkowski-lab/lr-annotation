@@ -15,11 +15,12 @@ def get_vep_format_from_header(vcf_path):
     vep_format = None
 
     for header_rec in vcf_in.header.records:
-        if header_rec.key == 'INFO' and ('ID' in header_rec and (header_rec['ID'] == 'vep' or header_rec['ID'] == 'CSQ')):
+        if header_rec.key == 'INFO' and ('ID' in header_rec and (header_rec['ID'].lower() == 'vep' or header_rec['ID'].lower() == 'csq')):
             vep_key = header_rec['ID']
-            description = header_rec['Description']
-            vep_format = description.split('Format: ')[-1].strip('">')
-            break
+            description = header_rec.get('Description', '')
+            if 'Format: ' in description:
+                vep_format = description.split('Format: ')[-1].strip('">')
+                break
 
     vcf_in.close()
     

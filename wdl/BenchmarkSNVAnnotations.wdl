@@ -253,15 +253,12 @@ task MergePlotTarballs {
     command <<<
         set -euxo pipefail
 
-        mkdir -p plots/AF_plots
-        mkdir -p plots/VEP_plots
-
+        mkdir final_results
         for tarball in ~{sep=' ' tarballs}; do
-            tar -xzf $tarball --strip-components=1 -C plots/
+            tar -xzf $tarball -C final_results
         done
 
-        tar -czf ~{prefix}.plots.tar.gz plots/
-
+        tar -czf ~{prefix}.plots.tar.gz final_results/
     >>>
 
     output {
