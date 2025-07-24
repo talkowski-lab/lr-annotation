@@ -40,11 +40,45 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_bedtools_closest
     }
 
-    # ... similar calls for DUP, INS, INV, BND ...
+    call Helpers.BedtoolsClosest as CompareDUP {
+        input:
+            bed_a = SplitEval.dup_bed,
+            bed_b = SplitTruth.dup_bed,
+            svtype = "DUP",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_bedtools_closest
+    }
+
+    call Helpers.BedtoolsClosest as CompareINS {
+        input:
+            bed_a = SplitEval.ins_bed,
+            bed_b = SplitTruth.ins_bed,
+            svtype = "INS",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_bedtools_closest
+    }
+
+    call Helpers.BedtoolsClosest as CompareINV {
+        input:
+            bed_a = SplitEval.inv_bed,
+            bed_b = SplitTruth.inv_bed,
+            svtype = "INV",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_bedtools_closest
+    }
+
+    call Helpers.BedtoolsClosest as CompareBND {
+        input:
+            bed_a = SplitEval.bnd_bed,
+            bed_b = SplitTruth.bnd_bed,
+            svtype = "BND",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_bedtools_closest
+    }
 
     call Helpers.ConcatFiles as MergeBeds {
         input:
-            files = [CompareDEL.output_bed, ...],
+            files = [CompareDEL.output_bed, CompareDUP.output_bed, CompareINS.output_bed, CompareINV.output_bed, CompareBND.output_bed],
             outfile_name = "~{prefix}.closest.bed",
             docker_image = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_concat
