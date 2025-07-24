@@ -61,7 +61,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_subset_contig
         }
 
-        call BedtoolsClosestSV.BedtoolsClosestSV as BedtoolsClosest {
+        call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
             input:
                 vcf_eval = SubsetEvalVcf.subset_vcf,
                 vcf_truth = SubsetSVTruthVcf.subset_vcf, # Using SV truth set
