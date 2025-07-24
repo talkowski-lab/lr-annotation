@@ -1,6 +1,6 @@
 FROM quay.io/ymostovoy/lr-utils-basic:2.0
 
-MAINTAINER Yulia Mostovoy
+MAINTAINER Karan Jaisingh
 
 COPY ./scripts/annotate_external_afs/dup_to_ins_LR.py /
 COPY ./scripts/annotate_external_afs/ins_to_dup.py /

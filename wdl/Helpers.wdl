@@ -1135,3 +1135,94 @@ task ConcatFiles {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task SplitQueryVcf {
+    input {
+        File vcf
+        String prefix
+        String sv_pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
+        cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
+        set +o pipefail
+        head -1 ~{prefix}.bed > header
+        set -o pipefail
+        cat header <(awk '{if ($5=="DEL") print}' ~{prefix}.bed )> ~{prefix}.DEL.bed
+        cat header <(awk '{if ($5=="DUP") print}' ~{prefix}.bed )> ~{prefix}.DUP.bed
+        cat header <(awk '{if ($5=="INS" || $5=="INS:ME" || $5=="INS:ME:ALU" || $5=="INS:ME:LINE1" || $5=="INS:ME:SVA" || $5=="ALU" || $5=="LINE1" || $5=="SVA" || $5=="HERVK" ) print}' ~{prefix}.bed )> ~{prefix}.INS.bed
+        cat header <(awk '{if ($5=="INV" || $5=="CPX") print}' ~{prefix}.bed )> ~{prefix}.INV_CPX.bed
+        cat header <(awk '{if ($5=="BND" || $5=="CTX") print}' ~{prefix}.bed )> ~{prefix}.BND_CTX.bed
+    >>>
+
+    output {
+        File bed = "~{prefix}.bed"
+        File del_bed = "~{prefix}.DEL.bed"
+        File dup_bed = "~{prefix}.DUP.bed"
+        File ins_bed = "~{prefix}.INS.bed"
+        File inv_bed = "~{prefix}.INV_CPX.bed"
+        File bnd_bed = "~{prefix}.BND_CTX.bed"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: sv_pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task BedtoolsClosest {
+    input {
+        File bed_a
+        File bed_b
+        String svtype
+        String sv_pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -eu
+        paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) | sed -e "s/#//g" > ~{svtype}.bed
+        set -o pipefail
+        bedtools closest -wo -a <(sort -k1,1 -k2,2n ~{bed_a}) -b <(sort -k1,1 -k2,2n ~{bed_b}) >> ~{svtype}.bed
+    >>>
+
+    output {
+        File output_bed = "~{svtype}.bed"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: sv_pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}

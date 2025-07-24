@@ -1,6 +1,6 @@
 FROM ubuntu:20.04
 
-LABEL maintainer="Karan Jaisingh"
+MAINTAINER Karan Jaisingh
 
 ENV DEBIAN_FRONTEND=noninteractive
 

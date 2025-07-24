@@ -51,6 +51,11 @@ References:
 - `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
 
+gnomAD Formatting Specifications for `sample_pop_assignments`:
+- Genetic ancestries should use lower-case format. 
+- Sex should be denoted with XX & XY.
+- If combining sex and genetic ancestry, the genetic ancestry should prelude the sex (i.e. `sas_XX` rather than `XX_sas`).
+
 
 ## External Allele Frequency (AF)
 TODO
@@ -89,13 +94,18 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 	-o ./data/functionally_annotated/functionally_annotated.vcf.gz
 ```
 
-### Merge AF & Functionally Annotated VCFs
-The [merge_af_annotated_vcfs.py](scripts/merge/merge_af_annotated_vcfs.py) script can also be applied to merge the AF and functionally annotated VCFs into a single one, including INFO fields across each for a given variant in the output. 
+### (TODO) Merge N Annotated VCFs
+This future workflow should take in a VCF from each of the above annotation steps, and synthesize the annotations across each, applying logic to merge SNV vs SV information. You could even possibly specify an ordering or specific steps to run (or not run). Each of the input VCFs should be the same size though, which means that each of the above workflows should simply annotate rather than also subset.
 
-Below illustrates an example of its use:
+For now, we do the following to merge our functionally annotated VCFs with our AF annotated VCFs:
 ```
 python ./scripts/merge/merge_af_annotated_vcfs.py \
 	./data/annotated_af/annotated_af.vcf.gz \
 	./data/functionally_annotated/functionally_annotated.vcf.gz \
 	-o ./data/annotated_merged/af_functionally_annotated.vcf.gz
 ```
+
+It should also do a series of formatting-related tasks on the final output VCF: 
+- Use the exact gnomAD header for VEP - CSQ.
+- Use the exact gnomAD header for any additional header files that aren't the same.
+- Remove AF gnomad annotations from the VEP annotations.

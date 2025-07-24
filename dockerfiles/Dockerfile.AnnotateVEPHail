@@ -1,6 +1,6 @@
 FROM ensemblorg/ensembl-vep:release_105.0
 
-LABEL maintainer="Karan Jaisingh"
+MAINTAINER Karan Jaisingh
 
 USER root
 
