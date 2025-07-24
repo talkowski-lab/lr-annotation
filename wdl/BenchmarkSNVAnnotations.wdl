@@ -16,6 +16,7 @@ workflow BenchmarkSNVAnnotations {
 
         Int? variants_per_shard
         
+        RuntimeAttr? runtime_attr_get_vep_format
         RuntimeAttr? runtime_attr_subset_eval_contig
         RuntimeAttr? runtime_attr_subset_truth_contig
         RuntimeAttr? runtime_attr_split_eval_vcf
@@ -31,6 +32,20 @@ workflow BenchmarkSNVAnnotations {
 
     Array[String] contigs = read_lines(primary_contigs_list)
     Int variants_per_shard_eff = select_first([variants_per_shard, 100000000])
+
+    call GetVepFormat as GetVepFormatEval {
+        input:
+            vcf = vcf_eval,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_get_vep_format
+    }
+
+    call GetVepFormat as GetVepFormatTruth {
+        input:
+            vcf = vcf_truth,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_get_vep_format
+    }
 
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetEvalVcf {
@@ -81,6 +96,8 @@ workflow BenchmarkSNVAnnotations {
             input:
                 eval_tsv = ParseEvalVcf.output_tsv,
                 truth_tsv = ParseTruthVcf.output_tsv,
+                eval_vep_format = GetVepFormatEval.vep_format,
+                truth_vep_format = GetVepFormatTruth.vep_format,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
@@ -110,10 +127,48 @@ workflow BenchmarkSNVAnnotations {
     }
 }
 
+task GetVepFormat {
+    input {
+        File vcf
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+        python3 /opt/gnomad-lr/scripts/benchmark/get_vep_format.py ~{vcf} > vep_format.txt
+    >>>
+
+    output {
+        String vep_format = read_string("vep_format.txt")
+    }
+    
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task BenchmarkContig {
     input {
         File eval_tsv
         File truth_tsv
+        String eval_vep_format
+        String truth_vep_format
         String contig
         String prefix
         String pipeline_docker
@@ -122,12 +177,12 @@ task BenchmarkContig {
 
     command <<<
         set -euxo pipefail
-        python3 /opt/gnomad-lr/scripts/benchmark/benchmark_snv_annotations.py ~{eval_tsv} ~{truth_tsv} ~{contig} ~{prefix}
+        python3 /opt/gnomad-lr/scripts/benchmark/benchmark_snv_annotations.py ~{eval_tsv} ~{truth_tsv} "~{eval_vep_format}" "~{truth_vep_format}" ~{contig} ~{prefix}
     >>>
 
     output {
         File summary_file = "~{prefix}_summary.txt"
-        File plot_tarball = "~{prefix}_plots.tar.gz"
+        File plot_tarball = "~{prefix}.tar.gz"
     }
     
     RuntimeAttr default_attr = object {
@@ -202,7 +257,7 @@ task MergePlotTarballs {
         mkdir -p plots/VEP_plots
 
         for tarball in ~{sep=' ' tarballs}; do
-            tar -xzf $tarball -C plots/
+            tar -xzf $tarball --strip-components=1 -C plots/
         done
 
         tar -czf ~{prefix}.plots.tar.gz plots/
