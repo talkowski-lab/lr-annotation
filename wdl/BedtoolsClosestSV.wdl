@@ -12,6 +12,7 @@ workflow BedtoolsClosestSV {
 
         RuntimeAttr? runtime_attr_split_vcf
         RuntimeAttr? runtime_attr_bedtools_closest
+        RuntimeAttr? runtime_attr_select_matched_svs
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -39,6 +40,14 @@ workflow BedtoolsClosestSV {
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_bedtools_closest
     }
+    
+    call Helpers.SelectMatchedSVs as CalcuDEL {
+        input:
+            input_bed = CompareDEL.output_bed,
+            svtype = "DEL",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_select_matched_svs
+    }
 
     call Helpers.BedtoolsClosest as CompareDUP {
         input:
@@ -47,6 +56,14 @@ workflow BedtoolsClosestSV {
             svtype = "DUP",
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_bedtools_closest
+    }
+    
+    call Helpers.SelectMatchedSVs as CalcuDUP {
+        input:
+            input_bed = CompareDUP.output_bed,
+            svtype = "DUP",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_select_matched_svs
     }
 
     call Helpers.BedtoolsClosest as CompareINS {
@@ -57,6 +74,14 @@ workflow BedtoolsClosestSV {
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_bedtools_closest
     }
+    
+    call Helpers.SelectMatchedINSs as CalcuINS {
+        input:
+            input_bed = CompareINS.output_bed,
+            svtype = "INS",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_select_matched_svs
+    }
 
     call Helpers.BedtoolsClosest as CompareINV {
         input:
@@ -65,6 +90,14 @@ workflow BedtoolsClosestSV {
             svtype = "INV",
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_bedtools_closest
+    }
+    
+    call Helpers.SelectMatchedSVs as CalcuINV {
+        input:
+            input_bed = CompareINV.output_bed,
+            svtype = "INV",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_select_matched_svs
     }
 
     call Helpers.BedtoolsClosest as CompareBND {
@@ -75,16 +108,24 @@ workflow BedtoolsClosestSV {
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_bedtools_closest
     }
-
-    call Helpers.ConcatFiles as MergeBeds {
+    
+    call Helpers.SelectMatchedINSs as CalcuBND {
         input:
-            files = [CompareDEL.output_bed, CompareDUP.output_bed, CompareINS.output_bed, CompareINV.output_bed, CompareBND.output_bed],
-            outfile_name = "~{prefix}.closest.bed",
+            input_bed = CompareBND.output_bed,
+            svtype = "BND",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_select_matched_svs
+    }
+
+    call Helpers.ConcatFiles as MergeComparisons {
+        input:
+            files = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
+            outfile_name = "~{prefix}.comparison.bed",
             docker_image = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File closest_bed = MergeBeds.concatenated_file
+        File closest_bed = MergeComparisons.concatenated_file
     }
 } 

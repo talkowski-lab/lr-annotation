@@ -1226,3 +1226,84 @@ task BedtoolsClosest {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task SelectMatchedSVs {
+    input {
+        File input_bed
+        String svtype
+        String sv_pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String prefix = basename(input_bed, ".bed")
+
+    command <<<
+        set -euo pipefail
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
+            -i ~{input_bed} \
+            -o ~{prefix}.comparison
+    >>>
+
+    output {
+        File output_comp = "~{prefix}.comparison"
+    }    
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: sv_pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SelectMatchedINSs {
+    input {
+        File input_bed
+        String svtype
+        String sv_pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String prefix = basename(input_bed, ".bed")
+
+    command <<<
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
+            -i ~{input_bed} \
+            -o ~{prefix}.comparison
+    >>>
+
+    output {
+        File output_comp = "~{prefix}.comparison"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: sv_pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}

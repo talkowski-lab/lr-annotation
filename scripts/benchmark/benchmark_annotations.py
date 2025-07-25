@@ -49,15 +49,17 @@ def run_truvari(vcf_eval, vcf_truth, pct_seq, output_dir, ref_fasta):
     return os.path.join(output_dir, "tp-comp.vcf.gz")
 
 def parse_closest_bed(bed_path):
+    """Parse the output of the R script to find matches."""
     matches = {}
     with open(bed_path) as f:
         for line in f:
-            if line.startswith('#') or 'query_svid' in line: continue
+            if 'query_svid' in line: continue # Skip header
             fields = line.strip().split('\t')
-            if len(fields) > 9:
-                query_id = fields[3]
-                truth_id = fields[9]
-                if truth_id != ".":
+            if len(fields) > 1:
+                query_id = fields[0]
+                truth_id = fields[1]
+                # The R script output indicates no match with "NA"
+                if truth_id != "NA":
                     matches[query_id] = ("BEDTOOLS_CLOSEST", truth_id)
     return matches
 
