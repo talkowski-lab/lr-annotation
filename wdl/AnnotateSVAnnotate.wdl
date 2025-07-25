@@ -166,8 +166,8 @@ task PreprocessVcf {
         # make all DEL svlengths positive
         # make all ALTs symbolic (required for SVAnnotate)
 
-        python /symbalts.py ~{vcf} | \
-            python /abs_svlen.py /dev/stdin | \
+        python /opt/gnomad-lr/scripts/helpers/symbalts.py ~{vcf} | \
+            python /opt/gnomad-lr/scripts/helpers/abs_svlen.py /dev/stdin | \
             bcftools view -Oz > ~{prefix}.vcf.gz
 
         tabix ~{prefix}.vcf.gz
@@ -365,7 +365,7 @@ task PostprocessVcf {
     command <<<
         set -euxo pipefail
         
-        python /revert_symbalts.py ~{annotated_vcf} ~{original_vcf} | bcftools view -Oz -o ~{prefix}.reverted.vcf.gz
+        python /opt/gnomad-lr/scripts/helpers/revert_symbalts.py ~{annotated_vcf} ~{original_vcf} | bcftools view -Oz -o ~{prefix}.reverted.vcf.gz
         tabix -p vcf ~{prefix}.reverted.vcf.gz
     >>>
 

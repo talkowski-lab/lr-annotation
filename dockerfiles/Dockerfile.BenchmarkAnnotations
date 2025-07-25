@@ -6,8 +6,8 @@ RUN apt-get update && apt-get install -y build-essential r-base
 
 RUN pip3 install truvari
 
-COPY scripts/benchmark/ /opt/gnomad-lr/scripts/benchmark/
-COPY gnomad-lr/scripts/helpers/symbalts.py /
-COPY gnomad-lr/scripts/helpers/abs_svlen.py /
+COPY ./scripts/benchmark/ /opt/gnomad-lr/scripts/benchmark/
+COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
 
-ENV PATH="/opt/gnomad-lr/scripts/benchmark/:${PATH}"
+ENV PATH="/opt/gnomad-lr/scripts/benchmark/:/opt/gnomad-lr/scripts/helpers/:${PATH}"

@@ -1239,7 +1239,7 @@ task SelectMatchedSVs {
 
     command <<<
         set -euo pipefail
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/FindClosestCNV.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
@@ -1279,7 +1279,7 @@ task SelectMatchedINSs {
     String prefix = basename(input_bed, ".bed")
 
     command <<<
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/FindClosestINS.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
@@ -1319,8 +1319,8 @@ task ConvertToSymbolic {
 
     command <<<
         set -euo pipefail
-        python /symbalts.py ~{vcf} | \
-            python /abs_svlen.py /dev/stdin | \
+        python /opt/gnomad-lr/scripts/helpers/symbalts.py ~{vcf} | \
+            python /opt/gnomad-lr/scripts/helpers/abs_svlen.py /dev/stdin | \
             bcftools view -Oz > ~{prefix}.vcf.gz
 
         tabix ~{prefix}.vcf.gz

@@ -2,12 +2,14 @@ FROM quay.io/ymostovoy/lr-utils-basic:2.0
 
 MAINTAINER Karan Jaisingh
 
-COPY ./scripts/annotate_external_afs/dup_to_ins_LR.py /
-COPY ./scripts/annotate_external_afs/ins_to_dup.py /
-COPY ./scripts/annotate_external_afs/ins_to_dup_collapse.py /
-COPY ./scripts/annotate_external_afs/abs_svlen.py /
-COPY ./scripts/annotate_external_afs/orig_dup_to_dup.py /
+COPY ./scripts/helpers/dup_to_ins_LR.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/ins_to_dup.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/ins_to_dup_collapse.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/orig_dup_to_dup.py /opt/gnomad-lr/scripts/helpers/
 
 RUN apt-get update && apt-get install python3-pip -y
 
 RUN pip3 install pysam
+
+ENV PATH="/opt/gnomad-lr/scripts/helpers/:${PATH}"

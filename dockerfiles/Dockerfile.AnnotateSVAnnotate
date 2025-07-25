@@ -2,9 +2,11 @@ FROM quay.io/ymostovoy/lr-utils-basic:2.0
 
 MAINTAINER Karan Jaisingh
 
-COPY ./scripts/helpers/symbalts.py /
-COPY ./scripts/helpers/revert_symbalts.py /
+COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/revert_symbalts.py /opt/gnomad-lr/scripts/helpers/
 
 RUN apt-get update && apt-get install python3-pip -y
 
 RUN pip3 install pysam
+
+ENV PATH="/opt/gnomad-lr/scripts/helpers/:${PATH}"
