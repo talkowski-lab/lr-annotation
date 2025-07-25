@@ -11,5 +11,3 @@ COPY ./scripts/helpers/orig_dup_to_dup.py /opt/gnomad-lr/scripts/helpers/
 RUN apt-get update && apt-get install python3-pip -y
 
 RUN pip3 install pysam
-
-ENV PATH="/opt/gnomad-lr/scripts/helpers/:${PATH}"
