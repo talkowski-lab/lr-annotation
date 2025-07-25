@@ -10,15 +10,25 @@ workflow BedtoolsClosestSV {
         String prefix
         String sv_pipeline_docker
 
+        RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_vcf
         RuntimeAttr? runtime_attr_bedtools_closest
         RuntimeAttr? runtime_attr_select_matched_svs
         RuntimeAttr? runtime_attr_concat
     }
 
-    call Helpers.SplitQueryVcf as SplitEval {
+    call Helpers.ConvertToSymbolic {
         input:
             vcf = vcf_eval,
+            vcf_idx = vcf_eval + ".tbi",
+            prefix = "~{prefix}.eval.symbolic",
+            sv_pipeline_docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_convert_to_symbolic
+    }
+
+    call Helpers.SplitQueryVcf as SplitEval {
+        input:
+            vcf = ConvertToSymbolic.processed_vcf,
             prefix = "~{prefix}.eval",
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_split_vcf

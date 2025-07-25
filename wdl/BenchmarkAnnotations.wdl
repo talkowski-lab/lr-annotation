@@ -64,11 +64,14 @@ workflow BenchmarkAnnotations {
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
             input:
                 vcf_eval = SubsetEvalVcf.subset_vcf,
-                vcf_truth = SubsetSVTruthVcf.subset_vcf, # Using SV truth set
+                vcf_truth = SubsetSVTruthVcf.subset_vcf,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
                 runtime_attr_split_vcf = runtime_attr_subset_contig,
-                runtime_attr_bedtools_closest = runtime_attr_bedtools_closest
+                runtime_attr_bedtools_closest = runtime_attr_bedtools_closest,
+                runtime_attr_convert_to_symbolic = runtime_attr_subset_contig,
+                runtime_attr_select_matched_svs = runtime_attr_subset_contig,
+                runtime_attr_concat = runtime_attr_subset_contig
         }
 
         call BenchmarkContig {
