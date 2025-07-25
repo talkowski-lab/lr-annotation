@@ -243,6 +243,7 @@ task AnnotateAndBenchmark {
     command <<<
         set -euxo pipefail
 
+        # Run the main python script to annotate bedtools matches and optionally create benchmarks
         python3 /opt/gnomad-lr/scripts/benchmark/annotate_and_benchmark.py \
             ~{vcf_unmatched_from_truvari} \
             ~{closest_bed} \
@@ -253,6 +254,15 @@ task AnnotateAndBenchmark {
             ~{exact_matched_arg} \
             ~{truvari_matched_arg} \
             ~{contig_arg}
+
+        # Combine all parts into the final VCF for the contig
+        bcftools concat -a -Oz -o ~{prefix}.final_annotated.vcf.gz \
+            ~{exact_matched_vcf} \
+            ~{truvari_matched_vcf} \
+            ~{prefix}.bedtools_matched.vcf.gz \
+            ~{prefix}.final_unmatched.vcf.gz
+        
+        tabix -p vcf ~{prefix}.final_annotated.vcf.gz
     >>>
 
     output {

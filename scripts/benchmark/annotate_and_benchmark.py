@@ -10,7 +10,6 @@ import os
 import tarfile
 import subprocess
 import numpy as np
-import bgzip
 from collections import defaultdict
 
 def parse_info(info_str):
@@ -136,52 +135,43 @@ def main():
     except (pd.errors.EmptyDataError, FileNotFoundError):
         pass
 
-    bedtools_matched_path = f"{args.prefix}.bedtools_matched.vcf.gz"
-    final_unmatched_path = f"{args.prefix}.final_unmatched.vcf.gz"
+    bedtools_matched_tmp_path = f"{args.prefix}.bedtools_matched.tmp.vcf"
+    final_unmatched_tmp_path = f"{args.prefix}.final_unmatched.tmp.vcf"
+    bedtools_matched_out_path = f"{args.prefix}.bedtools_matched.vcf.gz"
+    final_unmatched_out_path = f"{args.prefix}.final_unmatched.vcf.gz"
 
     vcf_in_unmatched = pysam.VariantFile(args.vcf_unmatched_from_truvari)
     vcf_in_unmatched.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
+    vcf_in_unmatched.header.info.add('gnomAD_V4_match_ID', '1', 'String', 'Matching variant ID from gnomAD v4.')
 
-    with bgzip.BGZFile(bedtools_matched_path, "w") as matched_out, bgzip.BGZFile(final_unmatched_path, "w") as unmatched_out:
-        matched_out.write(str(vcf_in_unmatched.header).encode())
-        unmatched_out.write(str(vcf_in_unmatched.header).encode())
+    with open(bedtools_matched_tmp_path, "w") as matched_out, open(final_unmatched_tmp_path, "w") as unmatched_out:
+        matched_out.write(str(vcf_in_unmatched.header))
+        unmatched_out.write(str(vcf_in_unmatched.header))
         for record in vcf_in_unmatched:
             if record.id in bedtools_matches:
                 record.info['gnomAD_V4_match'] = 'BEDTOOLS_CLOSEST'
                 # Note: A single eval variant could match multiple truth variants in bedtools.
                 # Here we just take the first one reported by the R script.
                 record.info['gnomAD_V4_match_ID'] = bedtools_matches[record.id][0]
-                matched_out.write(str(record).encode())
+                matched_out.write(str(record))
             else:
-                unmatched_out.write(str(record).encode())
-    
-    pysam.tabix_index(bedtools_matched_path, preset="vcf", force=True)
-    pysam.tabix_index(final_unmatched_path, preset="vcf", force=True)
+                unmatched_out.write(str(record))
+
+    subprocess.run(["bcftools", "view", "-Oz", "-o", bedtools_matched_out_path, bedtools_matched_tmp_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", bedtools_matched_out_path], check=True)
+    os.remove(bedtools_matched_tmp_path)
+
+    subprocess.run(["bcftools", "view", "-Oz", "-o", final_unmatched_out_path, final_unmatched_tmp_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", final_unmatched_out_path], check=True)
+    os.remove(final_unmatched_tmp_path)
 
     # --- Part 2: Combine all parts into a final annotated VCF for the contig ---
     final_vcf_path = f"{args.prefix}.final_annotated.vcf.gz"
     
     # Check if optional VCFs exist and are not empty
     vcf_list = []
-    if os.path.exists(args.exact_matched_vcf) and os.path.getsize(args.exact_matched_vcf) > 0:
-        vcf_list.append(args.exact_matched_vcf)
-    if os.path.exists(args.truvari_matched_vcf) and os.path.getsize(args.truvari_matched_vcf) > 0:
-        vcf_list.append(args.truvari_matched_vcf)
-    if os.path.exists(bedtools_matched_path) and os.path.getsize(bedtools_matched_path) > 0:
-        vcf_list.append(bedtools_matched_path)
-    if os.path.exists(final_unmatched_path) and os.path.getsize(final_unmatched_path) > 0:
-        vcf_list.append(final_unmatched_path)
+    # This logic has been moved to the WDL task
     
-    if vcf_list:
-        subprocess.run(["bcftools", "concat", "-a", "-Oz", "-o", final_vcf_path] + vcf_list, check=True)
-        pysam.tabix_index(final_vcf_path, preset="vcf", force=True)
-    else:
-        # Create an empty gzipped VCF if no variants are present
-        with bgzip.BGZFile(final_vcf_path, "w") as f:
-            f.write(str(vcf_in_unmatched.header).encode())
-        pysam.tabix_index(final_vcf_path, preset="vcf", force=True)
-
-
     if not args.create_benchmarks:
         return
 
@@ -219,7 +209,7 @@ def main():
                  matched_data.append({'eval': record.copy(), 'truth': truth_variants[record.info['MatchId']]})
 
     # 3. Bedtools matches
-    with pysam.VariantFile(bedtools_matched_path) as vcf_in:
+    with pysam.VariantFile(bedtools_matched_out_path) as vcf_in:
         for record in vcf_in:
             if 'gnomAD_V4_match_ID' in record.info and record.info['gnomAD_V4_match_ID'] in truth_variants:
                 matched_data.append({'eval': record.copy(), 'truth': truth_variants[record.info['gnomAD_V4_match_ID']]})
@@ -264,8 +254,8 @@ def main():
     eval_vep_format = get_vep_format(args.exact_matched_vcf) # Assume header is consistent
     truth_vep_format = get_vep_format(args.vcf_truth_snv)
     
-    vep_key_eval = 'CSQ' if 'CSQ' in eval_vep_format else 'VEP'
-    vep_key_truth = 'vep' if 'vep' in truth_vep_format else 'CSQ'
+    vep_key_eval = 'CSQ' if eval_vep_format and 'CSQ' in eval_vep_format else 'VEP'
+    vep_key_truth = 'vep' if truth_vep_format and 'vep' in truth_vep_format else 'CSQ'
     
     if eval_vep_format and truth_vep_format:
         vep_df_data = []

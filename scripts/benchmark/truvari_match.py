@@ -4,7 +4,6 @@ import argparse
 import pysam
 import subprocess
 import os
-import bgzip
 
 def run_truvari(vcf_eval, vcf_truth, pctseq, prefix):
     output_dir = f"{prefix}_truvari_{pctseq}"
@@ -32,22 +31,28 @@ def main():
     args = parser.parse_args()
 
     # Filter truth VCF to exclude SNVs
+    truth_non_snv_tmp_path = f"{args.prefix}.truth.non_snv.tmp.vcf"
     truth_non_snv_path = f"{args.prefix}.truth.non_snv.vcf.gz"
-    with pysam.VariantFile(args.vcf_truth) as vcf_in, bgzip.BGZFile(truth_non_snv_path, "w") as vcf_out:
-        vcf_out.write(str(vcf_in.header).encode())
+    with pysam.VariantFile(args.vcf_truth) as vcf_in, open(truth_non_snv_tmp_path, "w") as vcf_out:
+        vcf_out.write(str(vcf_in.header))
         for record in vcf_in:
             if record.info.get('SVTYPE') != 'SNV':
-                 vcf_out.write(str(record).encode())
-    pysam.tabix_index(truth_non_snv_path, preset="vcf")
+                 vcf_out.write(str(record))
+    subprocess.run(["bcftools", "view", "-Oz", "-o", truth_non_snv_path, truth_non_snv_tmp_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", truth_non_snv_path], check=True)
+    os.remove(truth_non_snv_tmp_path)
 
     # Filter eval VCF to include only variants with SVLEN >= 10
+    eval_svlen_ge10_tmp_path = f"{args.prefix}.eval.svlen_ge10.tmp.vcf"
     eval_svlen_ge10_path = f"{args.prefix}.eval.svlen_ge10.vcf.gz"
-    with pysam.VariantFile(args.vcf_eval_unmatched) as vcf_in, bgzip.BGZFile(eval_svlen_ge10_path, "w") as vcf_out:
-        vcf_out.write(str(vcf_in.header).encode())
+    with pysam.VariantFile(args.vcf_eval_unmatched) as vcf_in, open(eval_svlen_ge10_tmp_path, "w") as vcf_out:
+        vcf_out.write(str(vcf_in.header))
         for record in vcf_in:
             if 'SVLEN' in record.info and abs(record.info['SVLEN'][0]) >= 10:
-                vcf_out.write(str(record).encode())
-    pysam.tabix_index(eval_svlen_ge10_path, preset="vcf")
+                vcf_out.write(str(record))
+    subprocess.run(["bcftools", "view", "-Oz", "-o", eval_svlen_ge10_path, eval_svlen_ge10_tmp_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", eval_svlen_ge10_path], check=True)
+    os.remove(eval_svlen_ge10_tmp_path)
     
     pctseq_passes = [0.9, 0.7, 0.5]
     remaining_eval_vcf = eval_svlen_ge10_path
@@ -57,26 +62,29 @@ def main():
         matched_vcf, remaining_eval_vcf = run_truvari(remaining_eval_vcf, truth_non_snv_path, pctseq, f"{args.prefix}_{pctseq}")
         
         # Annotate the matched VCF with the match type
+        annotated_matched_tmp_path = f"{args.prefix}.truvari_matched.{pctseq}.tmp.vcf"
         annotated_matched_path = f"{args.prefix}.truvari_matched.{pctseq}.vcf.gz"
-        with pysam.VariantFile(matched_vcf) as vcf_in, bgzip.BGZFile(annotated_matched_path, "w") as vcf_out:
+        with pysam.VariantFile(matched_vcf) as vcf_in, open(annotated_matched_tmp_path, "w") as vcf_out:
              vcf_in.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
-             vcf_out.write(str(vcf_in.header).encode())
+             vcf_out.write(str(vcf_in.header))
              for record in vcf_in:
                  record.info['gnomAD_V4_match'] = f'TRUVARI_{pctseq}'
-                 vcf_out.write(str(record).encode())
-        pysam.tabix_index(annotated_matched_path, preset="vcf")
+                 vcf_out.write(str(record))
+        subprocess.run(["bcftools", "view", "-Oz", "-o", annotated_matched_path, annotated_matched_tmp_path], check=True)
+        subprocess.run(["tabix", "-p", "vcf", annotated_matched_path], check=True)
+        os.remove(annotated_matched_tmp_path)
         all_matched_vcfs.append(annotated_matched_path)
 
     # `remaining_eval_vcf` from the last truvari run is the final unmatched set
     final_unmatched_path = f"{args.prefix}.truvari_unmatched.vcf.gz"
     os.rename(remaining_eval_vcf, final_unmatched_path)
-    pysam.tabix_index(final_unmatched_path, preset="vcf", force=True)
+    subprocess.run(["tabix", "-p", "vcf", final_unmatched_path], check=True)
 
     # Combine all truvari-matched VCFs
     if all_matched_vcfs:
         combined_matched_path = f"{args.prefix}.truvari_matched.combined.vcf.gz"
         subprocess.run(["bcftools", "concat", "-a", "-Oz", "-o", combined_matched_path] + all_matched_vcfs, check=True)
-        pysam.tabix_index(combined_matched_path, preset="vcf")
+        subprocess.run(["tabix", "-p", "vcf", combined_matched_path], check=True)
 
 if __name__ == "__main__":
     main() 
