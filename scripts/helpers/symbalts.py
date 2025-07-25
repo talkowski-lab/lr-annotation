@@ -33,5 +33,4 @@ def main():
             rec.stop = rec.pos+svlen
 
         vcf_out.write(rec) # write every variant
-    
 if __name__=="__main__":main()
