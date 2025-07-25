@@ -12,93 +12,100 @@ workflow BenchmarkAnnotations {
         File vcf_truth_index
         File vcf_sv_truth
         File vcf_sv_truth_index
-        File ref_fasta
-        File ref_fasta_index
         
         File primary_contigs_list
         String pipeline_docker
         String prefix
         Boolean create_benchmarks
 
-        RuntimeAttr? runtime_attr_subset_eval
-        RuntimeAttr? runtime_attr_subset_truth
-        RuntimeAttr? runtime_attr_subset_sv_truth
-        RuntimeAttr? runtime_attr_benchmark
+        RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_exact_match
+        RuntimeAttr? runtime_attr_truvari_match
+        RuntimeAttr? runtime_attr_bedtools
+        RuntimeAttr? runtime_attr_annotate_benchmark
         RuntimeAttr? runtime_attr_merge_vcfs
         RuntimeAttr? runtime_attr_merge_summaries
         RuntimeAttr? runtime_attr_merge_tarballs
-        RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
-        RuntimeAttr? runtime_attr_bedtools_split_vcf
-        RuntimeAttr? runtime_attr_bedtools_closest
-        RuntimeAttr? runtime_attr_bedtools_select_matches
-        RuntimeAttr? runtime_attr_bedtools_concat_beds
     }
 
     Array[String] contigs = read_lines(primary_contigs_list)
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetEvalVcf {
+        call Helpers.SubsetVcfToContig as SubsetEval {
             input:
                 vcf = vcf_eval,
                 vcf_index = vcf_eval_index,
                 contig = contig,
-                prefix = "~{prefix}.eval",
+                prefix = "~{prefix}.~{contig}.eval",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_eval
+                runtime_attr_override = runtime_attr_subset
         }
-
-        call Helpers.SubsetVcfToContig as SubsetTruthVcf {
+        call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
                 vcf = vcf_truth,
                 vcf_index = vcf_truth_index,
                 contig = contig,
-                prefix = "~{prefix}.truth",
+                prefix = "~{prefix}.~{contig}.truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_truth
+                runtime_attr_override = runtime_attr_subset
         }
-
-        call Helpers.SubsetVcfToContig as SubsetSVTruthVcf {
+        call Helpers.SubsetVcfToContig as SubsetSVTruth {
             input:
                 vcf = vcf_sv_truth,
                 vcf_index = vcf_sv_truth_index,
                 contig = contig,
-                prefix = "~{prefix}.sv_truth",
+                prefix = "~{prefix}.~{contig}.sv_truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_sv_truth
+                runtime_attr_override = runtime_attr_subset
+        }
+
+        call ExactMatch {
+            input:
+                vcf_eval = SubsetEval.subset_vcf,
+                vcf_truth = SubsetTruth.subset_vcf,
+                prefix = "~{prefix}.~{contig}",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_exact_match
+        }
+
+        call TruvariMatch {
+            input:
+                vcf_eval_unmatched = ExactMatch.unmatched_vcf,
+                vcf_truth = SubsetTruth.subset_vcf,
+                prefix = "~{prefix}.~{contig}",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_truvari_match
         }
 
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
             input:
-                vcf_eval = SubsetEvalVcf.subset_vcf,
-                vcf_truth = SubsetSVTruthVcf.subset_vcf,
+                vcf_eval = TruvariMatch.unmatched_vcf,
+                vcf_sv_truth = SubsetSVTruth.subset_vcf,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
-                runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
-                runtime_attr_split_vcf = runtime_attr_bedtools_split_vcf,
-                runtime_attr_bedtools_closest = runtime_attr_bedtools_closest,
-                runtime_attr_select_matched_svs = runtime_attr_bedtools_select_matches,
-                runtime_attr_concat_beds = runtime_attr_bedtools_concat_beds
+                runtime_attr_override = runtime_attr_bedtools
         }
 
-        call BenchmarkContig {
+        call AnnotateAndBenchmark {
             input:
-                vcf_eval = SubsetEvalVcf.subset_vcf,
-                vcf_truth = SubsetTruthVcf.subset_vcf,
-                sv_truth = SubsetSVTruthVcf.subset_vcf,
+                vcf_unmatched_from_truvari = TruvariMatch.unmatched_vcf,
                 closest_bed = BedtoolsClosest.closest_bed,
+                exact_matched_vcf = ExactMatch.matched_vcf,
+                truvari_matched_vcf = TruvariMatch.matched_vcf,
+                vcf_truth_snv = SubsetTruth.subset_vcf,
+                vcf_truth_sv = SubsetSVTruth.subset_vcf,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 create_benchmarks = create_benchmarks,
-                ref_fasta = ref_fasta,
                 pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_benchmark
+                runtime_attr_override = runtime_attr_annotate_benchmark
         }
     }
 
-    call Helpers.ConcatVcfs as MergeAnnotatedVcfs {
+    call Helpers.ConcatVcfs as MergeFinalVcfs {
         input:
-            vcfs = BenchmarkContig.annotated_vcf,
-            vcfs_idx = BenchmarkContig.annotated_vcf_index,
+            vcfs = select_all(AnnotateAndBenchmark.final_vcf),
+            vcfs_idx = select_all(AnnotateAndBenchmark.final_vcf_index),
             outfile_prefix = prefix,
             docker_image = pipeline_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
@@ -107,7 +114,7 @@ workflow BenchmarkAnnotations {
     if (create_benchmarks) {
         call MergeSummaries {
             input:
-                summary_files = select_all(BenchmarkContig.summary_file),
+                summary_files = select_all(AnnotateAndBenchmark.summary_file),
                 prefix = prefix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_merge_summaries
@@ -115,7 +122,7 @@ workflow BenchmarkAnnotations {
 
         call MergePlotTarballs {
             input:
-                tarballs = select_all(BenchmarkContig.plot_tarball),
+                tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
                 prefix = prefix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_merge_tarballs
@@ -123,57 +130,141 @@ workflow BenchmarkAnnotations {
     }
 
     output {
-        File annotated_vcf = MergeAnnotatedVcfs.concat_vcf
-        File annotated_vcf_index = MergeAnnotatedVcfs.concat_vcf_idx
+        File annotated_vcf = MergeFinalVcfs.concat_vcf
+        File annotated_vcf_index = MergeFinalVcfs.concat_vcf_idx
         File? merged_summary = MergeSummaries.merged_file
         File? merged_plot_tarball = MergePlotTarballs.merged_tarball
     }
 }
 
-task BenchmarkContig {
+task ExactMatch {
     input {
         File vcf_eval
         File vcf_truth
-        File sv_truth
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+        python3 /opt/gnomad-lr/scripts/benchmark/exact_match.py \
+            ~{vcf_eval} \
+            ~{vcf_truth} \
+            ~{prefix}
+    >>>
+
+    output {
+        File matched_vcf = "~{prefix}.exact_matched.vcf.gz"
+        File matched_vcf_index = "~{prefix}.exact_matched.vcf.gz.tbi"
+        File unmatched_vcf = "~{prefix}.unmatched.vcf.gz"
+        File unmatched_vcf_index = "~{prefix}.unmatched.vcf.gz.tbi"
+    }
+    
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task TruvariMatch {
+    input {
+        File vcf_eval_unmatched
+        File vcf_truth
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+        python3 /opt/gnomad-lr/scripts/benchmark/truvari_match.py \
+            ~{vcf_eval_unmatched} \
+            ~{vcf_truth} \
+            ~{prefix}
+    >>>
+
+    output {
+        File matched_vcf = "~{prefix}.truvari_matched.combined.vcf.gz"
+        File matched_vcf_index = "~{prefix}.truvari_matched.combined.vcf.gz.tbi"
+        File unmatched_vcf = "~{prefix}.truvari_unmatched.vcf.gz"
+        File unmatched_vcf_index = "~{prefix}.truvari_unmatched.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval_unmatched, "GB") + size(vcf_truth, "GB")) * 5 + 20,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AnnotateAndBenchmark {
+    input {
+        File vcf_unmatched_from_truvari
         File closest_bed
+        File exact_matched_vcf
+        File truvari_matched_vcf
+        File vcf_truth_snv
+        File vcf_truth_sv
         String contig
         String prefix
         Boolean create_benchmarks
-        File ref_fasta
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
 
     String create_benchmarks_flag = if create_benchmarks then "--create_benchmarks" else ""
+    String vcf_truth_snv_arg = if create_benchmarks then "--vcf_truth_snv ~{vcf_truth_snv}" else ""
+    String vcf_truth_sv_arg = if create_benchmarks then "--vcf_truth_sv ~{vcf_truth_sv}" else ""
+    String exact_matched_arg = if create_benchmarks then "--exact_matched_vcf ~{exact_matched_vcf}" else ""
+    String truvari_matched_arg = if create_benchmarks then "--truvari_matched_vcf ~{truvari_matched_vcf}" else ""
+    String contig_arg = if create_benchmarks then "--contig ~{contig}" else ""
+
 
     command <<<
         set -euxo pipefail
 
-        python3 /opt/gnomad-lr/scripts/benchmark/benchmark_annotations.py \
-            ~{vcf_eval} \
-            ~{vcf_truth} \
-            ~{sv_truth} \
+        python3 /opt/gnomad-lr/scripts/benchmark/annotate_and_benchmark.py \
+            ~{vcf_unmatched_from_truvari} \
             ~{closest_bed} \
-            ~{contig} \
             ~{prefix} \
-            --ref_fasta ~{ref_fasta} \
-            ~{create_benchmarks_flag}
+            ~{create_benchmarks_flag} \
+            ~{vcf_truth_snv_arg} \
+            ~{vcf_truth_sv_arg} \
+            ~{exact_matched_arg} \
+            ~{truvari_matched_arg} \
+            ~{contig_arg}
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.annotated.vcf.gz"
-        File annotated_vcf_index = "~{prefix}.annotated.vcf.gz.tbi"
+        File final_vcf = "~{prefix}.final_annotated.vcf.gz"
+        File final_vcf_index = "~{prefix}.final_annotated.vcf.gz.tbi"
         File? summary_file = if create_benchmarks then "~{prefix}_benchmark_results/summary.txt" else ""
         File? plot_tarball = if create_benchmarks then "~{prefix}.benchmarks.tar.gz" else ""
     }
     
     RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 32,
-        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB") + size(sv_truth, "GB")) * 3 + 50,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 1
+        cpu_cores: 2, mem_gb: 16, disk_gb: ceil(size(vcf_unmatched_from_truvari, "GB") * 2 + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB") + size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB")) + 30,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -205,12 +296,8 @@ task MergeSummaries {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(summary_files, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
+        cpu_cores: 1, mem_gb: 2, disk_gb: ceil(size(summary_files, "GB")) * 2 + 5,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -235,9 +322,11 @@ task MergePlotTarballs {
     command <<<
         set -euxo pipefail
 
-        mkdir final_results
+        mkdir -p final_results/AF_plots
+        mkdir -p final_results/VEP_plots
+
         for tarball in ~{sep=' ' tarballs}; do
-            tar -xzf $tarball -C final_results
+            tar -xvf $tarball --strip-components=1 -C final_results
         done
 
         tar -czf ~{prefix}.plots.tar.gz final_results/
@@ -248,12 +337,8 @@ task MergePlotTarballs {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(tarballs, "GB") * 1.5) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
+        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
