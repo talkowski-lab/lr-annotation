@@ -20,12 +20,18 @@ workflow BenchmarkAnnotations {
         String prefix
         Boolean create_benchmarks
 
-        RuntimeAttr? runtime_attr_subset_contig
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
+        RuntimeAttr? runtime_attr_subset_sv_truth
         RuntimeAttr? runtime_attr_benchmark
         RuntimeAttr? runtime_attr_merge_vcfs
         RuntimeAttr? runtime_attr_merge_summaries
         RuntimeAttr? runtime_attr_merge_tarballs
+        RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
+        RuntimeAttr? runtime_attr_bedtools_split_vcf
         RuntimeAttr? runtime_attr_bedtools_closest
+        RuntimeAttr? runtime_attr_bedtools_select_matches
+        RuntimeAttr? runtime_attr_bedtools_concat_beds
     }
 
     Array[String] contigs = read_lines(primary_contigs_list)
@@ -38,7 +44,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.eval",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+                runtime_attr_override = runtime_attr_subset_eval
         }
 
         call Helpers.SubsetVcfToContig as SubsetTruthVcf {
@@ -48,7 +54,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+                runtime_attr_override = runtime_attr_subset_truth
         }
 
         call Helpers.SubsetVcfToContig as SubsetSVTruthVcf {
@@ -58,7 +64,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.sv_truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+                runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
@@ -67,11 +73,11 @@ workflow BenchmarkAnnotations {
                 vcf_truth = SubsetSVTruthVcf.subset_vcf,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
-                runtime_attr_split_vcf = runtime_attr_subset_contig,
+                runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
+                runtime_attr_split_vcf = runtime_attr_bedtools_split_vcf,
                 runtime_attr_bedtools_closest = runtime_attr_bedtools_closest,
-                runtime_attr_convert_to_symbolic = runtime_attr_subset_contig,
-                runtime_attr_select_matched_svs = runtime_attr_subset_contig,
-                runtime_attr_concat = runtime_attr_subset_contig
+                runtime_attr_select_matched_svs = runtime_attr_bedtools_select_matches,
+                runtime_attr_concat_beds = runtime_attr_bedtools_concat_beds
         }
 
         call BenchmarkContig {
@@ -115,7 +121,6 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_merge_tarballs
         }
     }
-
 
     output {
         File annotated_vcf = MergeAnnotatedVcfs.concat_vcf

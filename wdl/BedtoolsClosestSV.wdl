@@ -14,7 +14,7 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_split_vcf
         RuntimeAttr? runtime_attr_bedtools_closest
         RuntimeAttr? runtime_attr_select_matched_svs
-        RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_concat_beds
     }
 
     call Helpers.ConvertToSymbolic {
@@ -132,7 +132,7 @@ workflow BedtoolsClosestSV {
             files = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             outfile_name = "~{prefix}.comparison.bed",
             docker_image = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_beds
     }
 
     output {
