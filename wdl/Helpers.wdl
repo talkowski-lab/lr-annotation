@@ -1139,6 +1139,7 @@ task ConcatFiles {
 task SplitQueryVcf {
     input {
         File vcf
+        File? vcf_idx
         String prefix
         String sv_pipeline_docker
         RuntimeAttr? runtime_attr_override
