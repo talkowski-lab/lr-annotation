@@ -145,10 +145,11 @@ task RunTruvari {
     }
     command <<<
         set -euxo pipefail
-        # Truvari will fail if the output directory exists, so we remove it first.
+
         if [ -d "~{prefix}_truvari" ]; then
             rm -r "~{prefix}_truvari"
         fi
+        
         truvari bench \
             -b ~{vcf_truth_filtered} \
             -c ~{vcf_eval} \
