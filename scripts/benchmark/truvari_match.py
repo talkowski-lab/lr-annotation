@@ -4,22 +4,29 @@ import argparse
 import pysam
 import subprocess
 import os
+import shutil
 
-def run_truvari(vcf_eval, vcf_truth, pctseq, prefix):
+def run_truvari(vcf_eval, vcf_truth, ref_fasta, pctseq, prefix):
     output_dir = f"{prefix}_truvari_{pctseq}"
-    os.makedirs(output_dir, exist_ok=True)
+    if os.path.exists(output_dir):
+        shutil.rmtree(output_dir)
     
     cmd = [
         "truvari", "bench",
         "-b", vcf_truth,
         "-c", vcf_eval,
         "-o", output_dir,
+        "--reference", ref_fasta,
         "--pctseq", str(pctseq),
-        "--passonly",
-        "-r", "1000",
-        "-s", "10",
+        "--sizemin", "5",
+        "--sizefilt", "10"
     ]
-    subprocess.run(cmd, check=True)
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        print(f"Error running Truvari for pctseq={pctseq}:")
+        print(e.stderr)
+        raise
     
     return f"{output_dir}/tp-comp.vcf.gz", f"{output_dir}/fn.vcf.gz"
 
@@ -27,10 +34,11 @@ def main():
     parser = argparse.ArgumentParser(description="Iteratively run Truvari to find matches.")
     parser.add_argument("vcf_eval_unmatched", help="Unmatched evaluation VCF file from exact matching.")
     parser.add_argument("vcf_truth", help="Truth VCF file.")
+    parser.add_argument("ref_fasta", help="Reference FASTA file.")
     parser.add_argument("prefix", help="Prefix for output files.")
     args = parser.parse_args()
 
-    # Filter truth VCF to exclude SNVs using bcftools
+    # Filter truth VCF to exclude SNVs
     truth_non_snv_path = f"{args.prefix}.truth.non_snv.vcf.gz"
     subprocess.run([
         "bcftools", "view",
@@ -40,24 +48,14 @@ def main():
         args.vcf_truth
     ], check=True)
     subprocess.run(["tabix", "-p", "vcf", truth_non_snv_path], check=True)
-
-    # Filter eval VCF to include only variants with abs(SVLEN) >= 10 using bcftools
-    eval_svlen_ge10_path = f"{args.prefix}.eval.svlen_ge10.vcf.gz"
-    subprocess.run([
-        "bcftools", "view",
-        "-i", 'ABS(INFO/SVLEN)>=10',
-        "-Oz",
-        "-o", eval_svlen_ge10_path,
-        args.vcf_eval_unmatched
-    ], check=True)
-    subprocess.run(["tabix", "-p", "vcf", eval_svlen_ge10_path], check=True)
     
     pctseq_passes = [0.9, 0.7, 0.5]
-    remaining_eval_vcf = eval_svlen_ge10_path
+    remaining_eval_vcf = args.vcf_eval_unmatched
     all_matched_vcfs = []
 
     for pctseq in pctseq_passes:
-        matched_vcf, remaining_eval_vcf = run_truvari(remaining_eval_vcf, truth_non_snv_path, pctseq, f"{args.prefix}_{pctseq}")
+        # The 'fn.vcf.gz' is the set of unmatched variants
+        matched_vcf, remaining_eval_vcf = run_truvari(remaining_eval_vcf, truth_non_snv_path, args.ref_fasta, pctseq, f"{args.prefix}_{pctseq}")
         
         # Annotate the matched VCF with the match type
         annotated_matched_tmp_path = f"{args.prefix}.truvari_matched.{pctseq}.tmp.vcf"
@@ -75,7 +73,7 @@ def main():
 
     # `remaining_eval_vcf` from the last truvari run is the final unmatched set
     final_unmatched_path = f"{args.prefix}.truvari_unmatched.vcf.gz"
-    os.rename(remaining_eval_vcf, final_unmatched_path)
+    shutil.move(remaining_eval_vcf, final_unmatched_path)
     subprocess.run(["tabix", "-p", "vcf", final_unmatched_path], check=True)
 
     # Combine all truvari-matched VCFs

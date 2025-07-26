@@ -12,6 +12,8 @@ workflow BenchmarkAnnotations {
         File vcf_truth_index
         File vcf_sv_truth
         File vcf_sv_truth_index
+        File ref_fasta
+        File ref_fasta_fai
         
         File primary_contigs_list
         String pipeline_docker
@@ -72,6 +74,7 @@ workflow BenchmarkAnnotations {
             input:
                 vcf_eval_unmatched = ExactMatch.unmatched_vcf,
                 vcf_truth = SubsetTruth.subset_vcf,
+                ref_fasta = ref_fasta,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_truvari_match
@@ -115,17 +118,17 @@ workflow BenchmarkAnnotations {
         call MergeSummaries {
             input:
                 summary_files = select_all(AnnotateAndBenchmark.summary_file),
-                prefix = prefix,
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_merge_summaries
-        }
+            prefix = prefix,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_merge_summaries
+    }
 
-        call MergePlotTarballs {
-            input:
+    call MergePlotTarballs {
+        input:
                 tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
-                prefix = prefix,
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_merge_tarballs
+            prefix = prefix,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_merge_tarballs
         }
     }
 
@@ -181,6 +184,7 @@ task TruvariMatch {
     input {
         File vcf_eval_unmatched
         File vcf_truth
+        File ref_fasta
         String prefix
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
@@ -191,6 +195,7 @@ task TruvariMatch {
         python3 /opt/gnomad-lr/scripts/benchmark/truvari_match.py \
             ~{vcf_eval_unmatched} \
             ~{vcf_truth} \
+            ~{ref_fasta} \
             ~{prefix}
     >>>
 
