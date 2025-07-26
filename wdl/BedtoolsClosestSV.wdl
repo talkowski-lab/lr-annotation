@@ -6,7 +6,9 @@ import "Helpers.wdl" as Helpers
 workflow BedtoolsClosestSV {
     input {
         File vcf_eval
+        File vcf_eval_index
         File vcf_sv_truth
+        File vcf_sv_truth_index
         String prefix
         String sv_pipeline_docker
 
@@ -16,7 +18,7 @@ workflow BedtoolsClosestSV {
     call Helpers.ConvertToSymbolic {
         input:
             vcf = vcf_eval,
-            vcf_idx = vcf_eval + ".tbi",
+            vcf_idx = vcf_eval_index,
             prefix = "~{prefix}.eval.symbolic",
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_override
@@ -33,6 +35,7 @@ workflow BedtoolsClosestSV {
     call Helpers.SplitQueryVcf as SplitTruth {
         input:
             vcf = vcf_sv_truth,
+            vcf_idx = vcf_sv_truth_index,
             prefix = "~{prefix}.truth",
             sv_pipeline_docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_override

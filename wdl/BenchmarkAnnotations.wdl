@@ -74,8 +74,11 @@ workflow BenchmarkAnnotations {
         call Truvari.TruvariMatch as TruvariMatches {
             input:
                 vcf_eval_unmatched = ExactMatch.unmatched_vcf,
+                vcf_eval_unmatched_index = ExactMatch.unmatched_vcf_index,
                 vcf_truth = SubsetTruth.subset_vcf,
+                vcf_truth_index = SubsetTruth.subset_vcf_index,
                 ref_fasta = ref_fasta,
+                ref_fasta_fai = ref_fasta_fai,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_truvari_match
@@ -84,7 +87,9 @@ workflow BenchmarkAnnotations {
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
             input:
                 vcf_eval = TruvariMatches.unmatched_vcf,
+                vcf_eval_index = TruvariMatches.unmatched_vcf_index,
                 vcf_sv_truth = SubsetSVTruth.subset_vcf,
+                vcf_sv_truth_index = SubsetSVTruth.subset_vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_bedtools
