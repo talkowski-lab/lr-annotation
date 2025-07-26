@@ -20,37 +20,75 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_override
     }
 
-    Array[Float] pctseq_passes = [0.9, 0.7, 0.5]
-    scatter (pctseq in pctseq_passes) {
-        File vcf_to_match = if defined(previous(unmatched_vcf)) then previous(unmatched_vcf) else vcf_eval_unmatched
+    # Pass 1: pctseq = 0.9
+    call RunTruvari as RunTruvari_09 {
+        input:
+            vcf_eval = vcf_eval_unmatched,
+            vcf_truth_filtered = FilterTruthVcf.filtered_vcf,
+            ref_fasta = ref_fasta,
+            pctseq = 0.9,
+            prefix = "~{prefix}.0.9",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
+    }
 
-        call RunTruvari {
-            input:
-                vcf_eval = vcf_to_match,
-                vcf_truth_filtered = FilterTruthVcf.filtered_vcf,
-                ref_fasta = ref_fasta,
-                pctseq = pctseq,
-                prefix = "~{prefix}.~{pctseq}",
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_override
-        }
+    call AnnotateVcf as AnnotateMatched_09 {
+        input:
+            vcf_in = RunTruvari_09.matched_vcf,
+            vcf_out_name = "~{prefix}.0.9.annotated.vcf.gz",
+            tag_name = "gnomAD_V4_match",
+            tag_value = "TRUVARI_0.9",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
+    }
 
-        call AnnotateVcf as AnnotateMatched {
-            input:
-                vcf_in = RunTruvari.matched_vcf,
-                vcf_out_name = "~{prefix}.~{pctseq}.annotated.vcf.gz",
-                tag_name = "gnomAD_V4_match",
-                tag_value = "TRUVARI_~{pctseq}",
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_override
-        }
+    # Pass 2: pctseq = 0.7
+    call RunTruvari as RunTruvari_07 {
+        input:
+            vcf_eval = RunTruvari_09.unmatched_vcf,
+            vcf_truth_filtered = FilterTruthVcf.filtered_vcf,
+            ref_fasta = ref_fasta,
+            pctseq = 0.7,
+            prefix = "~{prefix}.0.7",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
+    }
 
-        File unmatched_vcf = RunTruvari.unmatched_vcf
+    call AnnotateVcf as AnnotateMatched_07 {
+        input:
+            vcf_in = RunTruvari_07.matched_vcf,
+            vcf_out_name = "~{prefix}.0.7.annotated.vcf.gz",
+            tag_name = "gnomAD_V4_match",
+            tag_value = "TRUVARI_0.7",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
+    }
+
+    # Pass 3: pctseq = 0.5
+    call RunTruvari as RunTruvari_05 {
+        input:
+            vcf_eval = RunTruvari_07.unmatched_vcf,
+            vcf_truth_filtered = FilterTruthVcf.filtered_vcf,
+            ref_fasta = ref_fasta,
+            pctseq = 0.5,
+            prefix = "~{prefix}.0.5",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
+    }
+
+    call AnnotateVcf as AnnotateMatched_05 {
+        input:
+            vcf_in = RunTruvari_05.matched_vcf,
+            vcf_out_name = "~{prefix}.0.5.annotated.vcf.gz",
+            tag_name = "gnomAD_V4_match",
+            tag_value = "TRUVARI_0.5",
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_override
     }
 
     call ConcatTruvariResults as ConcatMatched {
         input:
-            vcfs = AnnotateMatched.vcf_out,
+            vcfs = [AnnotateMatched_09.vcf_out, AnnotateMatched_07.vcf_out, AnnotateMatched_05.vcf_out],
             outfile_prefix = "~{prefix}.truvari_matched.combined",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
@@ -59,8 +97,8 @@ workflow TruvariMatch {
     output {
         File matched_vcf = ConcatMatched.concat_vcf
         File matched_vcf_index = ConcatMatched.concat_vcf_idx
-        File unmatched_vcf = last(unmatched_vcf)
-        File unmatched_vcf_index = last(unmatched_vcf) + ".tbi"
+        File unmatched_vcf = RunTruvari_05.unmatched_vcf
+        File unmatched_vcf_index = RunTruvari_05.unmatched_vcf + ".tbi"
     }
 }
 
