@@ -30,29 +30,27 @@ def main():
     parser.add_argument("prefix", help="Prefix for output files.")
     args = parser.parse_args()
 
-    # Filter truth VCF to exclude SNVs
-    truth_non_snv_tmp_path = f"{args.prefix}.truth.non_snv.tmp.vcf"
+    # Filter truth VCF to exclude SNVs using bcftools
     truth_non_snv_path = f"{args.prefix}.truth.non_snv.vcf.gz"
-    with pysam.VariantFile(args.vcf_truth) as vcf_in, open(truth_non_snv_tmp_path, "w") as vcf_out:
-        vcf_out.write(str(vcf_in.header))
-        for record in vcf_in:
-            if record.info.get('SVTYPE') != 'SNV':
-                 vcf_out.write(str(record))
-    subprocess.run(["bcftools", "view", "-Oz", "-o", truth_non_snv_path, truth_non_snv_tmp_path], check=True)
+    subprocess.run([
+        "bcftools", "view",
+        "-e", 'INFO/variant_type="snv"',
+        "-Oz",
+        "-o", truth_non_snv_path,
+        args.vcf_truth
+    ], check=True)
     subprocess.run(["tabix", "-p", "vcf", truth_non_snv_path], check=True)
-    os.remove(truth_non_snv_tmp_path)
 
-    # Filter eval VCF to include only variants with SVLEN >= 10
-    eval_svlen_ge10_tmp_path = f"{args.prefix}.eval.svlen_ge10.tmp.vcf"
+    # Filter eval VCF to include only variants with abs(SVLEN) >= 10 using bcftools
     eval_svlen_ge10_path = f"{args.prefix}.eval.svlen_ge10.vcf.gz"
-    with pysam.VariantFile(args.vcf_eval_unmatched) as vcf_in, open(eval_svlen_ge10_tmp_path, "w") as vcf_out:
-        vcf_out.write(str(vcf_in.header))
-        for record in vcf_in:
-            if 'SVLEN' in record.info and abs(record.info['SVLEN'][0]) >= 10:
-                vcf_out.write(str(record))
-    subprocess.run(["bcftools", "view", "-Oz", "-o", eval_svlen_ge10_path, eval_svlen_ge10_tmp_path], check=True)
+    subprocess.run([
+        "bcftools", "view",
+        "-i", 'ABS(INFO/SVLEN)>=10',
+        "-Oz",
+        "-o", eval_svlen_ge10_path,
+        args.vcf_eval_unmatched
+    ], check=True)
     subprocess.run(["tabix", "-p", "vcf", eval_svlen_ge10_path], check=True)
-    os.remove(eval_svlen_ge10_tmp_path)
     
     pctseq_passes = [0.9, 0.7, 0.5]
     remaining_eval_vcf = eval_svlen_ge10_path
