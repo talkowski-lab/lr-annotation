@@ -23,7 +23,7 @@ def main():
             vcf_out_handle.write(str(record))
     
     subprocess.run(["bcftools", "view", "-Oz", "-o", args.vcf_out, tmp_out], check=True)
-    subprocess.run(["tabix", "-p", "vcf", args.vcf_out], check=True)
+    subprocess.run(["tabix", "-p", "vcf", "-f", args.vcf_out], check=True)
     os.remove(tmp_out)
 
 if __name__ == "__main__":

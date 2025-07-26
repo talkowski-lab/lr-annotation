@@ -130,7 +130,7 @@ task FilterTruthVcf {
     command <<<
         set -euxo pipefail
         bcftools view -e 'INFO/variant_type="snv"' -Oz -o ~{prefix}.truth.non_snv.vcf.gz ~{vcf_truth}
-        tabix -p vcf ~{prefix}.truth.non_snv.vcf.gz
+        tabix -p vcf -f ~{prefix}.truth.non_snv.vcf.gz
     >>>
     output {
         File filtered_vcf = "~{prefix}.truth.non_snv.vcf.gz"
@@ -181,8 +181,8 @@ task RunTruvari {
             --sizemin 5 \
             --sizefilt 10
         
-        tabix -p vcf ~{prefix}_truvari/tp-comp.vcf.gz
-        tabix -p vcf ~{prefix}_truvari/fn.vcf.gz
+        tabix -p vcf -f ~{prefix}_truvari/tp-comp.vcf.gz
+        tabix -p vcf -f ~{prefix}_truvari/fn.vcf.gz
     >>>
     output {
         File matched_vcf = "~{prefix}_truvari/tp-comp.vcf.gz"
@@ -255,7 +255,7 @@ task ConcatTruvariResults {
     command <<<
         set -euxo pipefail
         bcftools concat -a -Oz -o ~{outfile_prefix}.vcf.gz ~{sep=' ' vcfs}
-        tabix -p vcf ~{outfile_prefix}.vcf.gz
+        tabix -p vcf -f ~{outfile_prefix}.vcf.gz
     >>>
     output {
         File concat_vcf = "~{outfile_prefix}.vcf.gz"

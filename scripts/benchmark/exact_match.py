@@ -40,11 +40,11 @@ def main():
                 unmatched_out.write(str(record))
 
     subprocess.run(["bcftools", "view", "-Oz", "-o", matched_out_path, matched_tmp_path], check=True)
-    subprocess.run(["tabix", "-p", "vcf", matched_out_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", "-f", matched_out_path], check=True)
     os.remove(matched_tmp_path)
     
     subprocess.run(["bcftools", "view", "-Oz", "-o", unmatched_out_path, unmatched_tmp_path], check=True)
-    subprocess.run(["tabix", "-p", "vcf", unmatched_out_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", "-f", unmatched_out_path], check=True)
     os.remove(unmatched_tmp_path)
 
 if __name__ == "__main__":

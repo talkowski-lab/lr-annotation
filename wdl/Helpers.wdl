@@ -971,7 +971,7 @@ task SplitVcfIntoShards {
     for body in chunks/body_*; do
       chunk_name=chunks/~{output_prefix}_$(basename "$body")
       cat chunks/header.vcf "$body" | bgzip -c > "${chunk_name}.vcf.gz"
-      tabix -p vcf "${chunk_name}.vcf.gz"
+      tabix -p vcf -f "${chunk_name}.vcf.gz"
     done
  
    >>>
@@ -1070,7 +1070,7 @@ task SubsetVcfToContig {
         set -euxo pipefail
 
         bcftools view ~{vcf} --regions ~{contig} -Oz -o ~{prefix}.~{contig}.vcf.gz
-        tabix -p vcf ~{prefix}.~{contig}.vcf.gz
+        tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
     >>>
 
     output {
@@ -1324,7 +1324,7 @@ task ConvertToSymbolic {
             python /opt/gnomad-lr/scripts/helpers/abs_svlen.py /dev/stdin | \
             bcftools view -Oz > ~{prefix}.vcf.gz
 
-        tabix ~{prefix}.vcf.gz
+        tabix -f ~{prefix}.vcf.gz
     >>>
 
     output {

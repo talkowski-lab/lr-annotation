@@ -225,13 +225,13 @@ task AnnotateAndBenchmark {
             ~{contig_arg}
 
         # Combine all parts into the final VCF for the contig
-        bcftools concat -a -Oz -o ~{prefix}.final_annotated.vcf.gz \
+        bcftools concat -a -f -Oz -o ~{prefix}.final_annotated.vcf.gz \
             ~{exact_matched_vcf} \
             ~{truvari_matched_vcf} \
             ~{prefix}.bedtools_matched.vcf.gz \
             ~{prefix}.final_unmatched.vcf.gz
         
-        tabix -p vcf ~{prefix}.final_annotated.vcf.gz
+        tabix -p vcf -f ~{prefix}.final_annotated.vcf.gz
     >>>
 
     output {

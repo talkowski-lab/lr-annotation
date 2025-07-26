@@ -158,11 +158,11 @@ def main():
                 unmatched_out.write(str(record))
 
     subprocess.run(["bcftools", "view", "-Oz", "-o", bedtools_matched_out_path, bedtools_matched_tmp_path], check=True)
-    subprocess.run(["tabix", "-p", "vcf", bedtools_matched_out_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", "-f", bedtools_matched_out_path], check=True)
     os.remove(bedtools_matched_tmp_path)
 
     subprocess.run(["bcftools", "view", "-Oz", "-o", final_unmatched_out_path, final_unmatched_tmp_path], check=True)
-    subprocess.run(["tabix", "-p", "vcf", final_unmatched_out_path], check=True)
+    subprocess.run(["tabix", "-p", "vcf", "-f", final_unmatched_out_path], check=True)
     os.remove(final_unmatched_tmp_path)
 
     # --- Part 2: Combine all parts into a final annotated VCF for the contig ---
