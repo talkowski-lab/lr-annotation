@@ -3,6 +3,7 @@ version 1.0
 import "Structs.wdl"
 import "Helpers.wdl" as Helpers
 import "BedtoolsClosestSV.wdl" as Bedtools
+import "TruvariMatch.wdl" as Truvari
 
 workflow BenchmarkAnnotations {
     input {
@@ -70,7 +71,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_exact_match
         }
 
-        call TruvariMatch {
+        call Truvari.TruvariMatch {
             input:
                 vcf_eval_unmatched = ExactMatch.unmatched_vcf,
                 vcf_truth = SubsetTruth.subset_vcf,
@@ -82,7 +83,7 @@ workflow BenchmarkAnnotations {
 
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
             input:
-                vcf_eval = TruvariMatch.unmatched_vcf,
+                vcf_eval = Truvari.TruvariMatch.unmatched_vcf,
                 vcf_sv_truth = SubsetSVTruth.subset_vcf,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
@@ -91,10 +92,10 @@ workflow BenchmarkAnnotations {
 
         call AnnotateAndBenchmark {
             input:
-                vcf_unmatched_from_truvari = TruvariMatch.unmatched_vcf,
+                vcf_unmatched_from_truvari = Truvari.TruvariMatch.unmatched_vcf,
                 closest_bed = BedtoolsClosest.closest_bed,
                 exact_matched_vcf = ExactMatch.matched_vcf,
-                truvari_matched_vcf = TruvariMatch.matched_vcf,
+                truvari_matched_vcf = Truvari.TruvariMatch.matched_vcf,
                 vcf_truth_snv = SubsetTruth.subset_vcf,
                 vcf_truth_sv = SubsetSVTruth.subset_vcf,
                 contig = contig,
@@ -166,48 +167,6 @@ task ExactMatch {
     
     RuntimeAttr default_attr = object {
         cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task TruvariMatch {
-    input {
-        File vcf_eval_unmatched
-        File vcf_truth
-        File ref_fasta
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euxo pipefail
-        python3 /opt/gnomad-lr/scripts/benchmark/truvari_match.py \
-            ~{vcf_eval_unmatched} \
-            ~{vcf_truth} \
-            ~{ref_fasta} \
-            ~{prefix}
-    >>>
-
-    output {
-        File matched_vcf = "~{prefix}.truvari_matched.combined.vcf.gz"
-        File matched_vcf_index = "~{prefix}.truvari_matched.combined.vcf.gz.tbi"
-        File unmatched_vcf = "~{prefix}.truvari_unmatched.vcf.gz"
-        File unmatched_vcf_index = "~{prefix}.truvari_unmatched.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval_unmatched, "GB") + size(vcf_truth, "GB")) * 5 + 20,
         boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
