@@ -182,13 +182,13 @@ task RunTruvari {
             --sizefilt 10
         
         tabix -p vcf -f ~{prefix}_truvari/tp-comp.vcf.gz
-        tabix -p vcf -f ~{prefix}_truvari/fn.vcf.gz
+        tabix -p vcf -f ~{prefix}_truvari/fp.vcf.gz
     >>>
     output {
         File matched_vcf = "~{prefix}_truvari/tp-comp.vcf.gz"
         File matched_vcf_index = "~{prefix}_truvari/tp-comp.vcf.gz.tbi"
-        File unmatched_vcf = "~{prefix}_truvari/fn.vcf.gz"
-        File unmatched_vcf_index = "~{prefix}_truvari/fn.vcf.gz.tbi"
+        File unmatched_vcf = "~{prefix}_truvari/fp.vcf.gz"
+        File unmatched_vcf_index = "~{prefix}_truvari/fp.vcf.gz.tbi"
     }
     RuntimeAttr default_attr = object {
         cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) * 5 + 20,
