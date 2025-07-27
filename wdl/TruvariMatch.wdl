@@ -218,11 +218,23 @@ task AnnotateVcf {
     }
     command <<<
         set -euxo pipefail
-        python3 /opt/gnomad-lr/scripts/benchmark/annotate_vcf_with_tag.py \
-            ~{vcf_in} \
-            ~{vcf_out_name} \
-            ~{tag_name} \
-            ~{tag_value}
+        
+        # Create a temporary header file with the new INFO tag definition
+        echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
+
+        # Create a temporary annotation file from the input vcf
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' ~{vcf_in} | bgzip -c > annots.tab.gz
+        tabix -s 1 -b 2 -e 2 annots.tab.gz
+
+        # Annotate the VCF
+        bcftools annotate \
+            -a annots.tab.gz \
+            -h header.hdr \
+            -c CHROM,POS,REF,ALT,~{tag_name} \
+            -Oz -o ~{vcf_out_name} \
+            ~{vcf_in}
+        
+        tabix -p vcf -f ~{vcf_out_name}
     >>>
     output {
         File vcf_out = "~{vcf_out_name}"

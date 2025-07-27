@@ -6,7 +6,6 @@ RUN apt-get update && apt-get install -y build-essential r-base
 RUN pip3 install truvari
 
 COPY ./scripts/benchmark/exact_match.py /opt/gnomad-lr/scripts/benchmark/
-COPY ./scripts/benchmark/annotate_vcf_with_tag.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/annotate_and_benchmark.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/

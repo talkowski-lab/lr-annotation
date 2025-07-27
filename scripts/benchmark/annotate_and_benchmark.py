@@ -141,8 +141,10 @@ def main():
     final_unmatched_out_path = f"{args.prefix}.final_unmatched.vcf.gz"
 
     vcf_in_unmatched = pysam.VariantFile(args.vcf_unmatched_from_truvari)
-    vcf_in_unmatched.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
-    vcf_in_unmatched.header.info.add('gnomAD_V4_match_ID', '1', 'String', 'Matching variant ID from gnomAD v4.')
+    if 'gnomAD_V4_match' not in vcf_in_unmatched.header.info:
+        vcf_in_unmatched.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
+    if 'gnomAD_V4_match_ID' not in vcf_in_unmatched.header.info:
+        vcf_in_unmatched.header.info.add('gnomAD_V4_match_ID', '1', 'String', 'Matching variant ID from gnomAD v4.')
 
     with open(bedtools_matched_tmp_path, "w") as matched_out, open(final_unmatched_tmp_path, "w") as unmatched_out:
         matched_out.write(str(vcf_in_unmatched.header))
