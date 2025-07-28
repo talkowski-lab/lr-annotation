@@ -8,5 +8,5 @@ COPY ./scripts/benchmark/exact_match.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/annotate_and_benchmark.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
-COPY ./scripts/benchmark/R_scripts/FindClosestCNV.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
-COPY ./scripts/benchmark/R_scripts/FindClosestINS.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
+COPY ./scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
+COPY ./scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R /opt/gnomad-lr/scripts/benchmark/R_scripts/

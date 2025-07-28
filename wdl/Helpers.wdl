@@ -1240,7 +1240,7 @@ task SelectMatchedSVs {
 
     command <<<
         set -euo pipefail
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/FindClosestCNV.R \
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
@@ -1280,7 +1280,7 @@ task SelectMatchedINSs {
     String prefix = basename(input_bed, ".bed")
 
     command <<<
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/FindClosestINS.R \
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
