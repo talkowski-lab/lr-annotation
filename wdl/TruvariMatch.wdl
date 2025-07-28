@@ -12,6 +12,7 @@ workflow TruvariMatch {
         File ref_fasta_fai
         String prefix
         String pipeline_docker
+        String truvari_docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -35,7 +36,7 @@ workflow TruvariMatch {
             ref_fasta_fai = ref_fasta_fai,
             pctseq = 0.9,
             prefix = "~{prefix}.0.9",
-            pipeline_docker = pipeline_docker,
+            truvari_docker = truvari_docker,
             runtime_attr_override = runtime_attr_override
     }
 
@@ -61,7 +62,7 @@ workflow TruvariMatch {
             ref_fasta_fai = ref_fasta_fai,
             pctseq = 0.7,
             prefix = "~{prefix}.0.7",
-            pipeline_docker = pipeline_docker,
+            truvari_docker = truvari_docker,
             runtime_attr_override = runtime_attr_override
     }
 
@@ -87,7 +88,7 @@ workflow TruvariMatch {
             ref_fasta_fai = ref_fasta_fai,
             pctseq = 0.5,
             prefix = "~{prefix}.0.5",
-            pipeline_docker = pipeline_docker,
+            truvari_docker = truvari_docker,
             runtime_attr_override = runtime_attr_override
     }
 
@@ -162,7 +163,7 @@ task RunTruvari {
         File ref_fasta_fai
         Float pctseq
         String prefix
-        String pipeline_docker
+        String truvari_docker
         RuntimeAttr? runtime_attr_override
     }
     command <<<
@@ -200,7 +201,7 @@ task RunTruvari {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: truvari_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

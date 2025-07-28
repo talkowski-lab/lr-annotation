@@ -18,6 +18,7 @@ workflow BenchmarkAnnotations {
         
         File primary_contigs_list
         String pipeline_docker
+        String truvari_docker
         String prefix
         Boolean create_benchmarks
 
@@ -81,6 +82,7 @@ workflow BenchmarkAnnotations {
                 ref_fasta_fai = ref_fasta_fai,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
+                truvari_docker = truvari_docker,
                 runtime_attr_override = runtime_attr_truvari_match
         }
 
