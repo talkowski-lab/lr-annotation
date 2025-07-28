@@ -181,9 +181,6 @@ task RunTruvari {
             --pctseq ~{pctseq} \
             --sizemin 5 \
             --sizefilt 10
-        
-        tabix -p vcf -f ~{prefix}_truvari/tp-comp.vcf.gz
-        tabix -p vcf -f ~{prefix}_truvari/fp.vcf.gz
     >>>
     output {
         File matched_vcf = "~{prefix}_truvari/tp-comp.vcf.gz"
