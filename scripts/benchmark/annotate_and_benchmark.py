@@ -129,18 +129,10 @@ def main():
     # --- Part 1: Annotate Bedtools Matches ---
     bedtools_matches = defaultdict(list)
     try:
-        with open(args.closest_bed, 'r') as f:
-            for line in f:
-                if line.startswith('query_svid'):  # Skip header lines from concatenated files
-                    continue
-                fields = line.strip().split('\t')
-                if len(fields) >= 2:
-                    query_svid = fields[0]
-                    ref_svid = fields[1]
-                    if ref_svid != '.':
-                        bedtools_matches[query_svid].append(ref_svid)
-    except FileNotFoundError:
-        # This file can be missing or empty if no SVs were sent to bedtools, which is not an error.
+        closest_df = pd.read_csv(args.closest_bed, sep='\t')
+        for _, row in closest_df.iterrows():
+            bedtools_matches[row['query_svid']].append(row['svid_b'])
+    except (pd.errors.EmptyDataError, FileNotFoundError):
         pass
 
     bedtools_matched_tmp_path = f"{args.prefix}.bedtools_matched.tmp.vcf"
@@ -160,7 +152,8 @@ def main():
         for record in vcf_in_unmatched:
             if record.id in bedtools_matches:
                 record.info['gnomAD_V4_match'] = 'BEDTOOLS_CLOSEST'
-                # A single eval variant could match multiple truth variants in bedtools - so we simply take the first
+                # Note: A single eval variant could match multiple truth variants in bedtools.
+                # Here we just take the first one reported by the R script.
                 record.info['gnomAD_V4_match_ID'] = bedtools_matches[record.id][0]
                 matched_out.write(str(record))
             else:
