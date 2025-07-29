@@ -127,17 +127,17 @@ workflow BenchmarkAnnotations {
         call MergeSummaries {
             input:
                 summary_files = select_all(AnnotateAndBenchmark.summary_file),
-            prefix = prefix,
-            pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_merge_summaries
-    }
+                prefix = prefix,
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_merge_summaries
+        }
 
-    call MergePlotTarballs {
-        input:
+        call MergePlotTarballs {
+            input:
                 tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
-            prefix = prefix,
-            pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_merge_tarballs
+                prefix = prefix,
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_merge_tarballs
         }
     }
 
