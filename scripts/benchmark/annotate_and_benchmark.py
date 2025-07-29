@@ -113,9 +113,9 @@ def plot_vep_heatmap(df, column, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description="Annotate VCF and/or run benchmarking.")
+    parser.add_argument("prefix", help="Prefix for output files.")
     parser.add_argument("vcf_unmatched_from_truvari", help="Unmatched VCF from Truvari step.")
     parser.add_argument("closest_bed", help="BED file with closest matches from bedtools.")
-    parser.add_argument("prefix", help="Prefix for output files.")
 
     # Arguments for benchmarking
     parser.add_argument("--create_benchmarks", action="store_true", help="Create benchmark plots and summaries.")
@@ -128,12 +128,16 @@ def main():
 
     # --- Part 1: Annotate Bedtools Matches ---
     bedtools_matches = defaultdict(list)
-    try:
-        closest_df = pd.read_csv(args.closest_bed, sep='\t')
-        for _, row in closest_df.iterrows():
-            bedtools_matches[row['query_svid']].append(row['svid_b'])
-    except (pd.errors.EmptyDataError, FileNotFoundError):
-        pass
+    with open(args.closest_bed, 'r') as f:
+        for line in f:
+            if line.startswith('query_svid'):
+                continue
+            fields = line.strip().split('\t')
+            if len(fields) >= 2:
+                query_svid = fields[0]
+                ref_svid = fields[1]
+                if ref_svid != '.':
+                    bedtools_matches[query_svid].append(ref_svid)
 
     bedtools_matched_tmp_path = f"{args.prefix}.bedtools_matched.tmp.vcf"
     final_unmatched_tmp_path = f"{args.prefix}.final_unmatched.tmp.vcf"
@@ -152,8 +156,7 @@ def main():
         for record in vcf_in_unmatched:
             if record.id in bedtools_matches:
                 record.info['gnomAD_V4_match'] = 'BEDTOOLS_CLOSEST'
-                # Note: A single eval variant could match multiple truth variants in bedtools.
-                # Here we just take the first one reported by the R script.
+                 # A single eval variant could match multiple truth variants in bedtools - so we simply take the first
                 record.info['gnomAD_V4_match_ID'] = bedtools_matches[record.id][0]
                 matched_out.write(str(record))
             else:

@@ -99,10 +99,11 @@ workflow BenchmarkAnnotations {
 
         call AnnotateAndBenchmark {
             input:
-                vcf_unmatched_from_truvari = TruvariMatches.unmatched_vcf,
-                closest_bed = BedtoolsClosest.closest_bed,
                 exact_matched_vcf = ExactMatch.matched_vcf,
                 truvari_matched_vcf = TruvariMatches.matched_vcf,
+                truvari_too_small_vcf = TruvariMatches.filtered_vcf,
+                truvari_unmatched_vcf = TruvariMatches.unmatched_vcf,
+                closest_bed = BedtoolsClosest.closest_bed,
                 vcf_truth_snv = SubsetTruth.subset_vcf,
                 vcf_truth_sv = SubsetSVTruth.subset_vcf,
                 contig = contig,
@@ -173,8 +174,12 @@ task ExactMatch {
     }
     
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 8, disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+        cpu_cores: 1, 
+        mem_gb: 8, 
+        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
+        boot_disk_gb: 10, 
+        preemptible_tries: 2, 
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -190,10 +195,11 @@ task ExactMatch {
 
 task AnnotateAndBenchmark {
     input {
-        File vcf_unmatched_from_truvari
-        File closest_bed
         File exact_matched_vcf
         File truvari_matched_vcf
+        File truvari_too_small_vcf
+        File truvari_unmatched_vcf
+        File closest_bed
         File vcf_truth_snv
         File vcf_truth_sv
         String contig
@@ -214,11 +220,10 @@ task AnnotateAndBenchmark {
     command <<<
         set -euxo pipefail
 
-        # Run the main python script to annotate bedtools matches and optionally create benchmarks
         python3 /opt/gnomad-lr/scripts/benchmark/annotate_and_benchmark.py \
-            ~{vcf_unmatched_from_truvari} \
-            ~{closest_bed} \
             ~{prefix} \
+            ~{truvari_unmatched_vcf} \
+            ~{closest_bed} \
             ~{create_benchmarks_flag} \
             ~{vcf_truth_snv_arg} \
             ~{vcf_truth_sv_arg} \
@@ -226,12 +231,12 @@ task AnnotateAndBenchmark {
             ~{truvari_matched_arg} \
             ~{contig_arg}
 
-        # Combine all parts into the final VCF for the contig
         bcftools concat -a -f -Oz -o ~{prefix}.final_annotated.vcf.gz \
             ~{exact_matched_vcf} \
             ~{truvari_matched_vcf} \
             ~{prefix}.bedtools_matched.vcf.gz \
-            ~{prefix}.final_unmatched.vcf.gz
+            ~{prefix}.final_unmatched.vcf.gz \
+            ~{truvari_too_small_vcf}
         
         tabix -p vcf -f ~{prefix}.final_annotated.vcf.gz
     >>>
@@ -244,8 +249,12 @@ task AnnotateAndBenchmark {
     }
     
     RuntimeAttr default_attr = object {
-        cpu_cores: 2, mem_gb: 16, disk_gb: ceil(size(vcf_unmatched_from_truvari, "GB") * 2 + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB") + size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB")) + 30,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+        cpu_cores: 2, 
+        mem_gb: 16, 
+        disk_gb: 10 + ceil(size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB") + size(truvari_too_small_vcf, "GB") + size(truvari_unmatched_vcf, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 1.5,
+        boot_disk_gb: 15, 
+        preemptible_tries: 2, 
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -277,8 +286,12 @@ task MergeSummaries {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 2, disk_gb: ceil(size(summary_files, "GB")) * 2 + 5,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+        cpu_cores: 1, 
+        mem_gb: 2, 
+        disk_gb: ceil(size(summary_files, "GB")) * 2 + 5,
+        boot_disk_gb: 10, 
+        preemptible_tries: 2, 
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -318,8 +331,12 @@ task MergePlotTarballs {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+        cpu_cores: 1, 
+        mem_gb: 4, 
+        disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
+        boot_disk_gb: 10, 
+        preemptible_tries: 2,
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
