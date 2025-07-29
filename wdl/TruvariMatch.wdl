@@ -231,7 +231,7 @@ task RunTruvari {
             rm -r "~{prefix}_truvari"
         fi
         
-        /opt/conda/envs/truvari_env/bin/truvari bench \
+        truvari bench \
             -b ~{vcf_truth_filtered} \
             -c ~{vcf_eval} \
             -o "~{prefix}_truvari" \
