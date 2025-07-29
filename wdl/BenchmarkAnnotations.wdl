@@ -74,8 +74,8 @@ workflow BenchmarkAnnotations {
 
         call Truvari.TruvariMatch as TruvariMatches {
             input:
-                vcf_eval_unmatched = ExactMatch.unmatched_vcf,
-                vcf_eval_unmatched_index = ExactMatch.unmatched_vcf_index,
+                vcf_eval = ExactMatch.unmatched_vcf,
+                vcf_eval_index = ExactMatch.unmatched_vcf_index,
                 vcf_truth = SubsetTruth.subset_vcf,
                 vcf_truth_index = SubsetTruth.subset_vcf_index,
                 ref_fasta = ref_fasta,
@@ -101,7 +101,7 @@ workflow BenchmarkAnnotations {
             input:
                 exact_matched_vcf = ExactMatch.matched_vcf,
                 truvari_matched_vcf = TruvariMatches.matched_vcf,
-                truvari_too_small_vcf = TruvariMatches.filtered_vcf,
+                truvari_too_small_vcf = TruvariMatches.dropped_vcf,
                 truvari_unmatched_vcf = TruvariMatches.unmatched_vcf,
                 closest_bed = BedtoolsClosest.closest_bed,
                 vcf_truth_snv = SubsetTruth.subset_vcf,

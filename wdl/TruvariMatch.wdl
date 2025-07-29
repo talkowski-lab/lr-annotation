@@ -4,8 +4,8 @@ import "Structs.wdl"
 
 workflow TruvariMatch {
     input {
-        File vcf_eval_unmatched
-        File vcf_eval_unmatched_index
+        File vcf_eval
+        File vcf_eval_index
         File vcf_truth
         File vcf_truth_index
         File ref_fasta
@@ -18,9 +18,9 @@ workflow TruvariMatch {
 
     call FilterEvalVcf {
         input:
-            vcf_eval = vcf_eval_unmatched,
-            vcf_eval_index = vcf_eval_unmatched_index,
-            prefix = prefix,
+            vcf_eval = vcf_eval,
+            vcf_eval_index = vcf_eval_index,
+            prefix = "~{prefix}.filtered_eval",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -29,7 +29,7 @@ workflow TruvariMatch {
         input:
             vcf_truth = vcf_truth,
             vcf_truth_index = vcf_truth_index,
-            prefix = prefix,
+            prefix = "~{prefix}.filtered_truth",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -53,11 +53,11 @@ workflow TruvariMatch {
 
     call AnnotateVcf as AnnotateMatched_09 {
         input:
-            vcf_in = RunTruvari_09.matched_vcf,
-            vcf_in_index = RunTruvari_09.matched_vcf_index,
-            vcf_out_name = "~{prefix}.0.9.annotated.vcf.gz",
+            vcf = RunTruvari_09.matched_vcf,
+            vcf_index = RunTruvari_09.matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.9",
+            prefix = "~{prefix}.0.9.annotated",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -81,11 +81,11 @@ workflow TruvariMatch {
 
     call AnnotateVcf as AnnotateMatched_07 {
         input:
-            vcf_in = RunTruvari_07.matched_vcf,
-            vcf_in_index = RunTruvari_07.matched_vcf_index,
-            vcf_out_name = "~{prefix}.0.7.annotated.vcf.gz",
+            vcf = RunTruvari_07.matched_vcf,
+            vcf_index = RunTruvari_07.matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.7",
+            prefix = "~{prefix}.0.7.annotated",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -96,7 +96,7 @@ workflow TruvariMatch {
             vcf_eval = RunTruvari_07.unmatched_vcf,
             vcf_eval_index = RunTruvari_07.unmatched_vcf_index,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
+            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf,
             ref_fasta = ref_fasta,
             ref_fasta_fai = ref_fasta_fai,
             pctseq = 0.5,
@@ -109,11 +109,11 @@ workflow TruvariMatch {
 
     call AnnotateVcf as AnnotateMatched_05 {
         input:
-            vcf_in = RunTruvari_05.matched_vcf,
-            vcf_in_index = RunTruvari_05.matched_vcf_index,
-            vcf_out_name = "~{prefix}.0.5.annotated.vcf.gz",
+            vcf = RunTruvari_05.matched_vcf,
+            vcf_index = RunTruvari_05.matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.5",
+            prefix = "~{prefix}.0.5.annotated",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -122,7 +122,7 @@ workflow TruvariMatch {
         input:
             vcfs = [AnnotateMatched_09.vcf_out, AnnotateMatched_07.vcf_out, AnnotateMatched_05.vcf_out],
             vcfs_idx = [AnnotateMatched_09.vcf_out_index, AnnotateMatched_07.vcf_out_index, AnnotateMatched_05.vcf_out_index],
-            outfile_prefix = "~{prefix}.truvari_matched.combined",
+            prefix = "~{prefix}.truvari_combined",
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -132,8 +132,8 @@ workflow TruvariMatch {
         File matched_vcf_index = ConcatMatched.concat_vcf_idx
         File unmatched_vcf = RunTruvari_05.unmatched_vcf
         File unmatched_vcf_index = RunTruvari_05.unmatched_vcf_index
-        File filtered_vcf = FilterEvalVcf.filtered_vcf
-        File filtered_vcf_index = FilterEvalVcf.filtered_vcf_index
+        File dropped_vcf = FilterEvalVcf.dropped_vcf
+        File dropped_vcf_index = FilterEvalVcf.dropped_vcf_index
     }
 }
 
@@ -158,10 +158,10 @@ task FilterEvalVcf {
     >>>
 
     output {
-        File retained_vcf = "~{prefix}.eval_retained.vcf.gz"
-        File retained_vcf_index = "~{prefix}.eval_retained.vcf.gz.tbi"
-        File filtered_vcf = "~{prefix}.eval_filtered.vcf.gz"
-        File filtered_vcf_index = "~{prefix}.eval_filtered.vcf.gz.tbi"
+        File retained_vcf = "~{prefix}.retained.vcf.gz"
+        File retained_vcf_index = "~{prefix}.retained.vcf.gz.tbi"
+        File dropped_vcf = "~{prefix}.dropped.vcf.gz"
+        File dropped_vcf_index = "~{prefix}.dropped.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -198,13 +198,13 @@ task FilterTruthVcf {
         set -euxo pipefail
 
         bcftools view -e 'INFO/variant_type="snv"' ~{vcf_truth} \
-            | bcftools view -i 'ABS(ILEN)>=5' -Oz -o ~{prefix}.retained.vcf.gz
-        tabix -p vcf -f ~{prefix}.retained.vcf.gz
+            | bcftools view -i 'ABS(ILEN)>=5' -Oz -o ~{prefix}.vcf.gz
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File retained_vcf = "~{prefix}.retained.vcf.gz"
-        File retained_vcf_index = "~{prefix}.retained.vcf.gz.tbi"
+        File retained_vcf = "~{prefix}.vcf.gz"
+        File retained_vcf_index = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -290,11 +290,11 @@ task RunTruvari {
 
 task AnnotateVcf {
     input {
-        File vcf_in
-        File vcf_in_index
-        String vcf_out_name
+        File vcf
+        File vcf_index
         String tag_name
         String tag_value
+        String prefix
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -304,28 +304,28 @@ task AnnotateVcf {
         
         echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' ~{vcf_in} | bgzip -c > annots.tab.gz
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' ~{vcf} | bgzip -c > annots.tab.gz
         tabix -s 1 -b 2 -e 2 annots.tab.gz
 
         bcftools annotate \
             -a annots.tab.gz \
             -h header.hdr \
             -c CHROM,POS,REF,ALT,~{tag_name} \
-            -Oz -o ~{vcf_out_name} \
-            ~{vcf_in}
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
         
-        tabix -p vcf -f ~{vcf_out_name}
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File vcf_out = "~{vcf_out_name}"
-        File vcf_out_index = "~{vcf_out_name}.tbi"
+        File vcf_out = "~{prefix}.vcf.gz"
+        File vcf_out_index = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1, 
         mem_gb: 4, 
-        disk_gb: ceil(size(vcf_in, "GB")) * 2 + 5,
+        disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 2,
          max_retries: 1
@@ -346,20 +346,21 @@ task ConcatTruvariResults {
     input {
         Array[File] vcfs
         Array[File] vcfs_idx
-        String outfile_prefix
+        String prefix
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euxo pipefail
-        bcftools concat -a -Oz -o ~{outfile_prefix}.vcf.gz ~{sep=' ' vcfs}
-        tabix -p vcf -f ~{outfile_prefix}.vcf.gz
+
+        bcftools concat -a -Oz -o ~{prefix}.vcf.gz ~{sep=' ' vcfs}
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File concat_vcf = "~{outfile_prefix}.vcf.gz"
-        File concat_vcf_idx = "~{outfile_prefix}.vcf.gz.tbi"
+        File concat_vcf = "~{prefix}.vcf.gz"
+        File concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
      RuntimeAttr default_attr = object {
