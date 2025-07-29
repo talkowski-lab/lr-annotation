@@ -3,84 +3,6 @@ version 1.0
 import "Structs.wdl"
 import "Helpers.wdl" as Helpers
 
-task FilterTruthVcf {
-    input {
-        File vcf
-        File vcf_index
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-    command <<<
-        set -euxo pipefail
-        bcftools view -e 'INFO/variant_type="snv"' ~{vcf} \
-            | bcftools view -i 'ABS(INFO/SVLEN)>=5 || ABS(ILEN)>=5' -Oz -o ~{prefix}.filtered.vcf.gz
-        
-        tabix -p vcf -f ~{prefix}.filtered.vcf.gz
-    >>>
-    output {
-        File filtered_vcf = "~{prefix}.filtered.vcf.gz"
-        File filtered_vcf_index = "~{prefix}.filtered.vcf.gz.tbi"
-    }
-    
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(vcf, "GB")) * 2 + 10,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SplitEvalVcfBySize {
-    input {
-        File vcf
-        File vcf_index
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-    command <<<
-        set -euxo pipefail
-        
-        # Variants >= 10bp pass for Truvari/Bedtools matching
-        bcftools view -i 'ABS(INFO/SVLEN)>=10 || ABS(ILEN)>=10' ~{vcf} -Oz -o ~{prefix}.passed_size_filt.vcf.gz
-        tabix -p vcf -f ~{prefix}.passed_size_filt.vcf.gz
-
-        # Variants < 10bp are considered unmatched and bypass further matching
-        bcftools view -e 'ABS(INFO/SVLEN)>=10 || ABS(ILEN)>=10' ~{vcf} -Oz -o ~{prefix}.failed_size_filt.vcf.gz
-        tabix -p vcf -f ~{prefix}.failed_size_filt.vcf.gz
-    >>>
-    output {
-        File passed_vcf = "~{prefix}.passed_size_filt.vcf.gz"
-        File passed_vcf_index = "~{prefix}.passed_size_filt.vcf.gz.tbi"
-        File failed_vcf = "~{prefix}.failed_size_filt.vcf.gz"
-        File failed_vcf_index = "~{prefix}.failed_size_filt.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(vcf, "GB")) * 3 + 10,
-        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
 workflow TruvariMatch {
     input {
         File vcf_eval_unmatched
@@ -208,6 +130,82 @@ workflow TruvariMatch {
         File unmatched_vcf_index = RunTruvari_05.unmatched_vcf_index
         File unmatched_too_small_vcf = SplitEvalVcfBySize.failed_vcf
         File unmatched_too_small_vcf_index = SplitEvalVcfBySize.failed_vcf_index
+    }
+}
+
+task FilterTruthVcf {
+    input {
+        File vcf
+        File vcf_index
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+    command <<<
+        set -euxo pipefail
+        bcftools view -e 'INFO/variant_type="snv"' ~{vcf} \
+            | bcftools view -i 'ABS(ILEN)>=5' -Oz -o ~{prefix}.filtered.vcf.gz
+        
+        tabix -p vcf -f ~{prefix}.filtered.vcf.gz
+    >>>
+    output {
+        File filtered_vcf = "~{prefix}.filtered.vcf.gz"
+        File filtered_vcf_index = "~{prefix}.filtered.vcf.gz.tbi"
+    }
+    
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(vcf, "GB")) * 2 + 10,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SplitEvalVcfBySize {
+    input {
+        File vcf
+        File vcf_index
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+    command <<<
+        set -euxo pipefail
+        
+        bcftools view -i 'ABS(INFO/SVLEN)>=10' ~{vcf} -Oz -o ~{prefix}.passed_size_filt.vcf.gz
+        tabix -p vcf -f ~{prefix}.passed_size_filt.vcf.gz
+
+        bcftools view -e 'ABS(INFO/SVLEN)>=10' ~{vcf} -Oz -o ~{prefix}.failed_size_filt.vcf.gz
+        tabix -p vcf -f ~{prefix}.failed_size_filt.vcf.gz
+    >>>
+    output {
+        File passed_vcf = "~{prefix}.passed_size_filt.vcf.gz"
+        File passed_vcf_index = "~{prefix}.passed_size_filt.vcf.gz.tbi"
+        File failed_vcf = "~{prefix}.failed_size_filt.vcf.gz"
+        File failed_vcf_index = "~{prefix}.failed_size_filt.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1, mem_gb: 4, disk_gb: ceil(size(vcf, "GB")) * 3 + 10,
+        boot_disk_gb: 10, preemptible_tries: 2, max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
