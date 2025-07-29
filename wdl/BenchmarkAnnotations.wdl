@@ -100,6 +100,7 @@ workflow BenchmarkAnnotations {
         call AnnotateAndBenchmark {
             input:
                 vcf_unmatched_from_truvari = TruvariMatches.unmatched_vcf,
+                unmatched_too_small_vcf = TruvariMatches.unmatched_too_small_vcf,
                 closest_bed = BedtoolsClosest.closest_bed,
                 exact_matched_vcf = ExactMatch.matched_vcf,
                 truvari_matched_vcf = TruvariMatches.matched_vcf,
@@ -191,6 +192,7 @@ task ExactMatch {
 task AnnotateAndBenchmark {
     input {
         File vcf_unmatched_from_truvari
+        File unmatched_too_small_vcf
         File closest_bed
         File exact_matched_vcf
         File truvari_matched_vcf
@@ -231,7 +233,8 @@ task AnnotateAndBenchmark {
             ~{exact_matched_vcf} \
             ~{truvari_matched_vcf} \
             ~{prefix}.bedtools_matched.vcf.gz \
-            ~{prefix}.final_unmatched.vcf.gz
+            ~{prefix}.final_unmatched.vcf.gz \
+            ~{unmatched_too_small_vcf}
         
         tabix -p vcf -f ~{prefix}.final_annotated.vcf.gz
     >>>
@@ -303,14 +306,22 @@ task MergePlotTarballs {
     command <<<
         set -euxo pipefail
 
-        mkdir -p final_results/AF_plots
-        mkdir -p final_results/VEP_plots
-
+        mkdir -p final_results
+        
         for tarball in ~{sep=' ' tarballs}; do
-            tar -xvf $tarball --strip-components=1 -C final_results
+            # Extract contents into a temporary directory
+            mkdir temp_extract
+            tar -xvf $tarball -C temp_extract
+            
+            # Move the contents of the benchmark results directory to the final results
+            # This handles the case where the tarball might have a top-level directory
+            find temp_extract -mindepth 1 -maxdepth 1 -type d -name "*_benchmark_results" -exec mv {}/* final_results/ \;
+
+            # Clean up
+            rm -r temp_extract
         done
 
-        tar -czf ~{prefix}.plots.tar.gz final_results/
+        tar -czf ~{prefix}.plots.tar.gz -C final_results .
     >>>
 
     output {
