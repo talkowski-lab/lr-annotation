@@ -251,7 +251,7 @@ task AnnotateAndBenchmark {
     RuntimeAttr default_attr = object {
         cpu_cores: 2, 
         mem_gb: 16, 
-        disk_gb: 10 + ceil(size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB") + size(truvari_too_small_vcf, "GB") + size(truvari_unmatched_vcf, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 1.5,
+        disk_gb: 10 + ceil((size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB") + size(truvari_too_small_vcf, "GB") + size(truvari_unmatched_vcf, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 1.5),
         boot_disk_gb: 15, 
         preemptible_tries: 2, 
         max_retries: 1
