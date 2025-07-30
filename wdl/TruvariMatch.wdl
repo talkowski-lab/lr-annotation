@@ -150,11 +150,11 @@ task FilterEvalVcf {
     command <<<
         set -euo pipefail
         
-        bcftools view -i "ABS(INFO/SVLEN)>=10" ~{vcf_eval} -Oz -o ~{prefix}.eval_retained.vcf.gz
-        tabix -p vcf -f ~{prefix}.eval_retained.vcf.gz
+        bcftools view -i "ABS(INFO/SVLEN)>=10" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
+        tabix -p vcf -f ~{prefix}.retained.vcf.gz
 
-        bcftools view -e 'ABS(INFO/SVLEN)>=10' ~{vcf_eval} -Oz -o ~{prefix}.eval_filtered.vcf.gz
-        tabix -p vcf -f ~{prefix}.eval_filtered.vcf.gz
+        bcftools view -e 'ABS(INFO/SVLEN)>=10' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
+        tabix -p vcf -f ~{prefix}.dropped.vcf.gz
     >>>
 
     output {
