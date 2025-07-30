@@ -165,9 +165,9 @@ task FilterEvalVcf {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 4, 
-        disk_gb: ceil(size(vcf_eval, "GB")) * 2 + 5,
+        cpu_cores: 2, 
+        mem_gb: 8, 
+        disk_gb: ceil(size(vcf_eval, "GB")) * 3 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 2, 
         max_retries: 1
@@ -208,9 +208,9 @@ task FilterTruthVcf {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 4, 
-        disk_gb: ceil(size(vcf_truth, "GB")) * 2 + 5,
+        cpu_cores: 2, 
+        mem_gb: 8, 
+        disk_gb: ceil(size(vcf_truth, "GB")) * 3 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 2, 
         max_retries: 1
