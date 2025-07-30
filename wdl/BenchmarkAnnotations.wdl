@@ -159,7 +159,7 @@ task ExactMatch {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         python3 /opt/gnomad-lr/scripts/benchmark/exact_match.py \
             ~{vcf_eval} \
             ~{vcf_truth} \
@@ -218,7 +218,7 @@ task AnnotateAndBenchmark {
 
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         python3 /opt/gnomad-lr/scripts/benchmark/annotate_and_benchmark.py \
             ~{prefix} \
@@ -277,7 +277,7 @@ task MergeSummaries {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         cat ~{sep=' ' summary_files} > ~{prefix}.summary.txt
     >>>
 
@@ -314,7 +314,7 @@ task MergePlotTarballs {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         mkdir -p final_results/AF_plots
         mkdir -p final_results/VEP_plots

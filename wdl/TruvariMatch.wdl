@@ -148,9 +148,9 @@ task FilterEvalVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         
-        bcftools view -i 'ABS(INFO/SVLEN)>=10' ~{vcf_eval} -Oz -o ~{prefix}.eval_retained.vcf.gz
+        bcftools view -i "ABS(INFO/SVLEN)>=10" ~{vcf_eval} -Oz -o ~{prefix}.eval_retained.vcf.gz
         tabix -p vcf -f ~{prefix}.eval_retained.vcf.gz
 
         bcftools view -e 'ABS(INFO/SVLEN)>=10' ~{vcf_eval} -Oz -o ~{prefix}.eval_filtered.vcf.gz
@@ -167,7 +167,7 @@ task FilterEvalVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1, 
         mem_gb: 4, 
-        disk_gb: ceil(size(vcf_eval, "GB")) * 3 + 10,
+        disk_gb: ceil(size(vcf_eval, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 2, 
         max_retries: 1
@@ -195,7 +195,7 @@ task FilterTruthVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view -e 'INFO/variant_type="snv"' ~{vcf_truth} \
             | bcftools view -i 'ABS(ILEN)>=5' -Oz -o ~{prefix}.vcf.gz
@@ -245,7 +245,7 @@ task RunTruvari {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         if [ -d "~{prefix}_truvari" ]; then
             rm -r "~{prefix}_truvari"
@@ -300,7 +300,7 @@ task AnnotateVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         
         echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
 
@@ -352,7 +352,7 @@ task ConcatTruvariResults {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools concat -a -Oz -o ~{prefix}.vcf.gz ~{sep=' ' vcfs}
         tabix -p vcf -f ~{prefix}.vcf.gz

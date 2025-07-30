@@ -1067,7 +1067,7 @@ task SubsetVcfToContig {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view ~{vcf} --regions ~{contig} -Oz -o ~{prefix}.~{contig}.vcf.gz
         tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
@@ -1107,7 +1107,7 @@ task ConcatFiles {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         cat ~{sep=' ' files} > ~{outfile_name}
     >>>
