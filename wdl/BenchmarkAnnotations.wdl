@@ -209,14 +209,6 @@ task AnnotateAndBenchmark {
         RuntimeAttr? runtime_attr_override
     }
 
-    String create_benchmarks_flag = if create_benchmarks then "--create_benchmarks" else ""
-    String vcf_truth_snv_arg = if create_benchmarks then "--vcf_truth_snv ~{vcf_truth_snv}" else ""
-    String vcf_truth_sv_arg = if create_benchmarks then "--vcf_truth_sv ~{vcf_truth_sv}" else ""
-    String exact_matched_arg = if create_benchmarks then "--exact_matched_vcf ~{exact_matched_vcf}" else ""
-    String truvari_matched_arg = if create_benchmarks then "--truvari_matched_vcf ~{truvari_matched_vcf}" else ""
-    String contig_arg = if create_benchmarks then "--contig ~{contig}" else ""
-
-
     command <<<
         set -euo pipefail
 
@@ -224,12 +216,12 @@ task AnnotateAndBenchmark {
             ~{prefix} \
             ~{truvari_unmatched_vcf} \
             ~{closest_bed} \
-            ~{create_benchmarks_flag} \
-            ~{vcf_truth_snv_arg} \
-            ~{vcf_truth_sv_arg} \
-            ~{exact_matched_arg} \
-            ~{truvari_matched_arg} \
-            ~{contig_arg}
+            ~{if create_benchmarks then "--create_benchmarks" else ""} \
+            ~{if create_benchmarks then "--vcf_truth_snv ~{vcf_truth_snv}" else ""} \
+            ~{if create_benchmarks then "--vcf_truth_sv ~{vcf_truth_sv}" else ""} \
+            ~{if create_benchmarks then "--exact_matched_vcf ~{exact_matched_vcf}" else ""} \
+            ~{if create_benchmarks then "--truvari_matched_vcf ~{truvari_matched_vcf}" else ""} \
+            ~{if create_benchmarks then "--contig ~{contig}" else ""}
 
         bcftools concat -a -f -Oz -o ~{prefix}.final_annotated.vcf.gz \
             ~{exact_matched_vcf} \
