@@ -96,7 +96,7 @@ workflow TruvariMatch {
             vcf_eval = RunTruvari_07.unmatched_vcf,
             vcf_eval_index = RunTruvari_07.unmatched_vcf_index,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf,
+            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
             ref_fasta = ref_fasta,
             ref_fasta_fai = ref_fasta_fai,
             pctseq = 0.5,
