@@ -223,7 +223,7 @@ task AnnotateAndBenchmark {
             ~{if create_benchmarks then "--truvari_matched_vcf ~{truvari_matched_vcf}" else ""} \
             ~{if create_benchmarks then "--contig ~{contig}" else ""}
 
-        bcftools concat -a -f -Oz -o ~{prefix}.final_annotated.vcf.gz \
+        bcftools concat -a -Oz -o ~{prefix}.final_annotated.vcf.gz \
             ~{exact_matched_vcf} \
             ~{truvari_matched_vcf} \
             ~{prefix}.bedtools_matched.vcf.gz \
