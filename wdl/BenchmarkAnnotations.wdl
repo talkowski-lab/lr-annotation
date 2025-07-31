@@ -100,12 +100,18 @@ workflow BenchmarkAnnotations {
         call AnnotateAndBenchmark {
             input:
                 exact_matched_vcf = ExactMatch.matched_vcf,
+                exact_matched_vcf_index = ExactMatch.matched_vcf_index,
                 truvari_matched_vcf = TruvariMatches.matched_vcf,
+                truvari_matched_vcf_index = TruvariMatches.matched_vcf_index,
                 truvari_too_small_vcf = TruvariMatches.dropped_vcf,
+                truvari_too_small_vcf_index = TruvariMatches.dropped_vcf_index,
                 truvari_unmatched_vcf = TruvariMatches.unmatched_vcf,
+                truvari_unmatched_vcf_index = TruvariMatches.unmatched_vcf_index,
                 closest_bed = BedtoolsClosest.closest_bed,
                 vcf_truth_snv = SubsetTruth.subset_vcf,
+                vcf_truth_snv_index = SubsetTruth.subset_vcf_index,
                 vcf_truth_sv = SubsetSVTruth.subset_vcf,
+                vcf_truth_sv_index = SubsetSVTruth.subset_vcf_index,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 create_benchmarks = create_benchmarks,
@@ -196,12 +202,18 @@ task ExactMatch {
 task AnnotateAndBenchmark {
     input {
         File exact_matched_vcf
+        File exact_matched_vcf_index
         File truvari_matched_vcf
+        File truvari_matched_vcf_index
         File truvari_too_small_vcf
+        File truvari_too_small_vcf_index
         File truvari_unmatched_vcf
+        File truvari_unmatched_vcf_index
         File closest_bed
         File vcf_truth_snv
+        File vcf_truth_snv_index
         File vcf_truth_sv
+        File vcf_truth_sv_index
         String contig
         String prefix
         Boolean create_benchmarks
