@@ -12,15 +12,16 @@ def main():
     parser.add_argument("prefix", help="Prefix for output files.")
     args = parser.parse_args()
 
-    truth_variants = set()
+    truth_variants = {}
     with pysam.VariantFile(args.vcf_truth) as vcf_in:
         for record in vcf_in:
             key = (record.chrom, record.pos, record.ref, record.alts)
-            truth_variants.add(key)
+            truth_variants[key] = record.id
 
     vcf_in = pysam.VariantFile(args.vcf_eval)
     
     vcf_in.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
+    vcf_in.header.info.add('gnomAD_V4_match_ID', '1', 'String', 'Matching variant ID from gnomAD v4.')
 
     matched_tmp_path = f"{args.prefix}.exact_matched.tmp.vcf"
     unmatched_tmp_path = f"{args.prefix}.unmatched.tmp.vcf"
@@ -35,6 +36,7 @@ def main():
             key = (record.chrom, record.pos, record.ref, record.alts)
             if key in truth_variants:
                 record.info['gnomAD_V4_match'] = 'EXACT'
+                record.info['gnomAD_V4_match_ID'] = truth_variants[key]
                 matched_out.write(str(record))
             else:
                 unmatched_out.write(str(record))

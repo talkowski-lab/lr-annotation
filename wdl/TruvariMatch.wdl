@@ -303,14 +303,18 @@ task AnnotateVcf {
         set -euo pipefail
         
         echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
+        echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' ~{vcf} | bgzip -c > annots.tab.gz
+        # Extract MatchId values and create annotation file
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\t%INFO/MatchId\n' ~{vcf} | \
+            awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4, $5, ($6 != "." && $6 != "") ? $6 : ""}' | \
+            bgzip -c > annots.tab.gz
         tabix -s 1 -b 2 -e 2 annots.tab.gz
 
         bcftools annotate \
             -a annots.tab.gz \
             -h header.hdr \
-            -c CHROM,POS,REF,ALT,~{tag_name} \
+            -c CHROM,POS,REF,ALT,~{tag_name},gnomAD_V4_match_ID \
             -Oz -o ~{prefix}.vcf.gz \
             ~{vcf}
         

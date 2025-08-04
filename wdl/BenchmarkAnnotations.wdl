@@ -20,7 +20,6 @@ workflow BenchmarkAnnotations {
         String pipeline_docker
         String truvari_docker
         String prefix
-        Boolean create_benchmarks
 
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_exact_match
@@ -114,7 +113,6 @@ workflow BenchmarkAnnotations {
                 vcf_truth_sv_index = SubsetSVTruth.subset_vcf_index,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
-                create_benchmarks = create_benchmarks,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_annotate_benchmark
         }
@@ -129,29 +127,27 @@ workflow BenchmarkAnnotations {
             runtime_attr_override = runtime_attr_merge_vcfs
     }
     
-    if (create_benchmarks) {
-        call MergeSummaries {
-            input:
-                summary_files = select_all(AnnotateAndBenchmark.summary_file),
-                prefix = prefix,
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_merge_summaries
-        }
+    call MergeSummaries {
+        input:
+            summary_files = select_all(AnnotateAndBenchmark.summary_file),
+            prefix = prefix,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_merge_summaries
+    }
 
-        call MergePlotTarballs {
-            input:
-                tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
-                prefix = prefix,
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_merge_tarballs
-        }
+    call MergePlotTarballs {
+        input:
+            tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
+            prefix = prefix,
+            pipeline_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_merge_tarballs
     }
 
     output {
         File annotated_vcf = MergeFinalVcfs.concat_vcf
         File annotated_vcf_index = MergeFinalVcfs.concat_vcf_idx
-        File? merged_summary = MergeSummaries.merged_file
-        File? merged_plot_tarball = MergePlotTarballs.merged_tarball
+        File merged_summary = MergeSummaries.merged_file
+        File merged_plot_tarball = MergePlotTarballs.merged_tarball
     }
 }
 
@@ -216,7 +212,6 @@ task AnnotateAndBenchmark {
         File vcf_truth_sv_index
         String contig
         String prefix
-        Boolean create_benchmarks
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -225,31 +220,22 @@ task AnnotateAndBenchmark {
         set -euo pipefail
 
         python3 /opt/gnomad-lr/scripts/benchmark/annotate_and_benchmark.py \
-            ~{prefix} \
-            ~{truvari_unmatched_vcf} \
-            ~{closest_bed} \
-            ~{if create_benchmarks then "--create_benchmarks" else ""} \
-            ~{if create_benchmarks then "--vcf_truth_snv ~{vcf_truth_snv}" else ""} \
-            ~{if create_benchmarks then "--vcf_truth_sv ~{vcf_truth_sv}" else ""} \
-            ~{if create_benchmarks then "--exact_matched_vcf ~{exact_matched_vcf}" else ""} \
-            ~{if create_benchmarks then "--truvari_matched_vcf ~{truvari_matched_vcf}" else ""} \
-            ~{if create_benchmarks then "--contig ~{contig}" else ""}
-
-        bcftools concat -a -Oz -o ~{prefix}.final_annotated.vcf.gz \
-            ~{exact_matched_vcf} \
-            ~{truvari_matched_vcf} \
-            ~{prefix}.bedtools_matched.vcf.gz \
-            ~{prefix}.final_unmatched.vcf.gz \
-            ~{truvari_too_small_vcf}
-        
-        tabix -p vcf -f ~{prefix}.final_annotated.vcf.gz
+            --prefix ~{prefix} \
+            --contig ~{contig} \
+            --exact_matched_vcf ~{exact_matched_vcf} \
+            --truvari_matched_vcf ~{truvari_matched_vcf} \
+            --truvari_too_small_vcf ~{truvari_too_small_vcf} \
+            --truvari_unmatched_vcf ~{truvari_unmatched_vcf} \
+            --closest_bed ~{closest_bed} \
+            --vcf_truth_snv ~{vcf_truth_snv} \
+            --vcf_truth_sv ~{vcf_truth_sv}
     >>>
 
     output {
         File final_vcf = "~{prefix}.final_annotated.vcf.gz"
         File final_vcf_index = "~{prefix}.final_annotated.vcf.gz.tbi"
-        File? summary_file = if create_benchmarks then "~{prefix}_benchmark_results/summary.txt" else ""
-        File? plot_tarball = if create_benchmarks then "~{prefix}.benchmarks.tar.gz" else ""
+        File summary_file = "~{prefix}_benchmark_results/summary.txt"
+        File plot_tarball = "~{prefix}.benchmarks.tar.gz"
     }
     
     RuntimeAttr default_attr = object {

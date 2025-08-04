@@ -9,8 +9,8 @@ from scipy.stats import pearsonr
 import os
 import tarfile
 import subprocess
-import numpy as np
 from collections import defaultdict
+
 
 def parse_info(info_str):
     """Parse VCF INFO string into a dictionary."""
@@ -21,15 +21,19 @@ def parse_info(info_str):
             info_dict[key] = value
     return info_dict
 
+
 def get_vep_format(vcf_path, vep_key_pattern="VEP"):
     """Extract VEP format from VCF header."""
     with pysam.VariantFile(vcf_path) as vcf:
         for record in vcf.header.records:
-            if record.key == 'INFO' and record.get('ID') and record.get('ID').upper() in ['VEP', 'CSQ']:
-                desc = record.get('Description')
-                if 'Format: ' in desc:
-                    return desc.split('Format: ')[-1].strip('"')
-    return None
+            if record.key == 'INFO' and record.get('ID'):
+                vep_id = record.get('ID').upper()
+                if vep_id in ['VEP', 'CSQ']:
+                    desc = record.get('Description')
+                    if 'Format: ' in desc:
+                        return vep_id.lower(), desc.split('Format: ')[-1].strip('"')
+    return None, None
+
 
 def get_vep_annotations(info_dict, vep_key, vep_format):
     """Extract VEP annotations from INFO dictionary."""
@@ -44,6 +48,7 @@ def get_vep_annotations(info_dict, vep_key, vep_format):
         annotations.append(dict(zip(vep_fields, values)))
     return annotations
 
+
 def normalize_af_field(field):
     """Normalize AF field to a common format for comparison."""
     parts = field.lower().replace('af_', '').replace('_af', '').split('_')
@@ -57,10 +62,12 @@ def normalize_af_field(field):
             normalized_parts.add(part)
     return frozenset(normalized_parts)
 
+
 def is_af_field(key):
     """Check if a key is an allele frequency field."""
     lower_key = key.lower()
     return lower_key.startswith('af_') or lower_key.endswith('_af')
+
 
 def plot_af_correlation(df, pop, output_dir):
     """Generate and save a scatter plot for allele frequencies."""
@@ -74,7 +81,6 @@ def plot_af_correlation(df, pop, output_dir):
     plt.title(f'Allele Frequency Correlation for {pop}')
     plt.grid(True, which="both", ls="--")
     
-    # Calculate R^2
     r, _ = pearsonr(df['eval_af'], df['truth_af'])
     r_squared = r**2
     plt.text(0.05, 0.95, f'$R^2 = {r_squared:.4f}$', transform=plt.gca().transAxes,
@@ -84,25 +90,73 @@ def plot_af_correlation(df, pop, output_dir):
     plt.savefig(plot_path)
     plt.close()
 
-def plot_vep_heatmap(df, column, output_dir):
-    """Generate and save a heatmap for VEP annotation concordance."""
-    concordance_matrix = pd.crosstab(df['eval_vep'], df['truth_vep'])
-    
-    # Create the text to display in each cell
-    annot_labels = np.full(concordance_matrix.shape, "", dtype=object)
-    for i, idx in enumerate(concordance_matrix.index):
-        for j, col in enumerate(concordance_matrix.columns):
-            count = concordance_matrix.loc[idx, col]
-            if count > 0:
-                total_eval = concordance_matrix.loc[idx, :].sum()
-                perc = (count / total_eval) * 100 if total_eval > 0 else 0
-                annot_labels[i, j] = f"{count}/{total_eval}\n({perc:.1f}%)"
 
-    plt.figure(figsize=(max(12, len(concordance_matrix.columns)), max(10, len(concordance_matrix.index))))
-    sns.heatmap(concordance_matrix, annot=annot_labels, fmt="s", cmap="viridis", cbar=True)
+def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
+    """Generate and save a heatmap for VEP annotation concordance."""
+    # Count occurrences
+    eval_counts = defaultdict(int)
+    matched_counts = defaultdict(int)
+    
+    # Case insensitive matching
+    eval_values_lower = [v.lower() if v else '' for v in eval_values]
+    truth_values_lower = [v.lower() if v else '' for v in truth_values]
+    
+    for eval_val, truth_val in zip(eval_values_lower, truth_values_lower):
+        if eval_val:  # Only count non-empty values
+            eval_counts[eval_val] += 1
+            if eval_val == truth_val:
+                matched_counts[eval_val] += 1
+    
+    if not eval_counts:
+        print(f"No data for VEP category {column}, skipping plot")
+        return
+    
+    # Create data for heatmap
+    eval_labels = sorted(eval_counts.keys())
+    truth_labels = sorted(set(truth_values_lower) - {''})
+    
+    if not truth_labels:
+        print(f"No truth data for VEP category {column}, skipping plot")
+        return
+    
+    # Create matrix
+    matrix_data = []
+    annotations = []
+    
+    for truth_val in truth_labels:
+        row_data = []
+        row_annots = []
+        for eval_val in eval_labels:
+            if eval_val == truth_val:
+                match_count = matched_counts[eval_val]
+                total_count = eval_counts[eval_val]
+                percentage = (match_count / total_count) * 100 if total_count > 0 else 0
+                row_data.append(match_count)
+                row_annots.append(f"{match_count}/{total_count}\n({percentage:.1f}%)")
+            else:
+                row_data.append(0)
+                row_annots.append("")
+        matrix_data.append(row_data)
+        annotations.append(row_annots)
+    
+    if not matrix_data or not any(any(row) for row in matrix_data):
+        print(f"No matching data for VEP category {column}, skipping plot")
+        return
+    
+    # Create plot
+    plt.figure(figsize=(max(12, len(eval_labels)), max(10, len(truth_labels))))
+    
+    sns.heatmap(matrix_data, 
+                xticklabels=eval_labels,
+                yticklabels=truth_labels,
+                annot=annotations,
+                fmt="s", 
+                cmap="viridis", 
+                cbar=True)
+    
     plt.title(f'VEP Concordance for {column}')
-    plt.xlabel('Truth VCF Annotation')
-    plt.ylabel('Eval VCF Annotation')
+    plt.xlabel('Eval VCF Annotation')
+    plt.ylabel('Truth VCF Annotation')
     plt.xticks(rotation=45, ha='right')
     plt.yticks(rotation=0)
     plt.tight_layout()
@@ -111,22 +165,21 @@ def plot_vep_heatmap(df, column, output_dir):
     plt.savefig(plot_path)
     plt.close()
 
+
 def main():
     parser = argparse.ArgumentParser(description="Annotate VCF and/or run benchmarking.")
-    parser.add_argument("prefix", help="Prefix for output files.")
-    parser.add_argument("vcf_unmatched_from_truvari", help="Unmatched VCF from Truvari step.")
-    parser.add_argument("closest_bed", help="BED file with closest matches from bedtools.")
-
-    # Arguments for benchmarking
-    parser.add_argument("--create_benchmarks", action="store_true", help="Create benchmark plots and summaries.")
-    parser.add_argument("--vcf_truth_snv", help="Original truth VCF with SNVs.")
-    parser.add_argument("--vcf_truth_sv", help="Original truth VCF with SVs.")
+    parser.add_argument("--prefix", help="Prefix for output files.")
+    parser.add_argument("--contig", help="Contig being processed.")
     parser.add_argument("--exact_matched_vcf", help="VCF of variants matched exactly.")
     parser.add_argument("--truvari_matched_vcf", help="VCF of variants matched by Truvari.")
-    parser.add_argument("--contig", help="Contig being processed.")
+    parser.add_argument("--truvari_too_small_vcf", help="VCF of variants too small for Truvari.")
+    parser.add_argument("--truvari_unmatched_vcf", help="Unmatched VCF from Truvari step.")
+    parser.add_argument("--closest_bed", help="BED file with closest matches from bedtools.")
+    parser.add_argument("--vcf_truth_snv", help="Original truth VCF with SNVs.")
+    parser.add_argument("--vcf_truth_sv", help="Original truth VCF with SVs.")
     args = parser.parse_args()
 
-    # --- Part 1: Annotate Bedtools Matches ---
+    # --- Part 1: Annotate Bedtools Matches and Create Final VCF ---
     bedtools_matches = defaultdict(list)
     with open(args.closest_bed, 'r') as f:
         for line in f:
@@ -139,12 +192,13 @@ def main():
                 if ref_svid != '.':
                     bedtools_matches[query_svid].append(ref_svid)
 
+    # Process unmatched variants from Truvari and annotate bedtools matches
     bedtools_matched_tmp_path = f"{args.prefix}.bedtools_matched.tmp.vcf"
     final_unmatched_tmp_path = f"{args.prefix}.final_unmatched.tmp.vcf"
     bedtools_matched_out_path = f"{args.prefix}.bedtools_matched.vcf.gz"
     final_unmatched_out_path = f"{args.prefix}.final_unmatched.vcf.gz"
 
-    vcf_in_unmatched = pysam.VariantFile(args.vcf_unmatched_from_truvari)
+    vcf_in_unmatched = pysam.VariantFile(args.truvari_unmatched_vcf)
     if 'gnomAD_V4_match' not in vcf_in_unmatched.header.info:
         vcf_in_unmatched.header.info.add('gnomAD_V4_match', '1', 'String', 'Matching status against gnomAD v4.')
     if 'gnomAD_V4_match_ID' not in vcf_in_unmatched.header.info:
@@ -156,12 +210,12 @@ def main():
         for record in vcf_in_unmatched:
             if record.id in bedtools_matches:
                 record.info['gnomAD_V4_match'] = 'BEDTOOLS_CLOSEST'
-                 # A single eval variant could match multiple truth variants in bedtools - so we simply take the first
                 record.info['gnomAD_V4_match_ID'] = bedtools_matches[record.id][0]
                 matched_out.write(str(record))
             else:
                 unmatched_out.write(str(record))
 
+    # Convert to compressed VCFs
     subprocess.run(["bcftools", "view", "-Oz", "-o", bedtools_matched_out_path, bedtools_matched_tmp_path], check=True)
     subprocess.run(["tabix", "-p", "vcf", "-f", bedtools_matched_out_path], check=True)
     os.remove(bedtools_matched_tmp_path)
@@ -170,17 +224,26 @@ def main():
     subprocess.run(["tabix", "-p", "vcf", "-f", final_unmatched_out_path], check=True)
     os.remove(final_unmatched_tmp_path)
 
-    # --- Part 2: Combine all parts into a final annotated VCF for the contig ---
-    final_vcf_path = f"{args.prefix}.final_annotated.vcf.gz"
-    
-    # Check if optional VCFs exist and are not empty
-    vcf_list = []
-    # This logic has been moved to the WDL task
-    
-    if not args.create_benchmarks:
-        return
+    # Build final annotated VCF by concatenating all parts
+    vcf_files_to_concat = []
+    if args.exact_matched_vcf and os.path.exists(args.exact_matched_vcf):
+        vcf_files_to_concat.append(args.exact_matched_vcf)
+    if args.truvari_matched_vcf and os.path.exists(args.truvari_matched_vcf):
+        vcf_files_to_concat.append(args.truvari_matched_vcf)
+    if os.path.exists(bedtools_matched_out_path):
+        vcf_files_to_concat.append(bedtools_matched_out_path)
+    if os.path.exists(final_unmatched_out_path):
+        vcf_files_to_concat.append(final_unmatched_out_path)
+    if args.truvari_too_small_vcf and os.path.exists(args.truvari_too_small_vcf):
+        vcf_files_to_concat.append(args.truvari_too_small_vcf)
 
-    # --- Part 3: Benchmarking ---
+    final_vcf_path = f"{args.prefix}.final_annotated.vcf.gz"
+    if vcf_files_to_concat:
+        concat_cmd = ["bcftools", "concat", "-a", "-Oz", "-o", final_vcf_path] + vcf_files_to_concat
+        subprocess.run(concat_cmd, check=True)
+        subprocess.run(["tabix", "-p", "vcf", "-f", final_vcf_path], check=True)
+
+    # --- Part 2: Benchmarking using Final VCF ---
     # Setup directories
     output_basedir = f"{args.prefix}_benchmark_results"
     af_plot_dir = os.path.join(output_basedir, "AF_plots", args.contig)
@@ -191,45 +254,21 @@ def main():
     # Load all truth variants into memory for quick lookup
     truth_variants = {}
     for vcf_path in [args.vcf_truth_snv, args.vcf_truth_sv]:
-        with pysam.VariantFile(vcf_path) as vcf_in:
-            for record in vcf_in:
-                # Key by ID for SVs/Truvari/Bedtools, and by coordinate for exact matches
-                truth_variants[record.id] = record.copy()
-                exact_key = (record.chrom, record.pos, record.ref, tuple(record.alts))
-                truth_variants[exact_key] = record.copy()
+        if vcf_path and os.path.exists(vcf_path):
+            with pysam.VariantFile(vcf_path) as vcf_in:
+                for record in vcf_in:
+                    truth_variants[record.id] = record.copy()
+                    exact_key = (record.chrom, record.pos, record.ref, tuple(record.alts))
+                    truth_variants[exact_key] = record.copy()
 
-    # Process all matched VCFs to build benchmark data
+    # Process final VCF to build benchmark data
     matched_data = []
-    # 1. Exact matches
-    with pysam.VariantFile(args.exact_matched_vcf) as vcf_in:
+    with pysam.VariantFile(final_vcf_path) as vcf_in:
         for record in vcf_in:
-            key = (record.chrom, record.pos, record.ref, tuple(record.alts))
-            if key in truth_variants:
-                matched_data.append({'eval': record.copy(), 'truth': truth_variants[key]})
-    
-    # 2. Truvari matches
-    with pysam.VariantFile(args.truvari_matched_vcf) as vcf_in:
-        for record in vcf_in:
-            if 'MatchId' in record.info and record.info['MatchId'] in truth_variants:
-                 matched_data.append({'eval': record.copy(), 'truth': truth_variants[record.info['MatchId']]})
-
-    # 3. Bedtools matches
-    with pysam.VariantFile(bedtools_matched_out_path) as vcf_in:
-        for record in vcf_in:
-            if 'gnomAD_V4_match_ID' in record.info and record.info['gnomAD_V4_match_ID'] in truth_variants:
-                matched_data.append({'eval': record.copy(), 'truth': truth_variants[record.info['gnomAD_V4_match_ID']]})
-
-    if not matched_data:
-        print(f"No matched variants found for contig {args.contig}. Skipping benchmark generation.")
-        # Create empty summary and tarball to satisfy outputs
-        summary_path = os.path.join(output_basedir, "summary.txt")
-        with open(summary_path, "w") as f:
-            f.write(f"Contig: {args.contig}\n")
-            f.write("Total matched variants: 0\n")
-        
-        with tarfile.open(f"{args.prefix}.benchmarks.tar.gz", "w:gz") as tar:
-            tar.add(output_basedir, arcname=os.path.basename(output_basedir))
-        return
+            if 'gnomAD_V4_match_ID' in record.info:
+                match_id = record.info['gnomAD_V4_match_ID']
+                if match_id in truth_variants:
+                    matched_data.append({'eval': record.copy(), 'truth': truth_variants[match_id]})
 
     # --- AF Benchmarking ---
     af_data = defaultdict(list)
@@ -242,13 +281,10 @@ def main():
 
         for norm_pop, (eval_key, eval_val) in eval_af_fields.items():
             if norm_pop in truth_af_fields:
-                try:
-                    eval_af = float(eval_val[0] if isinstance(eval_val, tuple) else eval_val)
-                    truth_af = float(truth_af_fields[norm_pop][0] if isinstance(truth_af_fields[norm_pop], tuple) else truth_af_fields[norm_pop])
-                    if eval_af > 0 and truth_af > 0: # Required for log scale
-                        af_data[eval_key].append({'eval_af': eval_af, 'truth_af': truth_af})
-                except (ValueError, TypeError):
-                    continue
+                eval_af = float(eval_val[0] if isinstance(eval_val, tuple) else eval_val)
+                truth_af = float(truth_af_fields[norm_pop][0] if isinstance(truth_af_fields[norm_pop], tuple) else truth_af_fields[norm_pop])
+                if eval_af > 0 and truth_af > 0:
+                    af_data[eval_key].append({'eval_af': eval_af, 'truth_af': truth_af})
     
     for pop, data_points in af_data.items():
         df = pd.DataFrame(data_points)
@@ -256,42 +292,55 @@ def main():
             plot_af_correlation(df, pop, af_plot_dir)
 
     # --- VEP Benchmarking ---
-    eval_vep_format = get_vep_format(args.exact_matched_vcf) # Assume header is consistent
-    truth_vep_format = get_vep_format(args.vcf_truth_snv)
-    
-    vep_key_eval = 'CSQ' if eval_vep_format and 'CSQ' in eval_vep_format else 'VEP'
-    vep_key_truth = 'vep' if truth_vep_format and 'vep' in truth_vep_format else 'CSQ'
+    eval_vep_key, eval_vep_format = get_vep_format(final_vcf_path)
+    truth_vep_key, truth_vep_format = get_vep_format(args.vcf_truth_snv) if args.vcf_truth_snv else (None, None)
     
     if eval_vep_format and truth_vep_format:
-        vep_df_data = []
+        # Collect all VEP data
+        vep_data_by_category = defaultdict(lambda: {'eval': [], 'truth': []})
+        
         for item in matched_data:
-            eval_annos = get_vep_annotations(item['eval'].info, vep_key_eval, eval_vep_format)
-            truth_annos = get_vep_annotations(item['truth'].info, vep_key_truth, truth_vep_format)
+            eval_annos = get_vep_annotations(item['eval'].info, eval_vep_key, eval_vep_format)
+            truth_annos = get_vep_annotations(item['truth'].info, truth_vep_key, truth_vep_format)
             
-            eval_consequences = {a.get('Consequence') for a in eval_annos if a.get('Consequence')}
-            truth_consequences = {a.get('Consequence') for a in truth_annos if a.get('Consequence')}
-
-            # For simplicity, take the first one if multiple exist
-            eval_vep = next(iter(eval_consequences), 'N/A')
-            truth_vep = next(iter(truth_consequences), 'N/A')
-            vep_df_data.append({'eval_vep': eval_vep, 'truth_vep': truth_vep})
-
-        vep_df = pd.DataFrame(vep_df_data)
-        if not vep_df.empty:
-            plot_vep_heatmap(vep_df, 'Consequence', vep_plot_dir)
+            # Get all possible categories from both eval and truth formats
+            eval_categories = set(eval_vep_format.split('|'))
+            truth_categories = set(truth_vep_format.split('|'))
+            all_categories = eval_categories.intersection(truth_categories)
+            
+            # For each category, collect values
+            for category in all_categories:
+                eval_values = []
+                truth_values = []
+                
+                for anno in eval_annos:
+                    val = anno.get(category, '')
+                    if val and val.strip():
+                        eval_values.append(val.strip())
+                
+                for anno in truth_annos:
+                    val = anno.get(category, '')
+                    if val and val.strip():
+                        truth_values.append(val.strip())
+                
+                # Take first non-empty value for simplicity
+                eval_val = eval_values[0] if eval_values else ''
+                truth_val = truth_values[0] if truth_values else ''
+                
+                if eval_val or truth_val:  # Only collect if at least one has a value
+                    vep_data_by_category[category]['eval'].append(eval_val)
+                    vep_data_by_category[category]['truth'].append(truth_val)
+        
+        # Create plots for each category with data
+        for category, data in vep_data_by_category.items():
+            if len(data['eval']) > 0:
+                plot_vep_heatmap(data['eval'], data['truth'], category, vep_plot_dir)
 
     # --- Summary File ---
-    total_eval_variants = 0
-    with pysam.VariantFile(args.exact_matched_vcf) as f: # just need header
-      # This is a hacky way to count original variants. Should be passed in.
-      # For now, we'll just report on matched counts.
-      pass
-    
     summary_path = os.path.join(output_basedir, "summary.txt")
     with open(summary_path, "w") as f:
         f.write(f"Contig: {args.contig}\n")
         f.write(f"Total matched variants: {len(matched_data)}\n")
-        # Add more summary stats here if needed
 
     # --- Create final tarball ---
     with tarfile.open(f"{args.prefix}.benchmarks.tar.gz", "w:gz") as tar:
