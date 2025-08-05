@@ -40,7 +40,15 @@ def get_vep_annotations(info_dict, vep_key, vep_format):
     if not vep_format or vep_key not in info_dict:
         return []
     
-    vep_string = info_dict.get(vep_key, '')
+    vep_value = info_dict.get(vep_key, '')
+    if isinstance(vep_value, tuple):
+        vep_string = vep_value[0] if vep_value else ''
+    else:
+        vep_string = vep_value
+    
+    if not vep_string:
+        return []
+    
     annotations = []
     vep_fields = vep_format.split('|')
     for annotation_blob in vep_string.split(','):
