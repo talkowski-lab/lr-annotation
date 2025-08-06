@@ -165,6 +165,71 @@ def write_vep_table(eval_values, truth_values, column, output_dir):
     concordance.to_csv(table_path, sep='\t')
 
 
+def write_summary_table(final_vcf_path, truth_variants, vep_keys, output_path):
+    all_variants_data = []
+    
+    eval_vep_key, truth_vep_key, eval_indices, truth_indices = vep_keys
+    common_vep_categories = set(eval_indices.values())
+
+    with pysam.VariantFile(final_vcf_path) as vcf_in:
+        for record in vcf_in:
+            row_data = {
+                'eval_variant_id': record.id,
+                'match_status': False,
+                'truth_variant_id': '.'
+            }
+            
+            if 'gnomAD_V4_match_ID' in record.info:
+                match_id = record.info['gnomAD_V4_match_ID']
+                if match_id in truth_variants:
+                    row_data['match_status'] = True
+                    row_data['truth_variant_id'] = match_id
+                    
+                    truth_info = truth_variants[match_id]
+                    
+                    eval_af_pairs = {normalize_af_field(k): normalize_af_value(v) for k, v in record.info.items() if is_af_field(k)}
+                    truth_af_pairs = {normalize_af_field(k): normalize_af_value(v) for k, v in truth_info.items() if is_af_field(k)}
+                    
+                    common_af_keys = set(eval_af_pairs.keys()) & set(truth_af_pairs.keys())
+                    for af_key_set in common_af_keys:
+                        af_key_str = '_'.join(sorted(list(af_key_set)))
+                        row_data[f"{af_key_str}_eval"] = eval_af_pairs[af_key_set]
+                        row_data[f"{af_key_str}_truth"] = truth_af_pairs[af_key_set]
+
+                    eval_annos = get_vep_annotations(record.info, eval_vep_key, eval_indices)
+                    truth_annos = get_vep_annotations(truth_info, truth_vep_key, truth_indices)
+                    for category in common_vep_categories:
+                        if category in eval_annos or category in truth_annos:
+                            row_data[f"{category}_eval"] = eval_annos.get(category, 'N/A')
+                            row_data[f"{category}_truth"] = truth_annos.get(category, 'N/A')
+
+            all_variants_data.append(row_data)
+
+    df = pd.DataFrame(all_variants_data)
+
+    cols_to_drop = []
+    prefixes = set()
+    for col in df.columns:
+        if col.endswith('_eval') or col.endswith('_truth'):
+            prefixes.add(col.rsplit('_', 1)[0])
+
+    for prefix in prefixes:
+        eval_col = f"{prefix}_eval"
+        truth_col = f"{prefix}_truth"
+
+        if eval_col in df.columns and truth_col in df.columns:
+            # A column is considered empty if all its values are null (NaN) or the 'N/A' string.
+            eval_is_empty = (df[eval_col].isna() | (df[eval_col] == 'N/A')).all()
+            truth_is_empty = (df[truth_col].isna() | (df[truth_col] == 'N/A')).all()
+
+            if eval_is_empty and truth_is_empty:
+                cols_to_drop.extend([eval_col, truth_col])
+
+    df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
+    
+    df.to_csv(output_path, sep='\t', index=False, na_rep='.')
+
+
 def main():
     parser = argparse.ArgumentParser(description="Annotate VCF and/or run benchmarking.")
     parser.add_argument("--prefix", help="Prefix for output files.")
@@ -302,12 +367,11 @@ def main():
     for category, data in vep_data_by_category.items():
         plot_vep_heatmap(data['eval'], data['truth'], category, vep_plot_dir)
         write_vep_table(data['eval'], data['truth'], category, vep_table_dir)
-    
-    # Summary file
-    summary_path = os.path.join(output_basedir, "summary.txt")
-    with open(summary_path, "w") as f:
-        f.write(f"Contig: {args.contig}\n")
-        f.write(f"Total matched variants: {len(matched_data)}\n")
+
+    # Summary files
+    summary_table_path = os.path.join(output_basedir, "benchmark_summary.tsv")
+    vep_keys = (eval_vep_key, truth_vep_key, eval_indices, truth_indices)
+    write_summary_table(final_vcf_path, truth_variants, vep_keys, summary_table_path)
 
     # Tarball
     with tarfile.open(f"{args.prefix}.benchmarks.tar.gz", "w:gz") as tar:

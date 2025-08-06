@@ -48,6 +48,7 @@ workflow BenchmarkAnnotations {
                 vcf = vcf_truth,
                 vcf_index = vcf_truth_index,
                 contig = contig,
+                args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
                 prefix = "~{prefix}.~{contig}.truth",
                 docker_image = pipeline_docker,
                 runtime_attr_override = runtime_attr_subset
@@ -57,6 +58,7 @@ workflow BenchmarkAnnotations {
                 vcf = vcf_sv_truth,
                 vcf_index = vcf_sv_truth_index,
                 contig = contig,
+                args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker_image = pipeline_docker,
                 runtime_attr_override = runtime_attr_subset

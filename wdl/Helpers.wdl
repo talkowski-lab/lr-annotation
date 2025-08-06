@@ -1061,6 +1061,7 @@ task SubsetVcfToContig {
         File vcf
         File vcf_index
         String contig
+        String? args_string
         String prefix
         String docker_image
         RuntimeAttr? runtime_attr_override
@@ -1069,7 +1070,11 @@ task SubsetVcfToContig {
     command <<<
         set -euo pipefail
 
-        bcftools view ~{vcf} --regions ~{contig} -Oz -o ~{prefix}.~{contig}.vcf.gz
+        bcftools view \
+            ~{vcf} \
+            --regions ~{contig} \
+            ~{if defined(args_string) then args_string else ""} \
+            -Oz -o ~{prefix}.~{contig}.vcf.gz
         tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
     >>>
 
