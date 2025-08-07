@@ -53,6 +53,16 @@ workflow BenchmarkAnnotations {
                 docker_image = pipeline_docker,
                 runtime_attr_override = runtime_attr_subset
         }
+
+        call Helpers.RenameVariantIds as RenameTruthIds {
+            input:
+                vcf = SubsetTruth.subset_vcf,
+                vcf_index = SubsetTruth.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.truth.renamed",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_subset
+        }
+
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
             input:
                 vcf = vcf_sv_truth,
@@ -64,10 +74,19 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_subset
         }
 
+        call Helpers.RenameVariantIds as RenameSVTruthIds {
+            input:
+                vcf = SubsetSVTruth.subset_vcf,
+                vcf_index = SubsetSVTruth.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.sv_truth.renamed",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_subset
+        }
+
         call ExactMatch {
             input:
                 vcf_eval = SubsetEval.subset_vcf,
-                vcf_truth = SubsetTruth.subset_vcf,
+                vcf_truth = RenameTruthIds.renamed_vcf,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_exact_match
@@ -77,8 +96,8 @@ workflow BenchmarkAnnotations {
             input:
                 vcf_eval = ExactMatch.unmatched_vcf,
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
-                vcf_truth = SubsetTruth.subset_vcf,
-                vcf_truth_index = SubsetTruth.subset_vcf_index,
+                vcf_truth = RenameTruthIds.renamed_vcf,
+                vcf_truth_index = RenameTruthIds.renamed_vcf_index,
                 ref_fasta = ref_fasta,
                 ref_fasta_fai = ref_fasta_fai,
                 prefix = "~{prefix}.~{contig}",
@@ -91,8 +110,8 @@ workflow BenchmarkAnnotations {
             input:
                 vcf_eval = TruvariMatches.unmatched_vcf,
                 vcf_eval_index = TruvariMatches.unmatched_vcf_index,
-                vcf_sv_truth = SubsetSVTruth.subset_vcf,
-                vcf_sv_truth_index = SubsetSVTruth.subset_vcf_index,
+                vcf_sv_truth = RenameSVTruthIds.renamed_vcf,
+                vcf_sv_truth_index = RenameSVTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_bedtools
@@ -109,10 +128,10 @@ workflow BenchmarkAnnotations {
                 truvari_unmatched_vcf = TruvariMatches.unmatched_vcf,
                 truvari_unmatched_vcf_index = TruvariMatches.unmatched_vcf_index,
                 closest_bed = BedtoolsClosest.closest_bed,
-                vcf_truth_snv = SubsetTruth.subset_vcf,
-                vcf_truth_snv_index = SubsetTruth.subset_vcf_index,
-                vcf_truth_sv = SubsetSVTruth.subset_vcf,
-                vcf_truth_sv_index = SubsetSVTruth.subset_vcf_index,
+                vcf_truth_snv = RenameTruthIds.renamed_vcf,
+                vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
+                vcf_truth_sv = RenameSVTruthIds.renamed_vcf,
+                vcf_truth_sv_index = RenameSVTruthIds.renamed_vcf_index,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
@@ -152,6 +171,7 @@ workflow BenchmarkAnnotations {
         File merged_plot_tarball = MergePlotTarballs.merged_tarball
     }
 }
+
 
 task ExactMatch {
     input {

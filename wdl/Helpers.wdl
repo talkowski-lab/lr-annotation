@@ -1356,3 +1356,43 @@ task ConvertToSymbolic {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
   }
 }
+
+task RenameVariantIds {
+    input {
+        File vcf
+        File vcf_index
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        bcftools annotate --set-id '%CHROM-%POS-%REF-%ALT' ~{vcf} -Oz -o ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File renamed_vcf = "~{prefix}.vcf.gz"
+        File renamed_vcf_index = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1, 
+        mem_gb: 4, 
+        disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
+        boot_disk_gb: 10, 
+        preemptible_tries: 2, 
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
