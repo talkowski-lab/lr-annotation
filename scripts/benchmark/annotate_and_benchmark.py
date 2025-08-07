@@ -87,23 +87,17 @@ def get_vep_annotations(info_dict, vep_key, vep_indices):
 
 
 def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
-    """
-    Generates a heatmap with per-column percentages.
-    """
-    # 1. Count all values to determine labels
+    # Skip if no data or only N/A
     eval_value_counts = Counter(eval_values)
     if not eval_value_counts:
         print(f"No data for VEP category {column}, skipping plot")
         return
-
-    # Skip plotting if the only category is 'N/A'
-    if len(eval_value_counts) == 1 and 'N/A' in eval_value_counts:
+    elif len(eval_value_counts) == 1 and 'N/A' in eval_value_counts:
         print(f"Skipping plot for VEP category '{column}' as it only contains 'N/A' values.")
         return
 
+    # Determine labels
     top_n = 10
-
-    # 2. Determine symmetric row and column labels
     if len(eval_value_counts) > top_n:
         top_labels = [val for val, count in eval_value_counts.most_common(top_n)]
         col_labels = top_labels + ['Other']
@@ -115,20 +109,18 @@ def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
         col_labels = sorted_labels
         row_labels = sorted_labels
 
-    # 3. Calculate the concordance matrix
+    # Create concordance matrix
     concordance = pd.DataFrame(0, index=row_labels, columns=col_labels)
-
     for eval_val, truth_val in zip(eval_values, truth_values):
         col = eval_val if eval_val in col_labels and eval_val != 'Other' else 'Other'
         row = truth_val if truth_val in row_labels and truth_val != 'Other' else 'Other'
         if col in concordance.columns and row in concordance.index:
             concordance.loc[row, col] += 1
     
-    # 4. Create annotation and percentage matrices with per-column denominators
+    # Create annotation and percentage matrices
     annot_matrix = pd.DataFrame('', index=row_labels, columns=col_labels)
     percent_matrix = pd.DataFrame(0.0, index=row_labels, columns=col_labels)
     column_totals = concordance.sum(axis=0)
-
     for col in col_labels:
         total = column_totals[col]
         if total > 0:
@@ -141,7 +133,7 @@ def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
             for row in row_labels:
                 annot_matrix.loc[row, col] = f"0/0\n(0.0%)"
 
-    # 5. Plotting
+    # Create plot
     fig_height = max(10, len(row_labels) * 0.6)
     fig_width = max(12, len(col_labels) * 0.8)
     plt.figure(figsize=(fig_width, fig_height))
@@ -225,22 +217,19 @@ def write_summary_table(final_vcf_path, truth_variants, vep_keys, output_path):
             all_variants_data.append(row_data)
 
     df = pd.DataFrame(all_variants_data)
-
     cols_to_drop = []
     prefixes = set()
     for col in df.columns:
         if col.endswith('_eval') or col.endswith('_truth'):
             prefixes.add(col.rsplit('_', 1)[0])
 
+    # Drop columns that are empty in both eval and truth
     for prefix in prefixes:
         eval_col = f"{prefix}_eval"
         truth_col = f"{prefix}_truth"
-
         if eval_col in df.columns and truth_col in df.columns:
-            # A column is considered empty if all its values are null (NaN) or the 'N/A' string.
             eval_is_empty = (df[eval_col].isna() | (df[eval_col] == 'N/A')).all()
             truth_is_empty = (df[truth_col].isna() | (df[truth_col] == 'N/A')).all()
-
             if eval_is_empty and truth_is_empty:
                 cols_to_drop.extend([eval_col, truth_col])
 
@@ -391,7 +380,7 @@ def main():
         write_vep_table(data['eval'], data['truth'], category, vep_table_dir)
 
     # Summary files
-    summary_table_path = os.path.join(output_basedir, "benchmark_summary.tsv")
+    summary_table_path = f"{args.prefix}.benchmark_summary.tsv"
     vep_keys = (eval_vep_key, truth_vep_key, eval_indices, truth_indices)
     write_summary_table(final_vcf_path, truth_variants, vep_keys, summary_table_path)
 

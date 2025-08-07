@@ -147,12 +147,12 @@ workflow BenchmarkAnnotations {
             docker_image = pipeline_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }
-    
-    call MergeSummaries {
+
+    call Helpers.MergeResults as MergeBenchmarkSummaries {
         input:
-            summary_files = select_all(AnnotateAndBenchmark.summary_file),
-            prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            tsvs = select_all(AnnotateAndBenchmark.benchmark_summary_tsv),
+            merged_filename = "~{prefix}.benchmark_summary.tsv",
+            hail_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_merge_summaries
     }
 
@@ -167,8 +167,8 @@ workflow BenchmarkAnnotations {
     output {
         File annotated_vcf = MergeFinalVcfs.concat_vcf
         File annotated_vcf_index = MergeFinalVcfs.concat_vcf_idx
-        File merged_summary = MergeSummaries.merged_file
-        File merged_plot_tarball = MergePlotTarballs.merged_tarball
+        File plots_tarball = MergePlotTarballs.merged_tarball
+        File benchmark_summaries_tsv = MergeBenchmarkSummaries.merged_tsv
     }
 }
 
@@ -256,7 +256,7 @@ task AnnotateAndBenchmark {
     output {
         File final_vcf = "~{prefix}.final_annotated.vcf.gz"
         File final_vcf_index = "~{prefix}.final_annotated.vcf.gz.tbi"
-        File summary_file = "~{prefix}_benchmark_results/summary.txt"
+        File benchmark_summary_tsv = "~{prefix}.benchmark_summary.tsv"
         File plot_tarball = "~{prefix}.benchmarks.tar.gz"
     }
     
@@ -265,43 +265,6 @@ task AnnotateAndBenchmark {
         mem_gb: 16, 
         disk_gb: 10 + ceil((size(exact_matched_vcf, "GB") + size(truvari_matched_vcf, "GB") + size(truvari_too_small_vcf, "GB") + size(truvari_unmatched_vcf, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 1.5),
         boot_disk_gb: 15, 
-        preemptible_tries: 2, 
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task MergeSummaries {
-    input {
-        Array[File] summary_files
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        cat ~{sep=' ' summary_files} > ~{prefix}.summary.txt
-    >>>
-
-    output {
-        File merged_file = "~{prefix}.summary.txt"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 2, 
-        disk_gb: ceil(size(summary_files, "GB")) * 2 + 5,
-        boot_disk_gb: 10, 
         preemptible_tries: 2, 
         max_retries: 1
     }
