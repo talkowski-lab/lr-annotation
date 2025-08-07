@@ -14,7 +14,8 @@ from collections import Counter
 
 
 def is_af_field(key):
-    return key.lower().startswith('af_') or key.lower().endswith('_af')
+    lower_key = key.lower()
+    return lower_key == 'af' or lower_key.startswith('af_') or lower_key.endswith('_af')
 
 
 def normalize_af_value(value):
@@ -79,50 +80,68 @@ def get_vep_annotations(info_dict, vep_key, vep_indices):
     
     vep_fields = vep_string.lower().split('|')
     vep_categories = {
-        category: vep_fields[index]
-        for index, category in vep_indices.items() 
-        if index < len(vep_fields) and vep_fields[index] and len(vep_fields[index]) > 0
+        category: (vep_fields[index] if index < len(vep_fields) and vep_fields[index] else 'N/A')
+        for index, category in vep_indices.items()
     }
     return vep_categories
 
 
 def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
-    eval_value_counts = Counter(val for val in eval_values if val != 'N/A')
+    """
+    Generates a heatmap with per-column percentages.
+    """
+    # 1. Count all values to determine labels
+    eval_value_counts = Counter(eval_values)
     if not eval_value_counts:
-        print(f"No non-N/A eval data for VEP category {column}, skipping plot")
+        print(f"No data for VEP category {column}, skipping plot")
+        return
+
+    # Skip plotting if the only category is 'N/A'
+    if len(eval_value_counts) == 1 and 'N/A' in eval_value_counts:
+        print(f"Skipping plot for VEP category '{column}' as it only contains 'N/A' values.")
         return
 
     top_n = 10
-    col_labels = list(eval_value_counts.keys())
+
+    # 2. Determine symmetric row and column labels
     if len(eval_value_counts) > top_n:
-        col_labels = [val for val, count in eval_value_counts.most_common(top_n)]
-        print(f"Warning: Too many distinct values ({len(eval_value_counts)}) for '{column}'. Plotting top {top_n}.")        
-    
-    col_labels = sorted(col_labels)
-    row_labels = col_labels + ['Other']
+        top_labels = [val for val, count in eval_value_counts.most_common(top_n)]
+        col_labels = top_labels + ['Other']
+        row_labels = top_labels + ['Other']
+        print(f"Warning: Too many distinct values ({len(eval_value_counts)}) for '{column}'. Plotting top {top_n} + Other.")
+    else:
+        all_unique_values = set(eval_values) | set(truth_values)
+        sorted_labels = sorted(list(all_unique_values), key=lambda x: eval_value_counts.get(x, 0), reverse=True)
+        col_labels = sorted_labels
+        row_labels = sorted_labels
+
+    # 3. Calculate the concordance matrix
     concordance = pd.DataFrame(0, index=row_labels, columns=col_labels)
-    column_totals = Counter()
 
     for eval_val, truth_val in zip(eval_values, truth_values):
-        if eval_val in col_labels:
-            column_totals[eval_val] += 1
-            if truth_val in col_labels:
-                concordance.loc[truth_val, eval_val] += 1
-            else:
-                concordance.loc['Other', eval_val] += 1
+        col = eval_val if eval_val in col_labels and eval_val != 'Other' else 'Other'
+        row = truth_val if truth_val in row_labels and truth_val != 'Other' else 'Other'
+        if col in concordance.columns and row in concordance.index:
+            concordance.loc[row, col] += 1
     
+    # 4. Create annotation and percentage matrices with per-column denominators
     annot_matrix = pd.DataFrame('', index=row_labels, columns=col_labels)
     percent_matrix = pd.DataFrame(0.0, index=row_labels, columns=col_labels)
+    column_totals = concordance.sum(axis=0)
+
     for col in col_labels:
         total = column_totals[col]
         if total > 0:
             for row in row_labels:
                 count = concordance.loc[row, col]
-                if count > 0:
-                    percentage = (count / total) * 100
-                    percent_matrix.loc[row, col] = percentage
-                    annot_matrix.loc[row, col] = f"{count}/{total}\n({percentage:.1f}%)"
+                percentage = (count / total) * 100
+                percent_matrix.loc[row, col] = percentage
+                annot_matrix.loc[row, col] = f"{count}/{total}\n({percentage:.1f}%)"
+        else:
+            for row in row_labels:
+                annot_matrix.loc[row, col] = f"0/0\n(0.0%)"
 
+    # 5. Plotting
     fig_height = max(10, len(row_labels) * 0.6)
     fig_width = max(12, len(col_labels) * 0.8)
     plt.figure(figsize=(fig_width, fig_height))
@@ -145,8 +164,8 @@ def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
     plt.yticks(rotation=0)
     plt.tight_layout(pad=2.0)
 
-    plot_path = os.path.join(output_dir, f"{column}.png")
-    plt.savefig(plot_path)
+    plot_path = os.path.join(output_dir, f"{column.replace('/', '_')}.png")
+    plt.savefig(plot_path, bbox_inches='tight')
     plt.close()
 
 
@@ -308,6 +327,9 @@ def main():
     matched_data = []
     with pysam.VariantFile(final_vcf_path) as vcf_in:
         for record in vcf_in:
+            if 'gnomAD_V4_match' in record.info and record.info['gnomAD_V4_match'] == 'BEDTOOLS_CLOSEST':
+                    continue
+            
             if 'gnomAD_V4_match_ID' in record.info:
                 match_id = record.info['gnomAD_V4_match_ID']
                 if match_id in truth_variants:
