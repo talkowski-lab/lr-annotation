@@ -21,7 +21,6 @@ workflow BenchmarkAnnotations {
         String truvari_docker
         String prefix
 
-        # Direct task runtime attrs
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_rename_truth
@@ -33,7 +32,6 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_merge_benchmark_summaries
         RuntimeAttr? runtime_attr_merge_plot_tarballs
 
-        # TruvariMatch sub-workflow runtime attrs
         RuntimeAttr? runtime_attr_truvari_filter_eval_vcf
         RuntimeAttr? runtime_attr_truvari_filter_truth_vcf
         RuntimeAttr? runtime_attr_truvari_run_truvari_09
@@ -44,7 +42,6 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_truvari_annotate_matched_05
         RuntimeAttr? runtime_attr_truvari_concat_matched
 
-        # BedtoolsClosestSV sub-workflow runtime attrs
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
         RuntimeAttr? runtime_attr_bedtools_split_eval
         RuntimeAttr? runtime_attr_bedtools_split_truth

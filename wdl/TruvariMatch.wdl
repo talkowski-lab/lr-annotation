@@ -13,6 +13,7 @@ workflow TruvariMatch {
         String prefix
         String pipeline_docker
         String truvari_docker
+        
         RuntimeAttr? runtime_attr_filter_eval_vcf
         RuntimeAttr? runtime_attr_filter_truth_vcf
         RuntimeAttr? runtime_attr_run_truvari_09

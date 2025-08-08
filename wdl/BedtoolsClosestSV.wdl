@@ -11,6 +11,7 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth_index
         String prefix
         String sv_pipeline_docker
+        
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
         RuntimeAttr? runtime_attr_split_truth
