@@ -21,14 +21,44 @@ workflow BenchmarkAnnotations {
         String truvari_docker
         String prefix
 
-        RuntimeAttr? runtime_attr_subset
+        # Direct task runtime attrs
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
+        RuntimeAttr? runtime_attr_rename_truth
+        RuntimeAttr? runtime_attr_subset_sv_truth
+        RuntimeAttr? runtime_attr_rename_sv_truth
         RuntimeAttr? runtime_attr_exact_match
-        RuntimeAttr? runtime_attr_truvari_match
-        RuntimeAttr? runtime_attr_bedtools
         RuntimeAttr? runtime_attr_annotate_benchmark
         RuntimeAttr? runtime_attr_merge_vcfs
-        RuntimeAttr? runtime_attr_merge_summaries
-        RuntimeAttr? runtime_attr_merge_tarballs
+        RuntimeAttr? runtime_attr_merge_benchmark_summaries
+        RuntimeAttr? runtime_attr_merge_plot_tarballs
+
+        # TruvariMatch sub-workflow runtime attrs
+        RuntimeAttr? runtime_attr_truvari_filter_eval_vcf
+        RuntimeAttr? runtime_attr_truvari_filter_truth_vcf
+        RuntimeAttr? runtime_attr_truvari_run_truvari_09
+        RuntimeAttr? runtime_attr_truvari_annotate_matched_09
+        RuntimeAttr? runtime_attr_truvari_run_truvari_07
+        RuntimeAttr? runtime_attr_truvari_annotate_matched_07
+        RuntimeAttr? runtime_attr_truvari_run_truvari_05
+        RuntimeAttr? runtime_attr_truvari_annotate_matched_05
+        RuntimeAttr? runtime_attr_truvari_concat_matched
+
+        # BedtoolsClosestSV sub-workflow runtime attrs
+        RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
+        RuntimeAttr? runtime_attr_bedtools_split_eval
+        RuntimeAttr? runtime_attr_bedtools_split_truth
+        RuntimeAttr? runtime_attr_bedtools_compare_del
+        RuntimeAttr? runtime_attr_bedtools_calcu_del
+        RuntimeAttr? runtime_attr_bedtools_compare_dup
+        RuntimeAttr? runtime_attr_bedtools_calcu_dup
+        RuntimeAttr? runtime_attr_bedtools_compare_ins
+        RuntimeAttr? runtime_attr_bedtools_calcu_ins
+        RuntimeAttr? runtime_attr_bedtools_compare_inv
+        RuntimeAttr? runtime_attr_bedtools_calcu_inv
+        RuntimeAttr? runtime_attr_bedtools_compare_bnd
+        RuntimeAttr? runtime_attr_bedtools_calcu_bnd
+        RuntimeAttr? runtime_attr_bedtools_merge_comparisons
     }
 
     Array[String] contigs = read_lines(primary_contigs_list)
@@ -41,7 +71,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_subset_eval
         }
         call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
@@ -51,7 +81,7 @@ workflow BenchmarkAnnotations {
                 args_string = "-i 'FILTER=\"PASS\"'",
                 prefix = "~{prefix}.~{contig}.truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_subset_truth
         }
 
         call Helpers.RenameVariantIds as RenameTruthIds {
@@ -60,7 +90,7 @@ workflow BenchmarkAnnotations {
                 vcf_index = SubsetTruth.subset_vcf_index,
                 prefix = "~{prefix}.~{contig}.truth.renamed",
                 pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_rename_truth
         }
 
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
@@ -71,7 +101,7 @@ workflow BenchmarkAnnotations {
                 args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker_image = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
         call Helpers.RenameVariantIds as RenameSVTruthIds {
@@ -80,7 +110,7 @@ workflow BenchmarkAnnotations {
                 vcf_index = SubsetSVTruth.subset_vcf_index,
                 prefix = "~{prefix}.~{contig}.sv_truth.renamed",
                 pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_rename_sv_truth
         }
 
         call ExactMatch {
@@ -103,7 +133,15 @@ workflow BenchmarkAnnotations {
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 truvari_docker = truvari_docker,
-                runtime_attr_override = runtime_attr_truvari_match
+                runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
+                runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
+                runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
+                runtime_attr_annotate_matched_09 = runtime_attr_truvari_annotate_matched_09,
+                runtime_attr_run_truvari_07 = runtime_attr_truvari_run_truvari_07,
+                runtime_attr_annotate_matched_07 = runtime_attr_truvari_annotate_matched_07,
+                runtime_attr_run_truvari_05 = runtime_attr_truvari_run_truvari_05,
+                runtime_attr_annotate_matched_05 = runtime_attr_truvari_annotate_matched_05,
+                runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
         call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
@@ -114,7 +152,20 @@ workflow BenchmarkAnnotations {
                 vcf_sv_truth_index = RenameSVTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 sv_pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_bedtools
+                runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
+                runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
+                runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
+                runtime_attr_compare_del = runtime_attr_bedtools_compare_del,
+                runtime_attr_calcu_del = runtime_attr_bedtools_calcu_del,
+                runtime_attr_compare_dup = runtime_attr_bedtools_compare_dup,
+                runtime_attr_calcu_dup = runtime_attr_bedtools_calcu_dup,
+                runtime_attr_compare_ins = runtime_attr_bedtools_compare_ins,
+                runtime_attr_calcu_ins = runtime_attr_bedtools_calcu_ins,
+                runtime_attr_compare_inv = runtime_attr_bedtools_compare_inv,
+                runtime_attr_calcu_inv = runtime_attr_bedtools_calcu_inv,
+                runtime_attr_compare_bnd = runtime_attr_bedtools_compare_bnd,
+                runtime_attr_calcu_bnd = runtime_attr_bedtools_calcu_bnd,
+                runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
         }
 
         call AnnotateAndBenchmark {
@@ -153,7 +204,7 @@ workflow BenchmarkAnnotations {
             tsvs = select_all(AnnotateAndBenchmark.benchmark_summary_tsv),
             merged_filename = "~{prefix}.benchmark_summary.tsv",
             hail_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_merge_summaries
+            runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
     call MergePlotTarballs {
@@ -161,7 +212,7 @@ workflow BenchmarkAnnotations {
             tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
             prefix = prefix,
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_merge_tarballs
+            runtime_attr_override = runtime_attr_merge_plot_tarballs
     }
 
     output {

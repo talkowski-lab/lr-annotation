@@ -11,8 +11,20 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth_index
         String prefix
         String sv_pipeline_docker
-
-        RuntimeAttr? runtime_attr_override
+        RuntimeAttr? runtime_attr_convert_to_symbolic
+        RuntimeAttr? runtime_attr_split_eval
+        RuntimeAttr? runtime_attr_split_truth
+        RuntimeAttr? runtime_attr_compare_del
+        RuntimeAttr? runtime_attr_calcu_del
+        RuntimeAttr? runtime_attr_compare_dup
+        RuntimeAttr? runtime_attr_calcu_dup
+        RuntimeAttr? runtime_attr_compare_ins
+        RuntimeAttr? runtime_attr_calcu_ins
+        RuntimeAttr? runtime_attr_compare_inv
+        RuntimeAttr? runtime_attr_calcu_inv
+        RuntimeAttr? runtime_attr_compare_bnd
+        RuntimeAttr? runtime_attr_calcu_bnd
+        RuntimeAttr? runtime_attr_merge_comparisons
     }
 
     call Helpers.ConvertToSymbolic {
@@ -21,7 +33,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = vcf_eval_index,
             prefix = "~{prefix}.eval.symbolic",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
     call Helpers.SplitQueryVcf as SplitEval {
@@ -29,7 +41,7 @@ workflow BedtoolsClosestSV {
             vcf = ConvertToSymbolic.processed_vcf,
             prefix = "~{prefix}.eval",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_split_eval
     }
 
     call Helpers.SplitQueryVcf as SplitTruth {
@@ -38,7 +50,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = vcf_sv_truth_index,
             prefix = "~{prefix}.truth",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_split_truth
     }
 
     call Helpers.BedtoolsClosest as CompareDEL {
@@ -47,7 +59,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.del_bed,
             svtype = "DEL",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_compare_del
     }
     
     call Helpers.SelectMatchedSVs as CalcuDEL {
@@ -55,7 +67,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareDEL.output_bed,
             svtype = "DEL",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_calcu_del
     }
 
     call Helpers.BedtoolsClosest as CompareDUP {
@@ -64,7 +76,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.dup_bed,
             svtype = "DUP",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_compare_dup
     }
     
     call Helpers.SelectMatchedSVs as CalcuDUP {
@@ -72,7 +84,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareDUP.output_bed,
             svtype = "DUP",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_calcu_dup
     }
 
     call Helpers.BedtoolsClosest as CompareINS {
@@ -81,7 +93,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.ins_bed,
             svtype = "INS",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_compare_ins
     }
     
     call Helpers.SelectMatchedINSs as CalcuINS {
@@ -89,7 +101,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareINS.output_bed,
             svtype = "INS",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_calcu_ins
     }
 
     call Helpers.BedtoolsClosest as CompareINV {
@@ -98,7 +110,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.inv_bed,
             svtype = "INV",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_compare_inv
     }
     
     call Helpers.SelectMatchedSVs as CalcuINV {
@@ -106,7 +118,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareINV.output_bed,
             svtype = "INV",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_calcu_inv
     }
 
     call Helpers.BedtoolsClosest as CompareBND {
@@ -115,7 +127,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.bnd_bed,
             svtype = "BND",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_compare_bnd
     }
     
     call Helpers.SelectMatchedINSs as CalcuBND {
@@ -123,7 +135,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareBND.output_bed,
             svtype = "BND",
             sv_pipeline_docker = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_calcu_bnd
     }
 
     call Helpers.ConcatFiles as MergeComparisons {
@@ -131,7 +143,7 @@ workflow BedtoolsClosestSV {
             files = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             outfile_name = "~{prefix}.comparison.bed",
             docker_image = sv_pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_merge_comparisons
     }
 
     output {

@@ -13,7 +13,15 @@ workflow TruvariMatch {
         String prefix
         String pipeline_docker
         String truvari_docker
-        RuntimeAttr? runtime_attr_override
+        RuntimeAttr? runtime_attr_filter_eval_vcf
+        RuntimeAttr? runtime_attr_filter_truth_vcf
+        RuntimeAttr? runtime_attr_run_truvari_09
+        RuntimeAttr? runtime_attr_annotate_matched_09
+        RuntimeAttr? runtime_attr_run_truvari_07
+        RuntimeAttr? runtime_attr_annotate_matched_07
+        RuntimeAttr? runtime_attr_run_truvari_05
+        RuntimeAttr? runtime_attr_annotate_matched_05
+        RuntimeAttr? runtime_attr_concat_matched
     }
 
     call FilterEvalVcf {
@@ -22,7 +30,7 @@ workflow TruvariMatch {
             vcf_eval_index = vcf_eval_index,
             prefix = "~{prefix}.filtered_eval",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_filter_eval_vcf
     }
 
     call FilterTruthVcf {
@@ -31,7 +39,7 @@ workflow TruvariMatch {
             vcf_truth_index = vcf_truth_index,
             prefix = "~{prefix}.filtered_truth",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_filter_truth_vcf
     }
 
     # Pass 1: pctseq = 0.9
@@ -48,7 +56,7 @@ workflow TruvariMatch {
             sizefilt = 0,
             prefix = "~{prefix}.0.9",
             truvari_docker = truvari_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_run_truvari_09
     }
 
     call AnnotateVcf as AnnotateMatched_09 {
@@ -59,7 +67,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.9",
             prefix = "~{prefix}.0.9.annotated",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_annotate_matched_09
     }
 
     # Pass 2: pctseq = 0.7
@@ -76,7 +84,7 @@ workflow TruvariMatch {
             sizefilt = 0,
             prefix = "~{prefix}.0.7",
             truvari_docker = truvari_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_run_truvari_07
     }
 
     call AnnotateVcf as AnnotateMatched_07 {
@@ -87,7 +95,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7.annotated",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_annotate_matched_07
     }
 
     # Pass 3: pctseq = 0.5
@@ -104,7 +112,7 @@ workflow TruvariMatch {
             sizefilt = 0,
             prefix = "~{prefix}.0.5",
             truvari_docker = truvari_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_run_truvari_05
     }
 
     call AnnotateVcf as AnnotateMatched_05 {
@@ -115,7 +123,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.5",
             prefix = "~{prefix}.0.5.annotated",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_annotate_matched_05
     }
 
     call ConcatTruvariResults as ConcatMatched {
@@ -124,7 +132,7 @@ workflow TruvariMatch {
             vcfs_idx = [AnnotateMatched_09.vcf_out_index, AnnotateMatched_07.vcf_out_index, AnnotateMatched_05.vcf_out_index],
             prefix = "~{prefix}.truvari_combined",
             pipeline_docker = pipeline_docker,
-            runtime_attr_override = runtime_attr_override
+            runtime_attr_override = runtime_attr_concat_matched
     }
 
     output {
