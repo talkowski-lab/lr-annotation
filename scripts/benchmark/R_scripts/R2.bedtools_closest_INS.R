@@ -120,7 +120,7 @@ if (nrow(dat) == 0) {
 
 dat[,ncol(dat)+1] =abs(dat[,8]-dat[,2])
 colnames(dat)[ncol(dat)]='INS_dis'
-dat[,ncol(dat)+1] = dat[,12]/dat[,6]
+dat[,ncol(dat)+1] = dat[,12]/dat[,6] # TODO: Modified from before
 colnames(dat)[ncol(dat)]='INS_ratio'
 
 svid_stat=data.frame(table(dat[,4]))
@@ -129,7 +129,7 @@ for(j in sort(unique(svid_stat[,2]))){
 	if(j>1){
 		#print(j)
 		tmp = dat[dat[,4]%in%svid_stat[svid_stat[,2]==j,][,1],]
-		tmp = tmp[order(tmp$INS_dis, decreasing=T),]
+		tmp = tmp[order(tmp$INS_dis, decreasing=T),] # TODO: Modified from before
 		tmp = tmp[order(tmp[,4]),]
 		out=rbind(out, tmp[j*c(1:(length(unique(tmp[,4])))),])
 	}

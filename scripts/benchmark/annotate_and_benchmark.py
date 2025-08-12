@@ -4,7 +4,9 @@ import argparse
 import pysam
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 import seaborn as sns
+import numpy as np
 from scipy.stats import pearsonr
 import os
 import tarfile
@@ -120,6 +122,7 @@ def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
     # Create annotation and percentage matrices
     annot_matrix = pd.DataFrame('', index=row_labels, columns=col_labels)
     percent_matrix = pd.DataFrame(0.0, index=row_labels, columns=col_labels)
+    zero_count_mask = pd.DataFrame(False, index=row_labels, columns=col_labels)
     column_totals = concordance.sum(axis=0)
     for col in col_labels:
         total = column_totals[col]
@@ -129,25 +132,41 @@ def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
                 percentage = (count / total) * 100
                 percent_matrix.loc[row, col] = percentage
                 annot_matrix.loc[row, col] = f"{count}/{total}\n({percentage:.1f}%)"
+                if count == 0:
+                    zero_count_mask.loc[row, col] = True
         else:
             for row in row_labels:
                 annot_matrix.loc[row, col] = f"0/0\n(0.0%)"
+                zero_count_mask.loc[row, col] = True
 
     # Create plot
     fig_height = max(10, len(row_labels) * 0.6)
     fig_width = max(12, len(col_labels) * 0.8)
     plt.figure(figsize=(fig_width, fig_height))
     
+    masked_percent_matrix = np.ma.masked_where(zero_count_mask.values, percent_matrix.values)
+    
     sns.heatmap(
-        percent_matrix,
+        masked_percent_matrix,
         annot=annot_matrix,
         fmt='s',
         cmap='viridis',
         cbar=True,
         cbar_kws={'label': 'Concordance (%)'},
-        linewidths=.5,
+        linewidths=0.5,
         linecolor='black'
     )
+    
+    ax = plt.gca()
+    
+    # Add white cells for zero counts
+    for i, row in enumerate(row_labels):
+        for j, col in enumerate(col_labels):
+            if zero_count_mask.loc[row, col]:
+                ax.add_patch(plt.Rectangle((j, i), 1, 1, fill=True, facecolor='white', 
+                                         linewidth=0.5, edgecolor='black'))
+                ax.text(j + 0.5, i + 0.5, annot_matrix.loc[row, col], 
+                       ha='center', va='center', fontsize=10)
 
     plt.title(f'{column}')
     plt.xlabel('Eval VCF Annotation')
@@ -174,6 +193,39 @@ def write_vep_table(eval_values, truth_values, column, output_dir):
     
     table_path = os.path.join(output_dir, f"{column}.tsv")
     concordance.to_csv(table_path, sep='\t')
+
+
+def write_summary_stats(final_vcf_path, contig, output_path):
+    total_variants = 0
+    match_counts = defaultdict(int)
+    
+    with pysam.VariantFile(final_vcf_path) as vcf_in:
+        for record in vcf_in:
+            total_variants += 1
+            if 'gnomAD_V4_match' in record.info:
+                match_type = record.info['gnomAD_V4_match']
+                match_counts[match_type] += 1
+            else:
+                match_counts['UNMATCHED'] += 1
+    
+    total_matched = total_variants - match_counts['UNMATCHED']
+    summary_stats = {
+        'contig': contig,
+        'total_variants': total_variants,
+        'total_matched': total_matched,
+        'total_unmatched': match_counts['UNMATCHED'],
+        'percent_matched': (total_matched / total_variants * 100) if total_variants > 0 else 0.0,
+        'percent_unmatched': (match_counts['UNMATCHED'] / total_variants * 100) if total_variants > 0 else 0.0
+    }
+
+    for match_type, count in match_counts.items():
+        if match_type != 'UNMATCHED':
+            summary_stats[f'{match_type.lower()}_count'] = count
+            summary_stats[f'{match_type.lower()}_percent'] = (count / total_variants * 100) if total_variants > 0 else 0.0
+
+    with open(output_path, 'w') as f:
+        f.write('\t'.join(summary_stats.keys()) + '\n')
+        f.write('\t'.join(str(v) for v in summary_stats.values()) + '\n')
 
 
 def write_summary_table(final_vcf_path, truth_variants, vep_keys, output_path):
@@ -232,11 +284,9 @@ def write_summary_table(final_vcf_path, truth_variants, vep_keys, output_path):
             truth_is_empty = (df[truth_col].isna() | (df[truth_col] == 'N/A')).all()
             if eval_is_empty and truth_is_empty:
                 cols_to_drop.extend([eval_col, truth_col])
-
     df.drop(columns=cols_to_drop, inplace=True, errors='ignore')
-    
-    df.to_csv(output_path, sep='\t', index=False, na_rep='.')
 
+    df.to_csv(output_path, sep='\t', index=False, na_rep='.')
 
 def main():
     parser = argparse.ArgumentParser(description="Annotate VCF and/or run benchmarking.")
@@ -316,10 +366,10 @@ def main():
     matched_data = []
     with pysam.VariantFile(final_vcf_path) as vcf_in:
         for record in vcf_in:
-            if 'gnomAD_V4_match' in record.info and record.info['gnomAD_V4_match'] == 'BEDTOOLS_CLOSEST':
-                    continue
-            
-            if 'gnomAD_V4_match_ID' in record.info:
+            if 'gnomAD_V4_match' in record.info:
+                # if record.info['gnomAD_V4_match'] == 'BEDTOOLS_CLOSEST':
+                #     continue
+                
                 match_id = record.info['gnomAD_V4_match_ID']
                 if match_id in truth_variants:
                     matched_data.append({
@@ -379,10 +429,14 @@ def main():
         plot_vep_heatmap(data['eval'], data['truth'], category, vep_plot_dir)
         write_vep_table(data['eval'], data['truth'], category, vep_table_dir)
 
-    # Summary files
+    # Summary table
     summary_table_path = f"{args.prefix}.benchmark_summary.tsv"
     vep_keys = (eval_vep_key, truth_vep_key, eval_indices, truth_indices)
     write_summary_table(final_vcf_path, truth_variants, vep_keys, summary_table_path)
+
+    # Summary stats
+    summary_stats_path = f"{args.prefix}.summary_stats.tsv"
+    write_summary_stats(final_vcf_path, args.contig, summary_stats_path)
 
     # Tarball
     with tarfile.open(f"{args.prefix}.benchmarks.tar.gz", "w:gz") as tar:

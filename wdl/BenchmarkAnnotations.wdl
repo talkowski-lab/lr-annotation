@@ -204,6 +204,14 @@ workflow BenchmarkAnnotations {
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
+    call Helpers.MergeResults as MergeSummaryStats {
+        input:
+            tsvs = select_all(AnnotateAndBenchmark.summary_stats_tsv),
+            merged_filename = "~{prefix}.summary_stats.tsv",
+            hail_docker = pipeline_docker,
+            runtime_attr_override = runtime_attr_merge_benchmark_summaries
+    }
+
     call MergePlotTarballs {
         input:
             tarballs = select_all(AnnotateAndBenchmark.plot_tarball),
@@ -217,6 +225,7 @@ workflow BenchmarkAnnotations {
         File annotated_vcf_index = MergeFinalVcfs.concat_vcf_idx
         File plots_tarball = MergePlotTarballs.merged_tarball
         File benchmark_summaries_tsv = MergeBenchmarkSummaries.merged_tsv
+        File summary_stats_tsv = MergeSummaryStats.merged_tsv
     }
 }
 
@@ -305,6 +314,7 @@ task AnnotateAndBenchmark {
         File final_vcf = "~{prefix}.final_annotated.vcf.gz"
         File final_vcf_index = "~{prefix}.final_annotated.vcf.gz.tbi"
         File benchmark_summary_tsv = "~{prefix}.benchmark_summary.tsv"
+        File summary_stats_tsv = "~{prefix}.summary_stats.tsv"
         File plot_tarball = "~{prefix}.benchmarks.tar.gz"
     }
     
