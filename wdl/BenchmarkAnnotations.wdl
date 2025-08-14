@@ -744,3 +744,49 @@ task ComputeSummaryForContig {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+
+task MergePlotTarballs {
+    input {
+        Array[File] tarballs
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        mkdir -p final_results/AF_plots
+        mkdir -p final_results/VEP_plots
+
+        for tarball in ~{sep=' ' tarballs}; do
+            tar -xvf $tarball --strip-components=1 -C final_results
+        done
+
+        tar -czf ~{prefix}.plots.tar.gz final_results/
+    >>>
+
+    output {
+        File merged_tarball = "~{prefix}.plots.tar.gz"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
