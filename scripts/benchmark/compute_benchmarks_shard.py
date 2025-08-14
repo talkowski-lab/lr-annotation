@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+
+import argparse
+import gzip
+import os
+from typing import Dict, Tuple, List, Set
+
+import pysam
+import pandas as pd
+
+
+def is_af_field(key: str) -> bool:
+    lower_key = key.lower()
+    return lower_key == 'af' or lower_key.startswith('af_') or lower_key.endswith('_af')
+
+
+def normalize_af_value(value):
+    if isinstance(value, tuple) or isinstance(value, list):
+        return value[0] if value else None
+    return value
+
+
+def normalize_af_field(field: str) -> frozenset:
+    parts = field.lower().replace('af_', '').replace('_af', '').split('_')
+    normalized_parts = set()
+    for part in parts:
+        if part == 'male':
+            normalized_parts.add('xy')
+        elif part == 'female':
+            normalized_parts.add('xx')
+        else:
+            normalized_parts.add(part)
+    return frozenset(normalized_parts)
+
+
+def parse_truth_info_string(info_str: str) -> Dict[str, str]:
+    items = info_str.strip().split(';') if info_str else []
+    kv = {}
+    for it in items:
+        if '=' in it:
+            k, v = it.split('=', 1)
+            kv[k] = v
+        else:
+            kv[it] = ''
+    return kv
+
+
+def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
+    # header example: ##INFO=<ID=CSQ,Number=.,Type=String,Description="... Format: Allele|Consequence|...">
+    line = header_line.strip()
+    id_key = None
+    if 'ID=CSQ' in line:
+        id_key = 'CSQ'
+    elif 'ID=VEP' in line:
+        id_key = 'VEP'
+    else:
+        raise ValueError('VEP/CSQ ID not found in header line')
+    fmt_part = line.split('Format:')[-1].strip().strip('">')
+    fmt_fields = [f.strip().lower() for f in fmt_part.split('|')]
+    return id_key, fmt_fields
+
+
+def get_eval_vep_header_from_vcf(vcf_path: str) -> Tuple[str, List[str]]:
+    with pysam.VariantFile(vcf_path) as vcf:
+        for rec in vcf.header.records:
+            if rec.key == 'INFO' and rec.get('ID'):
+                vep_id = rec.get('ID')
+                if vep_id and vep_id.lower() in ['vep', 'csq']:
+                    desc = rec.get('Description', '')
+                    fmt = desc.split('Format:')[-1].strip().strip('"').lower()
+                    fmt_fields = [f.strip() for f in fmt.split('|')]
+                    return vep_id, fmt_fields
+    raise ValueError('Could not find eval VEP/CSQ header in VCF')
+
+
+def extract_vep_annotations(info_dict: Dict[str, object], vep_key: str, indices: Dict[int, str]) -> Dict[str, str]:
+    vep_string = ''
+    if vep_key in info_dict:
+        v = info_dict.get(vep_key, '')
+        if isinstance(v, tuple) or isinstance(v, list):
+            vep_string = v[0] if v else ''
+        else:
+            vep_string = v
+    fields = str(vep_string).lower().split('|') if vep_string else []
+    annos = {}
+    for idx, cat in indices.items():
+        if idx < len(fields) and fields[idx]:
+            annos[cat] = fields[idx]
+        else:
+            annos[cat] = 'N/A'
+    return annos
+
+
+def load_truth_info(tsv_gz_paths: List[str]) -> Dict[str, Dict[str, str]]:
+    truth = {}
+    for p in tsv_gz_paths:
+        if p is None:
+            continue
+        with gzip.open(p, 'rt') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                parts = line.rstrip('\n').split('\t', 1)
+                if len(parts) != 2:
+                    continue
+                vid, info = parts
+                truth[vid] = parse_truth_info_string(info)
+    return truth
+
+
+def load_shard_matches(path: str) -> Tuple[Dict[str, str], Set[str]]:
+    mapping = {}
+    with gzip.open(path, 'rt') as f:
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) < 2:
+                continue
+            eval_id, truth_id = parts[0], parts[1]
+            mapping[eval_id] = truth_id
+    return mapping, set(mapping.keys())
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--prefix', required=True)
+    ap.add_argument('--contig', required=True)
+    ap.add_argument('--final_vcf', required=True)
+    ap.add_argument('--matched_shard_tsv', required=True)
+    ap.add_argument('--truth_tsv_snv', required=True)
+    ap.add_argument('--truth_tsv_sv', required=True)
+    ap.add_argument('--truth_vep_header', required=True)
+    ap.add_argument('--shard_label', required=True)
+    args = ap.parse_args()
+
+    af_out_path = f"{args.prefix}.{args.contig}.shard_{args.shard_label}.af_pairs.tsv.gz"
+    vep_out_path = f"{args.prefix}.{args.contig}.shard_{args.shard_label}.vep_pairs.tsv.gz"
+
+    id_map, shard_eval_ids = load_shard_matches(args.matched_shard_tsv)
+    truth_info = load_truth_info([args.truth_tsv_snv, args.truth_tsv_sv])
+
+    with open(args.truth_vep_header, 'r') as f:
+        truth_header_line = f.readline()
+    truth_vep_key, truth_vep_fields = parse_vep_header_line(truth_header_line)
+
+    eval_vep_key, eval_vep_fields = get_eval_vep_header_from_vcf(args.final_vcf)
+
+    common_categories = set(eval_vep_fields) & set(truth_vep_fields)
+    eval_indices = {i: cat for i, cat in enumerate(eval_vep_fields) if cat in common_categories}
+    truth_indices = {i: cat for i, cat in enumerate(truth_vep_fields) if cat in common_categories}
+
+    af_rows = []
+    vep_rows = []
+
+    with pysam.VariantFile(args.final_vcf) as vcf_in:
+        for rec in vcf_in:
+            if rec.id not in shard_eval_ids:
+                continue
+            if 'gnomAD_V4_match' not in rec.info or 'gnomAD_V4_match_ID' not in rec.info:
+                continue
+            truth_id = id_map.get(rec.id)
+            if not truth_id:
+                continue
+            truth_rec_info = truth_info.get(truth_id)
+            if not truth_rec_info:
+                continue
+
+            eval_af_pairs = {normalize_af_field(k): normalize_af_value(v) for k, v in rec.info.items() if is_af_field(k)}
+            truth_af_pairs_raw = {k: v for k, v in truth_rec_info.items() if is_af_field(k)}
+            truth_af_pairs = {}
+            for k, v in truth_af_pairs_raw.items():
+                try:
+                    if ',' in v:
+                        v = v.split(',')[0]
+                    truth_af_pairs[normalize_af_field(k)] = float(v)
+                except Exception:
+                    continue
+
+            for key_set, eval_val in eval_af_pairs.items():
+                if key_set in truth_af_pairs and eval_val is not None:
+                    try:
+                        e = float(eval_val)
+                        t = float(truth_af_pairs[key_set])
+                        if e > 0 and t > 0:
+                            af_rows.append({'af_key': '_'.join(sorted(list(key_set))), 'eval_af': e, 'truth_af': t})
+                    except Exception:
+                        pass
+
+            eval_ann = extract_vep_annotations(rec.info, eval_vep_key, eval_indices)
+            truth_ann = extract_vep_annotations(truth_rec_info, truth_vep_key, truth_indices)
+            for cat in common_categories:
+                vep_rows.append({'category': cat, 'eval': eval_ann.get(cat, 'N/A'), 'truth': truth_ann.get(cat, 'N/A')})
+
+    if af_rows:
+        df_af = pd.DataFrame(af_rows)
+        with gzip.open(af_out_path, 'wt') as f:
+            df_af.to_csv(f, sep='\t', index=False)
+    else:
+        with gzip.open(af_out_path, 'wt') as f:
+            f.write('af_key\teval_af\ttruth_af\n')
+
+    if vep_rows:
+        df_vep = pd.DataFrame(vep_rows)
+        with gzip.open(vep_out_path, 'wt') as f:
+            df_vep.to_csv(f, sep='\t', index=False)
+    else:
+        with gzip.open(vep_out_path, 'wt') as f:
+            f.write('category\teval\ttruth\n')
+
+
+if __name__ == '__main__':
+    main() 
