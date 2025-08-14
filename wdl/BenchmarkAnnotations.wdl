@@ -13,10 +13,11 @@ workflow BenchmarkAnnotations {
         File vcf_truth_index
         File vcf_sv_truth
         File vcf_sv_truth_index
+
         File ref_fasta
         File ref_fasta_fai
-        
         File primary_contigs_list
+        
         String pipeline_docker
         String truvari_docker
         String prefix
