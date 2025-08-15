@@ -48,10 +48,10 @@ def parse_truth_info_string(info_str: str) -> Dict[str, str]:
 def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
     # header example: ##INFO=<ID=CSQ,Number=.,Type=String,Description="... Format: Allele|Consequence|...">
     line = header_line.strip()
-    id_key = None
-    if 'ID=CSQ' in line:
+    lower = line.lower()
+    if 'id=csq' in lower:
         id_key = 'CSQ'
-    elif 'ID=VEP' in line:
+    elif 'id=vep' in lower:
         id_key = 'VEP'
     else:
         raise ValueError('VEP/CSQ ID not found in header line')

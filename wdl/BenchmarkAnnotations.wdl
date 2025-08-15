@@ -477,7 +477,8 @@ task ExtractTruthVepHeader {
 
     command <<<
         set -euo pipefail
-        bcftools view -h ~{vcf_truth_snv} | grep -E '##INFO=<ID=(CSQ|VEP),' | head -n 1 > ~{prefix}.truth_vep_header.txt
+        
+        bcftools view -h ~{vcf_truth_snv} | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}.truth_vep_header.txt
     >>>
 
     output {
