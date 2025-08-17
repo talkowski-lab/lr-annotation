@@ -46,7 +46,6 @@ def parse_truth_info_string(info_str: str) -> Dict[str, str]:
 
 
 def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
-    # header example: ##INFO=<ID=CSQ,Number=.,Type=String,Description="... Format: Allele|Consequence|...">
     line = header_line.strip()
     lower = line.lower()
     if 'id=csq' in lower:
