@@ -4,6 +4,7 @@ import "Structs.wdl"
 import "Helpers.wdl" as Helpers
 import "BedtoolsClosestSV.wdl" as Bedtools
 import "TruvariMatch.wdl" as Truvari
+import "ShardedBenchmarks.wdl" as Sharded
 
 workflow BenchmarkAnnotations {
     input {
@@ -227,41 +228,21 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_extract_truth_info
         }
 
-        call ShardMatchedEval {
+        call Sharded.ShardAndComputeBenchmarks as RunShardedBenchmarks {
             input:
+                final_vcf = BuildFinalContigVcf.concat_vcf,
+                final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
                 matched_ids_tsv = CollectMatchedIDs.matched_ids_tsv,
-                variants_per_shard = variants_per_shard,
-                prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_shard_matched_eval
-        }
-
-        scatter (shard_idx in range(length(ShardMatchedEval.shard_id_lists))) {
-            call ComputeShardBenchmarks {
-                input:
-                    final_vcf = BuildFinalContigVcf.concat_vcf,
-                    final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
-                    matched_shard_tsv = ShardMatchedEval.shard_id_lists[shard_idx],
-                    truth_tsv_snv = ExtractTruthInfoForMatched.truth_info_snv_tsv,
-                    truth_tsv_sv = ExtractTruthInfoForMatched.truth_info_sv_tsv,
-                    truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
-                    contig = contig,
-                    shard_label = "~{shard_idx}",
-                    prefix = "~{prefix}.~{contig}",
-                    pipeline_docker = pipeline_docker,
-                    runtime_attr_override = runtime_attr_compute_shard_benchmarks
-            }
-        }
-
-        call MergeShardBenchmarks {
-            input:
-                af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
-                vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
+                truth_tsv_snv = ExtractTruthInfoForMatched.truth_info_snv_tsv,
+                truth_tsv_sv = ExtractTruthInfoForMatched.truth_info_sv_tsv,
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_merge_shard_benchmarks
+                variants_per_shard = variants_per_shard,
+                runtime_attr_shard_matched_eval = runtime_attr_shard_matched_eval,
+                runtime_attr_compute_shard_benchmarks = runtime_attr_compute_shard_benchmarks,
+                runtime_attr_merge_shard_benchmarks = runtime_attr_merge_shard_benchmarks
         }
 
         call ComputeSummaryForContig {
@@ -305,7 +286,7 @@ workflow BenchmarkAnnotations {
 
     call MergePlotTarballs {
         input:
-            tarballs = select_all(MergeShardBenchmarks.plot_tarball),
+            tarballs = select_all(RunShardedBenchmarks.plot_tarball),
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
