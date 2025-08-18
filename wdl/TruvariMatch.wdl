@@ -306,65 +306,6 @@ task RunTruvari {
 }
 
 
-task AnnotateVcf {
-    input {
-        File vcf
-        File vcf_index
-        String tag_name
-        String tag_value
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
-        echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
-
-        # Extract MatchId values and create annotation file
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\t%INFO/MatchId\n' ~{vcf} | \
-            awk 'BEGIN{OFS="\t"} {print $1, $2, $3, $4, $5, ($6 != "." && $6 != "") ? $6 : ""}' | \
-            bgzip -c > annots.tab.gz
-        tabix -s 1 -b 2 -e 2 annots.tab.gz
-
-        bcftools annotate \
-            -a annots.tab.gz \
-            -h header.hdr \
-            -c CHROM,POS,REF,ALT,~{tag_name},gnomAD_V4_match_ID \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{vcf}
-        
-        tabix -p vcf -f ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File vcf_out = "~{prefix}.vcf.gz"
-        File vcf_out_index = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 4, 
-        disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
-        boot_disk_gb: 10, 
-        preemptible_tries: 2,
-         max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-
 task AnnotateTruvariMatchesWithTruthID {
     input {
         File comp_vcf
