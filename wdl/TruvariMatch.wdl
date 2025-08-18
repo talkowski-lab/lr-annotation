@@ -322,30 +322,34 @@ task AnnotateTruvariMatchesWithTruthID {
     command <<<
         set -euo pipefail
 
-        echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
+        echo '##INFO=<ID=gnomAD_V4_match,Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
         echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
 
-        # comp: map variant coords -> base_match_id
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MatchId\n' ~{comp_vcf} | \
-            awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' | sort -k5,5 > comp.mid.tsv
+        # Build comp: CHROM POS REF ALT base_mid
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MatchId\n' tp-comp.vcf.gz \
+        | awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' \
+        | LC_ALL=C sort -k5,5 > comp.mid.tsv
 
-        # base: map base_match_id -> truth_ID
-        bcftools query -f '%ID\t%INFO/MatchId\n' ~{base_vcf} | \
-            awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' | sort -k1,1 > base.mid2id.tsv
+        # Build base: base_mid truth_id
+        bcftools query -f '%ID\t%INFO/MatchId\n' tp-base.vcf.gz \
+        | awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' \
+        | LC_ALL=C sort -k1,1 > base.mid2id.tsv
 
-        # join to get coords + truth id
-        join -t $'\t' -1 5 -2 1 comp.mid.tsv base.mid2id.tsv | \
-            awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,tag,$6}' | \
-            bgzip -c > annots.tab.gz
+        # Join on base_mid; print CHROM POS REF ALT tag truth_id; then sort by CHROM,POS
+        LC_ALL=C join -t $'\t' -1 5 -2 1 comp.mid.tsv base.mid2id.tsv \
+        | awk -F'\t' -v tag="TRUVARI_0.9" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,tag,$6}' \
+        | LC_ALL=C sort -k1,1 -k2,2n \
+        | bgzip -c > annots.tab.gz
+
         tabix -s 1 -b 2 -e 2 annots.tab.gz
 
         bcftools annotate \
             -a annots.tab.gz \
             -h header.hdr \
-            -c CHROM,POS,REF,ALT,~{tag_name},gnomAD_V4_match_ID \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{comp_vcf}
-        tabix -p vcf -f ~{prefix}.vcf.gz
+            -c CHROM,POS,REF,ALT,gnomAD_V4_match,gnomAD_V4_match_ID \
+            -Oz -o annotated.vcf.gz \
+            tp-comp.vcf.gz
+        tabix -p vcf -f annotated.vcf.gz
     >>>
 
     output {
