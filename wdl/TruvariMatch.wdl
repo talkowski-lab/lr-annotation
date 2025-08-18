@@ -60,10 +60,12 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_run_truvari_09
     }
 
-    call AnnotateVcf as AnnotateMatched_09 {
+    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_09 {
         input:
-            vcf = RunTruvari_09.matched_vcf,
-            vcf_index = RunTruvari_09.matched_vcf_index,
+            comp_vcf = RunTruvari_09.matched_vcf,
+            comp_vcf_index = RunTruvari_09.matched_vcf_index,
+            base_vcf = RunTruvari_09.base_matched_vcf,
+            base_vcf_index = RunTruvari_09.base_matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.9",
             prefix = "~{prefix}.0.9.annotated",
@@ -88,10 +90,12 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_run_truvari_07
     }
 
-    call AnnotateVcf as AnnotateMatched_07 {
+    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_07 {
         input:
-            vcf = RunTruvari_07.matched_vcf,
-            vcf_index = RunTruvari_07.matched_vcf_index,
+            comp_vcf = RunTruvari_07.matched_vcf,
+            comp_vcf_index = RunTruvari_07.matched_vcf_index,
+            base_vcf = RunTruvari_07.base_matched_vcf,
+            base_vcf_index = RunTruvari_07.base_matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7.annotated",
@@ -116,10 +120,12 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_run_truvari_05
     }
 
-    call AnnotateVcf as AnnotateMatched_05 {
+    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_05 {
         input:
-            vcf = RunTruvari_05.matched_vcf,
-            vcf_index = RunTruvari_05.matched_vcf_index,
+            comp_vcf = RunTruvari_05.matched_vcf,
+            comp_vcf_index = RunTruvari_05.matched_vcf_index,
+            base_vcf = RunTruvari_05.base_matched_vcf,
+            base_vcf_index = RunTruvari_05.base_matched_vcf_index,
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.5",
             prefix = "~{prefix}.0.5.annotated",
@@ -273,6 +279,8 @@ task RunTruvari {
     output {
         File matched_vcf = "~{prefix}_truvari/tp-comp.vcf.gz"
         File matched_vcf_index = "~{prefix}_truvari/tp-comp.vcf.gz.tbi"
+        File base_matched_vcf = "~{prefix}_truvari/tp-base.vcf.gz"
+        File base_matched_vcf_index = "~{prefix}_truvari/tp-base.vcf.gz.tbi"
         File unmatched_vcf = "~{prefix}_truvari/fp.vcf.gz"
         File unmatched_vcf_index = "~{prefix}_truvari/fp.vcf.gz.tbi"
     }
@@ -296,6 +304,7 @@ task RunTruvari {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
 
 task AnnotateVcf {
     input {
@@ -342,6 +351,74 @@ task AnnotateVcf {
         boot_disk_gb: 10, 
         preemptible_tries: 2,
          max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: pipeline_docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task AnnotateTruvariMatchesWithTruthID {
+    input {
+        File comp_vcf
+        File comp_vcf_index
+        File base_vcf
+        File base_vcf_index
+        String tag_name
+        String tag_value
+        String prefix
+        String pipeline_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
+        echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
+
+        # comp: map variant coords -> base_match_id
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MatchId\n' ~{comp_vcf} | \
+            awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' | sort -k5,5 > comp.mid.tsv
+
+        # base: map base_match_id -> truth_ID
+        bcftools query -f '%ID\t%INFO/MatchId\n' ~{base_vcf} | \
+            awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' | sort -k1,1 > base.mid2id.tsv
+
+        # join to get coords + truth id
+        join -t $'\t' -1 5 -2 1 comp.mid.tsv base.mid2id.tsv | \
+            awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,tag,$6}' | \
+            bgzip -c > annots.tab.gz
+        tabix -s 1 -b 2 -e 2 annots.tab.gz
+
+        bcftools annotate \
+            -a annots.tab.gz \
+            -h header.hdr \
+            -c CHROM,POS,REF,ALT,~{tag_name},gnomAD_V4_match_ID \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{comp_vcf}
+        tabix -p vcf -f ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File vcf_out = "~{prefix}.vcf.gz"
+        File vcf_out_index = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) * 2 + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

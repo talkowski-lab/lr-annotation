@@ -346,7 +346,6 @@ task ExactMatch {
     }
 }
 
-# New: annotate Truvari-unmatched with bedtools closest results
 task AnnotateBedtoolsMatches {
     input {
         File truvari_unmatched_vcf
