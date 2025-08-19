@@ -64,14 +64,17 @@ def load_truth_info(tsv_gz_paths):
 
 def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
     line = header_line.strip()
-    if 'ID=CSQ' in line:
+    lower = line.lower()
+    if 'id=csq' in lower:
         id_key = 'CSQ'
-    elif 'ID=VEP' in line:
+    elif 'id=vep' in lower:
         id_key = 'VEP'
     else:
         raise ValueError('VEP/CSQ ID not found in header line')
-    fmt_part = line.split('Format:')[-1].strip().strip('"').lower()
-    return id_key, [f.strip() for f in fmt_part.split('|')]
+    
+    fmt_part = line.split('Format:')[-1].strip().strip('">')
+    fmt_fields = [f.strip().lower() for f in fmt_part.split('|')]
+    return id_key, fmt_fields
 
 
 def get_eval_vep_header_from_vcf(vcf_path: str) -> Tuple[str, List[str]]:

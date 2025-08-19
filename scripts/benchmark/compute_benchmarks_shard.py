@@ -54,6 +54,7 @@ def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
         id_key = 'VEP'
     else:
         raise ValueError('VEP/CSQ ID not found in header line')
+    
     fmt_part = line.split('Format:')[-1].strip().strip('">')
     fmt_fields = [f.strip().lower() for f in fmt_part.split('|')]
     return id_key, fmt_fields
