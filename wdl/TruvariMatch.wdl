@@ -327,19 +327,19 @@ task AnnotateTruvariMatchesWithTruthID {
 
         # Build comp: CHROM POS REF ALT base_mid
         bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MatchId\n' ~{comp_vcf} \
-        | awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' \
-        | LC_ALL=C sort -k5,5 > comp.mid.tsv
+            | awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' \
+            | LC_ALL=C sort -k5,5 > comp.mid.tsv
 
         # Build base: base_mid truth_id
         bcftools query -f '%ID\t%INFO/MatchId\n' ~{base_vcf} \
-        | awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' \
-        | LC_ALL=C sort -k1,1 > base.mid2id.tsv
+            | awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' \
+            | LC_ALL=C sort -k1,1 > base.mid2id.tsv
 
         # Join on base_mid; print CHROM POS REF ALT tag truth_id; then sort by CHROM,POS
         LC_ALL=C join -t $'\t' -1 5 -2 1 comp.mid.tsv base.mid2id.tsv \
-        | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,tag,$6}' \
-        | LC_ALL=C sort -k1,1 -k2,2n \
-        | bgzip -c > annots.tab.gz
+            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,tag,$6}' \
+            | LC_ALL=C sort -k1,1 -k2,2n \
+            | bgzip -c > annots.tab.gz
 
         tabix -s 1 -b 2 -e 2 annots.tab.gz
 
