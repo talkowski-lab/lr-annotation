@@ -28,7 +28,7 @@ def plot_af_correlation(df: pd.DataFrame, pop: str, output_dir: str):
     plt.ylabel('Truth VCF AF')
     plt.title(pop)
     plt.grid(True, which='both', ls='--')
-    if len(df) > 1:
+    if len(df) > 1 and df['eval_af'].nunique() > 1 and df['truth_af'].nunique() > 1:
         r, _ = pearsonr(df['eval_af'], df['truth_af'])
         plt.text(0.05, 0.95, f'$R^2 = {r**2:.4f}$', transform=plt.gca().transAxes,
                  fontsize=12, verticalalignment='top')
@@ -38,6 +38,8 @@ def plot_af_correlation(df: pd.DataFrame, pop: str, output_dir: str):
 
 def write_vep_table(eval_values, truth_values, column, output_dir):
     os.makedirs(output_dir, exist_ok=True)
+    eval_values = [str(v) if v is not None else 'N/A' for v in eval_values]
+    truth_values = [str(v) if v is not None else 'N/A' for v in truth_values]
     eval_labels = sorted(list(set(eval_values)))
     truth_labels = sorted(list(set(truth_values)))
     if not eval_labels:
@@ -100,7 +102,7 @@ def main():
     vep_table_dir = os.path.join(out_base, 'VEP_tables', args.contig)
     os.makedirs(vep_table_dir, exist_ok=True)
 
-    # reuse simpler heatmap: generate tables only here; plots can be built later from tables if needed
+    # Generate VEP concordance tables (values are coerced to strings inside write_vep_table)
     for cat, data in vep_map.items():
         write_vep_table(data['eval'], data['truth'], cat.replace('/', '_'), vep_table_dir)
 

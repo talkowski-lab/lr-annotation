@@ -340,7 +340,6 @@ task AnnotateTruvariMatchesWithTruthID {
             | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,tag,$6}' \
             | LC_ALL=C sort -k1,1 -k2,2n \
             | bgzip -c > annots.tab.gz
-
         tabix -s 1 -b 2 -e 2 annots.tab.gz
 
         bcftools annotate \
