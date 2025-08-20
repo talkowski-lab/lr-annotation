@@ -54,7 +54,6 @@ def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
         id_key = 'VEP'
     else:
         raise ValueError('VEP/CSQ ID not found in header line')
-    
     fmt_part = line.split('Format:')[-1].strip().strip('">')
     fmt_fields = [f.strip().lower() for f in fmt_part.split('|')]
     return id_key, fmt_fields
@@ -73,10 +72,21 @@ def get_eval_vep_header_from_vcf(vcf_path: str) -> Tuple[str, List[str]]:
     raise ValueError('Could not find eval VEP/CSQ header in VCF')
 
 
+def get_case_insensitive(info_dict: Dict[str, object], key: str):
+    target = key.lower()
+    for k, v in info_dict.items():
+        try:
+            if str(k).lower() == target:
+                return v
+        except Exception:
+            continue
+    return None
+
+
 def extract_vep_annotations(info_dict: Dict[str, object], vep_key: str, indices: Dict[int, str]) -> Dict[str, str]:
     vep_string = ''
-    if vep_key in info_dict:
-        v = info_dict.get(vep_key, '')
+    v = get_case_insensitive(info_dict, vep_key)
+    if v is not None:
         if isinstance(v, tuple) or isinstance(v, list):
             vep_string = v[0] if v else ''
         else:
