@@ -84,6 +84,7 @@ workflow BenchmarkAnnotations {
                 docker_image = pipeline_docker,
                 runtime_attr_override = runtime_attr_subset_eval
         }
+
         call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
                 vcf = vcf_truth,
@@ -93,15 +94,6 @@ workflow BenchmarkAnnotations {
                 prefix = "~{prefix}.~{contig}.truth",
                 docker_image = pipeline_docker,
                 runtime_attr_override = runtime_attr_subset_truth
-        }
-
-        call Helpers.RenameVariantIds as RenameTruthIds {
-            input:
-                vcf = SubsetTruth.subset_vcf,
-                vcf_index = SubsetTruth.subset_vcf_index,
-                prefix = "~{prefix}.~{contig}.truth.renamed",
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_rename_truth
         }
 
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
@@ -115,6 +107,15 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
+        call Helpers.RenameVariantIds as RenameTruthIds {
+            input:
+                vcf = SubsetTruth.subset_vcf,
+                vcf_index = SubsetTruth.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.truth.renamed",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_rename_truth
+        }
+
         call Helpers.RenameVariantIds as RenameSVTruthIds {
             input:
                 vcf = SubsetSVTruth.subset_vcf,
@@ -122,6 +123,15 @@ workflow BenchmarkAnnotations {
                 prefix = "~{prefix}.~{contig}.sv_truth.renamed",
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_rename_sv_truth
+        }
+
+        call ExtractTruthVepHeader {
+            input:
+                vcf_truth_snv = RenameTruthIds.renamed_vcf,
+                vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
+                prefix = "~{prefix}.~{contig}",
+                pipeline_docker = pipeline_docker,
+                runtime_attr_override = runtime_attr_extract_truth_vep_header
         }
 
         call ExactMatch {
@@ -205,15 +215,6 @@ workflow BenchmarkAnnotations {
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_collect_matched_ids
-        }
-
-        call ExtractTruthVepHeader {
-            input:
-                vcf_truth_snv = RenameTruthIds.renamed_vcf,
-                vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
-                prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
-                runtime_attr_override = runtime_attr_extract_truth_vep_header
         }
 
         call ExtractTruthInfoForMatched {
@@ -467,8 +468,8 @@ task ExtractTruthVepHeader {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: 2,
+        mem_gb: 4,
+        disk_gb: ceil(size(vcf_truth_snv, "GB") * 1.5 + 2),
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 1
