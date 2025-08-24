@@ -200,7 +200,11 @@ def main():
             eval_ann = extract_vep_annotations(rec.info, eval_vep_key, eval_indices)
             truth_ann = extract_vep_annotations(truth_rec_info, truth_vep_key, truth_indices)
             for cat in common_categories:
-                vep_rows.append({'category': cat, 'eval': eval_ann.get(cat, 'N/A'), 'truth': truth_ann.get(cat, 'N/A')})
+                eval_val = eval_ann.get(cat, 'N/A')
+                truth_val = truth_ann.get(cat, 'N/A')
+                if eval_val == 'N/A' and truth_val == 'N/A':
+                    continue
+                vep_rows.append({'category': cat, 'eval': eval_val, 'truth': truth_val})
 
     if af_rows:
         df_af = pd.DataFrame(af_rows)
