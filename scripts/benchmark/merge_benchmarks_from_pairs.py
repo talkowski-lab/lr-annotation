@@ -4,14 +4,14 @@ import argparse
 import gzip
 import os
 import tarfile
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import pearsonr
 import numpy as np
-from collections import Counter
+from collections import Counter, defaultdict
 
 
 def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
@@ -38,49 +38,35 @@ def plot_af_correlation(df: pd.DataFrame, pop: str, output_dir: str):
     plt.close()
 
 
-def write_vep_table(eval_values, truth_values, column, output_dir):
+def write_vep_table_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
     os.makedirs(output_dir, exist_ok=True)
-    eval_values = [('N/A' if pd.isna(v) else str(v)) for v in eval_values]
-    truth_values = [('N/A' if pd.isna(v) else str(v)) for v in truth_values]
-    eval_labels = sorted(list(set(eval_values)))
-    truth_labels = sorted(list(set(truth_values)))
-    if not eval_labels:
-        return
-    concordance = pd.DataFrame(0, index=truth_labels, columns=eval_labels)
-    for e, t in zip(eval_values, truth_values):
-        if e in eval_labels and t in truth_labels:
-            concordance.loc[t, e] += 1
-    concordance.to_csv(os.path.join(output_dir, f"{column}.tsv"), sep='\t')
+    eval_labels = sorted(pairs_df['eval'].unique().tolist())
+    truth_labels = sorted(pairs_df['truth'].unique().tolist())
+    table = pd.DataFrame(0, index=truth_labels, columns=eval_labels)
+    for _, row in pairs_df.iterrows():
+        table.loc[row['truth'], row['eval']] += int(row['count'])
+    table.to_csv(os.path.join(output_dir, f"{column}.tsv"), sep='\t')
 
 
-def plot_vep_heatmap(eval_values, truth_values, column, output_dir):
-    # Match reference style: top-N + 'Other', percent annotations, white zero cells
-    eval_values = [('N/A' if pd.isna(v) else str(v)) for v in eval_values]
-    truth_values = [('N/A' if pd.isna(v) else str(v)) for v in truth_values]
-
-    eval_value_counts = Counter(eval_values)
-    if not eval_value_counts:
-        return
-    if len(eval_value_counts) == 1 and 'N/A' in eval_value_counts:
-        return
-
+def plot_vep_heatmap_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
+    os.makedirs(output_dir, exist_ok=True)
     top_n = 10
-    if len(eval_value_counts) > top_n:
-        top_labels = [val for val, count in eval_value_counts.most_common(top_n)]
+    cnts = pairs_df.groupby('eval')['count'].sum().sort_values(ascending=False)
+    if len(cnts) > top_n:
+        top_labels = cnts.index.tolist()[:top_n]
         col_labels = top_labels + ['Other']
-        row_labels = top_labels + ['Other']
+        row_labels = col_labels
     else:
-        all_unique_values = set(eval_values) | set(truth_values)
-        sorted_labels = sorted(list(all_unique_values), key=lambda x: eval_value_counts.get(x, 0), reverse=True)
-        col_labels = sorted_labels
-        row_labels = sorted_labels
+        all_vals = sorted(list(set(pairs_df['eval']).union(set(pairs_df['truth']))), key=lambda x: cnts.get(x, 0), reverse=True)
+        col_labels = all_vals
+        row_labels = all_vals
 
     concordance = pd.DataFrame(0, index=row_labels, columns=col_labels)
-    for e, t in zip(eval_values, truth_values):
-        col = e if e in col_labels and e != 'Other' else 'Other'
-        row = t if t in row_labels and t != 'Other' else 'Other'
-        if col in concordance.columns and row in concordance.index:
-            concordance.loc[row, col] += 1
+    for _, row in pairs_df.iterrows():
+        e = row['eval'] if row['eval'] in col_labels and row['eval'] != 'Other' else 'Other'
+        t = row['truth'] if row['truth'] in row_labels and row['truth'] != 'Other' else 'Other'
+        if e in concordance.columns and t in concordance.index:
+            concordance.loc[t, e] += int(row['count'])
 
     annot_matrix = pd.DataFrame('', index=row_labels, columns=col_labels)
     percent_matrix = pd.DataFrame(0.0, index=row_labels, columns=col_labels)
@@ -169,29 +155,25 @@ def main():
         df_all = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame(columns=['eval_af','truth_af'])
         plot_af_correlation(df_all, key, af_dir)
 
-    with open(args.truth_vep_header, 'r') as f:
-        _, truth_vep_fields = parse_vep_header_line(f.readline())
-
-    vep_map = {}
+    agg_by_cat: Dict[str, pd.DataFrame] = defaultdict(lambda: pd.DataFrame(columns=['eval','truth','count']))
     for p in vep_pair_paths:
         with gzip.open(p, 'rt') as f:
             df = pd.read_csv(f, sep='\t', keep_default_na=False)
         if df.empty or 'category' not in df.columns:
             continue
         for cat, sub in df.groupby('category'):
-            if cat not in vep_map:
-                vep_map[cat] = {'eval': [], 'truth': []}
-            vep_map[cat]['eval'].extend(sub['eval'].tolist())
-            vep_map[cat]['truth'].extend(sub['truth'].tolist())
+            sub = sub[['eval','truth','count']]
+            if agg_by_cat[cat].empty:
+                agg_by_cat[cat] = sub.copy()
+            else:
+                agg_by_cat[cat] = pd.concat([agg_by_cat[cat], sub], ignore_index=True)
 
-    os.makedirs(vep_plot_dir, exist_ok=True)
-    vep_table_dir = os.path.join(out_base, 'VEP_tables', args.contig)
-    os.makedirs(vep_table_dir, exist_ok=True)
-
-    for cat, data in vep_map.items():
-        safe_cat = cat.replace('/', '_')
-        plot_vep_heatmap(data['eval'], data['truth'], safe_cat, vep_plot_dir)
-        write_vep_table(data['eval'], data['truth'], safe_cat, vep_table_dir)
+    for cat, df in agg_by_cat.items():
+        if df.empty:
+            continue
+        df_grouped = df.groupby(['eval','truth'], as_index=False)['count'].sum()
+        plot_vep_heatmap_agg(df_grouped, cat.replace('/', '_'), vep_plot_dir)
+        write_vep_table_agg(df_grouped, cat.replace('/', '_'), os.path.join(out_base, 'VEP_tables', args.contig))
 
     with tarfile.open(f"{args.prefix}.benchmarks.tar.gz", "w:gz") as tar:
         tar.add(out_base, arcname=os.path.basename(out_base))

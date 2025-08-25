@@ -7,6 +7,7 @@ from typing import Dict, Tuple, List, Set
 
 import pysam
 import pandas as pd
+from collections import defaultdict, Counter
 
 
 def is_af_field(key: str) -> bool:
@@ -161,7 +162,7 @@ def main():
     truth_indices = {i: cat for i, cat in enumerate(truth_vep_fields) if cat in common_categories}
 
     af_rows = []
-    vep_rows = []
+    vep_counts: Dict[str, Counter] = defaultdict(Counter)
 
     with pysam.VariantFile(args.final_vcf) as vcf_in:
         for rec in vcf_in:
@@ -202,9 +203,9 @@ def main():
             for cat in common_categories:
                 eval_val = eval_ann.get(cat, 'N/A')
                 truth_val = truth_ann.get(cat, 'N/A')
-                if eval_val == 'N/A' and truth_val == 'N/A':
-                    continue
-                vep_rows.append({'category': cat, 'eval': eval_val, 'truth': truth_val})
+                # if eval_val == 'N/A' and truth_val == 'N/A':
+                #     continue
+                vep_counts[cat][(eval_val, truth_val)] += 1
 
     if af_rows:
         df_af = pd.DataFrame(af_rows)
@@ -214,13 +215,13 @@ def main():
         with gzip.open(af_out_path, 'wt') as f:
             f.write('af_key\teval_af\ttruth_af\n')
 
-    if vep_rows:
-        df_vep = pd.DataFrame(vep_rows)
-        with gzip.open(vep_out_path, 'wt') as f:
-            df_vep.to_csv(f, sep='\t', index=False)
-    else:
-        with gzip.open(vep_out_path, 'wt') as f:
-            f.write('category\teval\ttruth\n')
+    rows = []
+    for cat, ctr in vep_counts.items():
+        for (e, t), c in ctr.items():
+            rows.append({'category': cat, 'eval': e, 'truth': t, 'count': c})
+    df_vep = pd.DataFrame(rows, columns=['category','eval','truth','count'])
+    with gzip.open(vep_out_path, 'wt') as f:
+        df_vep.to_csv(f, sep='\t', index=False)
 
 
 if __name__ == '__main__':
