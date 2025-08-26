@@ -146,7 +146,6 @@ def main():
     # AF aggregation (streamed)
     af_groups: Dict[str, List[pd.DataFrame]] = defaultdict(list)
     for p in af_pair_paths:
-        # stream gz CSV in chunks to limit memory
         with gzip.open(p, 'rt') as fh:
             reader = pd.read_csv(fh, sep='\t', chunksize=200000, iterator=True)
             for chunk in reader:
@@ -161,24 +160,18 @@ def main():
         plot_af_correlation(df_all, key, af_dir)
     af_groups.clear()
 
-    agg_by_cat: Dict[str, pd.DataFrame] = defaultdict(lambda: pd.DataFrame(columns=['eval','truth','count']))
+    # VEP aggregation (pre-aggregated)
+    vep_lists: Dict[str, List[pd.DataFrame]] = defaultdict(list)
     for p in vep_pair_paths:
         with gzip.open(p, 'rt') as f:
             reader = pd.read_csv(f, sep='\t', keep_default_na=False, chunksize=200000, iterator=True)
             for chunk in reader:
-                if chunk.empty or 'category' not in chunk.columns:
-                    continue
                 for cat, sub in chunk.groupby('category'):
-                    sub = sub[['eval','truth','count']]
-                    if agg_by_cat[cat].empty:
-                        agg_by_cat[cat] = sub.copy()
-                    else:
-                        agg_by_cat[cat] = pd.concat([agg_by_cat[cat], sub], ignore_index=True)
+                    vep_lists[cat].append(sub[['eval','truth','count']].copy())
 
-    for cat, df in agg_by_cat.items():
-        if df.empty:
-            continue
-        df_grouped = df.groupby(['eval','truth'], as_index=False)['count'].sum()
+    for cat, frames in vep_lists.items():
+        df_cat = pd.concat(frames, ignore_index=True)
+        df_grouped = df_cat.groupby(['eval','truth'], as_index=False)['count'].sum()
         plot_vep_heatmap_agg(df_grouped, cat.replace('/', '_'), vep_plot_dir)
         write_vep_table_agg(df_grouped, cat.replace('/', '_'), os.path.join(out_base, 'VEP_tables', args.contig))
 
