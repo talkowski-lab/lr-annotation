@@ -101,7 +101,9 @@ def plot_vep_heatmap_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
         cbar=True,
         cbar_kws={'label': 'Concordance (%)'},
         linewidths=0.5,
-        linecolor='black'
+        linecolor='black',
+        xticklabels=col_labels,
+        yticklabels=row_labels
     )
 
     ax = plt.gca()
