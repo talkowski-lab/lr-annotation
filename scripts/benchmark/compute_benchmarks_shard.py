@@ -8,6 +8,7 @@ from typing import Dict, Tuple, List, Set
 import pysam
 import pandas as pd
 from collections import defaultdict, Counter
+import math
 
 
 def is_af_field(key: str) -> bool:
@@ -19,6 +20,12 @@ def normalize_af_value(value):
     if isinstance(value, tuple) or isinstance(value, list):
         return value[0] if value else None
     return value
+
+
+def round_sig(x: float, sig: int = 4) -> float:
+    if x == 0 or not math.isfinite(x):
+        return 0.0
+    return round(x, sig - int(math.floor(math.log10(abs(x)))) - 1)
 
 
 def normalize_af_field(field: str) -> frozenset:
@@ -181,22 +188,18 @@ def main():
             truth_af_pairs_raw = {k: v for k, v in truth_rec_info.items() if is_af_field(k)}
             truth_af_pairs = {}
             for k, v in truth_af_pairs_raw.items():
-                try:
-                    if ',' in v:
-                        v = v.split(',')[0]
-                    truth_af_pairs[normalize_af_field(k)] = float(v)
-                except Exception:
-                    continue
+                if ',' in v:
+                    v = v.split(',')[0]
+                truth_af_pairs[normalize_af_field(k)] = float(v)
 
             for key_set, eval_val in eval_af_pairs.items():
                 if key_set in truth_af_pairs and eval_val is not None:
-                    try:
-                        e = float(eval_val)
-                        t = float(truth_af_pairs[key_set])
-                        if e > 0 and t > 0:
-                            af_rows.append({'af_key': '_'.join(sorted(list(key_set))), 'eval_af': e, 'truth_af': t})
-                    except Exception:
-                        pass
+                    e = float(eval_val)
+                    t = float(truth_af_pairs[key_set])
+                    if e > 0 and t > 0:
+                        e = round_sig(e, 4)
+                        t = round_sig(t, 4)
+                        af_rows.append({'af_key': '_'.join(sorted(list(key_set))), 'eval_af': e, 'truth_af': t})
 
             eval_ann = extract_vep_annotations(rec.info, eval_vep_key, eval_indices)
             truth_ann = extract_vep_annotations(truth_rec_info, truth_vep_key, truth_indices)

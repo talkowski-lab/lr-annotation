@@ -143,32 +143,37 @@ def main():
     af_dir = os.path.join(out_base, 'AF_plots', args.contig)
     vep_plot_dir = os.path.join(out_base, 'VEP_plots', args.contig)
 
-    af_groups = {}
+    # AF aggregation (streamed)
+    af_groups: Dict[str, List[pd.DataFrame]] = defaultdict(list)
     for p in af_pair_paths:
-        with gzip.open(p, 'rt') as f:
-            df = pd.read_csv(f, sep='\t', keep_default_na=False)
-        if df.empty or 'af_key' not in df.columns:
-            continue
-        for key, sub in df.groupby('af_key'):
-            if key not in af_groups:
-                af_groups[key] = []
-            af_groups[key].append(sub[['eval_af', 'truth_af']])
+        # stream gz CSV in chunks to limit memory
+        with gzip.open(p, 'rt') as fh:
+            reader = pd.read_csv(fh, sep='\t', chunksize=200000, iterator=True)
+            for chunk in reader:
+                if chunk.empty or 'af_key' not in chunk.columns:
+                    continue
+                for key, sub in chunk.groupby('af_key'):
+                    af_groups[key].append(sub[['eval_af', 'truth_af']].copy())
     for key, pieces in af_groups.items():
-        df_all = pd.concat(pieces, ignore_index=True) if pieces else pd.DataFrame(columns=['eval_af','truth_af'])
+        if not pieces:
+            continue
+        df_all = pd.concat(pieces, ignore_index=True)
         plot_af_correlation(df_all, key, af_dir)
+    af_groups.clear()
 
     agg_by_cat: Dict[str, pd.DataFrame] = defaultdict(lambda: pd.DataFrame(columns=['eval','truth','count']))
     for p in vep_pair_paths:
         with gzip.open(p, 'rt') as f:
-            df = pd.read_csv(f, sep='\t', keep_default_na=False)
-        if df.empty or 'category' not in df.columns:
-            continue
-        for cat, sub in df.groupby('category'):
-            sub = sub[['eval','truth','count']]
-            if agg_by_cat[cat].empty:
-                agg_by_cat[cat] = sub.copy()
-            else:
-                agg_by_cat[cat] = pd.concat([agg_by_cat[cat], sub], ignore_index=True)
+            reader = pd.read_csv(f, sep='\t', keep_default_na=False, chunksize=200000, iterator=True)
+            for chunk in reader:
+                if chunk.empty or 'category' not in chunk.columns:
+                    continue
+                for cat, sub in chunk.groupby('category'):
+                    sub = sub[['eval','truth','count']]
+                    if agg_by_cat[cat].empty:
+                        agg_by_cat[cat] = sub.copy()
+                    else:
+                        agg_by_cat[cat] = pd.concat([agg_by_cat[cat], sub], ignore_index=True)
 
     for cat, df in agg_by_cat.items():
         if df.empty:
