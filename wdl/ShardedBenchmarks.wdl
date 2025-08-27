@@ -14,6 +14,7 @@ workflow ShardAndComputeBenchmarks {
         String prefix
         String pipeline_docker
         Int variants_per_shard
+        String? skip_vep_categories
 
         RuntimeAttr? runtime_attr_shard_matched_eval
         RuntimeAttr? runtime_attr_compute_shard_benchmarks
@@ -41,6 +42,7 @@ workflow ShardAndComputeBenchmarks {
                 contig = contig,
                 shard_label = "~{shard_idx}",
                 prefix = prefix,
+                skip_vep_categories = skip_vep_categories,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_compute_shard_benchmarks
         }
@@ -53,6 +55,7 @@ workflow ShardAndComputeBenchmarks {
             truth_vep_header = truth_vep_header,
             contig = contig,
             prefix = prefix,
+            skip_vep_categories = skip_vep_categories,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_merge_shard_benchmarks
     }
@@ -115,6 +118,7 @@ task ComputeShardBenchmarks {
         String contig
         String shard_label
         String prefix
+        String? skip_vep_categories
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -129,7 +133,8 @@ task ComputeShardBenchmarks {
             --truth_tsv_snv ~{truth_tsv_snv} \
             --truth_tsv_sv ~{truth_tsv_sv} \
             --truth_vep_header ~{truth_vep_header} \
-            --shard_label ~{shard_label}
+            --shard_label ~{shard_label} \
+            ~{"--skip_vep_categories " + skip_vep_categories}
     >>>
 
     output {
@@ -165,6 +170,7 @@ task MergeShardBenchmarks {
         File truth_vep_header
         String contig
         String prefix
+        String? skip_vep_categories
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -176,7 +182,8 @@ task MergeShardBenchmarks {
             --contig ~{contig} \
             --af_pair_tsvs ~{sep=',' af_pair_tsvs} \
             --vep_pair_tsvs ~{sep=',' vep_pair_tsvs} \
-            --truth_vep_header ~{truth_vep_header}
+            --truth_vep_header ~{truth_vep_header} \
+            ~{"--skip_vep_categories " + skip_vep_categories}
     >>>
 
     output {

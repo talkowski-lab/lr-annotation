@@ -24,6 +24,7 @@ workflow BenchmarkAnnotations {
         String prefix
 
         Int variants_per_shard
+        String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
 
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
@@ -241,6 +242,7 @@ workflow BenchmarkAnnotations {
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 variants_per_shard = variants_per_shard,
+                skip_vep_categories = skip_vep_categories,
                 runtime_attr_shard_matched_eval = runtime_attr_shard_matched_eval,
                 runtime_attr_compute_shard_benchmarks = runtime_attr_compute_shard_benchmarks,
                 runtime_attr_merge_shard_benchmarks = runtime_attr_merge_shard_benchmarks

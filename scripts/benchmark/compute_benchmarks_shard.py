@@ -150,6 +150,7 @@ def main():
     ap.add_argument('--truth_tsv_sv', required=True)
     ap.add_argument('--truth_vep_header', required=True)
     ap.add_argument('--shard_label', required=True)
+    ap.add_argument('--skip_vep_categories', help='Comma-separated list of VEP categories to skip')
     args = ap.parse_args()
 
     af_out_path = f"{args.prefix}.{args.contig}.shard_{args.shard_label}.af_pairs.tsv.gz"
@@ -164,7 +165,16 @@ def main():
 
     eval_vep_key, eval_vep_fields = get_eval_vep_header_from_vcf(args.final_vcf)
 
+    # Parse skip_vep_categories
+    skip_categories = set()
+    if args.skip_vep_categories:
+        skip_categories = {cat.strip().lower() for cat in args.skip_vep_categories.split(',')}
+        print(f"Skipping VEP categories: {', '.join(sorted(skip_categories))}")
+
+    # Filter out skipped categories
     common_categories = set(eval_vep_fields) & set(truth_vep_fields)
+    common_categories = {cat for cat in common_categories if cat not in skip_categories}
+    
     eval_indices = {i: cat for i, cat in enumerate(eval_vep_fields) if cat in common_categories}
     truth_indices = {i: cat for i, cat in enumerate(truth_vep_fields) if cat in common_categories}
 
@@ -206,8 +216,8 @@ def main():
             for cat in common_categories:
                 eval_val = eval_ann.get(cat, 'N/A')
                 truth_val = truth_ann.get(cat, 'N/A')
-                # if eval_val == 'N/A' and truth_val == 'N/A':
-                #     continue
+                if eval_val == 'N/A' and truth_val == 'N/A':
+                    continue
                 vep_counts[cat][(eval_val, truth_val)] += 1
 
     if af_rows:
