@@ -22,12 +22,6 @@ def normalize_af_value(value):
     return value
 
 
-def round_sig(x: float, sig: int = 4) -> float:
-    if x == 0 or not math.isfinite(x):
-        return 0.0
-    return round(x, sig - int(math.floor(math.log10(abs(x)))) - 1)
-
-
 def normalize_af_field(field: str) -> frozenset:
     parts = field.lower().replace('af_', '').replace('_af', '').split('_')
     normalized_parts = set()
@@ -207,8 +201,6 @@ def main():
                     e = float(eval_val)
                     t = float(truth_af_pairs[key_set])
                     if e > 0 and t > 0:
-                        e = round_sig(e, 4)
-                        t = round_sig(t, 4)
                         af_rows.append({'af_key': '_'.join(sorted(list(key_set))), 'eval_af': e, 'truth_af': t})
 
             eval_ann = extract_vep_annotations(rec.info, eval_vep_key, eval_indices)
@@ -216,8 +208,8 @@ def main():
             for cat in common_categories:
                 eval_val = eval_ann.get(cat, 'N/A')
                 truth_val = truth_ann.get(cat, 'N/A')
-                if eval_val == 'N/A' and truth_val == 'N/A':
-                    continue
+                # if eval_val == 'N/A' and truth_val == 'N/A':
+                #     continue
                 vep_counts[cat][(eval_val, truth_val)] += 1
 
     if af_rows:
