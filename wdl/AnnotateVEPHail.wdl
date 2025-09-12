@@ -165,6 +165,8 @@ task VepAnnotate {
         "/opt/vep/src/ensembl-vep/vep",
             "--format", "vcf",
             "__OUTPUT_FORMAT_FLAG__",
+            "--force_overwrite",
+            "-dir_cache", "'$dir_cache'",
             "--everything",
             "--allele_number",
             "--no_stats",
@@ -173,7 +175,6 @@ task VepAnnotate {
             "--assembly", "~{genome_build}",
             "--merged",
             "--fasta", "~{top_level_fa}",
-            "-dir_cache", "'$dir_cache'",
             "--vcf_info_field", "vep",
             "-o", "STDOUT"
         ],

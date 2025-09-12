@@ -8,8 +8,7 @@ Pipeline for long-read callset annotation.
 3. [AnnotateVEPHail.wdl](#annotatevephailwdl).
 4. [AnnotateSVAnnotate.wdl](#annotatesvannotatewdl).
 5. [AnnotateVcf.wdl](#annotatevcfwdl): Sex, Ancestry, Combined Sex & Ancestry.
-6. [AnnotateExternalAF](#annotateexternalafwdl).
-7. [BenchmarkAnnotations](#benchmarkannotationswdl).
+6. [BenchmarkAnnotations](#benchmarkannotationswdl).
 
 
 ##  [AnnotateSTRs.wdl](wdl/AnnotateSTRs.wdl)
@@ -66,10 +65,6 @@ Formatting Specifications for `sample_pop_assignments`:
 - If combining sex and genetic ancestry, the genetic ancestry should prelude the sex (i.e. `sas_XX` rather than `XX_sas`).
 
 
-## [AnnotateExternalAF.wdl]
-TODO
-
-
 ## [BenchmarkAnnotations.wdl]
 TODO
 
@@ -82,6 +77,10 @@ References:
 - `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), which is the current version in the repository, and is included directly in the manually-listed docker in the [TRGT workflow](wdl/TRGT.wdl).
 - `reference_fasta`: [hg38 with no alts](gs://fc-8c3900db-633f-477f-96b3-fb31ae265c44/resources/references/grch38_noalt/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa) from the All of Us workspace.
 - `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us.
+
+
+## [AnnotateExternalAF.wdl]
+TODO
 
 
 ### (To Do) Merge N Annotated VCFs
