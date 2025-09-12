@@ -62,7 +62,7 @@ workflow AnnotateVEPHail {
 
             call VepAnnotate as VepAnnotateMergedShards {
                 input:
-                    vcf_file=CombineVCFs.merged_vcf_file,
+                    vcf=CombineVCFs.merged_vcf_file,
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
@@ -94,8 +94,7 @@ workflow AnnotateVEPHail {
         scatter (vcf_shard in vcf_shards_) {
             call VepAnnotate {
                 input:
-                    vcf=vcf,
-                    vcf_index=vcf_index,
+                    vcf=vcf_shard,
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
@@ -116,7 +115,6 @@ workflow AnnotateVEPHail {
 task VepAnnotate {
     input {
         File vcf
-        File vcf_index
         File top_level_fa
         File ref_vep_cache
 
