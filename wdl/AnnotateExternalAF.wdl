@@ -5,7 +5,7 @@ import "Structs.wdl"
 workflow AnnotateExternalAFs {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
 
         Array[File] ref_beds
@@ -26,7 +26,7 @@ workflow AnnotateExternalAFs {
         call SubsetVcf {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_index = vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -35,7 +35,7 @@ workflow AnnotateExternalAFs {
         call PreprocessMergedVcf {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_tbi,
+                vcf_index = SubsetVcf.subset_tbi,
                 prefix = "~{prefix}.~{contig}.preprocessed",
                 runtime_attr_override = runtime_attr_preprocess
         }
@@ -43,7 +43,7 @@ workflow AnnotateExternalAFs {
         call AnnotateExternalAFs {
             input:
                 vcf = PreprocessMergedVcf.processed_vcf,
-                vcf_idx = PreprocessMergedVcf.processed_tbi,
+                vcf_index = PreprocessMergedVcf.processed_tbi,
                 ref_beds = ref_beds,
                 ref_prefixes = ref_prefixes,
                 contig = contig,
@@ -66,7 +66,7 @@ workflow AnnotateExternalAFs {
     call PostprocessVcf {
         input:
             vcf = ConcatVcfs.concat_vcf,
-            vcf_idx = ConcatVcfs.concat_vcf_idx,
+            vcf_index = ConcatVcfs.concat_vcf_index,
             prefix = "~{prefix}.annotated",
             runtime_attr_override = runtime_attr_postprocess
     }
@@ -123,7 +123,7 @@ task SubsetVcf {
 task PreprocessMergedVcf {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
 
         RuntimeAttr? runtime_attr_override
@@ -167,7 +167,7 @@ task PreprocessMergedVcf {
 task AnnotateFunctionalConsequences {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         File noncoding_bed
         File coding_gtf
         String prefix
@@ -212,7 +212,7 @@ task AnnotateFunctionalConsequences {
 task CollapseDoubledDups {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
 
         RuntimeAttr? runtime_attr_override
@@ -255,7 +255,7 @@ task CollapseDoubledDups {
 task AnnotateExternalAFs {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         Array[File] ref_beds
         Array[String] ref_prefixes
         String prefix
@@ -433,7 +433,7 @@ task ConcatVcfs {
 
     output {
       File concat_vcf = outfile_name
-      File concat_vcf_idx = outfile_name + ".tbi"
+      File concat_vcf_index = outfile_name + ".tbi"
     }
 
     RuntimeAttr runtime_default = object {
@@ -459,7 +459,7 @@ task ConcatVcfs {
 task PostprocessVcf {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
 
         RuntimeAttr? runtime_attr_override

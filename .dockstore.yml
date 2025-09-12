@@ -10,8 +10,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateSVAnnotate
-    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
+    name: AnnotateSVAN
+    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
     filters:
       branches:
         - main
@@ -28,8 +28,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateSVAN
-    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
+    name: AnnotateSVAnnotate
+    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
     filters:
       branches:
         - main
@@ -37,17 +37,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateExternalAFs
-    primaryDescriptorPath: /wdl/AnnotateExternalAFs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: AnnotateSingletonReads
-    primaryDescriptorPath: /wdl/AnnotateSingletonReads.wdl
+    name: AnnotateExternalAF
+    primaryDescriptorPath: /wdl/AnnotateExternalAF.wdl
     filters:
       branches:
         - main
@@ -66,6 +57,15 @@ workflows:
   - subclass: WDL
     name: RunTRGT
     primaryDescriptorPath: /wdl/RunTRGT.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateSingletonReads
+    primaryDescriptorPath: /wdl/AnnotateSingletonReads.wdl
     filters:
       branches:
         - main

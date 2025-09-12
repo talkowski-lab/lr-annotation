@@ -7,7 +7,8 @@ import "MergeVCFs.wdl" as MergeVCFs
 
 workflow AnnotateVEPHail {
     input {
-        File? vcf_file
+        File vcf
+        File vcf_index
 
         File top_level_fa
         File ref_vep_cache
@@ -37,7 +38,7 @@ workflow AnnotateVEPHail {
     if (defined(vcf_shards)) {
         String file_ = select_first([select_first([vcf_shards])[0]])
     }
-    String file = select_first([file_, vcf_file])
+    String file = select_first([file_, vcf])
 
     if (merge_split_vcf) { 
         call MergeSplitVCF.SplitFile as SplitFile {
@@ -58,6 +59,7 @@ workflow AnnotateVEPHail {
                     cohort_prefix=basename(chunk_file),
                     runtime_attr_override=runtime_attr_merge_vcfs
             }
+
             call VepAnnotate as VepAnnotateMergedShards {
                 input:
                     vcf_file=CombineVCFs.merged_vcf_file,
@@ -92,7 +94,8 @@ workflow AnnotateVEPHail {
         scatter (vcf_shard in vcf_shards_) {
             call VepAnnotate {
                 input:
-                    vcf_file=vcf_shard,
+                    vcf=vcf,
+                    vcf_index=vcf_index,
                     vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
@@ -105,14 +108,15 @@ workflow AnnotateVEPHail {
     }
 
     output {
-        Array[File] vep_annotated_vcfs = select_first([VepAnnotateMergedShards.vep_vcf_file, VepAnnotate.vep_vcf_file])
-        Array[File] vep_annotated_vcfs_index = select_first([VepAnnotateMergedShards.vep_vcf_idx, VepAnnotate.vep_vcf_idx])
+        Array[File] vep_annotated_vcf = select_first([VepAnnotateMergedShards.vep_vcf_file, VepAnnotate.vep_vcf_file])
+        Array[File] vep_annotated_vcf_index = select_first([VepAnnotateMergedShards.vep_vcf_idx, VepAnnotate.vep_vcf_idx])
     }
 }   
 
 task VepAnnotate {
     input {
-        File vcf_file
+        File vcf
+        File vcf_index
         File top_level_fa
         File ref_vep_cache
 
@@ -123,7 +127,7 @@ task VepAnnotate {
         RuntimeAttr? runtime_attr_override
     }
 
-    Float input_size = size(vcf_file, "GB") + size(ref_vep_cache, "GB")
+    Float input_size = size(vcf, "GB") + size(ref_vep_cache, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 10.0
     RuntimeAttr runtime_default = object {
@@ -147,8 +151,8 @@ task VepAnnotate {
         bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
     }
 
-    String filename = basename(vcf_file)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
+    String filename = basename(vcf)
+    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf, ".vcf.gz") else basename(vcf, ".vcf.bgz")
     String vep_annotated_vcf_name = "~{prefix}.vep.vcf.bgz"
 
     command <<<
@@ -180,10 +184,20 @@ task VepAnnotate {
         }' > vep_config.json
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
+
         proj_id=$(gcloud config get-value project)
-        python3 vep_annotate.py -i ~{vcf_file} -o ~{vep_annotated_vcf_name} --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
-        --reannotate-ac-af ~{reannotate_ac_af} --build ~{genome_build} --project-id $proj_id
+
+        python3 vep_annotate.py \
+            -i ~{vcf} \
+            -o ~{vep_annotated_vcf_name} \
+            --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} \
+            --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
+            --reannotate-ac-af ~{reannotate_ac_af} \
+            --build ~{genome_build} \
+            --project-id $proj_id
+        
         cp $(ls . | grep hail*.log) hail_log.txt
+
         bcftools index -t ~{vep_annotated_vcf_name}
     >>>
 

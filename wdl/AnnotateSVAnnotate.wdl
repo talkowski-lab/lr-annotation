@@ -5,7 +5,7 @@ import "Structs.wdl"
 workflow AnnotateSVAnnotate {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
         File coding_gtf
         File noncoding_bed
@@ -28,7 +28,7 @@ workflow AnnotateSVAnnotate {
         call SubsetVcf {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_index = vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
                 min_svlen = min_svlen,
@@ -38,7 +38,7 @@ workflow AnnotateSVAnnotate {
         call PreprocessVcf {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_tbi,
+                vcf_index = SubsetVcf.subset_tbi,
                 prefix = "~{prefix}.~{contig}.doubled",
                 runtime_attr_override = runtime_attr_preprocess
         }
@@ -46,7 +46,7 @@ workflow AnnotateSVAnnotate {
         call AnnotateFunctionalConsequences {
             input:
                 vcf = PreprocessVcf.processed_vcf,
-                vcf_idx = PreprocessVcf.processed_tbi,
+                vcf_index = PreprocessVcf.processed_tbi,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.doubled.anno_func",
@@ -77,9 +77,9 @@ workflow AnnotateSVAnnotate {
     call MergeVcf {
         input:
             annotated_vcf = ConcatAnnotated.concat_vcf,
-            annotated_tbi = ConcatAnnotated.concat_vcf_idx,
+            annotated_tbi = ConcatAnnotated.concat_vcf_index,
             unannotated_vcf = ConcatUnannotated.concat_vcf,
-            unannotated_tbi = ConcatUnannotated.concat_vcf_idx,
+            unannotated_tbi = ConcatUnannotated.concat_vcf_index,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_merge
@@ -88,9 +88,9 @@ workflow AnnotateSVAnnotate {
     call PostprocessVcf {
         input:
             annotated_vcf = MergeVcf.merged_vcf,
-            annotated_tbi = MergeVcf.merged_vcf_idx,
+            annotated_tbi = MergeVcf.merged_vcf_index,
             original_vcf = vcf,
-            original_tbi = vcf_idx,
+            original_tbi = vcf_index,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_postprocess
@@ -154,7 +154,7 @@ task SubsetVcf {
 task PreprocessVcf {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         String prefix
 
         RuntimeAttr? runtime_attr_override
@@ -201,7 +201,7 @@ task PreprocessVcf {
 task AnnotateFunctionalConsequences {
     input {
         File vcf
-        File vcf_idx
+        File vcf_index
         File noncoding_bed
         File coding_gtf
         String prefix
@@ -282,7 +282,7 @@ task ConcatVcfs {
 
     output {
       File concat_vcf = outfile_name
-      File concat_vcf_idx = outfile_name + ".tbi"
+      File concat_vcf_index = outfile_name + ".tbi"
     }
 
     RuntimeAttr runtime_default = object {
@@ -328,7 +328,7 @@ task MergeVcf {
 
     output {
         File merged_vcf = "~{prefix}.merged.vcf.gz"
-        File merged_vcf_idx = "~{prefix}.merged.vcf.gz.tbi"
+        File merged_vcf_index = "~{prefix}.merged.vcf.gz.tbi"
     }
 
     RuntimeAttr runtime_default = object {
