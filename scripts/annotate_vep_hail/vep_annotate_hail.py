@@ -42,33 +42,10 @@ hl.init(
 header = hl.get_vcf_metadata(vcf_file) 
 mt = hl.import_vcf(vcf_file, force_bgz=True, array_elements_required=False, call_fields=[], reference_genome=build)
 
-# mt = mt.distinct_by_row()
-
-# try:
-#     # for haploid (e.g. chrY)
-#     mt = mt.annotate_entries(
-#         GT = hl.if_else(
-#                 mt.GT.ploidy == 1, 
-#                 hl.call(mt.GT[0], mt.GT[0]),
-#                 mt.GT)
-#     )
-# except:
-#     pass
-
-# For VCFs with AS_VQSLOD and missing VQSLOD
-all_as_fields = [col for col in list(mt.info) if 'AS_' in col]
-for field in all_as_fields:
-    normal_field = field.split('_')[1]
-    n_missing_as = mt.filter_rows(hl.is_missing(getattr(mt.info, field))).count_rows()
-    if normal_field not in list(mt.info):
-        continue
-    n_missing = mt.filter_rows(hl.is_missing(getattr(mt.info, normal_field))).count_rows()
-    if (n_missing_as < n_missing):
-        mt = mt.annotate_rows(info=mt.info.annotate(**{normal_field: getattr(mt.info, field)[mt.a_index - 1]}))    
-
-# run VEP
 mt = hl.vep(mt, config='vep_config.json', csq=False, tolerate_parse_error=True)
-mt = mt.annotate_rows(info = mt.info.annotate(vep=mt.vep))
+mt = mt.annotate_rows(info = mt.info.annotate(vep=hl.json(mt.vep)))
+mt = mt.drop('vep', 'vep_proc_id')
+
 with open('vep_config.json', 'r') as f:
     vep_config = json.load(f)
 header['info']['vep'] = {'Description': f"Consequence annotations from Ensembl VEP. Format: {vep_config['vep_json_schema']}", 'Number': '.', 'Type': 'String'}
