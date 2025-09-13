@@ -176,7 +176,7 @@ task VepAnnotate {
 
     String filename = basename(vcf)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf, ".vcf.gz") else basename(vcf, ".vcf.bgz")
-    String vep_annotated_vcf_name = "~{prefix}.vep.vcf.gz"
+    String vep_annotated_vcf_name = "~{prefix}.vep.vcf.bgz"
 
     command <<<
         set -euo pipefail
