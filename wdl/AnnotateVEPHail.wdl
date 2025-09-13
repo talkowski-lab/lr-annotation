@@ -159,11 +159,12 @@ task VepAnnotate {
         mkdir -p cache
         tar xzf ~{ref_vep_cache} -C ./cache
 
+        dir_cache_path=$(pwd)/cache
+
         echo '{"command": [
         "/opt/vep/src/ensembl-vep/vep",
             "--format", "vcf",
             "__OUTPUT_FORMAT_FLAG__",
-            "--force_overwrite",
             "--everything",
             "--allele_number",
             "--no_stats",
@@ -173,6 +174,7 @@ task VepAnnotate {
             "--assembly", "~{genome_build}",
             "--merged",
             "--fasta", "~{top_level_fa}",
+            "--dir_cache", "'$dir_cache_path'",
             "--vcf_info_field", "vep",
             "-o", "STDOUT"
         ],
