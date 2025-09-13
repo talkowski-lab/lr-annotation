@@ -156,21 +156,19 @@ task VepAnnotate {
     command <<<
         set -euo pipefail
         
-        dir_cache_parent=$(dirname "~{ref_vep_cache}")
-        mkdir -p ${dir_cache_parent}/homo_sapiens
-        tar xzf ~{ref_vep_cache} -C ${dir_cache_parent}/homo_sapiens --strip-components=1
-        dir_cache=$dir_cache_parent
+        mkdir -p cache
+        tar xzf ~{ref_vep_cache} -C ./cache
 
         echo '{"command": [
         "/opt/vep/src/ensembl-vep/vep",
             "--format", "vcf",
             "__OUTPUT_FORMAT_FLAG__",
             "--force_overwrite",
-            "-dir_cache", "'$dir_cache'",
             "--everything",
             "--allele_number",
             "--no_stats",
-            "--cache", "--offline",
+            "--cache", 
+            "--offline",
             "--minimal",
             "--assembly", "~{genome_build}",
             "--merged",
