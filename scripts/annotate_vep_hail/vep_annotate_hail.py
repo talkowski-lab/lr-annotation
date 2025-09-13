@@ -17,10 +17,9 @@ parser.add_argument('--build', dest='build', help='Genome build')
 parser.add_argument('--project-id', dest='project_id', help='Google Project ID')
 
 args = parser.parse_args()
-
 vcf_file = args.vcf_file
 vep_annotated_vcf_name = args.vep_annotated_vcf_name
-cores = args.cores  # string
+cores = args.cores
 mem = int(np.floor(float(args.mem)))
 build = args.build
 gcp_project = args.project_id
@@ -56,7 +55,7 @@ mt = hl.import_vcf(vcf_file, force_bgz=True, array_elements_required=False, call
 # except:
 #     pass
 
-# for VCFs with AS_VQSLOD and missing VQSLOD
+# For VCFs with AS_VQSLOD and missing VQSLOD
 all_as_fields = [col for col in list(mt.info) if 'AS_' in col]
 for field in all_as_fields:
     normal_field = field.split('_')[1]
