@@ -44,25 +44,33 @@ print("Running VEP...")
 mt = hl.vep(mt, config='vep_config.json', csq=False, tolerate_parse_error=True)
 
 print("Selecting most severe consequence...")
-most_severe_csq = hl.vep_transcript_consequences(mt.vep).most_severe()
+most_severe_csq = hl.or_else(mt.vep.transcript_consequences, []).most_severe()
 
 print("Flattening structure...")
 vep_struct = hl.struct(
-    transcript_consequences=hl.array([
-        hl.struct(
-            feature_type=most_severe_csq.biotype,
-            feature_id=most_severe_csq.transcript_id,
-            consequence_terms=most_severe_csq.consequence_terms,
-            impact=most_severe_csq.impact,
-            gene_id=most_severe_csq.gene_id,
-            gene_symbol=most_severe_csq.gene_symbol,
-            canonical=most_severe_csq.canonical,
-            polyphen_prediction=most_severe_csq.polyphen_prediction,
-            sift_prediction=most_severe_csq.sift_prediction,
-            hgvsc=most_severe_csq.hgvsc,
-            hgvsp=most_severe_csq.hgvsp
-        )
-    ]),
+    transcript_consequences=hl.if_else(
+        hl.is_missing(most_severe_csq),
+        hl.empty_array(hl.tstruct(
+            feature_type=hl.tstr, feature_id=hl.tstr, consequence_terms=hl.tarray(hl.tstr),
+            impact=hl.tstr, gene_id=hl.tstr, gene_symbol=hl.tstr, canonical=hl.tint32,
+            polyphen_prediction=hl.tstr, sift_prediction=hl.tstr, hgvsc=hl.tstr, hgvsp=hl.tstr
+        )),
+        hl.array([
+            hl.struct(
+                feature_type=most_severe_csq.biotype,
+                feature_id=most_severe_csq.transcript_id,
+                consequence_terms=most_severe_csq.consequence_terms,
+                impact=most_severe_csq.impact,
+                gene_id=most_severe_csq.gene_id,
+                gene_symbol=most_severe_csq.gene_symbol,
+                canonical=most_severe_csq.canonical,
+                polyphen_prediction=most_severe_csq.polyphen_prediction,
+                sift_prediction=most_severe_csq.sift_prediction,
+                hgvsc=most_severe_csq.hgvsc,
+                hgvsp=most_severe_csq.hgvsp
+            )
+        ])
+    ),
     most_severe_consequence=mt.vep.most_severe_consequence,
     variant_class=mt.vep.variant_class,
 )
