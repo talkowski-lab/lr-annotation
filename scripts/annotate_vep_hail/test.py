@@ -43,10 +43,10 @@ mt = hl.import_vcf(vcf_file, force_bgz=True, array_elements_required=False, call
 print("Running VEP...")
 mt = hl.vep(mt, config='vep_config.json', csq=False, tolerate_parse_error=True)
 
-print("Selecting most severe consequence...")
+print("Selecting the most severe consequence from the VEP struct...")
 most_severe_csq = hl.vep_transcript_consequences(mt.vep).most_severe()
 
-print("Flattening structure...")
+print("Flattening VEP struct to match gnomAD format...")
 vep_struct = hl.struct(
     transcript_consequences=hl.array([
         hl.struct(
@@ -67,17 +67,27 @@ vep_struct = hl.struct(
     variant_class=mt.vep.variant_class,
 )
 
-print("Annotating JSON string onto main matrix table...")
+# STEP 4: FINAL STEP BEFORE EXPORT - Serialize the curated struct into a JSON string in the INFO field.
+print("Annotating final JSON string to INFO field...")
 mt = mt.annotate_rows(info=mt.info.annotate(vep=hl.json(vep_struct)))
+
+# STEP 5: Clean up by dropping the large, now-redundant temporary fields.
 mt = mt.drop('vep', 'vep_proc_id')
 
+# STEP 6: Dynamically create the VCF header description string.
 print("Updating VCF header...")
-vep_format_string = "|".join(
-    [f"{f}" for f, t in vep_struct.transcript_consequences.dtype.element_type.items()]
+vep_field_description = " | ".join(
+    [f"{f}: {t}" for f, t in vep_struct.transcript_consequences.dtype.element_type.items()]
 )
-header['info']['vep'] = {'Description': f'Consequence annotations from Ensembl VEP. Format: {vep_format_string}', 'Number': '.', 'Type': 'String'}
+vep_description = (
+    "Consequence annotations from Ensembl VEP. "
+    "Only the most severe consequence across all transcripts is included. "
+    f"Format: {vep_field_description}"
+)
+header['info']['vep'] = {'Description': vep_description, 'Number': '.', 'Type': 'String'}
 
-print("Exporting annotated VCF...")
+# STEP 7: Export the final VCF.
+print(f"Exporting annotated VCF to: {vep_annotated_vcf_name}")
 hl.export_vcf(dataset=mt, output=vep_annotated_vcf_name, metadata=header)
 
 print("VEP annotation complete.")
