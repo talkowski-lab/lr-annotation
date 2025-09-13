@@ -70,6 +70,8 @@ for field in all_as_fields:
 # run VEP
 mt = hl.vep(mt, config='vep_config.json', csq=False, tolerate_parse_error=True)
 mt = mt.annotate_rows(info = mt.info.annotate(vep=mt.vep))
-header['info']['vep'] = {'Description': hl.eval(mt.vep_csq_header), 'Number': '.', 'Type': 'String'}
+with open('vep_config.json', 'r') as f:
+    vep_config = json.load(f)
+header['info']['vep'] = {'Description': f"Consequence annotations from Ensembl VEP. Format: {vep_config['vep_json_schema']}", 'Number': '.', 'Type': 'String'}
 
 hl.export_vcf(dataset=mt, output=vep_annotated_vcf_name, metadata=header)
