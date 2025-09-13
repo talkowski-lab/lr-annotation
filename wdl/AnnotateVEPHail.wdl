@@ -25,7 +25,6 @@ workflow AnnotateVEPHail {
         Boolean split_by_chromosome
         Boolean split_into_shards 
         Boolean merge_split_vcf
-        Boolean reannotate_ac_af=false
         Int shards_per_chunk=10
         
         Array[File]? vcf_shards
@@ -68,7 +67,6 @@ workflow AnnotateVEPHail {
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
                     vep_hail_docker=vep_hail_docker,
-                    reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
                     runtime_attr_override=runtime_attr_vep_annotate
             }
@@ -112,7 +110,6 @@ workflow AnnotateVEPHail {
                     top_level_fa=top_level_fa,
                     ref_vep_cache=ref_vep_cache,
                     vep_hail_docker=vep_hail_docker,
-                    reannotate_ac_af=reannotate_ac_af,
                     genome_build=genome_build,
                     runtime_attr_override=runtime_attr_vep_annotate
             }
@@ -146,7 +143,6 @@ task VepAnnotate {
         String vep_hail_docker
         String genome_build
         String vep_annotate_hail_python_script
-        Boolean reannotate_ac_af
         RuntimeAttr? runtime_attr_override
     }
 
@@ -216,7 +212,6 @@ task VepAnnotate {
             -o ~{vep_annotated_vcf_name} \
             --cores ~{select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])} \
             --mem ~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} \
-            --reannotate-ac-af ~{reannotate_ac_af} \
             --build ~{genome_build} \
             --project-id $proj_id
         
