@@ -33,7 +33,6 @@ workflow AnnotateVEPHail {
         RuntimeAttr? runtime_attr_merge_vcfs
         RuntimeAttr? runtime_attr_vep_annotate
         RuntimeAttr? runtime_attr_annotate_add_genotypes
-        RuntimeAttr? runtime_attr_merge_final_vcfs
     }
 
     if (defined(vcf_shards)) {
@@ -73,18 +72,6 @@ workflow AnnotateVEPHail {
                     runtime_attr_override=runtime_attr_vep_annotate
             }
         }
-        
-        call MergeVCFs.CombineVCFs as MergeFinalSplitVcfs {
-            input:
-                vcf_files=VepAnnotateMergedShards.vep_vcf_file,
-                vcf_indices=VepAnnotateMergedShards.vep_vcf_idx,
-                naive=true,
-                allow_overlaps=false,
-                sv_base_mini_docker=sv_base_mini_docker,
-                cohort_prefix=cohort_prefix + ".final",
-                sort_after_merge=true,
-                runtime_attr_override=runtime_attr_merge_final_vcfs
-        }
     }
 
     if (!merge_split_vcf) {
@@ -117,23 +104,11 @@ workflow AnnotateVEPHail {
                     runtime_attr_override=runtime_attr_vep_annotate
             }
         }
-        
-        call MergeVCFs.CombineVCFs as MergeFinalUnsplitVcfs {
-            input:
-                vcf_files=VepAnnotate.vep_vcf_file,
-                vcf_indices=VepAnnotate.vep_vcf_idx,
-                naive=true,
-                allow_overlaps=false,
-                sv_base_mini_docker=sv_base_mini_docker,
-                cohort_prefix=cohort_prefix + ".final",
-                sort_after_merge=true,
-                runtime_attr_override=runtime_attr_merge_final_vcfs
-        }
     }
 
     output {
-        File vep_annotated_vcf = select_first([MergeFinalSplitVcfs.merged_vcf_file, MergeFinalUnsplitVcfs.merged_vcf_file])
-        File vep_annotated_vcf_index = select_first([MergeFinalSplitVcfs.merged_vcf_idx, MergeFinalUnsplitVcfs.merged_vcf_idx])
+        Array[File] vep_annotated_vcf = select_first([VepAnnotateMergedShards.vep_vcf_file, VepAnnotate.vep_vcf_file])
+        Array[File] vep_annotated_vcf_index = select_first([VepAnnotateMergedShards.vep_vcf_idx, VepAnnotate.vep_vcf_idx])
     }
 }   
 
