@@ -44,7 +44,10 @@ print("Running VEP...")
 mt = hl.vep(mt, config='vep_config.json', csq=False, tolerate_parse_error=True)
 
 print("Selecting most severe consequence...")
-most_severe_csq = hl.or_else(mt.vep.transcript_consequences, []).most_severe()
+most_severe_csq = hl.or_else(
+    mt.vep.transcript_consequences, 
+    hl.empty_array(mt.vep.transcript_consequences.dtype.element_type)
+).most_severe()
 
 print("Flattening structure...")
 vep_struct = hl.struct(
