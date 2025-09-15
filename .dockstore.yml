@@ -19,6 +19,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotatePALMER
+    primaryDescriptorPath: /wdl/AnnotatePALMER.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/AnnotateVEPHail.wdl
     filters:
