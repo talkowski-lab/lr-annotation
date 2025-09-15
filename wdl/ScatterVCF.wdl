@@ -8,21 +8,23 @@ workflow ScatterVCF {
         File file
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
         String cohort_prefix
-        String hail_docker
-        String sv_base_mini_docker
         Boolean localize_vcf
+        String genome_build='GRCh38'
+
         Boolean split_by_chromosome
         Boolean split_into_shards 
         Boolean get_chromosome_sizes
         Boolean has_index=false
         Int n_shards=0
         Int records_per_shard=0
-        String genome_build='GRCh38'
+
+        String hail_docker
+        String sv_base_mini_docker
+
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
     }
     
-    # shard the VCF (if not already sharded)
     if (split_by_chromosome) {
         if (!localize_vcf) {
             String vcf_uri = file
@@ -74,7 +76,6 @@ workflow ScatterVCF {
     }
 
     if (split_into_shards) {
-    # if already split into chromosomes, shard further
         if (defined(split_chromosomes)) {
             scatter (chrom_pair in select_first([split_chromosomes])) {
                 File chrom_shard = select_first([chrom_pair.left])

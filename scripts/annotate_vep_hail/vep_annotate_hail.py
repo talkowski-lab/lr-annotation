@@ -79,7 +79,7 @@ def csq_struct_to_string(csq_struct):
     return hl.delimit([hl.or_else(hl.str(fields.get(f)), "") for f in csq_fields], "|")
 
 print("Filtering for the canonical transcript consequence...")
-transcript_csqs = hl.or_else(mt.vep.transcript_consequences, [])
+transcript_csqs = hl.or_else(mt.vep.transcript_consequences, hl.empty_array(mt.vep.transcript_consequences.dtype.element_type))
 canonical_csqs = transcript_csqs.filter(lambda csq: csq.canonical == 1)
 csq = hl.if_else(hl.len(canonical_csqs) > 0, canonical_csqs[0], hl.null(canonical_csqs.dtype.element_type))
 
@@ -90,7 +90,6 @@ vep_string = hl.if_else(
     csq_struct_to_string(csq)
 )
 mt = mt.annotate_rows(info=mt.info.annotate(vep=vep_string))
-
 mt = mt.drop('vep', 'vep_proc_id')
 
 print("Updating VCF header...")

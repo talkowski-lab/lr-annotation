@@ -3,7 +3,6 @@ version 1.0
 import "Structs.wdl"
 import "ScatterVCF.wdl" as ScatterVCF
 import "MergeSplitVCF.wdl" as MergeSplitVCF
-import "MergeVCFs.wdl" as MergeVCFs
 
 workflow AnnotateVEPHail {
     input {
@@ -24,113 +23,56 @@ workflow AnnotateVEPHail {
         String genome_build="GRCh38"
         Boolean split_by_chromosome
         Boolean split_into_shards 
-        Boolean merge_split_vcf
-        Int shards_per_chunk=10
-        
-        Array[File]? vcf_shards
-        
-        RuntimeAttr? runtime_attr_merge_vcfs
+
+        RuntimeAttr? runtime_attr_split_by_chr
+        RuntimeAttr? runtime_attr_split_into_shards
         RuntimeAttr? runtime_attr_vep_annotate
-        RuntimeAttr? runtime_attr_annotate_add_genotypes
-        RuntimeAttr? runtime_attr_merge_final_vcfs
+        RuntimeAttr? runtime_attr_combine_vcfs
     }
 
-    if (defined(vcf_shards)) {
-        String file_ = select_first([select_first([vcf_shards])[0]])
+    call ScatterVCF.ScatterVCF {
+        input:
+            file=vcf,
+            has_index=true,
+            split_vcf_hail_script=split_vcf_hail_script,
+            cohort_prefix=cohort_prefix,
+            genome_build=genome_build,
+            split_by_chromosome=split_by_chromosome,
+            split_into_shards=split_into_shards,
+            hail_docker=hail_docker,
+            sv_base_mini_docker=sv_base_mini_docker,
+            runtime_attr_split_by_chr=runtime_attr_split_by_chr,
+            runtime_attr_split_into_shards=runtime_attr_split_into_shards
     }
-    String file = select_first([file_, vcf])
 
-    if (merge_split_vcf) { 
-        call MergeSplitVCF.SplitFile as SplitFile {
+    scatter (vcf_shard in ScatterVCF.vcf_shards) {
+        call VepAnnotate {
             input:
-                file=file,
-                shards_per_chunk=shards_per_chunk,
-                cohort_prefix=cohort_prefix,
-                hail_docker=hail_docker
-        }
-        scatter (chunk_file in SplitFile.chunks) {
-            call MergeVCFs.CombineVCFs {
-                input:
-                    vcf_files=read_lines(chunk_file),
-                    vcf_indices=[chunk_file],
-                    naive=true,
-                    allow_overlaps=false,
-                    sv_base_mini_docker=sv_base_mini_docker,
-                    cohort_prefix=basename(chunk_file),
-                    runtime_attr_override=runtime_attr_merge_vcfs
-            }
-
-            call VepAnnotate as VepAnnotateMergedShards {
-                input:
-                    vcf=CombineVCFs.merged_vcf_file,
-                    vep_annotate_hail_python_script=vep_annotate_hail_python_script,
-                    top_level_fa=top_level_fa,
-                    ref_vep_cache=ref_vep_cache,
-                    vep_hail_docker=vep_hail_docker,
-                    genome_build=genome_build,
-                    runtime_attr_override=runtime_attr_vep_annotate
-            }
-        }
-        
-        call MergeVCFs.CombineVCFs as MergeFinalSplitVcfs {
-            input:
-                vcf_files=VepAnnotateMergedShards.vep_vcf_file,
-                vcf_indices=VepAnnotateMergedShards.vep_vcf_idx,
-                naive=true,
-                allow_overlaps=false,
-                sv_base_mini_docker=sv_base_mini_docker,
-                cohort_prefix=cohort_prefix + ".final",
-                sort_after_merge=true,
-                runtime_attr_override=runtime_attr_merge_final_vcfs
+                vcf=vcf_shard,
+                vep_annotate_hail_python_script=vep_annotate_hail_python_script,
+                top_level_fa=top_level_fa,
+                ref_vep_cache=ref_vep_cache,
+                vep_hail_docker=vep_hail_docker,
+                genome_build=genome_build,
+                runtime_attr_override=runtime_attr_vep_annotate
         }
     }
-
-    if (!merge_split_vcf) {
-        if (!defined(vcf_shards)) {
-            call ScatterVCF.ScatterVCF {
-                input:
-                    file=file,
-                    has_index=true,
-                    split_vcf_hail_script=split_vcf_hail_script,
-                    cohort_prefix=cohort_prefix,
-                    genome_build=genome_build,
-                    hail_docker=hail_docker,
-                    sv_base_mini_docker=sv_base_mini_docker,
-                    split_by_chromosome=split_by_chromosome,
-                    split_into_shards=split_into_shards,
-            }
-        }
-        Array[File] vcf_shards_ = select_first([ScatterVCF.vcf_shards, vcf_shards])
     
-        scatter (vcf_shard in vcf_shards_) {
-            call VepAnnotate {
-                input:
-                    vcf=vcf_shard,
-                    vep_annotate_hail_python_script=vep_annotate_hail_python_script,
-                    top_level_fa=top_level_fa,
-                    ref_vep_cache=ref_vep_cache,
-                    vep_hail_docker=vep_hail_docker,
-                    genome_build=genome_build,
-                    runtime_attr_override=runtime_attr_vep_annotate
-            }
-        }
-        
-        call MergeVCFs.CombineVCFs as MergeFinalUnsplitVcfs {
-            input:
-                vcf_files=VepAnnotate.vep_vcf_file,
-                vcf_indices=VepAnnotate.vep_vcf_idx,
-                naive=true,
-                allow_overlaps=false,
-                sv_base_mini_docker=sv_base_mini_docker,
-                cohort_prefix=cohort_prefix + ".final",
-                sort_after_merge=true,
-                runtime_attr_override=runtime_attr_merge_final_vcfs
-        }
+    call MergeSplitVCF.CombineVCFs {
+        input:
+            vcf_files=VepAnnotate.vep_vcf_file,
+            vcf_indices=VepAnnotate.vep_vcf_idx,
+            naive=true,
+            allow_overlaps=false,
+            sv_base_mini_docker=sv_base_mini_docker,
+            cohort_prefix=cohort_prefix + ".final",
+            sort_after_merge=true,
+            runtime_attr_override=runtime_attr_combine_vcfs
     }
 
     output {
-        File vep_annotated_vcf = select_first([MergeFinalSplitVcfs.merged_vcf_file, MergeFinalUnsplitVcfs.merged_vcf_file])
-        File vep_annotated_vcf_index = select_first([MergeFinalSplitVcfs.merged_vcf_idx, MergeFinalUnsplitVcfs.merged_vcf_idx])
+        File vep_annotated_vcf = CombineVCFs.combined_vcf
+        File vep_annotated_vcf_index = CombineVCFs.combined_vcf_index
     }
 }   
 
@@ -139,10 +81,9 @@ task VepAnnotate {
         File vcf
         File top_level_fa
         File ref_vep_cache
-
-        String vep_hail_docker
         String genome_build
         String vep_annotate_hail_python_script
+        String vep_hail_docker
         RuntimeAttr? runtime_attr_override
     }
 
