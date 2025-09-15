@@ -126,7 +126,7 @@ task VepAnnotate {
         echo '{"command": [
         "/opt/vep/src/ensembl-vep/vep",
             "--format", "vcf",
-            "__OUTPUT_FORMAT_FLAG__",
+            "--json",
             "--everything",
             "--allele_number",
             "--no_stats",

@@ -72,8 +72,8 @@ def csq_struct_to_string(csq_struct):
         'HGVSc': csq_struct.hgvsc,
         'HGVSp': csq_struct.hgvsp,
         'VARIANT_CLASS': mt.vep.variant_class,
-        'sift': csq_struct.sift_prediction,
-        'polyphen': csq_struct.polyphen_prediction
+        'SIFT': csq_struct.sift_prediction,
+        'PolyPhen': csq_struct.polyphen_prediction
     }
     
     return hl.delimit([hl.or_else(hl.str(fields.get(f)), "") for f in csq_fields], "|")
