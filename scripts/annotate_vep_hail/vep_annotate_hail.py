@@ -76,7 +76,7 @@ def csq_struct_to_string(csq_struct):
         'PolyPhen': csq_struct.polyphen_prediction
     }
     
-    return hl.delimit([hl.or_else(hl.str(fields.get(f)), "") for f in csq_fields], "|")
+    return hl.delimit([hl.or_else(hl.str(fields[f]) if f in fields else hl.null(hl.tstr), "") for f in csq_fields], "|")
 
 print("Filtering for the canonical transcript consequence...")
 transcript_csqs = hl.or_else(mt.vep.transcript_consequences, hl.empty_array(mt.vep.transcript_consequences.dtype.element_type))
