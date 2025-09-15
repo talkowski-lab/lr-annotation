@@ -2,7 +2,7 @@ version 1.0
 
 import "Structs.wdl"
 
-workflow PALMER_filter {
+workflow AnnotatePALMER {
     input {
         File SV_vcf
         File SV_vcf_tbi

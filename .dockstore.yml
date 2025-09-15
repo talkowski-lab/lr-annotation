@@ -73,6 +73,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateRepeatMasker
+    primaryDescriptorPath: /wdl/AnnotateRepeatMasker.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateSingletonReads
     primaryDescriptorPath: /wdl/AnnotateSingletonReads.wdl
     filters:
