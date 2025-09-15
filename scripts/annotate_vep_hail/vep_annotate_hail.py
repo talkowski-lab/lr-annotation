@@ -47,43 +47,57 @@ print("Selecting most severe consequence...")
 most_severe_csq = mt.vep.most_severe_consequence
 
 print("Flattening structure...")
-vep_struct = hl.struct(
-    transcript_consequences=hl.if_else(
-        hl.is_missing(mt.vep.transcript_consequences),
-        hl.empty_array(hl.tstruct(
-            feature_type=hl.tstr, feature_id=hl.tstr, consequence_terms=hl.tarray(hl.tstr),
-            impact=hl.tstr, gene_id=hl.tstr, gene_symbol=hl.tstr, canonical=hl.tint32,
-            polyphen_prediction=hl.tstr, sift_prediction=hl.tstr, hgvsc=hl.tstr, hgvsp=hl.tstr
-        )),
-        mt.vep.transcript_consequences.map(lambda tc: hl.struct(
-            feature_type=tc.biotype,
-            feature_id=tc.transcript_id,
-            consequence_terms=tc.consequence_terms,
-            impact=tc.impact,
-            gene_id=tc.gene_id,
-            gene_symbol=tc.gene_symbol,
-            canonical=tc.canonical,
-            polyphen_prediction=tc.polyphen_prediction,
-            sift_prediction=tc.sift_prediction,
-            hgvsc=tc.hgvsc,
-            hgvsp=tc.hgvsp
-        ))
-    ),
-    most_severe_consequence=most_severe_csq,
-    variant_class=mt.vep.variant_class,
-)
+def csq_struct_to_string(csq_struct):
+    csq_fields = [
+        "Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature",
+        "BIOTYPE", "EXON", "INTRON", "HGVSc", "HGVSp", "cDNA_position", "CDS_position",
+        "Protein_position", "Amino_acids", "Codons", "ALLELE_NUM", "DISTANCE", "STRAND",
+        "FLAGS", "VARIANT_CLASS", "SYMBOL_SOURCE", "HGNC_ID", "CANONICAL", "MANE_SELECT",
+        "MANE_PLUS_CLINICAL", "TSL", "APPRIS", "CCDS", "ENSP", "UNIPROT_ISOFORM", "SOURCE",
+        "SIFT", "PolyPhen", "DOMAINS", "miRNA", "HGVS_OFFSET", "PUBMED", "MOTIF_NAME",
+        "MOTIF_POS", "HIGH_INF_POS", "MOTIF_SCORE_CHANGE", "TRANSCRIPTION_FACTORS", "LoF",
+        "LoF_filter", "LoF_flags", "LoF_info"
+    ]
+    
+    fields = {
+        'Allele': csq_struct.variant_allele,
+        'Consequence': hl.delimit(csq_struct.consequence_terms, "&"),
+        'IMPACT': csq_struct.impact,
+        'SYMBOL': csq_struct.gene_symbol,
+        'Gene': csq_struct.gene_id,
+        'Feature_type': csq_struct.biotype,
+        'Feature': csq_struct.transcript_id,
+        'BIOTYPE': csq_struct.biotype,
+        'CANONICAL': hl.if_else(csq_struct.canonical == 1, "YES", ""),
+        'HGVSc': csq_struct.hgvsc,
+        'HGVSp': csq_struct.hgvsp,
+        'VARIANT_CLASS': mt.vep.variant_class,
+        'sift': csq_struct.sift_prediction,
+        'polyphen': csq_struct.polyphen_prediction
+    }
+    
+    return hl.delimit([hl.or_else(hl.str(fields.get(f)), "") for f in csq_fields], "|")
 
-print("Annotating JSON string onto main matrix table...")
-mt = mt.annotate_rows(info=mt.info.annotate(vep=hl.json(vep_struct)))
+print("Filtering for the canonical transcript consequence...")
+transcript_csqs = hl.or_else(mt.vep.transcript_consequences, [])
+canonical_csqs = transcript_csqs.filter(lambda csq: csq.canonical == 1)
+csq = hl.if_else(hl.len(canonical_csqs) > 0, canonical_csqs[0], hl.null(canonical_csqs.dtype.element_type))
+
+print("Formatting VEP string...")
+vep_string = hl.if_else(
+    hl.is_missing(csq),
+    hl.delimit(["", mt.vep.most_severe_consequence, "MODIFIER", "", "", "Intergenic", ""], "|"),
+    csq_struct_to_string(csq)
+)
+mt = mt.annotate_rows(info=mt.info.annotate(vep=vep_string))
+
 mt = mt.drop('vep', 'vep_proc_id')
 
 print("Updating VCF header...")
-vep_format_string = "|".join(
-    [f"{f}" for f, t in vep_struct.transcript_consequences.dtype.element_type.items()]
-)
-header['info']['vep'] = {'Description': f'Consequence annotations from Ensembl VEP. Format: {vep_format_string}', 'Number': '.', 'Type': 'String'}
+gnomad_csq_header = "Allele|Consequence|IMPACT|SYMBOL|Gene|Feature_type|Feature|BIOTYPE|EXON|INTRON|HGVSc|HGVSp|cDNA_position|CDS_position|Protein_position|Amino_acids|Codons|ALLELE_NUM|DISTANCE|STRAND|FLAGS|VARIANT_CLASS|SYMBOL_SOURCE|HGNC_ID|CANONICAL|MANE_SELECT|MANE_PLUS_CLINICAL|TSL|APPRIS|CCDS|ENSP|UNIPROT_ISOFORM|SOURCE|SIFT|PolyPhen|DOMAINS|miRNA|HGVS_OFFSET|PUBMED|MOTIF_NAME|MOTIF_POS|HIGH_INF_POS|MOTIF_SCORE_CHANGE|TRANSCRIPTION_FACTORS|LoF|LoF_filter|LoF_flags|LoF_info"
+header['info']['vep'] = {'Description': f'Consequence annotations from Ensembl VEP. Format: {gnomad_csq_header}', 'Number': '.', 'Type': 'String'}
 
-print("Exporting annotated VCF...")
+print(f"Exporting annotated VCF to: {vep_annotated_vcf_name}")
 hl.export_vcf(dataset=mt, output=vep_annotated_vcf_name, metadata=header)
 
 print("VEP annotation complete.")
