@@ -14,7 +14,7 @@ workflow AnnotatePALMER {
         File RM_fa
         File ref_fai
 
-        runtime_attr_override_filter_palmer
+        RuntimeAttr? runtime_attr_override_filter_palmer
     }
 
     call FilterPALMER { 
