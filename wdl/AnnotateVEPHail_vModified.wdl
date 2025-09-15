@@ -126,7 +126,7 @@ task VepAnnotate {
         echo '{"command": [
         "/opt/vep/src/ensembl-vep/vep",
             "--format", "vcf",
-            "__OUTPUT_FORMAT_FLAG__",
+            "--json",
             "--everything",
             "--allele_number",
             "--no_stats",
@@ -137,6 +137,7 @@ task VepAnnotate {
             "--merged",
             "--fasta", "~{top_level_fa}",
             "--dir_cache", "'$dir_cache_path'",
+            "--vcf_info_field", "vep",
             "-o", "STDOUT"
         ],
         "env": {},

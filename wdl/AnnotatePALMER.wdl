@@ -30,8 +30,8 @@ workflow AnnotatePALMER {
     }
 
     output {
-        File vcf_anno = FilterPALMER.vcf_anno
-        File vcf_anno_tbi = FilterPALMER.vcf_anno_tbi
+        File palmer_annotated_vcf = FilterPALMER.vcf_anno
+        File palmer_annotated_vcf_index = FilterPALMER.vcf_anno_tbi
     }
 }
 
