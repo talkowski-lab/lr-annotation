@@ -49,7 +49,7 @@ task L1MEAID {
     command <<<
         set -euo pipefail
 
-        python /opt/src/L1ME-AID/limeaid.py \
+        python3 /opt/src/L1ME-AID/limeaid.py \
             -i ~{fasta} \
             -r ~{rm_out} \
             -o ~{prefix}_limeaid.tsv
