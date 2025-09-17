@@ -1,6 +1,7 @@
 **__py_cache/
-data/
+data/*
 .DS_Store
+*.tsv
 *.vcf
 *.vcf.gz
 *.vcf.gz.tbi

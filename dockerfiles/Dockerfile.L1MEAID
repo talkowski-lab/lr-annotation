@@ -9,6 +9,10 @@ RUN pip3 install matplotlib pandas pysam tqdm bio more_itertools --break-system-
 RUN rm -rf /opt/RepeatMasker/Libraries/famdb/*
 
 WORKDIR /opt/src
-ARG CACHEBUST=1
 RUN git clone https://github.com/Markloftus/L1ME-AID.git /opt/src/L1ME-AID
+RUN bash -lc " \
+    set -euo pipefail; \
+    f=$(find /opt/src/L1ME-AID -maxdepth 1 -type f -name "*.py" | head -n 1); \
+    [ -n "$f" ] && mv "$f" /opt/src/L1ME-AID/l1meaid.py || true \
+"
 ENV PATH="/opt/src/L1ME-AID:${PATH}"
