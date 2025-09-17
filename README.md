@@ -53,16 +53,11 @@ References:
 
 
 ## [AnnotateVcf.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateVcf.wdl)
-This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the internal allele frequencies (AFs) based on a passed list of sample annotations. It runs all variants in the input VCF through this workflow, including structural variants.
+This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the internal allele frequencies (AFs) based on  sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants.
 
 References:
 - `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
-
-Formatting Specifications for `sample_pop_assignments`:
-- Genetic ancestries should use lower-case format. 
-- Sex should be denoted with XX & XY.
-- If combining sex and genetic ancestry, the genetic ancestry should prelude the sex (i.e. `sas_XX` rather than `XX_sas`).
 
 
 ## [BenchmarkAnnotations.wdl]

@@ -88,7 +88,12 @@ task RepeatMasker {
     command <<<
         set -euxo pipefail
   
-        RepeatMasker -e rmblast -pa 4 -s -species human ~{fasta}
+        RepeatMasker \
+            -e rmblast \
+            -species human \
+            -pa 4 \
+            -s \
+            ~{fasta}
         mv ~{fasta}.out ./~{prefix}.out
      >>>
 
