@@ -17,7 +17,7 @@ workflow AnnotateL1MEAIDFilter {
         input:
             fasta = fasta,
             rm_out = rm_out,
-            docker = l1me_aid_docker,
+            docker = l1meaid_docker,
             runtime_attr_override = runtime_attr_override_limeaid
     }
 
