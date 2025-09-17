@@ -6,6 +6,8 @@ workflow AnnotateL1MEAIDFilter {
     input {
         File fasta
         File rm_out
+        String prefix
+        
         String l1meaid_docker
         String l1meaid_filter_docker
         
@@ -17,6 +19,7 @@ workflow AnnotateL1MEAIDFilter {
         input:
             fasta = fasta,
             rm_out = rm_out,
+            prefix = prefix,
             docker = l1meaid_docker,
             runtime_attr_override = runtime_attr_override_limeaid
     }
@@ -24,6 +27,7 @@ workflow AnnotateL1MEAIDFilter {
     call L1MEAIDFilter {
         input:
             limeaid_output = L1MEAID.limeaid_output,
+            prefix = prefix,
             docker = l1meaid_filter_docker,
             runtime_attr_override = runtime_attr_override_filter
     }
@@ -38,13 +42,11 @@ task L1MEAID {
     input {
         File fasta
         File rm_out
+        String prefix
+
         String docker
-        
         RuntimeAttr? runtime_attr_override
     }
-
-    Int disk_size = 2*ceil(size(fasta, "GB")) + 2*ceil(size(rm_out, "GB")) + 10
-    String prefix = basename(fasta, ".fasta")
 
     command <<<
         set -euo pipefail
@@ -60,13 +62,13 @@ task L1MEAID {
     }
 
     RuntimeAttr runtime_default = object {
-        cpu_cores:          4,
-        mem_gb:             8,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  3,
-        max_retries:        0,
-        docker:             docker
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2*ceil(size(fasta, "GB")) + 2*ceil(size(rm_out, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 0,
+        docker: docker
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, runtime_default])
     runtime {
@@ -83,13 +85,11 @@ task L1MEAID {
 task L1MEAIDFilter {
     input {
         File limeaid_output
+        String prefix
+
         String docker
-        
         RuntimeAttr? runtime_attr_override
     }
-
-    Int disk_size = 2*ceil(size(limeaid_output, "GB")) + 5
-    String prefix = basename(limeaid_output, ".tsv")
 
     command <<<
         set -euo pipefail
@@ -104,23 +104,22 @@ task L1MEAIDFilter {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  3,
-        max_retries:        0,
-        docker:             docker
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: 2*ceil(size(limeaid_output, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 0,
+        docker: docker
     }
-
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
