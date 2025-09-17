@@ -2,7 +2,7 @@ version 1.0
 
 import "Structs.wdl"
 
-workflow AnnotateL1MEAID {
+workflow AnnotateL1MEAIDFilter {
     input {
         File fasta
         File rm_out

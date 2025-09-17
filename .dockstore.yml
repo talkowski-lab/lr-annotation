@@ -28,6 +28,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateL1MEAIDFilter
+    primaryDescriptorPath: /wdl/AnnotateL1MEAIDFilter.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/AnnotateVEPHail.wdl
     filters:
