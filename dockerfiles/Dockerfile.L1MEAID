@@ -10,9 +10,9 @@ RUN rm -rf /opt/RepeatMasker/Libraries/famdb/*
 
 WORKDIR /opt/src
 RUN git clone https://github.com/Markloftus/L1ME-AID.git /opt/src/L1ME-AID
-RUN bash -lc " \
+RUN bash -lc "\
     set -euo pipefail; \
-    f=$(find /opt/src/L1ME-AID -maxdepth 1 -type f -name "*.py" | head -n 1); \
-    [ -n "$f" ] && mv "$f" /opt/src/L1ME-AID/l1meaid.py || true \
+    f=\$(find /opt/src/L1ME-AID -maxdepth 1 -type f -name '*.py' | head -n 1); \
+    if [ -n "$f" ]; then mv "$f" /opt/src/L1ME-AID/l1meaid.py; fi \
 "
 ENV PATH="/opt/src/L1ME-AID:${PATH}"
