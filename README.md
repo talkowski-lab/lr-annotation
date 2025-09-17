@@ -52,8 +52,8 @@ References:
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 
 
-## [AnnotateVcf.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateVcf.wdl)
-This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the internal allele frequencies (AFs) based on  sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants.
+## [AnnotateAF.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
+This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the internal allele frequencies (AFs) based on  sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants. It is based off the `AnnotateVcf.wdl` workflow.
 
 References:
 - `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
