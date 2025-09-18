@@ -86,11 +86,18 @@ task FilterPALMER {
                 bedtools slop -g genome_file -b 50 | \
                 bedtools merge -c 4,5,6 -o collapse > RMfilter.50bpbuffer.bed
 
-            bcftools query -f '%CHROM\t%POS\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${PALMER_vcf} |awk 'OFS="\t" {print $1,$2-1,$2,$3,$4}' |sort -k1,1 -k2,2n > PALMER_calls.bed
+            bcftools query -f '%CHROM\t%POS\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${PALMER_vcf} \
+                |awk 'OFS="\t" {print $1,$2-1,$2,$3,$4}' \
+                |sort -k1,1 -k2,2n \
+                > PALMER_calls.bed
 
             bedtools intersect -wo -a RMfilter.50bpbuffer.bed -b PALMER_calls.bed > intersection
 
-            python /PALMER_filter_and_transfer_annotations.py intersection ~{SV_vcf} ~{RM_fa} ${ME_type} | sort -k1,1 -k2,2n | uniq | bgzip > annotations_to_transfer.tsv.gz
+            python /opt/gnomad-lr/scripts/palmer/PALMER_filter_and_transfer_annotations.py intersection ~{SV_vcf} ~{RM_fa} ${ME_type} \
+                | sort -k1,1 -k2,2n \
+                | uniq \
+                | bgzip \
+                > annotations_to_transfer.tsv.gz
             tabix -f -b 2 -e 2 annotations_to_transfer.tsv.gz
 
             echo '##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">' > line.header
