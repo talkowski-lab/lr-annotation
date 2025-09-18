@@ -61,7 +61,7 @@ task L1MEAID {
         File limeaid_output = '~{prefix}_limeaid.tsv'
     }
 
-    RuntimeAttr runtime_default = object {
+    RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 8,
         disk_gb: 2*ceil(size(fasta, "GB")) + 2*ceil(size(rm_out, "GB")) + 10,
@@ -70,15 +70,15 @@ task L1MEAID {
         max_retries: 0,
         docker: docker
     }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, runtime_default])
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, runtime_default.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb, runtime_default.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, runtime_default.boot_disk_gb])
-        preemptible: select_first([runtime_attr.preemptible_tries, runtime_default.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, runtime_default.max_retries])
-        docker: select_first([runtime_attr.docker, runtime_default.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 

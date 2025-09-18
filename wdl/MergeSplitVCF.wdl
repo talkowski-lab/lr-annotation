@@ -16,7 +16,7 @@ task SplitFile {
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
 
-    RuntimeAttr runtime_default = object {
+    RuntimeAttr default_attr = object {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
@@ -25,16 +25,16 @@ task SplitFile {
         boot_disk_gb: 10
     }
 
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
 
     runtime {
-        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
         docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
     }
 
     command <<<
@@ -62,7 +62,7 @@ task CombineVCFs {
     Float base_disk_gb = 10.0
     Float input_disk_scale = if !sort_after_merge then 5.0 else 20.0
     
-    RuntimeAttr runtime_default = object {
+    RuntimeAttr default_attr = object {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
@@ -71,16 +71,16 @@ task CombineVCFs {
         boot_disk_gb: 10
     }
 
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
 
     runtime {
-        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
         docker: sv_base_mini_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
     }
 
     String merged_vcf_name="~{cohort_prefix}.merged.vcf.gz"
@@ -121,7 +121,7 @@ task CombineVCFsCombineSamples {
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
 
-    RuntimeAttr runtime_default = object {
+    RuntimeAttr default_attr = object {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
@@ -130,16 +130,16 @@ task CombineVCFsCombineSamples {
         boot_disk_gb: 10
     }
 
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
     
     runtime {
-        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
         docker: sv_base_mini_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
     }
 
     command <<<

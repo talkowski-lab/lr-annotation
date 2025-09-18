@@ -24,8 +24,8 @@ workflow AnnotateRepeatMasker {
     }
 
     output {
-        File RMout = RepeatMasker.RMout
-        File INSfa = VCF_INS_to_fa.INS_fa
+        File RM_out = RepeatMasker.RMout
+        File RM_fa = VCF_INS_to_fa.INS_fa
     }
 }
 
