@@ -80,7 +80,7 @@ task FilterPALMER {
             if [ -z "$MEfilter" ]; then echo "ERROR: filter type is unset (check that MEI type is one of permitted options)"; exit 1; fi
 
             # create bed file with 50bp buffer around INS positions that match the ME type per repeatmasker
-            awk '$11==FILTER' FILTER="${MEfilter}"  ~{RM_out} | \
+            awk '$11==FILTER' FILTER="${MEfilter}" ~{RM_out} | \
                 awk 'OFS="\t" {print $5,$7,$8}'| sed 's/(//'|sed 's/)//'|awk 'OFS="\t" {print $1,$2+$3}' | \
                 sed 's/:/\t/'|sed 's/;/\t/' | awk 'OFS="\t" {print $1,$2-1,$2,$2,$3,$4}'| sort -k1,1 -k2,2n | uniq | \
                 bedtools slop -g genome_file -b 50 | \
