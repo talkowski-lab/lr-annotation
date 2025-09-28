@@ -180,7 +180,7 @@ task FilterBySvlen {
 
         bcftools view ~{vcf} \
             --include 'abs(INFO/SVLEN) > ~{min_svlen}' \
-            -O z -o ~{prefix}_filtered.vcf.gz
+            -Oz -o ~{prefix}_filtered.vcf.gz
         
         tabix -p vcf ~{prefix}_filtered.vcf.gz
     >>>
@@ -227,7 +227,7 @@ task MergeWithOriginal {
         bcftools annotate \
             -a ~{annotated_vcf} \
             -c "INFO" \
-            -O z -o "~{prefix}.svan_annotated.vcf.gz" \
+            -Oz -o "~{prefix}.svan_annotated.vcf.gz" \
             ~{original_vcf}
 
         tabix -p vcf "~{prefix}.svan_annotated.vcf.gz"
@@ -272,15 +272,15 @@ task SeparateInsertionsDeletions {
 
         bcftools view ~{vcf} \
             --include 'INFO/SVTYPE="INS"' \
-            -O z -o ~{prefix}.insertions.vcf.gz
+            -Oz -o ~{prefix}.insertions.vcf.gz
         
         bcftools view ~{vcf} \
             --include 'INFO/SVTYPE="DEL"' \
-            -O z -o ~{prefix}.deletions.vcf.gz
+            -Oz -o ~{prefix}.deletions.vcf.gz
         
         bcftools view ~{vcf} \
             --exclude '(INFO/SVTYPE="INS" || INFO/SVTYPE="DEL")' \
-            -O z -o ~{prefix}.other_variants.vcf.gz
+            -Oz -o ~{prefix}.other_variants.vcf.gz
         
         tabix -p vcf ~{prefix}.insertions.vcf.gz
         tabix -p vcf ~{prefix}.deletions.vcf.gz
@@ -487,7 +487,7 @@ def merge_vcfs(original_vcf_path, svan_vcf_path, output_vcf_path):
 merge_vcfs('work_dir/input.vcf', 'work_dir/svan_annotated.vcf', 'work_dir/merged_annotated.vcf')
 CODE
 
-        bcftools sort work_dir/merged_annotated.vcf -O z -o ~{prefix}.~{mode}_annotated.vcf.gz
+        bcftools sort work_dir/merged_annotated.vcf -Oz -o ~{prefix}.~{mode}_annotated.vcf.gz
         tabix -p vcf ~{prefix}.~{mode}_annotated.vcf.gz
     >>>
 
@@ -536,9 +536,9 @@ task MergeAnnotatedVcfs {
         echo "~{annotated_del_vcf}" >> vcf_list.txt
         echo "~{other_vcf}" >> vcf_list.txt
         
-        bcftools concat -a -f vcf_list.txt -O z -o ~{prefix}.unsorted.vcf.gz
+        bcftools concat -a -f vcf_list.txt -Oz -o ~{prefix}.unsorted.vcf.gz
         
-        bcftools sort ~{prefix}.unsorted.vcf.gz -O z -o ~{prefix}.svan_annotated.vcf.gz
+        bcftools sort ~{prefix}.unsorted.vcf.gz -Oz -o ~{prefix}.svan_annotated.vcf.gz
         
         tabix -p vcf ~{prefix}.svan_annotated.vcf.gz
         

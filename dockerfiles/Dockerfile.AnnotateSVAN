@@ -2,8 +2,6 @@ FROM ubuntu:20.04
 
 MAINTAINER Karan Jaisingh
 
-ENV DEBIAN_FRONTEND=noninteractive
-
 RUN apt-get update && apt-get install -y \
     build-essential \
     wget \
@@ -51,9 +49,11 @@ RUN cd /opt && \
     cd minimap2 && \
     make && \
     ln -s /opt/minimap2/minimap2 /usr/local/bin/minimap2 && \
-    ln -s /opt/minimap2/misc/paftools.js /usr/local/bin/paftools.js
+    ln -s /opt/minimap2/misc/paftools.js /usr/local/bin/paftools.js && \
+    curl -L https://github.com/attractivechaos/k8/releases/download/v0.2.4/k8-0.2.4.tar.bz2 | tar -jxf - && \
+    cp k8-0.2.4/k8-`uname -s` k8
 
-# Install TRF (Tandem Repeat Finder)
+# Install TRF
 RUN cd /opt && \
     git clone https://github.com/Benson-Genomics-Lab/TRF.git && \
     cd TRF && \
@@ -63,7 +63,7 @@ RUN cd /opt && \
     make && \
     cp src/trf /usr/local/bin/trf
 
-# Create app directory and clone SVAN
+# Clone SVAN
 RUN mkdir -p /app && \
     cd /app && \
     git clone https://github.com/REPBIO-LAB/SVAN.git
