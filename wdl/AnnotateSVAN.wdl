@@ -13,7 +13,15 @@ workflow AnnotateSVAN {
         File vntr_bed
         File exons_bed
         File repeats_bed
+
         File mei_fasta
+        File mei_bwa_amb
+        File mei_bwa_ann
+        File mei_bwa_bwt
+        File mei_bwa_pac
+        File mei_bwa_sa
+        File mei_minimap_mmi
+
         File reference_fasta
         
         String svan_docker
@@ -88,6 +96,12 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fasta = mei_fasta,
+                mei_bwa_amb = mei_bwa_amb,
+                mei_bwa_ann = mei_bwa_ann,
+                mei_bwa_bwt = mei_bwa_bwt,
+                mei_bwa_pac = mei_bwa_pac,
+                mei_bwa_sa = mei_bwa_sa,
+                mei_minimap_mmi = mei_minimap_mmi,
                 reference_fasta = reference_fasta,
                 prefix = shard_prefix,
                 mode = "ins",
@@ -104,6 +118,12 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fasta = mei_fasta,
+                mei_bwa_amb = mei_bwa_amb,
+                mei_bwa_ann = mei_bwa_ann,
+                mei_bwa_bwt = mei_bwa_bwt,
+                mei_bwa_pac = mei_bwa_pac,
+                mei_bwa_sa = mei_bwa_sa,
+                mei_minimap_mmi = mei_minimap_mmi,
                 reference_fasta = reference_fasta,
                 prefix = shard_prefix,
                 mode = "del",
@@ -383,6 +403,12 @@ task RunSvanAnnotation {
         File exons_bed
         File repeats_bed
         File mei_fasta
+        File mei_bwa_amb
+        File mei_bwa_ann
+        File mei_bwa_bwt
+        File mei_bwa_pac
+        File mei_bwa_sa
+        File mei_minimap_mmi
         File reference_fasta
         String prefix
         String mode
@@ -499,7 +525,7 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 15,
-        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB")) + 50,
+        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB") + size(mei_bwa_amb, "GB") + size(mei_bwa_ann, "GB") + size(mei_bwa_bwt, "GB") + size(mei_bwa_pac, "GB") + size(mei_bwa_sa, "GB") + size(mei_minimap_mmi, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
