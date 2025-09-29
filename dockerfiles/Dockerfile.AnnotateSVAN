@@ -42,18 +42,19 @@ RUN pip3 install --no-cache-dir \
 RUN cd /opt && \
     git clone https://github.com/lh3/bwa.git && \
     cd bwa && \
-    make && \
-    ln -s /opt/bwa/bwa /usr/local/bin/bwa
+    make
+
+ENV PATH="/opt/bwa:${PATH}"
 
 # Install minimap2
 RUN cd /opt && \
     git clone https://github.com/lh3/minimap2.git && \
     cd minimap2 && \
     make && \
-    ln -s /opt/minimap2/minimap2 /usr/local/bin/minimap2 && \
-    ln -s /opt/minimap2/misc/paftools.js /usr/local/bin/paftools.js && \
     curl -L https://github.com/attractivechaos/k8/releases/download/v0.2.4/k8-0.2.4.tar.bz2 | tar -jxf - && \
     cp k8-0.2.4/k8-`uname -s` k8
+
+ENV PATH="/opt/minimap2:/opt/minimap2/misc:${PATH}"
 
 # Install TRF
 RUN cd /opt && \
@@ -65,12 +66,11 @@ RUN cd /opt && \
     make && \
     cp src/trf /usr/local/bin/trf
 
-# Clone SVAN
+# Install SVAN
 RUN mkdir -p /app && \
     cd /app && \
     git clone https://github.com/REPBIO-LAB/SVAN.git
 
-# Set PYTHONPATH to include SVAN modules and GAPI directory
 ENV PYTHONPATH="/app/SVAN:/app/SVAN/GAPI:${PYTHONPATH}"
 
 # Create working directory
