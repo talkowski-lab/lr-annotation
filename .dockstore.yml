@@ -1,15 +1,6 @@
 version: 1.2
 workflows:
   - subclass: WDL
-    name: AnnotateSTRs
-    primaryDescriptorPath: /wdl/AnnotateSTRs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateSVAN
     primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
     filters:
@@ -82,8 +73,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: RunTRGT
-    primaryDescriptorPath: /wdl/RunTRGT.wdl
+    name: FlagSingletonReads
+    primaryDescriptorPath: /wdl/FlagSingletonReads.wdl
     filters:
       branches:
         - main
@@ -91,8 +82,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateRepeatMasker
-    primaryDescriptorPath: /wdl/AnnotateRepeatMasker.wdl
+    name: PALMER
+    primaryDescriptorPath: /wdl/PALMER.wdl
     filters:
       branches:
         - main
@@ -100,8 +91,17 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateSingletonReads
-    primaryDescriptorPath: /wdl/AnnotateSingletonReads.wdl
+    name: RepeatMasker
+    primaryDescriptorPath: /wdl/RepeatMasker.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: TRGT
+    primaryDescriptorPath: /wdl/TRGT.wdl
     filters:
       branches:
         - main
