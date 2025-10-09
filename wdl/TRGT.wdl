@@ -4,10 +4,6 @@ import "Finalize.wdl" as FF
 import "Utils.wdl"
 
 workflow TRGT {
-    meta {
-        description: "Uses TRGT to size TRs in an input BAM file."
-    }
-
     input {
         File input_bam
         File input_bam_bai
@@ -22,6 +18,10 @@ workflow TRGT {
         String catalog_name  # used in naming, so be linux friendly
 
         String gcs_out_root_dir
+
+        String trgt_docker
+
+        RuntimeAttr? runtime_attr_process_with_trgt
     }
 
     output {
@@ -31,10 +31,14 @@ workflow TRGT {
     }
 
     if (!defined(custom_out_prefix)){
-        call Utils.InferSampleName { input: bam = input_bam, bai = input_bam_bai }
+        call Utils.InferSampleName { 
+            input: 
+                bam = input_bam, 
+                bai = input_bam_bai 
+        }
     }
 
-    Boolean is_female = 'F'==sex
+    Boolean is_female = 'F' == sex
 
     call ProcessWithTRGT { 
         input:
@@ -45,7 +49,9 @@ workflow TRGT {
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
             repeatCatalog = repeatCatalog,
-            catalog_name = catalog_name
+            catalog_name = catalog_name,
+            docker = trgt_docker,
+            runtime_attr_override = runtime_attr_process_with_trgt
     }
 
     String outdir = sub(gcs_out_root_dir, "/$", "") + "/TRGT/" + catalog_name
@@ -72,6 +78,8 @@ task ProcessWithTRGT {
         String catalog_name  # used in naming, so be linux friendly
 
         Boolean verbose = false
+
+        String docker
 
         RuntimeAttr? runtime_attr_override
     }
@@ -116,7 +124,6 @@ task ProcessWithTRGT {
             ~{vcf_out_name}.vcf.gz
     >>>
 
-    #########################
     Int disk_sz = 10 + 2 * ceil(size(input_bam, "GiB"))
 
     RuntimeAttr default_attr = object {
@@ -125,7 +132,7 @@ task ProcessWithTRGT {
         disk_gb:            disk_sz,
         preemptible_tries:  1,
         max_retries:        0,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0"
+        docker:             docker
     }
 
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
