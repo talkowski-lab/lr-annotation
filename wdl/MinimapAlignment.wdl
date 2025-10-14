@@ -2,8 +2,8 @@ version 1.0
 
 workflow MinimapAlignment {
     input {
-        File Hap1_assembly
-        File Hap2_assembly
+        File assembly_mat
+        File assembly_pat
         String sample_name
 
         File ref_fasta
@@ -22,19 +22,19 @@ workflow MinimapAlignment {
     String save_to_dir = where_to_save + "~{workflow_name}/~{sample_name}/"
 
     output {
-        File sample_h1_bam = save_to_dir + basename(AlnH1.bamOut)
-        File sample_h1_paf = save_to_dir + basename(AlnH1.pafOut)
-        File sample_h1_idx = save_to_dir + basename(AlnH1.baiOut)
+        File minimap_assembled_bam_mat = save_to_dir + basename(AlnH1.bamOut)
+        File minimap_assembled_bai_mat = save_to_dir + basename(AlnH1.baiOut)
+        File minimap_assembled_paf_mat = save_to_dir + basename(AlnH1.pafOut)
 
-        File sample_h2_bam = save_to_dir + basename(AlnH2.bamOut)
-        File sample_h2_paf = save_to_dir + basename(AlnH2.pafOut)
-        File sample_h2_idx = save_to_dir + basename(AlnH2.baiOut)
+        File minimap_assembled_bam_pat = save_to_dir + basename(AlnH2.bamOut)
+        File minimap_assembled_bai_pat = save_to_dir + basename(AlnH2.baiOut)
+        File minimap_assembled_paf_pat = save_to_dir + basename(AlnH2.pafOut)
     }
 
 
     call AlnAsm2Ref as AlnH1 { 
         input:
-            asmIn = Hap1_assembly,
+            asmIn = assembly_mat,
             sample = sample_name,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
@@ -45,7 +45,7 @@ workflow MinimapAlignment {
 
     call AlnAsm2Ref as AlnH2 { 
         input:
-            asmIn = Hap2_assembly,
+            asmIn = assembly_pat,
             sample = sample_name,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
