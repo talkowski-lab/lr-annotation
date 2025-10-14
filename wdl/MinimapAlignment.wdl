@@ -50,7 +50,7 @@ workflow MinimapAlignment {
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
             hap = 2,
-            docker = finalize_docker,
+            docker = alignment_docker,
             runtime_attr_override = runtime_attr_override_align_asm2ref
     }
 
@@ -58,6 +58,7 @@ workflow MinimapAlignment {
         input:
             files = [AlnH1.bamOut, AlnH1.pafOut, AlnH1.baiOut, AlnH2.bamOut, AlnH2.pafOut, AlnH2.baiOut],
             outdir = save_to_dir,
+            docker = finalize_docker,
             runtime_attr_override = runtime_attr_override_finalize
     }
 }
