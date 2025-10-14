@@ -1,7 +1,7 @@
 version 1.0
 
-import "Finalize.wdl" as FF
-import "Utils.wdl"
+import "TRGTFinalization.wdl" as TF
+import "Helpers.wdl"
 
 workflow TRGT {
     input {
@@ -15,7 +15,7 @@ workflow TRGT {
         File ref_fasta_index
 
         File repeatCatalog
-        String catalog_name  # used in naming, so be linux friendly
+        String catalog_name
 
         String gcs_out_root_dir
 
@@ -27,11 +27,11 @@ workflow TRGT {
     output {
         File trgt_output_vcf     = FinalizeTrgtVCF.gcs_path
         File trgt_output_vcf_idx = FinalizeTrgtTBI.gcs_path
-        # File trgt_output_bam = processWithTRGT.trgt_output_bam
+        File trgt_output_bam = processWithTRGT.trgt_output_bam # omit to save storage space
     }
 
     if (!defined(custom_out_prefix)){
-        call Utils.InferSampleName { 
+        call Helpers.InferSampleName { 
             input: 
                 bam = input_bam, 
                 bai = input_bam_bai 
@@ -55,8 +55,18 @@ workflow TRGT {
     }
 
     String outdir = sub(gcs_out_root_dir, "/$", "") + "/TRGT/" + catalog_name
-    call FF.FinalizeToFile as FinalizeTrgtVCF { input: outdir = outdir, file = ProcessWithTRGT.trgt_output_vcf     }
-    call FF.FinalizeToFile as FinalizeTrgtTBI { input: outdir = outdir, file = ProcessWithTRGT.trgt_output_vcf_idx }
+
+    call Helpers.FinalizeToFile as FinalizeTrgtVCF { 
+        input: 
+            outdir = outdir, 
+            file = ProcessWithTRGT.trgt_output_vcf     
+    }
+
+    call Helpers.FinalizeToFile as FinalizeTrgtTBI { 
+        input: 
+            outdir = outdir, 
+            file = ProcessWithTRGT.trgt_output_vcf_idx 
+    }
 }
 
 task ProcessWithTRGT {
@@ -87,7 +97,7 @@ task ProcessWithTRGT {
     output {
         File trgt_output_vcf     = "~{vcf_out_name}.vcf.gz"
         File trgt_output_vcf_idx = "~{vcf_out_name}.vcf.gz.tbi"
-        # File trgt_output_bam   = "~{vcf_out_name}.spanning.bam"  # omitting for now, to save storage space
+        File trgt_output_bam   = "~{vcf_out_name}.spanning.bam"  # omit to save storage space
     }
 
     String vcf_out_name = outprefix + "_trgt." + catalog_name

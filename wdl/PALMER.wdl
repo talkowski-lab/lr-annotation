@@ -72,7 +72,6 @@ task split_bam {
 		Array[File] bais = glob("~{prefix}_*bai")
 	}
 
-	#########################
 	RuntimeAttr default_attr = object {
 		cpu_cores:          1,
 		mem_gb:             4,

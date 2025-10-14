@@ -1,7 +1,7 @@
 version 1.0
     
 import "Structs.wdl"
-import "Helpers.wdl" as Helpers
+import "general/Helpers.wdl" as Helpers
 
 workflow AnnotateSVAN {
     input {

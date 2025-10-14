@@ -55,15 +55,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateExternalAF
-    primaryDescriptorPath: /wdl/AnnotateExternalAF.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: BenchmarkAnnotations
     primaryDescriptorPath: /wdl/BenchmarkAnnotations.wdl
     filters:
@@ -75,6 +66,15 @@ workflows:
   - subclass: WDL
     name: FlagSingletonReads
     primaryDescriptorPath: /wdl/FlagSingletonReads.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: MinimapAlignment
+    primaryDescriptorPath: /wdl/MinimapAlignment.wdl
     filters:
       branches:
         - main

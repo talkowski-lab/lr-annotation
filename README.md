@@ -5,12 +5,20 @@ Pipeline for long-read callset annotation.
 
 ## Pipeline Steps
 - [AnnotateSVAN.wdl](#annotatesvanwdl).
+- [AnnotatePALMER.wdl](#annotatepalmerwdl).
+- [AnnotateL1MEAIDFilter.wdl](#annotatel1meaidfilterwdl).
 - [AnnotateVEPHail.wdl](#annotatevephailwdl).
 - [AnnotateSVAnnotate.wdl](#annotatesvannotatewdl).
-- [AnnotateVcf.wdl](#annotatevcfwdl).
-- Bencharmking & QC:
-	- [BenchmarkAnnotations.wdl](#benchmarkannotationswdl).
-	- [BenchmarkAnnotateo.wdl](#benchmarkannotationswdl).
+- [AnnotateAF.wdl](#annotateafwdl).
+
+
+
+## Cohort
+- [HGSVC3]: 65 samples.
+- [HPRC2]: 231 samples.
+- Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
+- Missing: HG002 (HGSVC3 + HPRC2 overlap), HG03492 (only in HPRC2 Github).
+- Total: 291 samples.
 
 
 
@@ -25,6 +33,14 @@ References:
 - `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `repeats_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fasta`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+
+
+## [AnnotatePALMER.wdl]
+TODO
+
+
+## [AnnotateL1MEAIDFilter.wdl]
+TODO
 
 
 ### [AnnotateVEPHail.wdl](wdl/AnnotateVEPHail.wdl)
@@ -56,10 +72,6 @@ References:
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
 
 
-## [AnnotateExternalAF.wdl]
-TODO
-
-
 
 ## Additional Workflows
 ### [BenchmarkAnnotations.wdl](wdl/BenchmarkAnnotations.wdl)
@@ -82,11 +94,19 @@ python ./scripts/merge/merge_af_annotated_vcfs.py \
 ```
 
 
+### [MinimapAlignment.wdl](wdl/MinimapAlignment.wdl)
+TODO
+
+
+### [PALMER.wdl](wdl/PALMER.wdl)
+TODO
+
+
 ### [RepeatMasker](wdl/RepeatMasker.wdl)
 TODO
 
 
-###  [TRGT](wdl/TRGT.wdl)
+### [TRGT](wdl/TRGT.wdl)
 This workflow is based on a [tool](https://github.com/PacificBiosciences/trgt) developed by PacBio to annotate STRs from long-reads. It requires a reference context file that indicates tandem-repeat regions, and genotypes these to identify STRs.
 
 References:
