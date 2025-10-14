@@ -91,6 +91,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PALMERToVcf
+    primaryDescriptorPath: /wdl/PALMERToVcf.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/     
+
+  - subclass: WDL
     name: RepeatMasker
     primaryDescriptorPath: /wdl/RepeatMasker.wdl
     filters:

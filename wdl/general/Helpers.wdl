@@ -1,6 +1,6 @@
 version 1.0
 
-import "Structs.wdl"
+import "general/Structs.wdl"
 
 task AddGenotypes {
     input {
@@ -3751,7 +3751,7 @@ task ConvertReads {
         set -euxo pipefail
 
         filename=~{reads}
-        input_filetype=${filename##*.}
+        input_filetype=${filename*.}
         output_filetype=~{output_format}
 
         if [[ ($input_filetype == "fastq" || $input_filetype == "fq") && $output_filetype == "fasta" ]]; then
@@ -3773,12 +3773,12 @@ task ConvertReads {
     }
 
     runtime {
-        cpu:                    4
-        memory:                 "8 GiB"
-        disks:                  "local-disk " +  disk_size + " HDD"
-        bootDiskSizeGb:         10
-        preemptible:            2
-        maxRetries:             0
-        docker:                 "quay.io/broad-long-read-pipelines/lr-pacasus:0.3.0"
+        cpu: 4
+        memory: "8 GiB"
+        disks: "local-disk " + disk_size + " HDD"
+        bootDiskSizeGb: 10
+        preemptible: 2
+        maxRetries: 0
+        docker: "quay.io/broad-long-read-pipelines/lr-pacasus:0.3.0"
     }
 }

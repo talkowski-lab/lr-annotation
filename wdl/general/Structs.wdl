@@ -8,7 +8,7 @@ struct RuntimeAttr {
     Int? preemptible_tries
     Int? max_retries
     String? docker
-} 
+}
 
 struct DataTypeParameters {
     Int num_shards

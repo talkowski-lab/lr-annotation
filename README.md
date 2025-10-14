@@ -17,7 +17,7 @@ Pipeline for long-read callset annotation.
 - [HGSVC3]: 65 samples.
 - [HPRC2]: 231 samples.
 - Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
-- Missing: HG002 (HGSVC3 + HPRC2 overlap), HG03492 (only in HPRC2 Github).
+- Missing: CHM13 (only in HPRC VCF in place of HG00272), HG03492 (only in HPRC2 Github).
 - Total: 291 samples.
 
 
@@ -99,6 +99,10 @@ TODO
 
 
 ### [PALMER.wdl](wdl/PALMER.wdl)
+TODO
+
+
+### [PALMERToVcf.wdl](wdl/PALMERToVcf.wdl)
 TODO
 
 

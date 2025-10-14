@@ -1,5 +1,7 @@
 version 1.0
 
+import "general/Structs.wdl"
+
 workflow MinimapAlignment {
     input {
         File assembly_mat

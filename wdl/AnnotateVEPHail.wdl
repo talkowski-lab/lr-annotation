@@ -1,8 +1,8 @@
 version 1.0
     
-import "Structs.wdl"
-import "ScatterVCF.wdl" as ScatterVCF
-import "MergeSplitVCF.wdl" as MergeSplitVCF
+import "general/Structs.wdl"
+import "general/ScatterVCF.wdl" as ScatterVCF
+import "general/MergeSplitVCF.wdl" as MergeSplitVCF
 
 workflow AnnotateVEPHail {
     input {
