@@ -29,6 +29,7 @@ workflow PALMERToVcf {
     call ConcatSortVcfs {
         input:
             vcfs   = ConvertPALMERToVcf.vcf,
+            vcf_idxs = ConvertPALMERToVcf.vcf_idx,
             docker = pipeline_docker,
             sample = sample,
             runtime_attr_override = runtime_attr_override_concat_sort_vcfs
@@ -69,7 +70,7 @@ task ConvertPALMERToVcf {
 
     output {
         File vcf = "~{sample}.PALMER_calls.~{ME_type}.vcf.gz"
-        File vcf_tbi = "~{sample}.PALMER_calls.~{ME_type}.vcf.gz.tbi"
+        File vcf_idx = "~{sample}.PALMER_calls.~{ME_type}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -96,6 +97,7 @@ task ConvertPALMERToVcf {
 task ConcatSortVcfs {
     input {
         Array[File] vcfs
+        Array[File] vcf_idxs
         String docker
         String sample
         RuntimeAttr? runtime_attr_override
