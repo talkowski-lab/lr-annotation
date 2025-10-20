@@ -166,7 +166,7 @@ task FinalizeToDir {
     # the variable's values--the variable used in generating the script--but only care that it is defined.
     Array[String] names_for_cromwell = select_first([file_names, ["correctness_doesnot_matter_here"]])
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         if ~{fail}; then echo "input files and file_names don't have the same length!" && exit 1; fi
 

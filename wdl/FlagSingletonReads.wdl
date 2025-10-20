@@ -210,7 +210,7 @@ task SubsetVcfToContigs {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view ~{vcf} --regions ~{sep=',' contigs} -Oz -o ~{prefix}.subset.vcf.gz
         tabix -p vcf ~{prefix}.subset.vcf.gz

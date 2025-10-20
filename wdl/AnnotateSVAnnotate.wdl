@@ -114,7 +114,7 @@ task SubsetVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view ~{vcf} --regions "~{locus}" --include "abs(INFO/SVLEN)>=~{min_svlen}" | bgzip > "~{prefix}.vcf.gz"
         tabix -p vcf "~{prefix}.vcf.gz"
@@ -212,7 +212,7 @@ task AnnotateFunctionalConsequences {
     Int java_mem_mb = ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]) * 1000 * 0.7)
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         gatk --java-options "-Xmx~{java_mem_mb}m" SVAnnotate \
             -V ~{vcf} \
@@ -317,7 +317,7 @@ task MergeVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         
         echo "~{annotated_vcf}" > vcf.list
         echo "~{unannotated_vcf}" >> vcf.list
@@ -363,7 +363,7 @@ task PostprocessVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         
         python /opt/gnomad-lr/scripts/helpers/revert_symbalts.py ~{annotated_vcf} ~{original_vcf} | bcftools view -Oz -o ~{prefix}.reverted.vcf.gz
         tabix -p vcf ~{prefix}.reverted.vcf.gz

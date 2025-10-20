@@ -55,7 +55,7 @@ task FilterPALMER {
     String vcfbase = basename(SV_vcf, ".vcf.gz")
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         cur_vcf=~{SV_vcf}
         cut -f1,2 ~{ref_fai} > genome_file

@@ -39,7 +39,7 @@ task VCF_INS_to_fa {
     String prefix = basename(vcf, ".vcf.gz")
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view -i 'INFO/SVLEN>=50 && INFO/SVTYPE=="INS"' ~{vcf} | bcftools view -e 'ALT ~ "<"' > ~{prefix}.INS.vcf
 
@@ -87,7 +87,7 @@ task RepeatMasker {
     String prefix = basename(fasta)
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
   
         RepeatMasker \
             -e rmblast \

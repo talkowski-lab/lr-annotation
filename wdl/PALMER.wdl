@@ -58,7 +58,7 @@ task split_bam {
 	Int disk_size = ceil(size(bam, "GB")) * 3
 
 	command <<<
-		set -euxo pipefail
+		set -euo pipefail
 
 		for contig in ~{sep=" " contigs}
 		do

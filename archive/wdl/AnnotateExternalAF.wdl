@@ -88,7 +88,7 @@ task SubsetVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools view ~{vcf} --regions ~{locus} | bgzip > ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
@@ -176,7 +176,7 @@ task AnnotateFunctionalConsequences {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         gatk --java-options "-Xmx~{java_mem_mb}m" SVAnnotate -V ~{vcf} --non-coding-bed ~{noncoding_bed} --protein-coding-gtf ~{coding_gtf} -O ~{prefix}.vcf
         bcftools view -Oz ~{prefix}.vcf > ~{prefix}.vcf.gz
@@ -466,7 +466,7 @@ task PostprocessVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         # set variants originally called as DUP back to DUP
         python /opt/gnomad-lr/scripts/helpers/orig_dup_to_dup.py ~{vcf} | bcftools view -Oz > ~{prefix}.vcf.gz

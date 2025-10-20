@@ -1425,7 +1425,7 @@ task FinalizeToFile {
     String gcs_output_file = gcs_output_dir + "/" + select_first([name, basename(file)])
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         gsutil -m cp "~{file}" "~{gcs_output_file}"
     >>>
@@ -1483,7 +1483,7 @@ task FinalizeToDir {
     String gcs_output_dir = sub(outdir, "/+$", "")
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         cat ~{write_lines(files)} | gsutil -m cp -I "~{gcs_output_dir}"
     >>>
@@ -1541,7 +1541,7 @@ task FinalizeTarGzContents {
     String gcs_output_dir = sub(sub(outdir + "/", "/+", "/"), "gs:/", "gs://")
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         mkdir tmp
         cd tmp
@@ -1591,7 +1591,7 @@ task WriteCompletionFile {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         completion_file="COMPLETED_AT_$(date +%Y%m%dT%H%M%S).txt"
         touch $completion_file
@@ -1641,7 +1641,7 @@ task CompressAndFinalize {
     Int disk_size = 2 * ceil(size(file, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         gzip -vkc ~{file} > "~{base}.gz"
         gsutil cp "~{base}.gz" "~{gcs_output_file}"
@@ -1699,7 +1699,7 @@ task FinalizeAndCompress {
     Int disk_size = 5 * ceil(size(files, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         for ff in ~{sep=' ' files};
         do
@@ -1757,7 +1757,7 @@ task WriteNamedFile {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         touch "~{name}"
 
@@ -1794,7 +1794,7 @@ task ChunkManifest {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         split -a 5 -d --additional-suffix=".txt" -l ~{manifest_lines_per_chunk} ~{manifest} chunk_
     >>>
@@ -1917,7 +1917,7 @@ task MakeChrIntervalList {
     Int disk_size = 10
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         grep '^@SQ' ~{ref_dict} | \
             awk '{ print $2 "\t" 1 "\t" $3 }' | \
@@ -1985,7 +1985,7 @@ task ExtractIntervalNamesFromIntervalOrBamFile {
     String interval_tsv_filename = "intervals.tsv"
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         python3 <<CODE
 
@@ -2089,7 +2089,7 @@ task MakeIntervalListFromSequenceDictionary {
     String interval_tsv_filename = "intervals.tsv"
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         python3 <<CODE
 
@@ -2200,7 +2200,7 @@ task CreateIntervalListFileFromIntervalInfo {
     String out_interval_list = "~{contig}.~{start}_~{end}.intervals"
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         echo "~{contig}:~{start}-~{end}" > ~{out_interval_list}
     >>>
@@ -2425,7 +2425,7 @@ task Uniq {
     Int disk_size = 1
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         sort ~{write_lines(strings)} | uniq > uniq.txt
     >>>
@@ -2525,7 +2525,7 @@ task BamToBed {
     Int disk_size = 2*ceil(size(bam, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         bedtools genomecov -ibam ~{bam} -bg > ~{prefix}.bed
     >>>
 
@@ -2577,7 +2577,7 @@ task BamToFastq {
     Int disk_size = 3*ceil(size(bam, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         samtools fastq ~{bam} | gzip > ~{prefix}.fq.gz
     >>>
@@ -2692,7 +2692,7 @@ task MergeBams {
     Int disk_size = 1 + 4*ceil(size(bams, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         samtools merge \
             -p -c --no-PG \
@@ -2751,7 +2751,7 @@ task Index {
     String prefix = basename(bam)
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         mv ~{bam} ~{prefix}
         samtools index ~{basename(prefix)}
@@ -2815,7 +2815,7 @@ task SubsetBam {
     Int disk_size = 4*ceil(size([bam, bai], "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 
@@ -2889,7 +2889,7 @@ task ResilientSubsetBam {
         # 1) perform the remote sam-view subsetting in the background
         # 2) listen to the PID of the background process, while re-auth every 1200 seconds
         source /opt/re-auth.sh
-        set -euxo pipefail
+        set -euo pipefail
 
         # see man page for what '-M' means
         samtools view \
@@ -3091,7 +3091,7 @@ task Cat {
     Int disk_size = 4*ceil(size(files, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         HAS_HEADER=~{true='1' false='0' has_header}
 
@@ -3147,7 +3147,7 @@ task ComputeGenomeLength {
     Int disk_size = 2*ceil(size(fasta, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         samtools dict ~{fasta} | \
             grep '^@SQ' | \
@@ -3278,7 +3278,7 @@ task InferSampleName {
 
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
         samtools view -H ~{bam} > header.txt
@@ -3687,7 +3687,7 @@ task SplitContigToIntervals {
     Int disk_size = 2
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         cat ~{ref_dict} | awk '{print $2,$3}' | grep '^SN' | sed -e 's@SN:@@' -e 's@LN:@@' | tr ' ' '\t' > genome.txt
         grep "~{contig}" genome.txt > genome.contig.txt
@@ -3748,7 +3748,7 @@ task ConvertReads {
     Int disk_size = 3 * ceil(size(reads, "GB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         filename=~{reads}
         input_filetype=${filename*.}

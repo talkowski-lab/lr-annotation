@@ -105,7 +105,7 @@ task ProcessWithTRGT {
     String karyotype = if(is_female) then "XX" else "XY"
 
     command <<<
-    set -euxo pipefail
+    set -euo pipefail
 
         nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 

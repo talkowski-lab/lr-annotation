@@ -11,6 +11,7 @@ workflow PALMERToVcf {
 
         String pipeline_docker
         RuntimeAttr? runtime_attr_override_palmer_to_vcf
+        RuntimeAttr? runtime_attr_override_concat_sort_vcfs
     }
 
     scatter(i in range(length(PALMER_calls))) {
@@ -29,7 +30,8 @@ workflow PALMERToVcf {
         input:
             vcfs   = ConvertPALMERToVcf.vcf,
             docker = pipeline_docker,
-            sample = sample
+            sample = sample,
+            runtime_attr_override = runtime_attr_override_concat_sort_vcfs
     }
 
     output {
@@ -52,7 +54,7 @@ task ConvertPALMERToVcf {
     Int disk_size = 10*ceil(size(PALMER_calls, "GB") + size(ref_fai, "GB")) + 20
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         python /opt/gnomad-lr/scripts/palmer/PALMER_to_VCF.py \
             ~{PALMER_calls} \
@@ -101,12 +103,12 @@ task ConcatSortVcfs {
 
     Int disk_size = 5*ceil(size(vcfs, "GB")) + 5
 
-    command <<<_
-        set -euxo pipefail
+    command <<<
+        set -euo pipefail
 
-        bcftools concat ~{sep=" " vcfs} | bcftools sort -Oz > ~{sample}.PALMER_calls.merged.vcf.gz
+        bcftools concat -a ~{sep=" " vcfs} | bcftools sort -Oz > ~{sample}.PALMER_calls.merged.vcf.gz
         tabix ~{sample}.PALMER_calls.merged.vcf.gz
-    _>>>
+    >>>
 
     output {
         File vcf    = "~{sample}.PALMER_calls.merged.vcf.gz"
