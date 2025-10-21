@@ -8,6 +8,7 @@ workflow MinimapAlignment {
         File assembly_pat
         String sample_name
         String minimap_flags = "-a -x asm20 --cs --eqx -R READGROUP"
+        Int minimap_threads = 32
 
         File ref_fasta
         File ref_fai
@@ -40,6 +41,7 @@ workflow MinimapAlignment {
             assembly_fa = assembly_mat,
             sample = sample_name,
             flags = minimap_flags, 
+            threads = minimap_threads,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
             hap = 1,
@@ -77,7 +79,7 @@ task AlnAsm2Ref {
         Int hap
         String flags
 
-        Int threads = 32
+        Int threads
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -106,8 +108,8 @@ task AlnAsm2Ref {
 
     output {
         File bamOut = "~{out_prefix}.bam"
-        File pafOut = "~{out_prefix}.paf"
         File baiOut = "~{out_prefix}.bam.bai"
+        File pafOut = "~{out_prefix}.paf"
     }
 
   RuntimeAttr default_attr = object {
