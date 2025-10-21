@@ -1,6 +1,6 @@
 version 1.0
 
-import "general/Structs.wdl"
+import "Structs.wdl"
 
 task AddGenotypes {
     input {
