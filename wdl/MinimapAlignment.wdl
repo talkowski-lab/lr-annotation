@@ -26,17 +26,17 @@ workflow MinimapAlignment {
     String save_to_dir = where_to_save + "~{workflow_name}/~{sample_name}/"
 
     output {
-        File minimap_assembled_bam_mat = save_to_dir + basename(AlnH1.bamOut)
-        File minimap_assembled_bai_mat = save_to_dir + basename(AlnH1.baiOut)
-        File minimap_assembled_paf_mat = save_to_dir + basename(AlnH1.pafOut)
+        File minimap_assembled_bam_mat = save_to_dir + basename(AlignMat.bamOut)
+        File minimap_assembled_bai_mat = save_to_dir + basename(AlignMat.baiOut)
+        File minimap_assembled_paf_mat = save_to_dir + basename(AlignMat.pafOut)
 
-        File minimap_assembled_bam_pat = save_to_dir + basename(AlnH2.bamOut)
-        File minimap_assembled_bai_pat = save_to_dir + basename(AlnH2.baiOut)
-        File minimap_assembled_paf_pat = save_to_dir + basename(AlnH2.pafOut)
+        File minimap_assembled_bam_pat = save_to_dir + basename(AlignPat.bamOut)
+        File minimap_assembled_bai_pat = save_to_dir + basename(AlignPat.baiOut)
+        File minimap_assembled_paf_pat = save_to_dir + basename(AlignPat.pafOut)
     }
 
 
-    call AlnAsm2Ref as AlnH1 { 
+    call AlignAssembly as AlignMat { 
         input:
             assembly_fa = assembly_mat,
             sample = sample_name,
@@ -49,7 +49,7 @@ workflow MinimapAlignment {
             runtime_attr_override = runtime_attr_override_align_asm2ref
     }
 
-    call AlnAsm2Ref as AlnH2 { 
+    call AlignAssembly as AlignPat { 
         input:
             assembly_fa = assembly_pat,
             sample = sample_name,
@@ -64,14 +64,14 @@ workflow MinimapAlignment {
 
     call FinalizeToDir as SaveBothHapsFiles { 
         input:
-            files = [AlnH1.bamOut, AlnH1.pafOut, AlnH1.baiOut, AlnH2.bamOut, AlnH2.pafOut, AlnH2.baiOut],
+            files = [AlignMat.bamOut, AlignMat.pafOut, AlignMat.baiOut, AlignPat.bamOut, AlignPat.pafOut, AlignPat.baiOut],
             outdir = save_to_dir,
             docker = finalize_docker,
             runtime_attr_override = runtime_attr_override_finalize
     }
 }
 
-task AlnAsm2Ref {
+task AlignAssembly {
     input {
         File assembly_fa
         String sample
