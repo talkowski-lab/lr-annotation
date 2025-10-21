@@ -39,6 +39,7 @@ workflow MinimapAlignment {
         input:
             assembly_fa = assembly_mat,
             sample = sample_name,
+            flags = minimap_flags, 
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
             hap = 1,
@@ -50,6 +51,7 @@ workflow MinimapAlignment {
         input:
             assembly_fa = assembly_pat,
             sample = sample_name,
+            flags = minimap_flags,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
             hap = 2,
