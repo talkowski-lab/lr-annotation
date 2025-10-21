@@ -24,9 +24,9 @@ workflow TRGT {
     }
 
     output {
-        File trgt_output_vcf     = FinalizeTrgtVCF.gcs_path
-        File trgt_output_vcf_idx = FinalizeTrgtTBI.gcs_path
-        File trgt_output_bam = ProcessWithTRGT.trgt_output_bam
+        File trgt_vcf     = FinalizeTrgtVCF.gcs_path
+        File trgt_vcf_idx = FinalizeTrgtTBI.gcs_path
+        File trgt_bam = ProcessWithTRGT.trgt_output_bam
     }
 
     if (!defined(custom_out_prefix)){
