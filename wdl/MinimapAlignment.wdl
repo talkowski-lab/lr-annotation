@@ -54,6 +54,7 @@ workflow MinimapAlignment {
             assembly_fa = assembly_pat,
             sample = sample_name,
             flags = minimap_flags,
+            threads = minimap_threads,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
             hap = 2,
