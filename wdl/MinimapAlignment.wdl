@@ -7,6 +7,7 @@ workflow MinimapAlignment {
         File assembly_mat
         File assembly_pat
         String sample_name
+        String minimap_flags = "-a -x asm20 --cs --eqx -R READGROUP"
 
         File ref_fasta
         File ref_fai
@@ -36,7 +37,7 @@ workflow MinimapAlignment {
 
     call AlnAsm2Ref as AlnH1 { 
         input:
-            asmIn = assembly_mat,
+            assembly_fa = assembly_mat,
             sample = sample_name,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
@@ -47,7 +48,7 @@ workflow MinimapAlignment {
 
     call AlnAsm2Ref as AlnH2 { 
         input:
-            asmIn = assembly_pat,
+            assembly_fa = assembly_pat,
             sample = sample_name,
             ref_fasta = ref_fasta,
             ref_fai = ref_fai,
@@ -67,35 +68,29 @@ workflow MinimapAlignment {
 
 task AlnAsm2Ref {
     input {
-        File asmIn
+        File assembly_fa
         String sample
         File ref_fasta
         File ref_fai
         Int hap
+        String flags
 
         Int threads = 32
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    output {
-        File bamOut = "~{out_prefix}.bam"
-        File pafOut = "~{out_prefix}.paf"
-        File baiOut = "~{out_prefix}.bam.bai"
-    }
 
     String out_prefix = "~{sample}-asm_h~{hap}.minimap2"
-
     Int mm2_threads = threads - 4
+
     command <<<
         set -euo pipefail
 
         minimap2 \
-            -x asm20 -m 10000 -z 10000,50 -r 50000 --end-bonus=100 -O 5,56 -E 4,1 -B 5 \
-            --secondary=no -a \
-            --eqx -Y \
             -t ~{mm2_threads} \
+            ~{flags} \
             ~{ref_fasta} \
-            ~{asmIn} \
+            ~{assembly_fa} \
         | samtools sort -@4 -o "~{out_prefix}.bam"
 
         samtools index -@3 "~{out_prefix}.bam"
@@ -106,6 +101,12 @@ task AlnAsm2Ref {
             - \
         > "~{out_prefix}.paf"
     >>>
+
+    output {
+        File bamOut = "~{out_prefix}.bam"
+        File pafOut = "~{out_prefix}.paf"
+        File baiOut = "~{out_prefix}.bam.bai"
+    }
 
   RuntimeAttr default_attr = object {
       cpu_cores:          threads,
@@ -129,21 +130,6 @@ task AlnAsm2Ref {
 }
 
 task FinalizeToDir {
-    meta {
-        description: "Copies the given file to the specified bucket."
-    }
-
-    parameter_meta {
-        files: {
-            description: "files to finalize",
-            localization_optional: true
-        }
-        file_names: "custom names for files; must be the same length as files if provided"
-        outdir: "directory to which files should be uploaded"
-
-        keyfile : "[optional] File used to key this finaliation.  Finalization will not take place until the KeyFile exists.  This can be used to force the finaliation to wait until a certain point in a workflow.  NOTE: The latest WDL development spec includes the `after` keyword which will obviate this."
-    }
-
     input {
         Array[File] files
         Array[String]? file_names
@@ -155,7 +141,6 @@ task FinalizeToDir {
     }
 
     String gcs_output_dir = sub(outdir, "/+$", "")
-
     Boolean fail = if(defined(file_names)) then length(select_first([file_names])) != length(files) else false
     # this variable is defined because of meta-programing:
     # Cromwell generates the script to be executed at runtime (duing the run of the workflow),
@@ -165,6 +150,7 @@ task FinalizeToDir {
     # if the optional input file_names isn't provided, it's not used anyway, so we don't worry about the literal correctness of
     # the variable's values--the variable used in generating the script--but only care that it is defined.
     Array[String] names_for_cromwell = select_first([file_names, ["correctness_doesnot_matter_here"]])
+
     command <<<
         set -euo pipefail
 
@@ -207,14 +193,4 @@ task FinalizeToDir {
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
     }
-}
-
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-    String? docker
 }

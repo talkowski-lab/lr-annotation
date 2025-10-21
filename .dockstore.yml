@@ -1,8 +1,8 @@
 version: 1.2
 workflows:
   - subclass: WDL
-    name: AnnotateSVAN
-    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
+    name: AnnotateL1MEAIDFilter
+    primaryDescriptorPath: /wdl/AnnotateL1MEAIDFilter.wdl
     filters:
       branches:
         - main
@@ -19,8 +19,17 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateL1MEAIDFilter
-    primaryDescriptorPath: /wdl/AnnotateL1MEAIDFilter.wdl
+    name: AnnotateSVAN
+    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateSVAnnotate
+    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
     filters:
       branches:
         - main
@@ -39,15 +48,6 @@ workflows:
   - subclass: WDL
     name: AnnotateVEPHail_vModified
     primaryDescriptorPath: /wdl/AnnotateVEPHail_vModified.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: AnnotateSVAnnotate
-    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
     filters:
       branches:
         - main

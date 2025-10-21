@@ -4,25 +4,44 @@ Pipeline for long-read callset annotation.
 
 
 ## Pipeline Steps
-- [AnnotateSVAN.wdl](#annotatesvanwdl).
-- [AnnotatePALMER.wdl](#annotatepalmerwdl).
-- [AnnotateL1MEAIDFilter.wdl](#annotatel1meaidfilterwdl).
-- [AnnotateVEPHail.wdl](#annotatevephailwdl).
-- [AnnotateSVAnnotate.wdl](#annotatesvannotatewdl).
 - [AnnotateAF.wdl](#annotateafwdl).
+- [AnnotateL1MEAIDFilter.wdl](#annotatel1meaidfilterwdl).
+- [AnnotatePALMER.wdl](#annotatepalmerwdl).
+- [AnnotateSVAN.wdl](#annotatesvanwdl).
+- [AnnotateSVAnnotate.wdl](#annotatesvannotatewdl).
+- [AnnotateVEPHail.wdl](#annotatevephailwdl).
 
 
 
 ## Cohort
 - [HGSVC3]: 65 samples.
-- [HPRC2]: 231 samples.
+- [HPRC2]: 232 samples.
 - Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
-- Missing: CHM13 (only in HPRC VCF in place of HG00272), HG03492 (only in HPRC2 Github).
 - Total: 291 samples.
 
 
 
 ## Annotation Workflows
+### [AnnotateAF.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
+This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the cohort internal allele frequencies based on sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants. It is based off the `AnnotateVcf.wdl` workflow.
+
+References:
+- `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
+- `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
+
+Additional Inputs:
+- `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.
+- `ped_file`: Cohort PED file.
+
+
+## [AnnotateL1MEAIDFilter.wdl]
+TODO
+
+
+## [AnnotatePALMER.wdl]
+TODO
+
+
 ### [AnnotateSVAN.wdl](wdl/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
@@ -35,12 +54,13 @@ References:
 - `mei_fasta`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 
 
-## [AnnotatePALMER.wdl]
-TODO
+### [AnnotateSVAnnotate.wdl](wdl/AnnotateSVAnnotate.wdl)
+This workflow employs the GATK tool [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) to annotate predicted functional effects for structural variants. It conditionally only runs structural variants through this workflow, ignoring all SNVs and InDels.
 
-
-## [AnnotateL1MEAIDFilter.wdl]
-TODO
+References:
+- `GATK Package`: [v4.5.0.0](https://github.com/broadinstitute/gatk), which is built in the base image `quay.io/ymostovoy/lr-utils-basic:2.0` that is used in the [docker](dockerfiles/Dockerfile.AnnotateSVAnnotate).
+- `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
+- `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 
 
 ### [AnnotateVEPHail.wdl](wdl/AnnotateVEPHail.wdl)
@@ -55,30 +75,9 @@ References:
 - Additional References: Based on the pre-defined references used in the installed version of VEP, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache). These additional references include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc.
 
 
-### [AnnotateSVAnnotate.wdl](wdl/AnnotateSVAnnotate.wdl)
-This workflow employs the GATK tool [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) to annotate predicted functional effects for structural variants. It conditionally only runs structural variants through this workflow, ignoring all SNVs and InDels.
 
-References:
-- `GATK Package`: [v4.5.0.0](https://github.com/broadinstitute/gatk), which is built in the base image `quay.io/ymostovoy/lr-utils-basic:2.0` that is used in the [docker](dockerfiles/Dockerfile.AnnotateSVAnnotate).
-- `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
-- `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
-
-
-### [AnnotateAF.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
-This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the internal allele frequencies (AFs) based on  sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants. It is based off the `AnnotateVcf.wdl` workflow.
-
-References:
-- `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
-- `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
-
-
-
-## Additional Workflows
+## Downstream Workflows
 ### [BenchmarkAnnotations.wdl](wdl/BenchmarkAnnotations.wdl)
-TODO
-
-
-### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
 TODO
 
 
@@ -92,6 +91,12 @@ python ./scripts/merge/merge_af_annotated_vcfs.py \
 	./data/functionally_annotated/functionally_annotated.vcf.gz \
 	-o ./data/annotated_merged/af_functionally_annotated.vcf.gz
 ```
+
+
+
+## Additional Workflows
+### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
+TODO
 
 
 ### [MinimapAlignment.wdl](wdl/MinimapAlignment.wdl)
