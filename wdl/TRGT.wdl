@@ -1,7 +1,6 @@
 version 1.0
 
-import "TRGTFinalization.wdl" as TF
-import "Helpers.wdl"
+import "general/Helpers.wdl"
 
 workflow TRGT {
     input {
@@ -27,7 +26,7 @@ workflow TRGT {
     output {
         File trgt_output_vcf     = FinalizeTrgtVCF.gcs_path
         File trgt_output_vcf_idx = FinalizeTrgtTBI.gcs_path
-        File trgt_output_bam = processWithTRGT.trgt_output_bam # omit to save storage space
+        File trgt_output_bam = ProcessWithTRGT.trgt_output_bam
     }
 
     if (!defined(custom_out_prefix)){
@@ -77,20 +76,17 @@ task ProcessWithTRGT {
     input {
         File input_bam
         File input_bam_bai
-        Boolean is_female
-
+        
         String outprefix
+        File repeatCatalog
+        String catalog_name 
+        Boolean is_female
+        Boolean verbose = false
 
         File ref_fasta
         File ref_fasta_index
 
-        File repeatCatalog
-        String catalog_name  # used in naming, so be linux friendly
-
-        Boolean verbose = false
-
         String docker
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -122,13 +118,14 @@ task ProcessWithTRGT {
 
         find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
 
-        # sort & index
         bcftools sort \
             -Ob \
             -o ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz
+        
         mv  ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz
+        
         bcftools index \
             -t \
             ~{vcf_out_name}.vcf.gz
