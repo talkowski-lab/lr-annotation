@@ -87,6 +87,7 @@ task AlignAssembly {
 
     String out_prefix = "~{sample_id}-asm_h~{hap}.minimap2"
     Int mm2_threads = threads - 4
+    Int disk_size = 2*ceil(size(assembly_fa, "GB") + size(ref_fasta, "GB")) + 5
 
     command <<<
         set -euo pipefail
@@ -113,13 +114,11 @@ task AlignAssembly {
         File pafOut = "~{out_prefix}.paf"
     }
 
-    Int disk_size = 2*ceil(size(assembly_fa, "GB") + size(ref_fasta, "GB")) + 5
-
     RuntimeAttr default_attr = object {
         cpu_cores:          threads,
-        mem_gb:             4*threads,
+        mem_gb:             2*threads,
         disk_gb:            disk_size,
-        boot_disk_gb:       20,
+        boot_disk_gb:       10,
         preemptible_tries:  0,
         max_retries:        0,
         docker:             docker
