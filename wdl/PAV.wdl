@@ -2,7 +2,7 @@ version 1.0
 
 import "general/Structs.wdl"
 
-workflow RunPAV {
+workflow PAV {
 	input {
 		Array[File] mat_haplotypes
 		Array[File] pat_haplotypes
@@ -13,7 +13,7 @@ workflow RunPAV {
 
 		String pav_docker
 
-		RuntimeAttr? runtime_attr_call
+		RuntimeAttr? runtime_attr_run_pav
 	}
 
 	call CallPAV {
@@ -24,12 +24,12 @@ workflow RunPAV {
 			ref_fasta = ref_fasta,
 			ref_fasta_fai = ref_fasta_fai,
 			pav_docker = pav_docker,
-			runtime_attr_override = runtime_attr_call
+			runtime_attr_override = runtime_attr_run_pav
 	}
 
 	output {
-		File results_tarball = CallPAV.results_tar
-		File log_tarball = CallPAV.log_tar
+		File pav_results_tarball = CallPAV.results_tar
+		File pav_log_tarball = CallPAV.log_tar
 	}
 }
 
@@ -96,7 +96,7 @@ with open("assemblies.tsv", "w") as f:
 		f.write(f"{sample_id}\t{mat_link}\t{pat_link}\n")
 CODE
 
-		python -m pav3
+		python3 -m pav3
 
 		tar -zcf pav_results.tar.gz results
 		tar -zcf pav_log.tar.gz log
