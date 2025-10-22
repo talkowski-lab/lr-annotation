@@ -91,7 +91,7 @@ task ShardMatchedEval {
         mem_gb: 2,
         disk_gb: 2,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -147,7 +147,7 @@ task ComputeShardBenchmarks {
         mem_gb: 8,
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -195,7 +195,7 @@ task MergeShardBenchmarks {
         mem_gb: 8,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

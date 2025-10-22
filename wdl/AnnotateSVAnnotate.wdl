@@ -5,7 +5,7 @@ import "general/Structs.wdl"
 workflow AnnotateSVAnnotate {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         File coding_gtf
         File noncoding_bed
@@ -28,7 +28,7 @@ workflow AnnotateSVAnnotate {
         call SubsetVcf {
             input:
                 vcf = vcf,
-                vcf_index = vcf_index,
+                vcf_idx = vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
                 min_svlen = min_svlen,
@@ -38,7 +38,7 @@ workflow AnnotateSVAnnotate {
         call PreprocessVcf {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_index = SubsetVcf.subset_tbi,
+                vcf_idx = SubsetVcf.subset_tbi,
                 prefix = "~{prefix}.~{contig}.doubled",
                 runtime_attr_override = runtime_attr_preprocess
         }
@@ -46,7 +46,7 @@ workflow AnnotateSVAnnotate {
         call AnnotateFunctionalConsequences {
             input:
                 vcf = PreprocessVcf.processed_vcf,
-                vcf_index = PreprocessVcf.processed_tbi,
+                vcf_idx = PreprocessVcf.processed_tbi,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.doubled.anno_func",
@@ -105,7 +105,7 @@ workflow AnnotateSVAnnotate {
 task SubsetVcf {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String locus
         String prefix = "subset"
         Int min_svlen
@@ -130,13 +130,12 @@ task SubsetVcf {
         File unannotated_tbi = "~{prefix}.unannotated.vcf.gz.tbi"
     }
 
-    Int disk_size = 4*ceil(size([vcf, vcf_index], "GB")) + 2
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: disk_size,
+        disk_gb: 4*ceil(size([vcf, vcf_idx], "GB")) + 2,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -154,7 +153,7 @@ task SubsetVcf {
 task PreprocessVcf {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
 
         RuntimeAttr? runtime_attr_override
@@ -183,14 +182,14 @@ task PreprocessVcf {
         mem_gb: 3.75,
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -237,15 +236,6 @@ task AnnotateFunctionalConsequences {
         File anno_tbi = "~{prefix}.vcf.gz.tbi"
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: ceil(10 + size(vcf, "GB") * 5),
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

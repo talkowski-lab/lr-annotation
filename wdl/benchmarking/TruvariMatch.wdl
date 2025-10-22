@@ -180,11 +180,11 @@ task FilterEvalVcf {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2, 
-        mem_gb: 8, 
+        cpu_cores: 2,
+        mem_gb: 8,
         disk_gb: ceil(size(vcf_eval, "GB")) * 3 + 5,
-        boot_disk_gb: 10, 
-        preemptible_tries: 2, 
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -223,11 +223,11 @@ task FilterTruthVcf {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2, 
-        mem_gb: 8, 
+        cpu_cores: 2,
+        mem_gb: 8,
         disk_gb: ceil(size(vcf_truth, "GB")) * 3 + 5,
-        boot_disk_gb: 10, 
-        preemptible_tries: 2, 
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -286,11 +286,11 @@ task RunTruvari {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 8, 
+        cpu_cores: 1,
+        mem_gb: 8,
         disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) * 5 + 20,
-        boot_disk_gb: 10, 
-        preemptible_tries: 2,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -361,7 +361,7 @@ task AnnotateTruvariMatchesWithTruthID {
         mem_gb: 4,
         disk_gb: ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) * 2 + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -402,7 +402,7 @@ task ConcatTruvariResults {
         mem_gb: 4, 
         disk_gb: ceil(size(vcfs, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

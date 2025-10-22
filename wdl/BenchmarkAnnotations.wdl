@@ -9,11 +9,11 @@ import "benchmarking/ShardedBenchmarks.wdl" as Sharded
 workflow BenchmarkAnnotations {
     input {
         File vcf_eval
-        File vcf_eval_index
+        File vcf_eval_idx
         File vcf_truth
-        File vcf_truth_index
+        File vcf_truth_idx
         File vcf_sv_truth
-        File vcf_sv_truth_index
+        File vcf_sv_truth_idx
 
         File ref_fasta
         File ref_fasta_fai
@@ -79,7 +79,7 @@ workflow BenchmarkAnnotations {
         call Helpers.SubsetVcfToContig as SubsetEval {
             input:
                 vcf = vcf_eval,
-                vcf_index = vcf_eval_index,
+                vcf_index = vcf_eval_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker_image = pipeline_docker,
@@ -89,7 +89,7 @@ workflow BenchmarkAnnotations {
         call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
                 vcf = vcf_truth,
-                vcf_index = vcf_truth_index,
+                vcf_index = vcf_truth_idx,
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\"'",
                 prefix = "~{prefix}.~{contig}.truth",
@@ -100,7 +100,7 @@ workflow BenchmarkAnnotations {
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
             input:
                 vcf = vcf_sv_truth,
-                vcf_index = vcf_sv_truth_index,
+                vcf_index = vcf_sv_truth_idx,
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
                 prefix = "~{prefix}.~{contig}.sv_truth",
@@ -330,11 +330,11 @@ task ExactMatch {
     }
     
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 8, 
+        cpu_cores: 1,
+        mem_gb: 8,
         disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
-        boot_disk_gb: 10, 
-        preemptible_tries: 2, 
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -392,7 +392,7 @@ task AnnotateBedtoolsMatches {
         mem_gb: 8,
         disk_gb: 10 + ceil(size(truvari_unmatched_vcf, "GB")) * 3,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -433,7 +433,7 @@ task CollectMatchedIDs {
         mem_gb: 4,
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -473,7 +473,7 @@ task ExtractTruthVepHeader {
         mem_gb: 4,
         disk_gb: ceil(size(vcf_truth_snv, "GB") * 1.5 + 2),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -522,7 +522,7 @@ task ExtractTruthInfoForMatched {
         mem_gb: 8,
         disk_gb: ceil(size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 2 + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -571,7 +571,7 @@ task ComputeSummaryForContig {
         mem_gb: 8,
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -617,7 +617,7 @@ task MergePlotTarballs {
         mem_gb: 4,
         disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

@@ -18,7 +18,7 @@ task AddGenotypes {
                                       mem_gb: 4,
                                       disk_gb: ceil(base_disk_gb + input_size * 5.0),
                                       cpu_cores: 1,
-                                      preemptible_tries: 3,
+                                      preemptible_tries: 1,
                                       max_retries: 1,
                                       boot_disk_gb: 10
                                   }
@@ -152,7 +152,7 @@ task SplitFileWithHeader {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -185,7 +185,7 @@ task SplitSamples {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -253,7 +253,7 @@ task SplitFamilies {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -319,7 +319,7 @@ task MergeResultsPython {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -379,7 +379,7 @@ task MergeResults {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -419,7 +419,7 @@ task GetHailMTSize {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -472,7 +472,7 @@ task GetHailMTSizes {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -529,7 +529,7 @@ task FilterIntervalsToMT {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -601,7 +601,7 @@ task FilterIntervalsToVCF {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -683,7 +683,7 @@ task SubsetVCFSamplesHail {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -767,7 +767,7 @@ task MergeMTs {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -844,7 +844,7 @@ task MergeHTs {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -917,7 +917,7 @@ task SubsetVCFs {
                                       mem_gb: 4,
                                       disk_gb: ceil(base_disk_gb + (relatedness_size) * 5.0),
                                       cpu_cores: 1,
-                                      preemptible_tries: 3,
+                                      preemptible_tries: 1,
                                       max_retries: 1,
                                       boot_disk_gb: 10
                                   }
@@ -1016,7 +1016,7 @@ task ConcatVcfs {
     mem_gb: base_mem_gb + compression_factor * input_size,
     disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
     cpu_cores: 1,
-    preemptible_tries: 3,
+    preemptible_tries: 1,
     max_retries: 1,
     boot_disk_gb: 10
   }
@@ -1079,7 +1079,7 @@ task SubsetVcfToContig {
         mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1117,7 +1117,7 @@ task ConcatFiles {
         mem_gb: 2,
         disk_gb: ceil(size(files, "GB") * 1.2) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1169,7 +1169,7 @@ task SplitQueryVcf {
         mem_gb: 3.75,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1209,7 +1209,7 @@ task BedtoolsClosest {
         mem_gb: 3.75,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1250,7 +1250,7 @@ task SelectMatchedSVs {
         mem_gb: 3.75,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1290,7 +1290,7 @@ task SelectMatchedINSs {
         mem_gb: 3.75,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1333,7 +1333,7 @@ task ConvertToSymbolic {
         mem_gb: 3.75,
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1373,7 +1373,7 @@ task RenameVariantIds {
         mem_gb: 4, 
         disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
-        preemptible_tries: 2, 
+        preemptible_tries: 1, 
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1434,7 +1434,7 @@ task FinalizeToFile {
         mem_gb:             1,
         disk_gb:            10,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
@@ -1492,7 +1492,7 @@ task FinalizeToDir {
         mem_gb:             1,
         disk_gb:            10,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
@@ -1550,7 +1550,7 @@ task FinalizeTarGzContents {
         mem_gb:             2,
         disk_gb:            10,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
@@ -1651,7 +1651,7 @@ task CompressAndFinalize {
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
@@ -1714,7 +1714,7 @@ task FinalizeAndCompress {
         mem_gb:             7,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
@@ -1803,7 +1803,7 @@ task ChunkManifest {
         mem_gb:             1,
         disk_gb:            10,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
@@ -1873,7 +1873,7 @@ task SortSam {
         mem_gb:             5,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.1-1540490856"
     }
@@ -1941,7 +1941,7 @@ task MakeChrIntervalList {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
@@ -2041,7 +2041,7 @@ task ExtractIntervalNamesFromIntervalOrBamFile {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
@@ -2153,7 +2153,7 @@ task MakeIntervalListFromSequenceDictionary {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
@@ -2209,7 +2209,7 @@ task CreateIntervalListFileFromIntervalInfo {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "ubuntu:22.04"
     }
@@ -2267,7 +2267,7 @@ task CountBamRecords {
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
@@ -2335,7 +2335,7 @@ task DownsampleSam {
         mem_gb:             8,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-gatk/gatk:4.2.0.0"
     }
@@ -2384,7 +2384,7 @@ task Sum {
         mem_gb:             1,
         disk_gb:            1,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-align:0.1.28"
     }
@@ -2434,7 +2434,7 @@ task Uniq {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
@@ -2481,8 +2481,8 @@ task Timestamp {
         mem_gb:             1,
         disk_gb:            1,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
-        max_retries:        0,
+        preemptible_tries:  1,
+        max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2533,7 +2533,7 @@ task BamToBed {
         mem_gb:             8,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
@@ -2586,7 +2586,7 @@ task BamToFastq {
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
@@ -2647,8 +2647,8 @@ task MergeFastqs {
         mem_gb:             memory,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
-        max_retries:        0,
+        preemptible_tries:  1,
+        max_retries:        1,
         docker:             "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2707,8 +2707,8 @@ task MergeBams {
         mem_gb:             20,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
-        max_retries:        0,
+        preemptible_tries:  1,
+        max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2828,7 +2828,7 @@ task SubsetBam {
         mem_gb:             10,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
     }
@@ -2918,7 +2918,7 @@ task ResilientSubsetBam {
         mem_gb:             10,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  2,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
@@ -2972,7 +2972,7 @@ task Bamtools {
         mem_gb:             2,
         disk_gb:            disk_size_gb,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9.beta"
     }
@@ -3046,7 +3046,7 @@ task DeduplicateBam {
         mem_gb:             16,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.10"
     }
@@ -3106,7 +3106,7 @@ task Cat {
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        2,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
     }
@@ -3160,8 +3160,8 @@ task ComputeGenomeLength {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
-        max_retries:        0,
+        preemptible_tries:  1,
+        max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -3217,8 +3217,8 @@ task ListFilesOfType {
         mem_gb:             1,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  0,
-        max_retries:        0,
+        preemptible_tries:  1,
+        max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -3507,7 +3507,7 @@ task GetRawReadGroup {
         mem_gb:             1,
         disk_gb:            50,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
     }
@@ -3568,7 +3568,7 @@ task GetReadsInBedFileRegions {
         mem_gb:             16,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
     }
@@ -3643,7 +3643,7 @@ task CreateIGVSession {
         mem_gb:             1,
         disk_gb:            50,
         boot_disk_gb:       10,
-        preemptible_tries:  3,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "quay.io/mduran/generate-igv-session_2:v1.0"
     }
@@ -3707,7 +3707,7 @@ task SplitContigToIntervals {
         mem_gb:             2,
         disk_gb:            disk_size,
         boot_disk_gb:       15,
-        preemptible_tries:  0,
+        preemptible_tries:  1,
         max_retries:        1,
         docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }

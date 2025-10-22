@@ -213,7 +213,7 @@ task FilterBySvlen {
         mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -261,7 +261,7 @@ task MergeWithOriginal {
         mem_gb: 3.75,
         disk_gb: ceil(size(original_vcf, "GB") + size(annotated_vcf, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -319,7 +319,7 @@ task SeparateInsertionsDeletions {
         mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -377,7 +377,7 @@ task GenerateTRF {
         mem_gb: 7.5,
         disk_gb: ceil(size(vcf, "GB") * 3) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -525,7 +525,7 @@ CODE
         mem_gb: 15,
         disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB") + size(mei_bwa_amb, "GB") + size(mei_bwa_ann, "GB") + size(mei_bwa_bwt, "GB") + size(mei_bwa_pac, "GB") + size(mei_bwa_sa, "GB") + size(mei_minimap_mmi, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -579,7 +579,7 @@ task MergeAnnotatedVcfs {
         mem_gb: 7.5,
         disk_gb: 50,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

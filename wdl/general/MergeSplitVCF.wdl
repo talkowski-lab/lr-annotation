@@ -20,7 +20,7 @@ task SplitFile {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -66,7 +66,7 @@ task CombineVCFs {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
@@ -125,7 +125,7 @@ task CombineVCFsCombineSamples {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1,
         boot_disk_gb: 10
     }
