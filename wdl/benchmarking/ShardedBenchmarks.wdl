@@ -77,6 +77,7 @@ task ShardMatchedEval {
 
     command <<<
         set -euo pipefail
+        
         mkdir -p shards
         zcat ~{matched_ids_tsv} | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/ids.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
         ls shards/ids.*.tsv | while read f; do bgzip -f "$f"; done
@@ -125,6 +126,7 @@ task ComputeShardBenchmarks {
 
     command <<<
         set -euo pipefail
+
         python3 /opt/gnomad-lr/scripts/benchmark/compute_benchmarks_shard.py \
             --prefix ~{prefix} \
             --contig ~{contig} \

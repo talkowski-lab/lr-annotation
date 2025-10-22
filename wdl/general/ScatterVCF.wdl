@@ -170,12 +170,15 @@ task GetChromosomeSizes {
     
     command <<<        
         set -euo pipefail
+
         if [[ "~{has_index}" == "false" ]]; then
             mkfifo /tmp/token_fifo
             ( while true ; do curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token > /tmp/token_fifo ; done ) &
             HTS_AUTH_LOCATION=/tmp/token_fifo tabix --verbosity 3 ~{vcf_file}
         fi;
+        
         export GCS_OAUTH_TOKEN=`/google-cloud-sdk/bin/gcloud auth application-default print-access-token`
+        
         bcftools index -s ~{vcf_file} | cut -f1,3 > contig_lengths.txt
         bcftools query -l ~{vcf_file} | wc -l > n_samples.txt
     >>>
@@ -224,8 +227,10 @@ task SplitByChromosomeRemote {
 
     command <<<        
         set -euo pipefail
+        
         mkfifo /tmp/token_fifo
         ( while true ; do curl -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token > /tmp/token_fifo ; done ) &
+        
         HTS_AUTH_LOCATION=/tmp/token_fifo tabix --verbosity 3 -h ~{vcf_file} ~{chromosome} | bgzip -c > ~{prefix}."~{chromosome}".vcf.gz
         
         tabix ~{prefix}."~{chromosome}".vcf.gz
@@ -277,11 +282,13 @@ task SplitByChromosome {
 
     command <<<
         set -euo pipefail
+
         tabix --verbosity 3 ~{vcf_file}
         
         tabix --verbosity 3 -h ~{vcf_file} ~{chromosome} | bgzip -c > ~{prefix}."~{chromosome}".vcf.gz
         
         tabix ~{prefix}."~{chromosome}".vcf.gz
+        
         # get number of records in chr
         HTS_AUTH_LOCATION=/tmp/token_fifo bcftools index -n ~{prefix}."~{chromosome}".vcf.gz > contig_length.txt
     >>>
@@ -333,8 +340,11 @@ task ExecuteScattering {
     
     command <<<
         set -euo pipefail
+        
         curl  ~{split_vcf_hail_script} > split_vcf.py
+        
         python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{select_first([runtime_override.cpu_cores, default_attr.cpu_cores])} ~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} ~{genome_build}
+        
         for file in $(ls ~{prefix}.vcf.bgz | grep '.bgz'); do
             shard_num=$(echo $file | cut -d '-' -f2);
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz
@@ -386,8 +396,11 @@ task ScatterVCFRemote {
     
     command <<<
         set -euo pipefail
+        
         curl  ~{split_vcf_hail_script} > split_vcf.py
+        
         python3 split_vcf.py ~{vcf_file} ~{n_shards} ~{records_per_shard} ~{prefix} ~{select_first([runtime_override.cpu_cores, default_attr.cpu_cores])} ~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} ~{genome_build}
+        
         for file in $(ls ~{prefix}.vcf.bgz | grep '.bgz'); do
             shard_num=$(echo $file | cut -d '-' -f2);
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz

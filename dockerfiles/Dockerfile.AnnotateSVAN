@@ -26,7 +26,6 @@ RUN apt-get update && apt-get install -y \
     libtool \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python packages
 RUN pip3 install --no-cache-dir \
     "numpy>=1.19.5,<1.27.0" \
     pysam \

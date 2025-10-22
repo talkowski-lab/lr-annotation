@@ -1,5 +1,7 @@
 FROM conda/miniconda3
 
+MAINTAINER Karan Jaisingh
+
 RUN conda update -n base -c defaults conda
 
 RUN conda config --add channels bioconda \

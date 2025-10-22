@@ -1,0 +1,65 @@
+FROM ubuntu:22.04
+
+MAINTAINER Karan Jaisingh
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    curl \
+    git \
+    software-properties-common \
+    pkg-config \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libcurl4-gnutls-dev \
+    libssl-dev \
+    samtools \
+    bcftools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python 3.12
+RUN add-apt-repository ppa:deadsnakes/ppa -y && \
+    apt-get update && \
+    apt-get install -y \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pip for Python 3.12
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.12
+
+# Set Python 3.12 as default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    update-alternatives --set python3 /usr/bin/python3.12
+
+# Install Minimap2
+RUN cd /opt && \
+    git clone https://github.com/lh3/minimap2.git && \
+    cd minimap2 && \
+    make && \
+    curl -L https://github.com/attractivechaos/k8/releases/download/v0.2.4/k8-0.2.4.tar.bz2 | tar -jxf - && \
+    cp k8-0.2.4/k8-`uname -s` k8
+
+ENV PATH="/opt/minimap2:/opt/minimap2/misc:${PATH}"
+
+# Install PAV and dependencies
+RUN python3.12 -m pip install --no-cache-dir \
+    pav3 \
+    snakemake \
+    drmaa \
+    joblib \
+    pulp \
+    matplotlib \
+    matplotlib-venn \
+    pandas \
+    pysam
+
+# Create working directory
+WORKDIR /app
+
+# Set default command
+CMD ["/bin/bash"]

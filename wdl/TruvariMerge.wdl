@@ -62,7 +62,7 @@ task BcftoolsMerge {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
       
         N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
         N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
@@ -125,7 +125,7 @@ task Truvari {
     }
     
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
         
         N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
         N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"

@@ -90,9 +90,11 @@ task CombineVCFs {
 
     command <<<
         set -euo pipefail
+
         VCFS="~{write_lines(vcf_files)}"
         cat $VCFS | awk -F '/' '{print $NF"\t"$0}' | sort -k1,1V | awk '{print $2}' > vcfs_sorted.list
         bcftools concat ~{naive_str} ~{overlap_str} --no-version -Oz --file-list vcfs_sorted.list --output ~{merged_vcf_name}
+        
         if [ "~{sort_after_merge}" = "true" ]; then
             mkdir -p tmp
             bcftools sort ~{merged_vcf_name} -Oz --output ~{sorted_vcf_name} -T tmp/
@@ -100,7 +102,6 @@ task CombineVCFs {
         else 
             tabix ~{merged_vcf_name}
         fi
-
     >>>
 
     output {
@@ -144,8 +145,10 @@ task CombineVCFsCombineSamples {
 
     command <<<
         set -euo pipefail
+
         VCFS="~{write_lines(vcf_files)}"
         cat $VCFS | awk -F '/' '{print $NF"\t"$0}' | sort -k1,1V | awk '{print $2}' > vcfs_sorted.list
+        
         for vcf in $(cat vcfs_sorted.list);
         do
             bcftools annotate -x ^FORMAT/GT,FORMAT/AD,FORMAT/DP,FORMAT/GQ,FORMAT/PL -Oz -o "$vcf"_stripped.vcf.gz $vcf

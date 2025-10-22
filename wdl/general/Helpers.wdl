@@ -1033,6 +1033,7 @@ task ConcatVcfs {
 
   command <<<
     set -euo pipefail
+    
     VCFS_FILE="~{write_lines(vcfs)}"
     if ~{!defined(vcfs_idx)}; then
       cat ${VCFS_FILE} | xargs -n1 tabix
@@ -2248,7 +2249,7 @@ task CountBamRecords {
     Int disk_size = 100
 
     command <<<
-        set -eux
+        set -euo pipefail
         export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
         samtools view -c ~{bam} > "count.txt" 2>"error.log"
         if [[ -f "error.log" ]]; then
@@ -3313,7 +3314,7 @@ task CheckOnSamplenames {
     }
 
     command <<<
-        set -eux
+        set -euo pipefail
         n_sm=$(sort ~{write_lines(sample_names)} | uniq | wc -l | awk '{print $1}')
         if [[ ${n_sm} -gt 1 ]]; then echo "Sample mixture!" && exit 1; fi
     >>>
@@ -3391,7 +3392,7 @@ task RandomZoneSpewer {
     }
 
     command <<<
-        set -eux
+        set -euo pipefail
 
         # by no means a perfect solution, but that's not desired anyway
         all_known_zones=("us-central1-a" "us-central1-b" "us-central1-c" "us-central1-f" "us-east1-b" "us-east1-c" "us-east1-d" "us-east4-a" "us-east4-b" "us-east4-c" "us-west1-a" "us-west1-b" "us-west1-c" "us-west2-a" "us-west2-b" "us-west2-c" "us-west3-a" "us-west3-b" "us-west3-c" "us-west4-a" "us-west4-b" "us-west4-c")

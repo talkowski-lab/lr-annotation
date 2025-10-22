@@ -15,11 +15,17 @@ Pipeline for long-read callset annotation.
 
 ## Cohort
 - [HGSVC3]: 65 samples.
+	- Data:
+		- 32x aligned reads, produced after downsampling by Fabio.
+		- High coverage assemblies, derived directly from HGSVC.
 	- Links:
 		- [VCF](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/).
 		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
 	- Metadata file has 67 samples, though it misses NA24385 from its VCF (which is HG002 in Terra, as that is its equivalent in HPRC), renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
 - [HPRC2]: 232 samples.
+	- Data:
+		- High coverage aligned reads, produced directly by Fabio.
+		- High coverage assemblies, derived directly from HPRC.
 	- Links:
 		- [VCF](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/release2/minigraph-cactus/).
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
