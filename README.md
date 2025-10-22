@@ -15,9 +15,22 @@ Pipeline for long-read callset annotation.
 
 ## Cohort
 - [HGSVC3]: 65 samples.
+	- Links:
+		- [VCF](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/).
+		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
+	- Metadata file has 67 samples, though it misses NA24385 from its VCF (which is HG002 in Terra, as that is its equivalent in HPRC), renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
 - [HPRC2]: 232 samples.
-- Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
-- Total: 291 samples.
+	- Links:
+		- [VCF](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/release2/minigraph-cactus/).
+		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
+	- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
+	- VCF has 232 samples, though it misses HG00272 from its metadata file and instead includes CHM13.
+	- The HPRC Y2 workspace additionally includes a sample HG03492.
+- Overlapping: 5 samples (HG00733, HG02818, NA19036, NA19240, NA24385).
+- Mismatched: NA24385 in HGSVC3 is named HG002 in HPRC.
+- Total: 292 samples.
+- The 'modified' pedigree files were made to match the callset VCFs.
+- The sample IDs in the Terra workspace were made to match that of the HPRC Y2 workspace.
 
 
 
@@ -34,11 +47,11 @@ Additional Inputs:
 - `ped_file`: Cohort PED file.
 
 
-## [AnnotateL1MEAIDFilter.wdl]
+### [AnnotateL1MEAIDFilter.wdl]
 TODO
 
 
-## [AnnotatePALMER.wdl]
+### [AnnotatePALMER.wdl]
 TODO
 
 
@@ -119,7 +132,7 @@ TODO
 This workflow is based on a [tool](https://github.com/PacificBiosciences/trgt) developed by PacBio to annotate STRs from long-reads. It requires a reference context file that indicates tandem-repeat regions, and genotypes these to identify STRs.
 
 References:
-- `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), which is the current version in the repository, and is included directly in the manually-listed docker in the [TRGT workflow](wdl/TRGT.wdl).
+- `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), as seen in the docker used in the [TRGT workflow](wdl/TRGT.wdl), as it was used for All of Us Phase 2. An earlier version of TRGT yielded per-sample costs of nearly 4x this version.
 - `reference_fasta`: [hg38 with no alts](gs://fc-8c3900db-633f-477f-96b3-fb31ae265c44/resources/references/grch38_noalt/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa) from the All of Us workspace.
 - `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us.
 

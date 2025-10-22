@@ -6,7 +6,7 @@ workflow MinimapAlignment {
     input {
         File assembly_mat
         File assembly_pat
-        String sample_name
+        String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
         Int minimap_threads = 32
 
@@ -23,7 +23,7 @@ workflow MinimapAlignment {
     }
 
     String workflow_name = "MinimapAlignment"
-    String save_to_dir = where_to_save + "~{workflow_name}/~{sample_name}/"
+    String save_to_dir = where_to_save + "~{workflow_name}/~{sample_id}/"
 
     output {
         File minimap_assembled_bam_mat = save_to_dir + basename(AlignMat.bamOut)
@@ -39,7 +39,7 @@ workflow MinimapAlignment {
     call AlignAssembly as AlignMat { 
         input:
             assembly_fa = assembly_mat,
-            sample = sample_name,
+            sample_id = sample_id,
             flags = minimap_flags, 
             threads = minimap_threads,
             ref_fasta = ref_fasta,
@@ -52,7 +52,7 @@ workflow MinimapAlignment {
     call AlignAssembly as AlignPat { 
         input:
             assembly_fa = assembly_pat,
-            sample = sample_name,
+            sample_id = sample_id,
             flags = minimap_flags,
             threads = minimap_threads,
             ref_fasta = ref_fasta,
@@ -74,7 +74,7 @@ workflow MinimapAlignment {
 task AlignAssembly {
     input {
         File assembly_fa
-        String sample
+        String sample_id
         File ref_fasta
         File ref_fai
         Int hap
@@ -85,7 +85,7 @@ task AlignAssembly {
         RuntimeAttr? runtime_attr_override
     }
 
-    String out_prefix = "~{sample}-asm_h~{hap}.minimap2"
+    String out_prefix = "~{sample_id}-asm_h~{hap}.minimap2"
     Int mm2_threads = threads - 4
 
     command <<<
@@ -113,25 +113,27 @@ task AlignAssembly {
         File pafOut = "~{out_prefix}.paf"
     }
 
-  RuntimeAttr default_attr = object {
-      cpu_cores:          threads,
-      mem_gb:             4*threads,
-      disk_gb:            375,
-      boot_disk_gb:       20,
-      preemptible_tries:  0,
-      max_retries:        0,
-      docker:             docker
-  }
-  RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-      cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-      memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-      disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " LOCAL"
-      bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-      preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-      maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-      docker:                 select_first([runtime_attr.docker,            default_attr.docker])
-  }
+    Int disk_size = 2*ceil(size(assembly_fa, "GB") + size(ref_fasta, "GB")) + 5
+
+    RuntimeAttr default_attr = object {
+        cpu_cores:          threads,
+        mem_gb:             4*threads,
+        disk_gb:            disk_size,
+        boot_disk_gb:       20,
+        preemptible_tries:  0,
+        max_retries:        0,
+        docker:             docker
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+        runtime {
+        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
+        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " LOCAL"
+        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
+        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
+        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
 }
 
 task FinalizeToDir {
