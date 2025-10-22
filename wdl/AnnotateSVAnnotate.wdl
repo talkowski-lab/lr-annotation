@@ -90,7 +90,7 @@ workflow AnnotateSVAnnotate {
             annotated_vcf = MergeVcf.merged_vcf,
             annotated_tbi = MergeVcf.merged_vcf_index,
             original_vcf = vcf,
-            original_tbi = vcf_index,
+            original_tbi = vcf_idx,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
             runtime_attr_override = runtime_attr_postprocess
@@ -201,7 +201,7 @@ task PreprocessVcf {
 task AnnotateFunctionalConsequences {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         File noncoding_bed
         File coding_gtf
         String prefix
@@ -209,6 +209,15 @@ task AnnotateFunctionalConsequences {
         RuntimeAttr? runtime_attr_override
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: ceil(10 + size(vcf, "GB") * 5),
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     Int java_mem_mb = ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]) * 1000 * 0.7)
 
     command <<<
@@ -233,14 +242,14 @@ task AnnotateFunctionalConsequences {
         mem_gb: 8,
         disk_gb: ceil(10 + size(vcf, "GB") * 5),
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: "quay.io/ymostovoy/lr-svannotate:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -290,14 +299,14 @@ task ConcatVcfs {
         mem_gb: 3.75,
         disk_gb: ceil(10 + size(vcfs, "GB") * 2),
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: pipeline_docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -336,7 +345,7 @@ task MergeVcf {
         mem_gb: 3.75,
         disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(unannotated_vcf, "GB")*2),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -379,7 +388,7 @@ task PostprocessVcf {
         mem_gb: 3.75,
         disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(original_vcf, "GB")),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

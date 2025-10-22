@@ -5,7 +5,7 @@ import "general/Structs.wdl"
 workflow TruvariMerge {
     input {
         Array[File] vcfs
-        Array[File] vcf_idxs
+        Array[File] vcf_idx
 
         String prefix
         String? truvari_params
@@ -17,14 +17,13 @@ workflow TruvariMerge {
 
         String merge_docker
         String truvari_docker
-
         RuntimeAttr? runtime_attr_override
     }
     
     call BcftoolsMerge {
         input:
-            vcfs = vcfs, 
-            vcf_idxs = vcf_idxs,
+            vcfs = vcfs,
+            vcf_idx = vcf_idx,
             prefix = prefix,
             params = bcftools_merge_params,
             preprocess_script = preprocess_script,
@@ -44,26 +43,23 @@ workflow TruvariMerge {
     }
 
     output {
-    	File truvari_collapsed_vcf = Truvari.truvari_collapsed_vcf
-        File truvari_collapsed_tbi = Truvari.truvari_collapsed_tbi
+        File truvari_collapsed_vcf = Truvari.truvari_collapsed_vcf
+        File truvari_collapsed_vcf_idx = Truvari.truvari_collapsed_vcf_idx
     }
 }
 
 task BcftoolsMerge {
     input {
         Array[File] vcfs
-        Array[File] vcf_idxs
+        Array[File] vcf_idx
         String prefix
         String params=""
         File? preprocess_script
         File ref_fa
         File ref_fai
-
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    Int disk_size = 8*ceil(size(vcfs, 'GB'))
 
     command <<<
         set -euxo pipefail
@@ -98,23 +94,22 @@ task BcftoolsMerge {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  2,
-        max_retries:        0,
-        docker:             docker
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 8*ceil(size(vcfs, 'GB')),
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -125,12 +120,9 @@ task Truvari {
         File vcf
         File ref_fa
         File ref_fai
-
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    
-    Int disk_size = 5*(ceil(size(vcf,"GB")) + ceil(size(ref_fa,"GB"))) + 10
     
     command <<<
         set -euxo pipefail
@@ -143,34 +135,36 @@ task Truvari {
 
         tabix ~{vcf}
 
-        truvari collapse -i ~{vcf} -c removed.vcf.gz \
-            ~{params} -f ~{ref_fa} \
+        truvari collapse \
+            -i ~{vcf} \
+            -c removed.vcf.gz \
+            ~{params} \
+            -f ~{ref_fa} \
             | bcftools sort --max-mem ${MEM}G -Oz -o ~{prefix}.truvari_collapsed.vcf.gz
         tabix ~{prefix}.truvari_collapsed.vcf.gz
     >>>
     
     output {
-    	File truvari_collapsed_vcf = "~{prefix}.truvari_collapsed.vcf.gz"
-        File truvari_collapsed_tbi = "~{prefix}.truvari_collapsed.vcf.gz.tbi"
+        File truvari_collapsed_vcf = "~{prefix}.truvari_collapsed.vcf.gz"
+        File truvari_collapsed_vcf_idx = "~{prefix}.truvari_collapsed.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             2,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  2,
-        max_retries:        0,
-        docker:             docker
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: 5*(ceil(size(vcf,"GB")) + ceil(size(ref_fa,"GB"))) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }

@@ -3,16 +3,16 @@ version 1.0
 import "general/Structs.wdl"
 import "general/Helpers.wdl" as Helpers
 
-workflow AnnotateSingletonReads {
+workflow FlagSingletonReads {
     input {
         File vcf
-        File vcf_index
-        String pipeline_docker
+        File vcf_idx
+
         String prefix
         Array[String] contigs
-        
-        Int? variants_per_shard
 
+        String pipeline_docker
+        Int? variants_per_shard
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_populate_tags
@@ -25,7 +25,7 @@ workflow AnnotateSingletonReads {
     call SubsetVcfToContigs {
         input:
             vcf = vcf,
-            vcf_index = vcf_index,
+            vcf_idx = vcf_idx,
             contigs = contigs,
             prefix = prefix,
             pipeline_docker = pipeline_docker,
@@ -35,9 +35,9 @@ workflow AnnotateSingletonReads {
     call Helpers.SplitVcfIntoShards {
         input:
             input_vcf = SubsetVcfToContigs.subset_vcf,
-            input_vcf_index = SubsetVcfToContigs.subset_vcf_index,
+            input_vcf_idx = SubsetVcfToContigs.subset_vcf_idx,
             variants_per_shard = variants_per_shard_eff,
-            output_prefix = prefix,
+            prefix = prefix,
             docker_image = pipeline_docker,
             runtime_attr_override = runtime_attr_split
     }
@@ -48,7 +48,7 @@ workflow AnnotateSingletonReads {
         call PopulateTags {
             input:
                 vcf = shard.left,
-                vcf_index = shard.right,
+                vcf_idx = shard.right,
                 prefix = shard_prefix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_populate_tags
@@ -57,7 +57,7 @@ workflow AnnotateSingletonReads {
         call FilterSingletonReads {
             input:
                 vcf = PopulateTags.tagged_vcf,
-                vcf_index = PopulateTags.tagged_vcf_index,
+                vcf_idx = PopulateTags.tagged_vcf_idx,
                 prefix = shard_prefix,
                 pipeline_docker = pipeline_docker,
                 runtime_attr_override = runtime_attr_filter
@@ -67,7 +67,7 @@ workflow AnnotateSingletonReads {
     call Helpers.ConcatVcfs as ConcatFilteredVcfs {
         input:
             vcfs = FilterSingletonReads.filtered_vcf,
-            vcfs_idx = FilterSingletonReads.filtered_vcf_index,
+            vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
             outfile_prefix = prefix,
             docker_image = pipeline_docker,
             runtime_attr_override = runtime_attr_concat
@@ -75,17 +75,16 @@ workflow AnnotateSingletonReads {
 
     output {
         File singleton_filtered_vcf = ConcatFilteredVcfs.concat_vcf
-        File singleton_filtered_vcf_index = ConcatFilteredVcfs.concat_vcf_idx
+        File singleton_filtered_vcf_idx = ConcatFilteredVcfs.concat_vcf_idx
     }
 }
 
 task PopulateTags {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String pipeline_docker
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -98,7 +97,7 @@ task PopulateTags {
 
     output {
         File tagged_vcf = "~{prefix}.tagged.vcf.gz"
-        File tagged_vcf_index = "~{prefix}.tagged.vcf.gz.tbi"
+        File tagged_vcf_idx = "~{prefix}.tagged.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -106,7 +105,7 @@ task PopulateTags {
         mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -124,10 +123,9 @@ task PopulateTags {
 task FilterSingletonReads {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String pipeline_docker
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -176,7 +174,7 @@ EOF
 
     output {
         File filtered_vcf = "~{prefix}.filtered.vcf.gz"
-        File filtered_vcf_index = "~{prefix}.filtered.vcf.gz.tbi"
+        File filtered_vcf_idx = "~{prefix}.filtered.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -184,7 +182,7 @@ EOF
         mem_gb: ceil(size(vcf, "GB")) + 5,
         disk_gb: ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -202,7 +200,7 @@ EOF
 task SubsetVcfToContigs {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         Array[String] contigs
         String prefix
         String pipeline_docker
@@ -218,7 +216,7 @@ task SubsetVcfToContigs {
 
     output {
         File subset_vcf = "~{prefix}.subset.vcf.gz"
-        File subset_vcf_index = "~{prefix}.subset.vcf.gz.tbi"
+        File subset_vcf_idx = "~{prefix}.subset.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -226,7 +224,7 @@ task SubsetVcfToContigs {
         mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 3,
+        preemptible_tries: 1,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

@@ -6,12 +6,14 @@ workflow PALMER {
 	input {
 		File bam
 		File bai
-		File ref_fa
-		File ref_fai
+
 		String prefix
 		String mode
 		String MEI_type
 		Array[String] contigs
+
+		File ref_fa
+		File ref_fai
 
 		String utils_docker
 		String palmer_docker
@@ -65,12 +67,9 @@ task SplitBam {
 		File bai
 		String prefix
 		Array[String] contigs
-		
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
-
-	Int disk_size = ceil(size(bam, "GB")) * 3
 
 	command <<<
 		set -euo pipefail
@@ -88,23 +87,22 @@ task SplitBam {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores:          1,
-		mem_gb:             4,
-		disk_gb:            disk_size,
-		boot_disk_gb:       10,
-		preemptible_tries:  2,
-		max_retries:        1,
-		docker:             docker
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: ceil(size(bam, "GB") * 3) + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 1,
+		max_retries: 1
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
-		cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-		memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-		preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-		docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
 	}
 }
 
@@ -112,15 +110,13 @@ task RunPALMERShard {
 	input {
 		File bam
 		File bai
-		File ref_fa
 		String prefix
 		String mode
 		String MEI_type
+		File ref_fa
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
-
-	Int disk_size = ceil(size(bam, "GB") + size(ref_fa, "GB")) * 3
 
 	command <<<
 		set -euo pipefail
@@ -133,7 +129,8 @@ task RunPALMERShard {
 		chrom=$(echo $bam_base | sed 's/\.bam$//' | rev | cut -f1 -d '_' | rev)
 
 		mkdir -p "${chrom}"
-		/PALMER/PALMER --input ${bam_base} \
+		/PALMER/PALMER \
+			--input ${bam_base} \
 			--ref_fa ~{ref_fa} \
 			--ref_ver GRCh38 \
 			--type ~{MEI_type} \
@@ -152,23 +149,22 @@ task RunPALMERShard {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores:          1,
-		mem_gb:             4,
-		disk_gb:            disk_size,
-		boot_disk_gb:       10,
-		preemptible_tries:  2,
-		max_retries:        1,
-		docker:             docker
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) * 3 + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 1,
+		max_retries: 1
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
-		cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-		memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-		preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-		docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
 	}
 }
 
@@ -180,8 +176,6 @@ task MergePALMEROutputs {
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
-
-	Int disk_size = ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) * 2
 
 	command <<<
 		set -euo pipefail
@@ -203,22 +197,21 @@ task MergePALMEROutputs {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores:          1,
-		mem_gb:             2,
-		disk_gb:            disk_size,
-		boot_disk_gb:       10,
-		preemptible_tries:  2,
-		max_retries:        1,
-		docker:             docker
+		cpu_cores: 1,
+		mem_gb: 2,
+		disk_gb: ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) * 2 + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 1,
+		max_retries: 1
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
-		cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-		memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-		preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-		docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
 	}
 }

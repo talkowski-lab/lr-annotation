@@ -25,7 +25,7 @@ Pipeline for long-read callset annotation.
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
 	- VCF has 232 samples, though it misses HG00272 from its metadata file and instead includes CHM13.
-	- The HPRC Y2 workspace additionally includes a sample HG03492.
+	- The HPRC Y2 workspace includes an additional sample HG03492.
 - Overlapping: 5 samples (HG00733, HG02818, NA19036, NA19240, NA24385).
 - Mismatched: NA24385 in HGSVC3 is named HG002 in HPRC.
 - Total: 292 samples.

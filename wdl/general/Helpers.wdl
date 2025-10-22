@@ -946,9 +946,9 @@ task SubsetVCFs {
 task SplitVcfIntoShards {
   input {
     File input_vcf
-    File input_vcf_index
+    File input_vcf_idx
     Int variants_per_shard
-    String output_prefix
+    String prefix
     String docker_image
     RuntimeAttr? runtime_attr_override
   }
@@ -957,16 +957,11 @@ task SplitVcfIntoShards {
     set -e
 
     mkdir chunks
-
-    # Extract header
     bcftools view -h ~{input_vcf} > chunks/header.vcf
-
-    # Output body lines (no header), then split
     bcftools view -H ~{input_vcf} | split -l ~{variants_per_shard} - chunks/body_
 
-    # Reconstruct chunked VCFs with header
     for body in chunks/body_*; do
-      chunk_name=chunks/~{output_prefix}_$(basename "$body")
+      chunk_name=chunks/~{prefix}_$(basename "$body")
       cat chunks/header.vcf "$body" | bgzip -c > "${chunk_name}.vcf.gz"
       tabix -p vcf -f "${chunk_name}.vcf.gz"
     done
@@ -986,7 +981,6 @@ task SplitVcfIntoShards {
     preemptible_tries: 1,
     max_retries: 1
   }
-
   RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
   runtime {
     cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])

@@ -1,15 +1,15 @@
 version 1.0
     
 import "general/Structs.wdl"
-import "general/Helpers.wdl" as Helpers
+import "general/Helpers.wdl"
 
 workflow AnnotateSVAN {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
+
         String prefix
         Int min_svlen
-        
         File vntr_bed
         File exons_bed
         File repeats_bed
@@ -21,12 +21,10 @@ workflow AnnotateSVAN {
         File mei_bwa_pac
         File mei_bwa_sa
         File mei_minimap_mmi
-
         File reference_fasta
         
         String svan_docker
         Int? variants_per_shard
-        
         RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del
@@ -40,18 +38,18 @@ workflow AnnotateSVAN {
     call FilterBySvlen {
         input:
             vcf = vcf,
-            vcf_index = vcf_index,
+            vcf_idx = vcf_idx,
             min_svlen = min_svlen,
-            prefix = prefix,
+            prefix = "~{prefix}.filtered",
             svan_docker = svan_docker
     }
 
     call Helpers.SplitVcfIntoShards {
         input:
             input_vcf = FilterBySvlen.filtered_vcf,
-            input_vcf_index = FilterBySvlen.filtered_vcf_index,
+            input_vcf_idx = FilterBySvlen.filtered_vcf_idx,
             variants_per_shard = variants_per_shard_eff,
-            output_prefix = prefix + "_filtered",
+            prefix = "~{prefix}.split",
             docker_image = svan_docker
     }
 
@@ -172,25 +170,25 @@ workflow AnnotateSVAN {
     call MergeWithOriginal {
         input:
             original_vcf = vcf,
-            original_vcf_index = vcf_index,
+            original_vcf_idx= vcf_idx,
             annotated_vcf = MergeAnnotatedVcfs.merged_vcf,
-            annotated_vcf_index = MergeAnnotatedVcfs.merged_vcf_index,
+            annotated_vcf_idx = MergeAnnotatedVcfs.merged_vcf_index,
             prefix = prefix,
             svan_docker = svan_docker
     }
 
     output {
         File svan_annotated_vcf = MergeWithOriginal.final_vcf
-        File svan_annotated_vcf_index = MergeWithOriginal.final_vcf_index
+        File svan_annotated_vcf_index = MergeWithOriginal.final_vcf_idx
     }
 }
 
 task FilterBySvlen {
     input {
         File vcf
-        File vcf_index
-        Int min_svlen
+        File vcf_idx
         String prefix
+        Int min_svlen
         String svan_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -200,14 +198,14 @@ task FilterBySvlen {
 
         bcftools view ~{vcf} \
             --include 'abs(INFO/SVLEN) > ~{min_svlen}' \
-            -Oz -o ~{prefix}_filtered.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
         
-        tabix -p vcf ~{prefix}_filtered.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File filtered_vcf = "~{prefix}_filtered.vcf.gz"
-        File filtered_vcf_index = "~{prefix}_filtered.vcf.gz.tbi"
+        File filtered_vcf = "~{prefix}.vcf.gz"
+        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -233,9 +231,9 @@ task FilterBySvlen {
 task MergeWithOriginal {
     input {
         File original_vcf
-        File original_vcf_index
+        File original_vcf_idx
         File annotated_vcf
-        File annotated_vcf_index
+        File annotated_vcf_idx
         String prefix
         String svan_docker
         RuntimeAttr? runtime_attr_override
@@ -255,7 +253,7 @@ task MergeWithOriginal {
 
     output {
         File final_vcf = "~{prefix}.svan_annotated.vcf.gz"
-        File final_vcf_index = "~{prefix}.svan_annotated.vcf.gz.tbi"
+        File final_vcf_idx = "~{prefix}.svan_annotated.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

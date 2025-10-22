@@ -4,26 +4,24 @@ import "general/Structs.wdl"
 import "general/ScatterVCF.wdl" as ScatterVCF
 import "general/MergeSplitVCF.wdl" as MergeSplitVCF
 
-workflow AnnotateVEPHail {
+workflow AnnotateVEPHail_vModified {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
+
+        String cohort_prefix
+        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
+        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail.py"
+        String genome_build = "GRCh38"
+        Boolean split_by_chromosome
+        Boolean split_into_shards
 
         File top_level_fa
         File ref_vep_cache
 
-        String cohort_prefix
         String hail_docker
         String vep_hail_docker
         String sv_base_mini_docker
-        
-        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
-        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail.py"
-
-        String genome_build="GRCh38"
-        Boolean split_by_chromosome
-        Boolean split_into_shards 
-
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
         RuntimeAttr? runtime_attr_vep_annotate
@@ -90,25 +88,24 @@ task VepAnnotate {
     Float input_size = size(vcf, "GB") + size(ref_vep_cache, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 10.0
+
     RuntimeAttr default_attr = object {
+        cpu_cores: 1,
         mem_gb: 8,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
-        boot_disk_gb: 10
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 1
     }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-    
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: vep_hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 
     String filename = basename(vcf)
@@ -151,8 +148,8 @@ task VepAnnotate {
         python3 vep_annotate.py \
             -i ~{vcf} \
             -o ~{vep_annotated_vcf_name} \
-            --cores ~{select_first([runtime_override.cpu_cores, default_attr.cpu_cores])} \
-            --mem ~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} \
+            --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
             --build ~{genome_build} \
             --project-id $proj_id
         
