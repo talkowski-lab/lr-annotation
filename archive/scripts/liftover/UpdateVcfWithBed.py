@@ -2,6 +2,7 @@
 import sys
 import gzip
 
+
 def load_bed(bed_file):
     """Load BED file into dict: key=(chrom,ref,alt) -> (start,end)."""
     bed_dict = {}
@@ -13,6 +14,7 @@ def load_bed(bed_file):
             key = (chrom, ref, alt)
             bed_dict[key] = (int(start), int(end))
     return bed_dict
+
 
 def update_vcf(vcf_file, bed_dict, output_file):
     """Update VCF with POS from BED and add END= annotation."""
@@ -32,9 +34,12 @@ def update_vcf(vcf_file, bed_dict, output_file):
 
             f_out.write("\t".join(fields) + "\n")
 
+
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python bed_vcf_update.py input.bed(.gz) input.vcf.gz output.vcf.gz")
+        print(
+            "Usage: python bed_vcf_update.py input.bed(.gz) input.vcf.gz output.vcf.gz"
+        )
         sys.exit(1)
 
     bed_file, vcf_file, output_file = sys.argv[1], sys.argv[2], sys.argv[3]

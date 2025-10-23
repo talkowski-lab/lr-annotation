@@ -228,8 +228,8 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 - Workflow file names must always match the workflow defined within them.
 
 ### Python
-- All code is in line with PEP8 - running `flake` should yield no errors.
-- 
+- All code should be formatted in-line with black's formatting, which can be applied via `black .`.
+- Running `flake8` should yield no errors.
 
 
 ### Dockerfiles
