@@ -59,7 +59,7 @@ task CallPAV {
 		max_retries: 1
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+	Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
 
 	command <<<
 		set -euo pipefail
@@ -88,13 +88,16 @@ with open("assemblies.tsv", "w") as f:
 	f.write("NAME\tHAP_mat\tHAP_pat\n")
 	
 	for i, sample_id in enumerate(sample_ids):
-		mat_link = f"asms/{sample_id}_mat.fa.gz"
-		pat_link = f"asms/{sample_id}_pat.fa.gz"
+		mat_link_rel = f"asms/{sample_id}_mat.fa.gz"
+		pat_link_rel = f"asms/{sample_id}_pat.fa.gz"
+
+		os.symlink(mat_files[i], mat_link_rel)
+		os.symlink(pat_files[i], pat_link_rel)
+
+		mat_link_abs = os.path.abspath(mat_link_rel)
+		pat_link_abs = os.path.abspath(pat_link_rel)
 		
-		os.symlink(mat_files[i], mat_link)
-		os.symlink(pat_files[i], pat_link)
-		
-		f.write(f"{sample_id}\t{mat_link}\t{pat_link}\n")
+		f.write(f"{sample_id}\t{mat_link_abs}\t{pat_link_abs}\n")
 CODE
 
 		python3 -m pav3 call --cores ~{effective_cpu}
