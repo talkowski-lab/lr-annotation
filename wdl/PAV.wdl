@@ -48,7 +48,7 @@ task CallPAV {
 	}
 
 	Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fasta, "GiB")
-	Int disk_size = ceil(input_size * 3) + 20
+	Int disk_size = ceil(input_size * 3) + 50
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 16,
@@ -64,14 +64,22 @@ task CallPAV {
 	command <<<
 		set -euo pipefail
 
-		ln -s ~{ref_fasta} ref.fa
-		ln -s ~{ref_fasta_fai} ref.fa.fai
+		# Check if reference is gzipped, if not, bgzip it
+		if [[ "~{ref_fasta}" == *.gz ]]; then
+			ln -s ~{ref_fasta} ref.fa.gz
+			ln -s ~{ref_fasta_fai} ref.fa.gz.fai
+		else
+			# PAV requires bgzipped reference due to a bug in link_fasta
+			echo "Compressing reference with bgzip..."
+			bgzip -c ~{ref_fasta} > ref.fa.gz
+			samtools faidx ref.fa.gz
+		fi
 
 		python3 <<'CODE'
 import os
 import json
 
-ref_fa_abs = os.path.abspath("ref.fa")
+ref_fa_abs = os.path.abspath("ref.fa.gz")
 config = {"reference": ref_fa_abs}
 
 with open("config.json", "w") as f:
@@ -90,14 +98,14 @@ with open("assemblies.tsv", "w") as f:
 	f.write("NAME\tHAP_mat\tHAP_pat\n")
 	
 	for i, sample_id in enumerate(sample_ids):
-		mat_link_rel = f"asms/{sample_id}_mat.fa.gz"
-		pat_link_rel = f"asms/{sample_id}_pat.fa.gz"
+		mat_link = f"asms/{sample_id}_mat.fa.gz"
+		pat_link = f"asms/{sample_id}_pat.fa.gz"
 
-		os.symlink(mat_files[i], mat_link_rel)
-		os.symlink(pat_files[i], pat_link_rel)
+		os.symlink(os.path.abspath(mat_files[i]), mat_link)
+		os.symlink(os.path.abspath(pat_files[i]), pat_link)
 
-		mat_link_abs = os.path.abspath(mat_link_rel)
-		pat_link_abs = os.path.abspath(pat_link_rel)
+		mat_link_abs = os.path.abspath(mat_link)
+		pat_link_abs = os.path.abspath(pat_link)
 		
 		f.write(f"{sample_id}\t{mat_link_abs}\t{pat_link_abs}\n")
 CODE
