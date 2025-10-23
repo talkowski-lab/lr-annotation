@@ -100,7 +100,7 @@ task BcftoolsMerge {
         disk_gb: 8*ceil(size(vcfs, 'GB')),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -156,7 +156,7 @@ task Truvari {
         disk_gb: 5*(ceil(size(vcf,"GB")) + ceil(size(ref_fa,"GB"))) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

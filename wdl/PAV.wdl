@@ -8,8 +8,8 @@ workflow PAV {
 		Array[File] pat_haplotypes
 		Array[String] sample_ids
 
-		File ref_fasta
-		File ref_fasta_fai
+		File ref_fa
+		File ref_fai
 
 		String pav_docker
 
@@ -21,9 +21,9 @@ workflow PAV {
 			mat_haplotypes = mat_haplotypes,
 			pat_haplotypes = pat_haplotypes,
 			sample_ids = sample_ids,
-			ref_fasta = ref_fasta,
-			ref_fasta_fai = ref_fasta_fai,
-			pav_docker = pav_docker,
+			ref_fa = ref_fa,
+			ref_fai = ref_fai,
+			docker = pav_docker,
 			runtime_attr_override = runtime_attr_run_pav
 	}
 
@@ -39,15 +39,15 @@ task CallPAV {
 		Array[File] pat_haplotypes
 		Array[String] sample_ids
 
-		File ref_fasta
-		File ref_fasta_fai
+		File ref_fa
+		File ref_fai
 
-		String pav_docker
+		String docker
 
 		RuntimeAttr? runtime_attr_override
 	}
 
-	Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fasta, "GiB")
+	Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")
 	Int disk_size = ceil(input_size * 3) + 50
 
 	RuntimeAttr default_attr = object {
@@ -56,7 +56,7 @@ task CallPAV {
 		disk_gb: disk_size,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
-		max_retries: 1
+		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
@@ -64,12 +64,12 @@ task CallPAV {
 	command <<<
 		set -euo pipefail
 
-		if [[ "~{ref_fasta}" == *.gz ]]; then
-			ln -s ~{ref_fasta} ref.fa.gz
-			ln -s ~{ref_fasta_fai} ref.fa.gz.fai
+		if [[ "~{ref_fa}" == *.gz ]]; then
+			ln -s ~{ref_fa} ref.fa.gz
+			ln -s ~{ref_fai} ref.fa.gz.fai
 		else
 			echo "Compressing reference with bgzip..."
-			bgzip -c ~{ref_fasta} > ref.fa.gz
+			bgzip -c ~{ref_fa} > ref.fa.gz
 			samtools faidx ref.fa.gz
 		fi
 
@@ -124,7 +124,7 @@ CODE
 		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
 		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
 		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: pav_docker
+		docker: docker
 		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
 		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
 	}

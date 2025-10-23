@@ -152,7 +152,7 @@ task GetChromosomeSizes {
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -209,7 +209,7 @@ task SplitByChromosomeRemote {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -264,7 +264,7 @@ task SplitByChromosome {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -322,7 +322,7 @@ task ExecuteScattering {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -377,7 +377,7 @@ task ScatterVCFRemote {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 

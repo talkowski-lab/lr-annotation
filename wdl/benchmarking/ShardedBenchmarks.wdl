@@ -65,7 +65,6 @@ workflow ShardAndComputeBenchmarks {
     }
 }
 
-
 task ShardMatchedEval {
     input {
         File matched_ids_tsv
@@ -93,7 +92,7 @@ task ShardMatchedEval {
         disk_gb: 2,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -106,7 +105,6 @@ task ShardMatchedEval {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task ComputeShardBenchmarks {
     input {
@@ -150,7 +148,7 @@ task ComputeShardBenchmarks {
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -163,7 +161,6 @@ task ComputeShardBenchmarks {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task MergeShardBenchmarks {
     input {
@@ -198,7 +195,7 @@ task MergeShardBenchmarks {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

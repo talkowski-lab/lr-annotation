@@ -15,13 +15,13 @@ task AddGenotypes {
     Float base_disk_gb = 10.0
 
     RuntimeAttr default_attr = object {
-                                      mem_gb: 4,
-                                      disk_gb: ceil(base_disk_gb + input_size * 5.0),
-                                      cpu_cores: 1,
-                                      preemptible_tries: 1,
-                                      max_retries: 1,
-                                      boot_disk_gb: 10
-                                  }
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + input_size * 5.0),
+        cpu_cores: 1,
+        preemptible_tries: 1,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
@@ -153,7 +153,7 @@ task SplitFileWithHeader {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
@@ -186,7 +186,7 @@ task SplitSamples {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -203,7 +203,7 @@ task SplitSamples {
     }
 
     command <<<
-        set -eou pipefail
+        set -euo pipefail
         bcftools query -l ~{vcf_file} > ~{cohort_prefix}_samples.txt
 
         cat <<EOF > split_samples.py 
@@ -254,7 +254,7 @@ task SplitFamilies {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -271,7 +271,7 @@ task SplitFamilies {
     }
 
     command <<<
-        set -eou pipefail
+        set -euo pipefail
 
         cat <<EOF > split_samples.py 
         import os
@@ -320,7 +320,7 @@ task MergeResultsPython {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -380,7 +380,7 @@ task MergeResults {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -420,7 +420,7 @@ task GetHailMTSize {
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -473,7 +473,7 @@ task GetHailMTSizes {
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -530,7 +530,7 @@ task FilterIntervalsToMT {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -602,7 +602,7 @@ task FilterIntervalsToVCF {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -684,7 +684,7 @@ task SubsetVCFSamplesHail {
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -768,7 +768,7 @@ task MergeMTs {
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -845,7 +845,7 @@ task MergeHTs {
         disk_gb: ceil(base_disk_gb),
         cpu_cores: 1,
         preemptible_tries: 1,
-        max_retries: 1,
+        max_retries: 0,
         boot_disk_gb: 10
     }
 
@@ -914,13 +914,13 @@ task SubsetVCFs {
     Float relatedness_size = size(vcf_uri, "GB") 
     Float base_disk_gb = 10.0
     RuntimeAttr default_attr = object {
-                                      mem_gb: 4,
-                                      disk_gb: ceil(base_disk_gb + (relatedness_size) * 5.0),
-                                      cpu_cores: 1,
-                                      preemptible_tries: 1,
-                                      max_retries: 1,
-                                      boot_disk_gb: 10
-                                  }
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + (relatedness_size) * 5.0),
+        cpu_cores: 1,
+        preemptible_tries: 1,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
@@ -979,7 +979,7 @@ task SplitVcfIntoShards {
     disk_gb: 10 + ceil(size(input_vcf,"GiB")*2.5),
     boot_disk_gb: 10,
     preemptible_tries: 1,
-    max_retries: 1
+    max_retries: 0
   }
   RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
   runtime {
@@ -1017,7 +1017,7 @@ task ConcatVcfs {
     disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
     cpu_cores: 1,
     preemptible_tries: 1,
-    max_retries: 1,
+    max_retries: 0,
     boot_disk_gb: 10
   }
   RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
@@ -1081,7 +1081,7 @@ task SubsetVcfToContig {
         disk_gb: ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1119,7 +1119,7 @@ task ConcatFiles {
         disk_gb: ceil(size(files, "GB") * 1.2) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1171,7 +1171,7 @@ task SplitQueryVcf {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1211,7 +1211,7 @@ task BedtoolsClosest {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1252,7 +1252,7 @@ task SelectMatchedSVs {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1292,7 +1292,7 @@ task SelectMatchedINSs {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1326,7 +1326,7 @@ task ConvertToSymbolic {
 
     output {
         File processed_vcf = "~{prefix}.vcf.gz"
-        File processed_tbi = "~{prefix}.vcf.gz.tbi"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -1335,7 +1335,7 @@ task ConvertToSymbolic {
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1375,7 +1375,7 @@ task RenameVariantIds {
         disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 1, 
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1428,13 +1428,13 @@ task FinalizeToFile {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            10,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1444,7 +1444,7 @@ task FinalizeToFile {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1484,15 +1484,14 @@ task FinalizeToDir {
         String gcs_dir = gcs_output_dir
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            10,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1502,7 +1501,7 @@ task FinalizeToDir {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1542,15 +1541,14 @@ task FinalizeTarGzContents {
         gsutil -m cp -r * ~{gcs_output_dir}
     >>>
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             2,
-        disk_gb:            10,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1560,7 +1558,7 @@ task FinalizeTarGzContents {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1591,8 +1589,6 @@ task WriteCompletionFile {
         gsutil cp $completion_file ~{outdir}
     >>>
 
-    #########################
-
     runtime {
         cpu:                    1
         memory:                 1 + " GiB"
@@ -1600,7 +1596,7 @@ task WriteCompletionFile {
         bootDiskSizeGb:         10
         preemptible:            2
         maxRetries:             2
-        docker:                 "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
 }
 
@@ -1643,15 +1639,14 @@ task CompressAndFinalize {
         String gcs_path = gcs_output_file
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1661,7 +1656,7 @@ task CompressAndFinalize {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1706,15 +1701,14 @@ task FinalizeAndCompress {
         String gcs_path = gcs_output_file
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             7,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        cpu_cores: 2,
+        mem_gb: 7,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1724,7 +1718,7 @@ task FinalizeAndCompress {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1763,7 +1757,7 @@ task WriteNamedFile {
         bootDiskSizeGb:         10
         preemptible:            2
         maxRetries:             2
-        docker:                 "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
     }
 }
 
@@ -1795,15 +1789,14 @@ task ChunkManifest {
         Array[File] manifest_chunks = glob("chunk_*")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            10,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1813,7 +1806,7 @@ task ChunkManifest {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1865,15 +1858,14 @@ task SortSam {
         File output_bam_md5 = "~{output_bam_basename}.bam.md5"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             5,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.1-1540490856"
+        cpu_cores: 1,
+        mem_gb: 5,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-gotc-prod/genomes-in-the-cloud:2.4.1-1540490856"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1883,7 +1875,7 @@ task SortSam {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -1933,15 +1925,14 @@ task MakeChrIntervalList {
         Array[File] contig_interval_list_files = glob("contig.*.intervals")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -1951,7 +1942,7 @@ task MakeChrIntervalList {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2033,15 +2024,14 @@ task ExtractIntervalNamesFromIntervalOrBamFile {
         Array[Array[String]] interval_info = read_tsv(interval_tsv_filename)
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2051,7 +2041,7 @@ task ExtractIntervalNamesFromIntervalOrBamFile {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2145,15 +2135,14 @@ task MakeIntervalListFromSequenceDictionary {
         Array[Array[String]] interval_info = read_tsv(interval_tsv_filename)
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2163,7 +2152,7 @@ task MakeIntervalListFromSequenceDictionary {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2201,15 +2190,14 @@ task CreateIntervalListFileFromIntervalInfo {
         File interval_list = out_interval_list
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "ubuntu:22.04"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "ubuntu:22.04"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2219,7 +2207,7 @@ task CreateIntervalListFileFromIntervalInfo {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2259,15 +2247,14 @@ task CountBamRecords {
         Int num_records = read_int("count.txt")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2277,7 +2264,7 @@ task CountBamRecords {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2327,15 +2314,14 @@ task DownsampleSam {
         File output_bam_index = "~{prefix}.bam.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             8,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-gatk/gatk:4.2.0.0"
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-gatk/gatk:4.2.0.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2345,7 +2331,7 @@ task DownsampleSam {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2376,15 +2362,14 @@ task Sum {
         File sum_file = "~{prefix}.txt"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            1,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-align:0.1.28"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 1,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-align:0.1.28"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2394,7 +2379,7 @@ task Sum {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2426,15 +2411,14 @@ task Uniq {
         Array[String] unique_strings = read_lines("uniq.txt")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2444,7 +2428,7 @@ task Uniq {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2473,15 +2457,14 @@ task Timestamp {
         String timestamp = read_string("timestamp.txt")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            1,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 1,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2491,7 +2474,7 @@ task Timestamp {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2525,15 +2508,14 @@ task BamToBed {
         File bed = "~{prefix}.bed"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             8,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2543,7 +2525,7 @@ task BamToBed {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2578,15 +2560,14 @@ task BamToFastq {
         File reads_fq = "~{prefix}.fq.gz"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2596,7 +2577,7 @@ task BamToFastq {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2639,15 +2620,14 @@ task MergeFastqs {
         File merged_fastq = "~{prefix}.fq.gz"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             memory,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
+        cpu_cores: 2,
+        mem_gb: memory,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2657,7 +2637,7 @@ task MergeFastqs {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2699,15 +2679,14 @@ task MergeBams {
         File merged_bai = "~{prefix}.bam.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          4,
-        mem_gb:             20,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        cpu_cores: 4,
+        mem_gb: 20,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2717,7 +2696,7 @@ task MergeBams {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2753,15 +2732,14 @@ task Index {
         File bai = "~{prefix}.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2771,7 +2749,7 @@ task Index {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2802,8 +2780,6 @@ task SubsetBam {
         RuntimeAttr? runtime_attr_override
     }
 
-
-
     Int disk_size = 4*ceil(size([bam, bai], "GB"))
 
     command <<<
@@ -2820,15 +2796,14 @@ task SubsetBam {
         File subset_bai = "~{prefix}.bam.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             10,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        cpu_cores: 1,
+        mem_gb: 10,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2838,7 +2813,7 @@ task SubsetBam {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2910,15 +2885,14 @@ task ResilientSubsetBam {
         File subset_bai = "~{subset_prefix}.bam.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             10,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        cpu_cores: 2,
+        mem_gb: 10,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2928,7 +2902,7 @@ task ResilientSubsetBam {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -2964,15 +2938,14 @@ task Bamtools {
         File bam = "~{prefix}.bam"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          2,
-        mem_gb:             2,
-        disk_gb:            disk_size_gb,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9.beta"
+        cpu_cores: 2,
+        mem_gb: 2,
+        disk_gb: disk_size_gb,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9.beta"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -2982,10 +2955,9 @@ task Bamtools {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
-
 
 task DeduplicateBam {
 
@@ -3038,15 +3010,14 @@ task DeduplicateBam {
         File corrected_bai = "~{prefix}.bam.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          4,
-        mem_gb:             16,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.10"
+        cpu_cores: 4,
+        mem_gb: 16,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.10"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3056,7 +3027,7 @@ task DeduplicateBam {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3098,15 +3069,14 @@ task Cat {
         File combined = out
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             4,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        2,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3116,7 +3086,7 @@ task Cat {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3127,21 +3097,21 @@ task ComputeGenomeLength {
     }
 
     parameter_meta {
-        fasta:  "FASTA file"
+        fa:  "FASTA file"
     }
 
     input {
-        File fasta
+        File fa
 
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_size = 2*ceil(size(fasta, "GB"))
+    Int disk_size = 2*ceil(size(fa, "GB"))
 
     command <<<
         set -euo pipefail
 
-        samtools dict ~{fasta} | \
+        samtools dict ~{fa} | \
             grep '^@SQ' | \
             awk '{ print $3 }' | \
             sed 's/LN://' | \
@@ -3152,15 +3122,14 @@ task ComputeGenomeLength {
         Float length = read_float("length.txt")
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3170,7 +3139,7 @@ task ComputeGenomeLength {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3209,15 +3178,14 @@ task ListFilesOfType {
         File manifest = "files.txt"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.8"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3227,7 +3195,7 @@ task ListFilesOfType {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3267,8 +3235,6 @@ task InferSampleName {
         File bai
     }
 
-
-
     command <<<
         set -euo pipefail
 
@@ -3292,7 +3258,7 @@ task InferSampleName {
         bootDiskSizeGb: 10
         preemptible:    2
         maxRetries:     1
-        docker:         "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
     }
 }
 
@@ -3323,7 +3289,7 @@ task CheckOnSamplenames {
         bootDiskSizeGb: 10
         preemptible:    2
         maxRetries:     1
-        docker:         "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
+        docker: "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
     }
 }
 
@@ -3370,7 +3336,7 @@ task ComputeAllowedLocalSSD {
         bootDiskSizeGb: 10
         preemptible:    2
         maxRetries:     1
-        docker:         "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
+        docker: "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
     }
 }
 
@@ -3409,7 +3375,7 @@ task RandomZoneSpewer {
         bootDiskSizeGb: 10
         preemptible:    2
         maxRetries:     1
-        docker:         "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
+        docker: "gcr.io/cloud-marketplace/google/ubuntu2004:latest"
     }
 }
 
@@ -3463,7 +3429,6 @@ task GetCurrentTimestampString {
     }
 }
 
-
 task GetRawReadGroup {
 
     meta {
@@ -3499,15 +3464,14 @@ task GetRawReadGroup {
         String rg = read_string(out_file)
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            50,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3517,7 +3481,7 @@ task GetRawReadGroup {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3560,15 +3524,14 @@ task GetReadsInBedFileRegions {
         File bai = "~{prefix}.bai"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          4,
-        mem_gb:             16,
-        disk_gb:            disk_size,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
+        cpu_cores: 4,
+        mem_gb: 16,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-pb:0.1.30"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3578,7 +3541,7 @@ task GetReadsInBedFileRegions {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3635,15 +3598,14 @@ task CreateIGVSession {
         File igv_session = "${output_name}.xml"
     }
 
-    #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             1,
-        disk_gb:            50,
-        boot_disk_gb:       10,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "quay.io/mduran/generate-igv-session_2:v1.0"
+        cpu_cores: 1,
+        mem_gb: 1,
+        disk_gb: 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "quay.io/mduran/generate-igv-session_2:v1.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3653,7 +3615,7 @@ task CreateIGVSession {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 
@@ -3668,8 +3630,8 @@ task SplitContigToIntervals {
         String contig
         Int size = 200000
 
-        File ref_fasta
-        File ref_fasta_fai
+        File ref_fa
+        File ref_fai
 
         String prefix
 
@@ -3699,15 +3661,14 @@ task SplitContigToIntervals {
         Array[File] individual_bed_files = glob("*.single_interval.bed")
     }
 
-    #########################
-        RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             2,
-        disk_gb:            disk_size,
-        boot_disk_gb:       15,
-        preemptible_tries:  1,
-        max_retries:        1,
-        docker:             "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: disk_size,
+        boot_disk_gb: 15,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-metrics:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -3717,7 +3678,7 @@ task SplitContigToIntervals {
         bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        docker: select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
 

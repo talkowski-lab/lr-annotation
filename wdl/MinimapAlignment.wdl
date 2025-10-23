@@ -13,12 +13,12 @@ workflow MinimapAlignment {
         Int minimap_threads = 32
         String where_to_save
 
-        File ref_fasta
+        File ref_fa
         File ref_fai
 
         String alignment_docker
         String finalize_docker
-        
+
         RuntimeAttr? runtime_attr_align_asm2ref
         RuntimeAttr? runtime_attr_finalize
     }
@@ -36,14 +36,13 @@ workflow MinimapAlignment {
         File minimap_assembled_paf_pat = save_to_dir + basename(AlignPat.pafOut)
     }
 
-
     call AlignAssembly as AlignMat {
         input:
             assembly_fa = assembly_mat,
             sample_id = sample_id,
             flags = minimap_flags,
             threads = minimap_threads,
-            ref_fasta = ref_fasta,
+            ref_fa = ref_fa,
             ref_fai = ref_fai,
             hap = 1,
             docker = alignment_docker,
@@ -56,7 +55,7 @@ workflow MinimapAlignment {
             sample_id = sample_id,
             flags = minimap_flags,
             threads = minimap_threads,
-            ref_fasta = ref_fasta,
+            ref_fa = ref_fa,
             ref_fai = ref_fai,
             hap = 2,
             docker = alignment_docker,
@@ -79,7 +78,7 @@ task AlignAssembly {
         Int hap
         String flags
         Int threads
-        File ref_fasta
+        File ref_fa
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
@@ -94,7 +93,7 @@ task AlignAssembly {
         minimap2 \
             -t ~{mm2_threads} \
             ~{flags} \
-            ~{ref_fasta} \
+            ~{ref_fa} \
             ~{assembly_fa} \
         | samtools sort -@4 -o "~{out_prefix}.bam"
 
@@ -116,10 +115,10 @@ task AlignAssembly {
     RuntimeAttr default_attr = object {
         cpu_cores: threads,
         mem_gb: 2*threads,
-        disk_gb: 2*ceil(size(assembly_fa, "GB") + size(ref_fasta, "GB")) + 5,
+        disk_gb: 2*ceil(size(assembly_fa, "GB") + size(ref_fa, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -178,7 +177,7 @@ task FinalizeToDir {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

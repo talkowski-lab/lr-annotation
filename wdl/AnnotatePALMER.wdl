@@ -11,12 +11,12 @@ workflow AnnotatePALMER {
         Array[File] PALMER_vcfs
         Array[String] ME_types
 
-        File RM_out
-        File RM_fa
+        File rm_out
+        File rm_fa
         File ref_fai
 
         String palmer_docker
-        
+
         RuntimeAttr? runtime_attr_filter_palmer
     }
 
@@ -26,10 +26,10 @@ workflow AnnotatePALMER {
             vcf_idx = vcf_idx,
             prefix = prefix,
             PALMER_vcfs = PALMER_vcfs,
-            RM_out = RM_out,
-            RM_fa = RM_fa,
-            ref_fai = ref_fai,
             ME_types = ME_types,
+            rm_out = rm_out,
+            rm_fa = rm_fa,
+            ref_fai = ref_fai,
             docker = palmer_docker,
             runtime_attr_override = runtime_attr_filter_palmer
     }
@@ -47,8 +47,8 @@ task FilterPALMER {
         String prefix
         Array[File] PALMER_vcfs
         Array[String] ME_types
-        File RM_out
-        File RM_fa
+        File rm_out
+        File rm_fa
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
@@ -77,7 +77,7 @@ task FilterPALMER {
 
             if [ -z "$MEfilter" ]; then echo "ERROR: filter type is unset (check that MEI type is one of permitted options)"; exit 1; fi
 
-            awk '$11==FILTER' FILTER="${MEfilter}" ~{RM_out} | \
+            awk '$11==FILTER' FILTER="${MEfilter}" ~{rm_out} | \
                 awk 'OFS="\t" {print $5,$7,$8}'| sed 's/(//'|sed 's/)//'|awk 'OFS="\t" {print $1,$2+$3}' | \
                 sed 's/:/\t/'|sed 's/;/\t/' | awk 'OFS="\t" {print $1,$2-1,$2,$2,$3,$4}'| sort -k1,1 -k2,2n | uniq | \
                 bedtools slop -g genome_file -b 50 | \
@@ -93,7 +93,7 @@ task FilterPALMER {
             python /opt/gnomad-lr/scripts/palmer/PALMER_filter_and_transfer_annotations.py \
                 intersection \
                 ~{vcf} \
-                ~{RM_fa} \
+                ~{rm_fa} \
                 ${ME_type} \
                 | sort -k1,1 -k2,2n \
                 | uniq \
@@ -125,10 +125,10 @@ task FilterPALMER {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 5*ceil(size(PALMER_vcfs, "GB")+size(RM_out, "GB")+size(RM_fa, "GB")+size(ref_fai, "GB")+size(vcf, "GB"))+20,
+        disk_gb: 5*ceil(size(PALMER_vcfs, "GB")+size(rm_out, "GB")+size(rm_fa, "GB")+size(ref_fai, "GB")+size(vcf, "GB"))+20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

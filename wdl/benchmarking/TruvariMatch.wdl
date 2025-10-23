@@ -8,8 +8,8 @@ workflow TruvariMatch {
         File vcf_eval_index
         File vcf_truth
         File vcf_truth_index
-        File ref_fasta
-        File ref_fasta_fai
+        File ref_fa
+        File ref_fai
         String prefix
         String pipeline_docker
         String truvari_docker
@@ -50,8 +50,8 @@ workflow TruvariMatch {
             vcf_eval_index = FilterEvalVcf.retained_vcf_index,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
             vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
-            ref_fasta = ref_fasta,
-            ref_fasta_fai = ref_fasta_fai,
+            ref_fa = ref_fa,
+            ref_fai = ref_fai,
             pctseq = 0.9,
             sizemin = 0,
             sizefilt = 0,
@@ -80,8 +80,8 @@ workflow TruvariMatch {
             vcf_eval_index = RunTruvari_09.unmatched_vcf_index,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
             vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
-            ref_fasta = ref_fasta,
-            ref_fasta_fai = ref_fasta_fai,
+            ref_fa = ref_fa,
+            ref_fai = ref_fai,
             pctseq = 0.7,
             sizemin = 0,
             sizefilt = 0,
@@ -110,8 +110,8 @@ workflow TruvariMatch {
             vcf_eval_index = RunTruvari_07.unmatched_vcf_index,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
             vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
-            ref_fasta = ref_fasta,
-            ref_fasta_fai = ref_fasta_fai,
+            ref_fa = ref_fa,
+            ref_fai = ref_fai,
             pctseq = 0.5,
             sizemin = 0,
             sizefilt = 0,
@@ -152,7 +152,6 @@ workflow TruvariMatch {
     }
 }
 
-
 task FilterEvalVcf {
     input {
         File vcf_eval
@@ -185,7 +184,7 @@ task FilterEvalVcf {
         disk_gb: ceil(size(vcf_eval, "GB")) * 3 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -198,7 +197,6 @@ task FilterEvalVcf {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task FilterTruthVcf {
     input {
@@ -228,7 +226,7 @@ task FilterTruthVcf {
         disk_gb: ceil(size(vcf_truth, "GB")) * 3 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -242,15 +240,14 @@ task FilterTruthVcf {
     }
 }
 
-
 task RunTruvari {
     input {
         File vcf_eval
         File vcf_eval_index
         File vcf_truth_filtered
         File vcf_truth_filtered_index
-        File ref_fasta
-        File ref_fasta_fai
+        File ref_fa
+        File ref_fai
         Float pctseq
         Int sizemin
         Int sizefilt
@@ -270,7 +267,7 @@ task RunTruvari {
             -b ~{vcf_truth_filtered} \
             -c ~{vcf_eval} \
             -o "~{prefix}_truvari" \
-            --reference ~{ref_fasta} \
+            --reference ~{ref_fa} \
             --pctseq ~{pctseq} \
             --sizemin ~{sizemin} \
             --sizefilt ~{sizefilt}
@@ -291,7 +288,7 @@ task RunTruvari {
         disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) * 5 + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -304,7 +301,6 @@ task RunTruvari {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task AnnotateTruvariMatchesWithTruthID {
     input {
@@ -362,7 +358,7 @@ task AnnotateTruvariMatchesWithTruthID {
         disk_gb: ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) * 2 + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -403,7 +399,7 @@ task ConcatTruvariResults {
         disk_gb: ceil(size(vcfs, "GB")) * 2 + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

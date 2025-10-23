@@ -11,8 +11,8 @@ workflow TRGT {
         String sample_id
         String sex
 
-        File ref_fasta
-        File ref_fasta_index
+        File ref_fa
+        File ref_fa_index
         File repeatCatalog
         String catalog_name
 
@@ -30,8 +30,8 @@ workflow TRGT {
             bai = bai,
             is_female = is_female,
             outprefix = sample_id,
-            ref_fasta = ref_fasta,
-            ref_fasta_index = ref_fasta_index,
+            ref_fa = ref_fa,
+            ref_fa_index = ref_fa_index,
             repeatCatalog = repeatCatalog,
             catalog_name = catalog_name,
             docker = trgt_docker,
@@ -66,8 +66,8 @@ task ProcessWithTRGT {
         String catalog_name
         Boolean is_female
         Boolean verbose = false
-        File ref_fasta
-        File ref_fasta_index
+        File ref_fa
+        File ref_fa_index
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -84,7 +84,7 @@ task ProcessWithTRGT {
         trgt \
             ~{true='--verbose' false=' ' verbose} \
             genotype \
-            --genome ~{ref_fasta} \
+            --genome ~{ref_fa} \
             --repeats ~{repeatCatalog} \
             --reads ~{bam} \
             --threads "${nproc}" \
@@ -118,7 +118,7 @@ task ProcessWithTRGT {
         disk_gb: 10 + 2 * ceil(size(bam, "GiB")),
         boot_disk_gb: 20,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

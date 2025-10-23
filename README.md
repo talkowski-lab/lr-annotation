@@ -185,29 +185,51 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 
 ## Code Conventions
 ### WDL
-- Workflows should be structured in the following order, with each of the below separated by new lines:
+- Workflows should be structured in the following order, with each of the below separated by a blank line:
 	1. Imports.
 	2. Inputs.
 	3. Definition of variables dynamically generated in the workflow itself - unless these require outputs from other tasks, in which case they can go after the tasks they are dependent on.
 	4. Calls to tasks.
 	5. Outputs.
-- Tasks should be structured in the following order, with each of the below separated by new lines:
+- Tasks should be structured in the following order, with each of the below separated by a blank line:
 	1. Inputs.
 	2. Definition of variables dynamically generated in the task itself.
 	3. Command.
 	4. Outputs.
 	5. Runtime settings - which should first be its default runtime settings, followed by a select first with the runtime override, then the actual runtime block.
+- Workflow inputs should be structured in the following order, with each of the below separated by a blank lines:
+	1. Core input files that will be run through the workflow - e.g. VCFs being annotated, BAMs being analyzed etc (as well as their index file if applicable).
+	2. Parameters that govern how the file will be processed - e.g. prefixes, modes, input arguments to tools being called, PED files, sample metadata files etc.
+	3. Reference files - e.g. reference fasta, their index files, catalogs used for annotations, etc.
+	4. Runtime information that are not of type RuntimeAttr - e.g. docker paths, cores if applicable, sharding information if applicable.
+	5. All RuntimeAttr? inputs - there should be one per task called, with its name reflective of the task's function.
 - Workflows should take in an input `prefix` that is passed to every task that creates output files, which should be used in conjunction with a descriptive suffix when creating output files.
 - Workflow imports should not be renamed using the `as` operator.
-- Workflows should never contain any blank comments - e.g. `#########################`.-
-- Workflows should contain be any consecutive blank lines - i.e. they should have a maximum of one blank line at a time.
+- Workflows should never contain any blank comments - e.g. `#########################`.
+- Workflows should never contain be any consecutive blank lines - i.e. they should have a maximum of one blank line at a time.
+- Inputs passed to a task should not have blank lines between inputs.
+- The order of inputs passed to a task should reflect their order in the inputs on the workflow level.
 - Inputs passed to a task should have a space on either side of the `=` character.
-- Tasks should not include additional indentation in order to align better with the length of other components in its section - e.g. for runtime attributes. Indentation should only be applied at the start of a line.
-- Tasks should have a `docker` and `runtime_attr_override` defined, though what is passed to them when calling the task should be explicitly named - e.g. `gatk_docker` and `runtime_attr_override_svannotate`.
-- Every command block within a task should begin with `set -euo pipefail` followed by an empty line.
+- The inputs section of a task should not have blank lines between inputs.
+- Tasks should always have input fields `docker` and `runtime_attr_override` defined, though what is passed to each one of these when calling the task should be explicitly named - e.g. `gatk_docker` and `runtime_attr_override_svannotate` respectively.
+- Every command block within a task should begin with `set -euo pipefail` followed by a blank line.
+- The default `disk_size` for a task should be calculated dynamically based on the largest sized input file - or multiple if there are several large inputs, like multiple reference fasta files or input catalogs. It should be defined in-line in the default runtime attributes section, unless it is a complicated function in which it can have a dedicated variable `disk_size`.
+- The default `mem_gb`, `boot_disk_gb` and `compute_cores` for a task should be explicitly defined rather than based on an input file - it should be set based on the intensity of compute needed by that task.
+- The default `preemptible_tries` for a task should always be 1.
+- The default `max_retries` for a task should always be 0.
+- The names of workflows and tasks should never include a `_` character within them - rather, they should always be in Pascal case.
+- The names of inputs, variables and outputs should include a `_` to separate words, and be entirely lowercase unless they refer to a noun that is capitalized (e.g. PALMER or L1MEAID) - i.e. they should always be in snake case.
+- There should never be any additional indentation in order to better align parts of the code to the length or horizontal/vertical spacing of other components in its section - indentation should only be applied at the start of a line.
+- All mentions of `fasta` should instead use `fa` - e.g. `ref_fa` instead of `ref_fasta`.
+- All mentions of `fasta_index`, `fasta_fai` or `fa_fai`  should instead use `fai` - e.g. `ref_fai` instead of `ref_fasta_index`, `ref_fasta_fai` or `ref_fa_fai`.
+- All mentions of `vcf_index` or `vcf_tbi` should instead use `vcf_idx`.
+- All VCFs should have suffix `_vcf`, and be coupled with a VCF index file that has a suffix `_vcf_idx`.
+- General tasks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows rather than explicitly defined in the workflow file itself.
+- Workflow file names must always match the workflow defined within them.
 
 ### Python
-TODO
+- All code is in line with PEP8 - running `flake` should yield no errors.
+- 
 
 
 ### Dockerfiles

@@ -11,6 +11,7 @@ workflow AnnotateRepeatMasker {
 
         String utils_docker
         String repeatmasker_docker
+
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
     }
@@ -25,15 +26,15 @@ workflow AnnotateRepeatMasker {
 
     call RepeatMasker {
         input:
-            fasta = INSToFa.INS_fa,
+            fa = INSToFa.ins_fa,
             prefix = prefix,
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
     }
 
     output {
-        File RM_out = RepeatMasker.RMout
-        File RM_fa = INSToFa.INS_fa
+        File rm_out = RepeatMasker.rm_out
+        File rm_fa = INSToFa.ins_fa
     }
 }
 
@@ -56,7 +57,7 @@ task INSToFa {
     >>>
 
     output {
-        File INS_fa = '~{prefix}_INS.fa'
+        File ins_fa = '~{prefix}_INS.fa'
     }
 
     RuntimeAttr default_attr = object {
@@ -65,7 +66,7 @@ task INSToFa {
         disk_gb: 2*ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -81,7 +82,7 @@ task INSToFa {
 
 task RepeatMasker {
     input {
-        File fasta
+        File fa
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -95,22 +96,22 @@ task RepeatMasker {
             -species human \
             -pa 4 \
             -s \
-            ~{fasta}
+            ~{fa}
         
-        mv ~{fasta}.out ./~{prefix}.out
+        mv ~{fa}.out ./~{prefix}.out
     >>>
 
     output {
-        File RMout = '~{prefix}.out'
+        File rm_out = '~{prefix}.out'
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 32,
-        disk_gb: 5*ceil(size(fasta, "GB")) + 20,
+        disk_gb: 5*ceil(size(fa, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

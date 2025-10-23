@@ -19,8 +19,8 @@ workflow BenchmarkAnnotations {
         Int variants_per_shard
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
 
-        File ref_fasta
-        File ref_fasta_fai
+        File ref_fa
+        File ref_fai
         File primary_contigs_list
         
         String pipeline_docker
@@ -150,8 +150,8 @@ workflow BenchmarkAnnotations {
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
                 vcf_truth = RenameTruthIds.renamed_vcf,
                 vcf_truth_index = RenameTruthIds.renamed_vcf_index,
-                ref_fasta = ref_fasta,
-                ref_fasta_fai = ref_fasta_fai,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
                 pipeline_docker = pipeline_docker,
                 truvari_docker = truvari_docker,
@@ -304,7 +304,6 @@ workflow BenchmarkAnnotations {
     }
 }
 
-
 task ExactMatch {
     input {
         File vcf_eval
@@ -335,7 +334,7 @@ task ExactMatch {
         disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -393,7 +392,7 @@ task AnnotateBedtoolsMatches {
         disk_gb: 10 + ceil(size(truvari_unmatched_vcf, "GB")) * 3,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -406,7 +405,6 @@ task AnnotateBedtoolsMatches {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task CollectMatchedIDs {
     input {
@@ -434,7 +432,7 @@ task CollectMatchedIDs {
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -447,7 +445,6 @@ task CollectMatchedIDs {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task ExtractTruthVepHeader {
     input {
@@ -474,7 +471,7 @@ task ExtractTruthVepHeader {
         disk_gb: ceil(size(vcf_truth_snv, "GB") * 1.5 + 2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -487,7 +484,6 @@ task ExtractTruthVepHeader {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task ExtractTruthInfoForMatched {
     input {
@@ -523,7 +519,7 @@ task ExtractTruthInfoForMatched {
         disk_gb: ceil(size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 2 + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -572,7 +568,7 @@ task ComputeSummaryForContig {
         disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -585,7 +581,6 @@ task ComputeSummaryForContig {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task MergePlotTarballs {
     input {
@@ -618,7 +613,7 @@ task MergePlotTarballs {
         disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

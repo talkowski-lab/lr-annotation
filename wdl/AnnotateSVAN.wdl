@@ -1,5 +1,5 @@
 version 1.0
-    
+
 import "general/Structs.wdl"
 import "general/Helpers.wdl"
 
@@ -14,18 +14,18 @@ workflow AnnotateSVAN {
         File exons_bed
         File repeats_bed
 
-        File mei_fasta
+        File mei_fa
         File mei_bwa_amb
         File mei_bwa_ann
         File mei_bwa_bwt
         File mei_bwa_pac
         File mei_bwa_sa
         File mei_minimap_mmi
-        File reference_fasta
-        
+        File ref_fa
+
         String svan_docker
         Int? variants_per_shard
-        
+
         RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del
@@ -42,7 +42,7 @@ workflow AnnotateSVAN {
             vcf_idx = vcf_idx,
             min_svlen = min_svlen,
             prefix = "~{prefix}.filtered",
-            svan_docker = svan_docker
+            docker = svan_docker
     }
 
     call Helpers.SplitVcfIntoShards {
@@ -62,7 +62,7 @@ workflow AnnotateSVAN {
                 vcf = shard.left,
                 vcf_index = shard.right,
                 prefix = shard_prefix,
-                svan_docker = svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_separate
         }
 
@@ -72,7 +72,7 @@ workflow AnnotateSVAN {
                 vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
                 prefix = shard_prefix,
                 mode = "ins",
-                svan_docker = svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
         }
 
@@ -82,7 +82,7 @@ workflow AnnotateSVAN {
                 vcf_index = SeparateInsertionsDeletions.del_vcf_index,
                 prefix = shard_prefix,
                 mode = "del",
-                svan_docker = svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_del
         }
 
@@ -94,17 +94,17 @@ workflow AnnotateSVAN {
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
-                mei_fasta = mei_fasta,
+                mei_fa = mei_fa,
                 mei_bwa_amb = mei_bwa_amb,
                 mei_bwa_ann = mei_bwa_ann,
                 mei_bwa_bwt = mei_bwa_bwt,
                 mei_bwa_pac = mei_bwa_pac,
                 mei_bwa_sa = mei_bwa_sa,
                 mei_minimap_mmi = mei_minimap_mmi,
-                reference_fasta = reference_fasta,
+                ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "ins",
-                svan_docker = svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_ins
         }
 
@@ -116,17 +116,17 @@ workflow AnnotateSVAN {
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
-                mei_fasta = mei_fasta,
+                mei_fa = mei_fa,
                 mei_bwa_amb = mei_bwa_amb,
                 mei_bwa_ann = mei_bwa_ann,
                 mei_bwa_bwt = mei_bwa_bwt,
                 mei_bwa_pac = mei_bwa_pac,
                 mei_bwa_sa = mei_bwa_sa,
                 mei_minimap_mmi = mei_minimap_mmi,
-                reference_fasta = reference_fasta,
+                ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "del",
-                svan_docker = svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
         }
     }
@@ -164,7 +164,7 @@ workflow AnnotateSVAN {
             other_vcf = ConcatOther.concat_vcf,
             other_vcf_index = ConcatOther.concat_vcf_idx,
             prefix = prefix + "_annotated_filtered",
-            svan_docker = svan_docker,
+            docker = svan_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -175,7 +175,7 @@ workflow AnnotateSVAN {
             annotated_vcf = MergeAnnotatedVcfs.merged_vcf,
             annotated_vcf_idx = MergeAnnotatedVcfs.merged_vcf_index,
             prefix = prefix,
-            svan_docker = svan_docker
+            docker = svan_docker
     }
 
     output {
@@ -190,7 +190,7 @@ task FilterBySvlen {
         File vcf_idx
         String prefix
         Int min_svlen
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -215,7 +215,7 @@ task FilterBySvlen {
         disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -223,7 +223,7 @@ task FilterBySvlen {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -236,7 +236,7 @@ task MergeWithOriginal {
         File annotated_vcf
         File annotated_vcf_idx
         String prefix
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -263,7 +263,7 @@ task MergeWithOriginal {
         disk_gb: ceil(size(original_vcf, "GB") + size(annotated_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -271,7 +271,7 @@ task MergeWithOriginal {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -282,7 +282,7 @@ task SeparateInsertionsDeletions {
         File vcf
         File vcf_index
         String prefix
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -321,7 +321,7 @@ task SeparateInsertionsDeletions {
         disk_gb: ceil(size(vcf, "GB") * 2) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -329,7 +329,7 @@ task SeparateInsertionsDeletions {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -341,7 +341,7 @@ task GenerateTRF {
         File vcf_index
         String prefix
         String mode
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -379,7 +379,7 @@ task GenerateTRF {
         disk_gb: ceil(size(vcf, "GB") * 3) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -387,7 +387,7 @@ task GenerateTRF {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -401,17 +401,17 @@ task RunSvanAnnotation {
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File mei_fasta
+        File mei_fa
         File mei_bwa_amb
         File mei_bwa_ann
         File mei_bwa_bwt
         File mei_bwa_pac
         File mei_bwa_sa
         File mei_minimap_mmi
-        File reference_fasta
+        File ref_fa
         String prefix
         String mode
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -443,8 +443,8 @@ task RunSvanAnnotation {
             ~{vntr_bed} \
             ~{exons_bed} \
             ~{repeats_bed} \
-            ~{mei_fasta} \
-            ~{reference_fasta} \
+            ~{mei_fa} \
+            ~{ref_fa} \
             svan_annotated \
             -o work_dir
 
@@ -524,10 +524,10 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 15,
-        disk_gb: ceil(size(vcf, "GB") + size(reference_fasta, "GB") + size(mei_fasta, "GB") + size(mei_bwa_amb, "GB") + size(mei_bwa_ann, "GB") + size(mei_bwa_bwt, "GB") + size(mei_bwa_pac, "GB") + size(mei_bwa_sa, "GB") + size(mei_minimap_mmi, "GB")) + 25,
+        disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_bwa_amb, "GB") + size(mei_bwa_ann, "GB") + size(mei_bwa_bwt, "GB") + size(mei_bwa_pac, "GB") + size(mei_bwa_sa, "GB") + size(mei_minimap_mmi, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -535,7 +535,7 @@ CODE
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -550,7 +550,7 @@ task MergeAnnotatedVcfs {
         File other_vcf
         File other_vcf_index
         String prefix
-        String svan_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -581,7 +581,7 @@ task MergeAnnotatedVcfs {
         disk_gb: 50,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -589,7 +589,7 @@ task MergeAnnotatedVcfs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: svan_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

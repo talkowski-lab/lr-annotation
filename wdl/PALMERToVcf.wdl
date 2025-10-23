@@ -80,7 +80,7 @@ task ConvertPALMERToVcf {
         disk_gb: 10*ceil(size(PALMER_calls, "GB") + size(ref_fai, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -121,7 +121,7 @@ task ConcatSortVcfs {
         disk_gb: 5*ceil(size(vcfs, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

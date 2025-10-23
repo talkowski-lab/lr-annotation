@@ -17,7 +17,7 @@ workflow PALMER {
 
 		String utils_docker
 		String palmer_docker
-		
+
 		RuntimeAttr? runtime_attr_split_bam
 		RuntimeAttr? runtime_attr_run_palmer
 		RuntimeAttr? runtime_attr_merge_palmer_outputs
@@ -38,10 +38,10 @@ workflow PALMER {
 			input:
 				bam = SplitBam.bams[i],
 				bai = SplitBam.bais[i],
-				ref_fa = ref_fa,
 				prefix = prefix,
 				mode = mode,
 				MEI_type = MEI_type,
+				ref_fa = ref_fa,
 				docker = palmer_docker,
 				runtime_attr_override = runtime_attr_run_palmer
 		}
@@ -93,7 +93,7 @@ task SplitBam {
 		disk_gb: ceil(size(bam, "GB") * 3) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
-		max_retries: 1
+		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
@@ -155,7 +155,7 @@ task RunPALMERShard {
 		disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) * 3 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
-		max_retries: 1
+		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
@@ -203,7 +203,7 @@ task MergePALMEROutputs {
 		disk_gb: ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) * 2 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
-		max_retries: 1
+		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {

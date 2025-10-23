@@ -10,7 +10,7 @@ workflow AnnotateSVAnnotate {
         String prefix
         Int min_svlen
         Array[String] contigs
-        
+
         File coding_gtf
         File noncoding_bed
 
@@ -41,7 +41,7 @@ workflow AnnotateSVAnnotate {
         call PreprocessVcf {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_tbi,
+                vcf_idx = SubsetVcf.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.doubled",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_preprocess
@@ -50,7 +50,7 @@ workflow AnnotateSVAnnotate {
         call AnnotateFunctionalConsequences {
             input:
                 vcf = PreprocessVcf.processed_vcf,
-                vcf_idx = PreprocessVcf.processed_tbi,
+                vcf_idx = PreprocessVcf.processed_vcf_idx,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.doubled.anno_func",
@@ -62,7 +62,7 @@ workflow AnnotateSVAnnotate {
     call ConcatVcfs as ConcatUnannotated {
         input:
             vcfs = SubsetVcf.unannotated_vcf,
-            vcfs_idx = SubsetVcf.unannotated_tbi,
+            vcfs_idx = SubsetVcf.unannotated_vcf_idx,
             allow_overlaps = true,
             outfile_prefix = "~{prefix}.unannotated.concat",
             docker = utils_docker,
@@ -72,7 +72,7 @@ workflow AnnotateSVAnnotate {
     call ConcatVcfs as ConcatAnnotated {
         input:
             vcfs = AnnotateFunctionalConsequences.anno_vcf,
-            vcfs_idx = AnnotateFunctionalConsequences.anno_tbi,
+            vcfs_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
             allow_overlaps = true,
             outfile_prefix = "~{prefix}.concat",
             docker = utils_docker,
@@ -82,9 +82,9 @@ workflow AnnotateSVAnnotate {
     call MergeVcf {
         input:
             annotated_vcf = ConcatAnnotated.concat_vcf,
-            annotated_tbi = ConcatAnnotated.concat_vcf_index,
+            annotated_vcf_idx = ConcatAnnotated.concat_vcf_index,
             unannotated_vcf = ConcatUnannotated.concat_vcf,
-            unannotated_tbi = ConcatUnannotated.concat_vcf_index,
+            unannotated_vcf_idx = ConcatUnannotated.concat_vcf_index,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
@@ -93,9 +93,9 @@ workflow AnnotateSVAnnotate {
     call PostprocessVcf {
         input:
             annotated_vcf = MergeVcf.merged_vcf,
-            annotated_tbi = MergeVcf.merged_vcf_index,
+            annotated_vcf_idx = MergeVcf.merged_vcf_index,
             original_vcf = vcf,
-            original_tbi = vcf_idx,
+            original_vcf_idx = vcf_idx,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_postprocess
@@ -103,7 +103,7 @@ workflow AnnotateSVAnnotate {
 
     output {
         File sv_annotated_vcf = PostprocessVcf.reverted_vcf
-        File sv_annotated_vcf_index = PostprocessVcf.reverted_tbi
+        File sv_annotated_vcf_idx = PostprocessVcf.reverted_vcf_idx
     }
 }
 
@@ -130,9 +130,9 @@ task SubsetVcf {
 
     output {
         File subset_vcf = "~{prefix}.vcf.gz"
-        File subset_tbi = "~{prefix}.vcf.gz.tbi"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
         File unannotated_vcf = "~{prefix}.unannotated.vcf.gz"
-        File unannotated_tbi = "~{prefix}.unannotated.vcf.gz.tbi"
+        File unannotated_vcf_idx = "~{prefix}.unannotated.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -141,7 +141,7 @@ task SubsetVcf {
         disk_gb: 4*ceil(size([vcf, vcf_idx], "GB")) + 2,
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -179,7 +179,7 @@ task PreprocessVcf {
 
     output {
         File processed_vcf = "~{prefix}.vcf.gz"
-        File processed_tbi = "~{prefix}.vcf.gz.tbi"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -188,7 +188,7 @@ task PreprocessVcf {
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -219,7 +219,7 @@ task AnnotateFunctionalConsequences {
         disk_gb: ceil(10 + size(vcf, "GB") * 5),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     Int java_mem_mb = ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]) * 1000 * 0.7)
@@ -232,13 +232,14 @@ task AnnotateFunctionalConsequences {
             --non-coding-bed ~{noncoding_bed} \
             --protein-coding-gtf ~{coding_gtf} \
             -O ~{prefix}.vcf
+        
         bcftools view -Oz ~{prefix}.vcf > ~{prefix}.vcf.gz
         tabix ~{prefix}.vcf.gz
     >>>
 
     output {
         File anno_vcf = "~{prefix}.vcf.gz"
-        File anno_tbi = "~{prefix}.vcf.gz.tbi"
+        File anno_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {
@@ -294,7 +295,7 @@ task ConcatVcfs {
         disk_gb: ceil(10 + size(vcfs, "GB") * 2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -311,9 +312,9 @@ task ConcatVcfs {
 task MergeVcf {
     input {
         File annotated_vcf
-        File annotated_tbi
+        File annotated_vcf_idx
         File unannotated_vcf
-        File unannotated_tbi
+        File unannotated_vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -340,7 +341,7 @@ task MergeVcf {
         disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(unannotated_vcf, "GB")*2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -357,9 +358,9 @@ task MergeVcf {
 task PostprocessVcf {
     input {
         File annotated_vcf
-        File annotated_tbi
+        File annotated_vcf_idx
         File original_vcf
-        File original_tbi
+        File original_vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -374,7 +375,7 @@ task PostprocessVcf {
 
     output {
         File reverted_vcf = "~{prefix}.reverted.vcf.gz"
-        File reverted_tbi = "~{prefix}.reverted.vcf.gz.tbi"
+        File reverted_vcf_idx = "~{prefix}.reverted.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -383,7 +384,7 @@ task PostprocessVcf {
         disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(original_vcf, "GB")),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
