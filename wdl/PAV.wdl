@@ -71,7 +71,9 @@ task CallPAV {
 import os
 import json
 
-config = {"reference": "ref.fa"}
+ref_fa_abs = os.path.abspath("ref.fa")
+config = {"reference": ref_fa_abs}
+
 with open("config.json", "w") as f:
 	json.dump(config, f)
 
