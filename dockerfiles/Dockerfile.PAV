@@ -15,6 +15,10 @@ RUN apt-get update && apt-get install -y \
     libbz2-dev \
     liblzma-dev \
     libcurl4-gnutls-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libc6-dev \
+    libsqlite3-dev \
     libssl-dev \
     samtools \
     bcftools \
@@ -36,6 +40,28 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
 
 # Install pip for Python 3.12
 RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+
+# Install htslib
+ENV HTSLIB_VERSION="1.20"
+RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& tar xjf htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& rm htslib-${HTSLIB_VERSION}.tar.bz2 \
+	&& cd htslib-${HTSLIB_VERSION} \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
+	&& make \
+	&& make install \
+	&& make clean
+
+# Install samtools
+ENV SAMTOOLS_VERSION="1.20"
+RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+	&& tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+	&& rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+	&& cd samtools-${SAMTOOLS_VERSION} \
+	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
+	&& make \
+	&& make install \
+	&& make clean
 
 # Install Minimap2
 RUN cd /opt && \

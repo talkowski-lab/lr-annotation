@@ -64,12 +64,10 @@ task CallPAV {
 	command <<<
 		set -euo pipefail
 
-		# Check if reference is gzipped, if not, bgzip it
 		if [[ "~{ref_fasta}" == *.gz ]]; then
 			ln -s ~{ref_fasta} ref.fa.gz
 			ln -s ~{ref_fasta_fai} ref.fa.gz.fai
 		else
-			# PAV requires bgzipped reference due to a bug in link_fasta
 			echo "Compressing reference with bgzip..."
 			bgzip -c ~{ref_fasta} > ref.fa.gz
 			samtools faidx ref.fa.gz
