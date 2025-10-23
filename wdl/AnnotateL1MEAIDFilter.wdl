@@ -34,7 +34,7 @@ workflow AnnotateL1MEAIDFilter {
 
     output {
         File limeaid_output = L1MEAID.limeaid_output
-        File filtered_output = L1MEAIDFilter.filtered_output
+        File l1meaid_filtered_output = L1MEAIDFilter.filtered_output
     }
 }
 

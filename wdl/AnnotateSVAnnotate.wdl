@@ -6,14 +6,16 @@ workflow AnnotateSVAnnotate {
     input {
         File vcf
         File vcf_idx
+
         String prefix
+        Int min_svlen
+        Array[String] contigs
+        
         File coding_gtf
         File noncoding_bed
-        Int min_svlen
 
-        Array[String] contigs
-
-        String pipeline_docker
+        String utils_docker
+        String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_preprocess
@@ -32,6 +34,7 @@ workflow AnnotateSVAnnotate {
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
                 min_svlen = min_svlen,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
           }
 
@@ -40,6 +43,7 @@ workflow AnnotateSVAnnotate {
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_tbi,
                 prefix = "~{prefix}.~{contig}.doubled",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_preprocess
         }
 
@@ -50,28 +54,29 @@ workflow AnnotateSVAnnotate {
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.doubled.anno_func",
+                docker = gatk_docker,
                 runtime_attr_override = runtime_attr_annotate_func
         }
     }
 
     call ConcatVcfs as ConcatUnannotated {
         input:
-            vcfs=SubsetVcf.unannotated_vcf,
-            vcfs_idx=SubsetVcf.unannotated_tbi,
-            allow_overlaps=true,
-            outfile_prefix="~{prefix}.unannotated.concat",
-            pipeline_docker=pipeline_docker,
-            runtime_attr_override=runtime_attr_concat_unannotated
+            vcfs = SubsetVcf.unannotated_vcf,
+            vcfs_idx = SubsetVcf.unannotated_tbi,
+            allow_overlaps = true,
+            outfile_prefix = "~{prefix}.unannotated.concat",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_unannotated
     }
 
     call ConcatVcfs as ConcatAnnotated {
         input:
-            vcfs=AnnotateFunctionalConsequences.anno_vcf,
-            vcfs_idx=AnnotateFunctionalConsequences.anno_tbi,
-            allow_overlaps=true,
-            outfile_prefix="~{prefix}.concat",
-            pipeline_docker=pipeline_docker,
-            runtime_attr_override=runtime_attr_concat_annotated
+            vcfs = AnnotateFunctionalConsequences.anno_vcf,
+            vcfs_idx = AnnotateFunctionalConsequences.anno_tbi,
+            allow_overlaps = true,
+            outfile_prefix = "~{prefix}.concat",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_annotated
     }
 
     call MergeVcf {
@@ -81,7 +86,7 @@ workflow AnnotateSVAnnotate {
             unannotated_vcf = ConcatUnannotated.concat_vcf,
             unannotated_tbi = ConcatUnannotated.concat_vcf_index,
             prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -92,7 +97,7 @@ workflow AnnotateSVAnnotate {
             original_vcf = vcf,
             original_tbi = vcf_idx,
             prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_postprocess
     }
 
@@ -109,7 +114,7 @@ task SubsetVcf {
         String locus
         String prefix = "subset"
         Int min_svlen
-
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -144,7 +149,7 @@ task SubsetVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-utils-basic:latest"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -155,7 +160,7 @@ task PreprocessVcf {
         File vcf
         File vcf_idx
         String prefix
-
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -191,7 +196,7 @@ task PreprocessVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-process-mendelian:latest"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -204,7 +209,7 @@ task AnnotateFunctionalConsequences {
         File noncoding_bed
         File coding_gtf
         String prefix
-
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -241,7 +246,7 @@ task AnnotateFunctionalConsequences {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-svannotate:latest"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -256,8 +261,7 @@ task ConcatVcfs {
         Boolean sites_only = false
         Boolean sort_vcf_list = false
         String? outfile_prefix
-        String pipeline_docker
-
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -298,7 +302,7 @@ task ConcatVcfs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -311,7 +315,7 @@ task MergeVcf {
         File unannotated_vcf
         File unannotated_tbi
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -344,7 +348,7 @@ task MergeVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -357,7 +361,7 @@ task PostprocessVcf {
         File original_vcf
         File original_tbi
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -387,7 +391,7 @@ task PostprocessVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

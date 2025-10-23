@@ -1414,8 +1414,6 @@ task FinalizeToFile {
         RuntimeAttr? runtime_attr_override
     }
 
-
-
     String gcs_output_dir = sub(outdir, "/+$", "")
     String gcs_output_file = gcs_output_dir + "/" + select_first([name, basename(file)])
 
@@ -1429,7 +1427,6 @@ task FinalizeToFile {
         String gcs_path = gcs_output_file
     }
 
-    #########################
     RuntimeAttr default_attr = object {
         cpu_cores:          1,
         mem_gb:             1,

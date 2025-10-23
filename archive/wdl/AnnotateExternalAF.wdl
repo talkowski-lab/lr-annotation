@@ -133,7 +133,7 @@ task PreprocessMergedVcf {
         set -euo pipefail
 
         # DUP TO INS, retaining original info in tag
-        python /opt/gnomad-lr/scripts/helpers/dup_to_ins_LR.py ~{vcf} | \
+        python /opt/gnomad-lr/scripts/helpers/dup_to_ins.py ~{vcf} | \
             bcftools view -Oz > ~{prefix}.vcf.gz
 
         tabix ~{prefix}.vcf.gz

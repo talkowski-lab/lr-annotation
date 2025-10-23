@@ -2,11 +2,11 @@ FROM quay.io/ymostovoy/lr-utils-basic:2.0
 
 MAINTAINER Karan Jaisingh
 
-COPY ./scripts/helpers/dup_to_ins_LR.py /opt/gnomad-lr/scripts/helpers/
-COPY ./scripts/helpers/ins_to_dup.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/dup_to_ins.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/ins_to_dup_collapse.py /opt/gnomad-lr/scripts/helpers/
-COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/ins_to_dup.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/orig_dup_to_dup.py /opt/gnomad-lr/scripts/helpers/
+COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
 
 RUN apt-get update && apt-get install python3-pip -y
 

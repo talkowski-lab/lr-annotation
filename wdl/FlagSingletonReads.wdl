@@ -13,6 +13,7 @@ workflow FlagSingletonReads {
 
         String pipeline_docker
         Int? variants_per_shard
+        
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_populate_tags

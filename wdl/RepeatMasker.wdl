@@ -11,21 +11,21 @@ workflow AnnotateRepeatMasker {
 
         String utils_docker
         String repeatmasker_docker
-        RuntimeAttr? runtime_attr_vcf_ins_to_fa
+        RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
     }
 
-    call VCF_INS_to_fa {
+    call INSToFa {
         input:
             vcf = vcf,
             prefix = prefix,
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_vcf_ins_to_fa
+            runtime_attr_override = runtime_attr_ins_to_fa
     }
 
     call RepeatMasker {
         input:
-            fasta = VCF_INS_to_fa.INS_fa,
+            fasta = INSToFa.INS_fa,
             prefix = prefix,
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
@@ -33,11 +33,11 @@ workflow AnnotateRepeatMasker {
 
     output {
         File RM_out = RepeatMasker.RMout
-        File RM_fa = VCF_INS_to_fa.INS_fa
+        File RM_fa = INSToFa.INS_fa
     }
 }
 
-task VCF_INS_to_fa {
+task INSToFa {
     input {
         File vcf
         String prefix

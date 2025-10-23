@@ -17,6 +17,7 @@ workflow TruvariMerge {
 
         String merge_docker
         String truvari_docker
+        
         RuntimeAttr? runtime_attr_override
     }
     

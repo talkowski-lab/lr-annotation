@@ -13,6 +13,7 @@ workflow PALMERToVcf {
         File ref_fai
 
         String pipeline_docker
+        
         RuntimeAttr? runtime_attr_palmer_to_vcf
         RuntimeAttr? runtime_attr_concat_sort_vcfs
     }

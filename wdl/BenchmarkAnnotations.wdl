@@ -15,16 +15,16 @@ workflow BenchmarkAnnotations {
         File vcf_sv_truth
         File vcf_sv_truth_idx
 
+        String prefix
+        Int variants_per_shard
+        String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
+
         File ref_fasta
         File ref_fasta_fai
         File primary_contigs_list
         
         String pipeline_docker
         String truvari_docker
-        String prefix
-
-        Int variants_per_shard
-        String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
 
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth

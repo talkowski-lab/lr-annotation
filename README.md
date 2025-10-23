@@ -42,7 +42,7 @@ Pipeline for long-read callset annotation.
 
 ## Annotation Workflows
 ### [AnnotateAF.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
-This workflow, which is located in the `kj_project_gnomad_lr` branch of the GATK-SV repository, annotates the cohort internal allele frequencies based on sample ancestries and sexes. It runs all variants in the input VCF through this workflow, including structural variants. It is based off the `AnnotateVcf.wdl` workflow.
+This workflow annotates internal allele frequencies based on sex and sample ancestrie. It runs on all variants in the input VCF, including structural variants. It is based off the `AnnotateVcf.wdl` workflow.
 
 References:
 - `GATK-SV Package`: [sv-pipeline-docker v0.28.3](https://github.com/broadinstitute/gatk-sv), which is used in the docker created by [build_docker.py](https://github.com/broadinstitute/gatk-sv/blob/5c4e659ba3747b1053b860ead5c0d7ff82768ea9/scripts/docker/build_docker.py).
@@ -54,7 +54,11 @@ Additional Inputs:
 
 
 ### [AnnotateL1MEAIDFilter.wdl]
-TODO
+This workflow runs [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and then [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) to annotate and then filter MEIs in the input VCF. It outputs a filtered version of a _RepeatMasker_ file.
+
+Additional Inputs:
+- `rm_out`: Output file from _RepeatMasker_.
+- `fasta`: Fasta file output from _RepeatMasker_.
 
 
 ### [AnnotatePALMER.wdl]
@@ -176,3 +180,39 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 	--svannotate-vcf ./data/functionally_annotated/svannotate.vcf.gz \
 	-o ./data/functionally_annotated/functionally_annotated.vcf.gz
 ```
+
+
+
+## Code Conventions
+### WDL
+- Workflows should be structured in the following order, with each of the below separated by new lines:
+	1. Imports.
+	2. Inputs.
+	3. Definition of variables dynamically generated in the workflow itself - unless these require outputs from other tasks, in which case they can go after the tasks they are dependent on.
+	4. Calls to tasks.
+	5. Outputs.
+- Tasks should be structured in the following order, with each of the below separated by new lines:
+	1. Inputs.
+	2. Definition of variables dynamically generated in the task itself.
+	3. Command.
+	4. Outputs.
+	5. Runtime settings - which should first be its default runtime settings, followed by a select first with the runtime override, then the actual runtime block.
+- Workflows should take in an input `prefix` that is passed to every task that creates output files, which should be used in conjunction with a descriptive suffix when creating output files.
+- Workflow imports should not be renamed using the `as` operator.
+- Workflows should never contain any blank comments - e.g. `#########################`.-
+- Workflows should contain be any consecutive blank lines - i.e. they should have a maximum of one blank line at a time.
+- Inputs passed to a task should have a space on either side of the `=` character.
+- Tasks should not include additional indentation in order to align better with the length of other components in its section - e.g. for runtime attributes. Indentation should only be applied at the start of a line.
+- Tasks should have a `docker` and `runtime_attr_override` defined, though what is passed to them when calling the task should be explicitly named - e.g. `gatk_docker` and `runtime_attr_override_svannotate`.
+- Every command block within a task should begin with `set -euo pipefail` followed by an empty line.
+
+### Python
+TODO
+
+
+### Dockerfiles
+- A series of installation steps concerning a given tool should have a 
+
+
+### File System
+- All code written should use 4-space tabs for indentation.

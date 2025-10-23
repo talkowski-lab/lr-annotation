@@ -11,13 +11,14 @@ workflow MinimapAlignment {
         String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
         Int minimap_threads = 32
+        String where_to_save
 
         File ref_fasta
         File ref_fai
 
-        String where_to_save
         String alignment_docker
         String finalize_docker
+        
         RuntimeAttr? runtime_attr_align_asm2ref
         RuntimeAttr? runtime_attr_finalize
     }

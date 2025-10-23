@@ -25,6 +25,7 @@ workflow AnnotateSVAN {
         
         String svan_docker
         Int? variants_per_shard
+        
         RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del

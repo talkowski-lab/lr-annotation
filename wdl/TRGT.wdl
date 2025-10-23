@@ -8,8 +8,8 @@ workflow TRGT {
         File bai
 
         String prefix
+        String sample_id
         String sex
-        String? custom_out_prefix
 
         File ref_fasta
         File ref_fasta_index
@@ -21,28 +21,15 @@ workflow TRGT {
         RuntimeAttr? runtime_attr_process_with_trgt
     }
 
-    output {
-        File trgt_vcf     = FinalizeTrgtVCF.gcs_path
-        File trgt_vcf_idx = FinalizeTrgtTBI.gcs_path
-        File trgt_bam = ProcessWithTRGT.trgt_output_bam
-    }
-
-    if (!defined(custom_out_prefix)){
-        call Helpers.InferSampleName { 
-            input: 
-                bam = bam, 
-                bai = bai 
-        }
-    }
-
     Boolean is_female = 'F' == sex
+    String outdir = sub(gcs_out_dir, "/$", "") + "/TRGT/" + catalog_name
 
     call ProcessWithTRGT {
         input:
             bam = bam,
             bai = bai,
             is_female = is_female,
-            outprefix = select_first([custom_out_prefix, InferSampleName.sample_name]),
+            outprefix = sample_id,
             ref_fasta = ref_fasta,
             ref_fasta_index = ref_fasta_index,
             repeatCatalog = repeatCatalog,
@@ -50,8 +37,6 @@ workflow TRGT {
             docker = trgt_docker,
             runtime_attr_override = runtime_attr_process_with_trgt
     }
-
-    String outdir = sub(gcs_out_dir, "/$", "") + "/TRGT/" + catalog_name
 
     call Helpers.FinalizeToFile as FinalizeTrgtVCF { 
         input: 
@@ -63,6 +48,12 @@ workflow TRGT {
         input: 
             outdir = outdir, 
             file = ProcessWithTRGT.trgt_output_vcf_idx 
+    }
+
+    output {
+        File trgt_vcf = FinalizeTrgtVCF.gcs_path
+        File trgt_vcf_idx = FinalizeTrgtTBI.gcs_path
+        File trgt_bam = ProcessWithTRGT.trgt_output_bam
     }
 }
 

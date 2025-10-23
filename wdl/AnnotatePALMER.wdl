@@ -16,6 +16,7 @@ workflow AnnotatePALMER {
         File ref_fai
 
         String palmer_docker
+        
         RuntimeAttr? runtime_attr_filter_palmer
     }
 
