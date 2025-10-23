@@ -32,7 +32,7 @@ Pipeline for long-read callset annotation.
 	- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
 	- VCF has 232 samples, though it misses HG00272 from its metadata file and instead includes CHM13.
 	- The HPRC Y2 workspace includes an additional sample HG03492.
-- Overlapping: 5 samples (HG00733, HG02818, NA19036, NA19240, NA24385).
+- Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
 - Mismatched: NA24385 in HGSVC3 is named HG002 in HPRC.
 - Total: 292 samples.
 - The 'modified' pedigree files were made to match the callset VCFs.
