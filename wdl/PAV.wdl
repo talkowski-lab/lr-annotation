@@ -48,7 +48,7 @@ task CallPAV {
 	}
 
 	Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fasta, "GiB")
-	Int disk_size = ceil(input_size * 3) + 100
+	Int disk_size = ceil(input_size * 3) + 20
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 16,
@@ -59,6 +59,7 @@ task CallPAV {
 		max_retries: 1
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
 
 	command <<<
 		set -euo pipefail
@@ -96,7 +97,7 @@ with open("assemblies.tsv", "w") as f:
 		f.write(f"{sample_id}\t{mat_link}\t{pat_link}\n")
 CODE
 
-		python3 -m pav3 call
+		python3 -m pav3 call --cores ~{effective_cpu}
 
 		tar -zcf pav_results.tar.gz results
 		tar -zcf pav_log.tar.gz log
