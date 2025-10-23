@@ -96,7 +96,7 @@ with open("assemblies.tsv", "w") as f:
 		f.write(f"{sample_id}\t{mat_link}\t{pat_link}\n")
 CODE
 
-		python3 -m pav3
+		python3 -m pav3 call
 
 		tar -zcf pav_results.tar.gz results
 		tar -zcf pav_log.tar.gz log
