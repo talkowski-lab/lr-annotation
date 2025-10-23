@@ -149,8 +149,8 @@ task RunPALMERShard {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
+		cpu_cores: 4,
+		mem_gb: 12,
 		disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) * 3 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
