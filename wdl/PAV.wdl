@@ -89,7 +89,7 @@ with open("assemblies.tsv", "w") as f:
 	
 	for i, sample_id in enumerate(sample_ids):
 		mat_link = f"asms/{sample_id}_mat.fa.gz"
-        pat_link = f"asms/{sample_id}_pat.fa.gz"
+		pat_link = f"asms/{sample_id}_pat.fa.gz"
 		
 		os.symlink(mat_files[i], mat_link)
 		os.symlink(pat_files[i], pat_link)
