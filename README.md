@@ -21,7 +21,7 @@ Pipeline for long-read callset annotation.
 	- Links:
 		- [VCF](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/).
 		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
-	- Metadata file has 67 samples, though it misses NA24385 from its VCF (which is HG002 in Terra, as that is its equivalent in HPRC), renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
+	- Metadata file has 67 samples, though it misses NA24385 (HG002 in Terra) from its VCF, renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
 - [HPRC2]: 232 samples.
 	- Data:
 		- High coverage aligned reads, produced directly by Fabio.
@@ -30,7 +30,7 @@ Pipeline for long-read callset annotation.
 		- [VCF](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/release2/minigraph-cactus/).
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
-	- VCF has 232 samples, though it misses HG00272 from its metadata file and instead includes CHM13.
+	- VCF has 232 samples, though it misses HG00272 and instead includes CHM13.
 	- The HPRC Y2 workspace includes an additional sample HG03492.
 - Overlapping: 5 samples (HG002, HG00733, HG02818, NA19036, NA19240).
 - Mismatched: NA24385 in HGSVC3 is named HG002 in HPRC.
@@ -57,8 +57,8 @@ Additional Inputs:
 This workflow runs [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and then [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) to annotate and then filter MEIs in the input VCF. It outputs a filtered version of a _RepeatMasker_ file.
 
 Additional Inputs:
+- `rm_fa`: Fasta file output from _RepeatMasker_.
 - `rm_out`: Output file from _RepeatMasker_.
-- `fasta`: Fasta file output from _RepeatMasker_.
 
 
 ### [AnnotatePALMER.wdl]
@@ -134,6 +134,10 @@ TODO
 TODO
 
 
+### [PAV](wdl/PAV.wdl)
+TODO
+
+
 ### [RepeatMasker](wdl/RepeatMasker.wdl)
 TODO
 
@@ -145,6 +149,10 @@ References:
 - `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), as seen in the docker used in the [TRGT workflow](wdl/TRGT.wdl), as it was used for All of Us Phase 2. An earlier version of TRGT yielded per-sample costs of nearly 4x this version.
 - `reference_fasta`: [hg38 with no alts](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/) from the HGSVC3 consortia.
 - `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us.
+
+
+### [TruvariMerge](wdl/TruvariMerge.wdl)
+TODO
 
 
 
@@ -226,16 +234,14 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 - All VCFs should have suffix `_vcf`, and be coupled with a VCF index file that has a suffix `_vcf_idx`.
 - General tasks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows rather than explicitly defined in the workflow file itself.
 - Workflow file names must always match the workflow defined within them.
+- All code written should use 4-space tabs for indentation.
 
 
 ### Python
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.
 - Running `flake8` should yield no errors.
+- All code written should use 2-space tabs for indentation.
 
 
 ### Dockerfiles
-- A series of installation steps concerning a given tool should have a 
-
-
-### File System
-- All code written should use 4-space tabs for indentation.
+TODO

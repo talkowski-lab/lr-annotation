@@ -91,7 +91,7 @@ task ProcessWithTRGT {
             --output-prefix ~{vcf_out_name} \
             --karyotype ~{karyotype}
 
-        find . | sed -e "s/[^-][^\/]*\/ |/g" -e "s/|\([^ ]\)/|-\1/"
+        find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
 
         bcftools sort \
             -Ob \
@@ -114,7 +114,7 @@ task ProcessWithTRGT {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
-        mem_gb: 30,
+        mem_gb: 25,
         disk_gb: 10 + 2 * ceil(size(bam, "GiB")),
         boot_disk_gb: 20,
         preemptible_tries: 1,
