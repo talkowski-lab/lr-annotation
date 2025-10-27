@@ -30,104 +30,107 @@ workflow PAV {
 	output {
 		File pav_results_tarball = CallPAV.results_tar
 		File pav_log_tarball = CallPAV.log_tar
+		Array[File] pav_vcfs = CallPAV.final_vcfs
+        Array[File] pav_vcf_idxs = CallPAV.final_vcf_indices
 	}
 }
 
 task CallPAV {
-	input {
-		Array[File] mat_haplotypes
-		Array[File] pat_haplotypes
-		Array[String] sample_ids
+    input {
+        Array[File] mat_haplotypes
+        Array[File] pat_haplotypes
+        Array[String] sample_ids
 
-		File ref_fa
-		File ref_fai
+        File ref_fa
+        File ref_fai
 
-		String docker
+        String docker
 
-		RuntimeAttr? runtime_attr_override
-	}
+        RuntimeAttr? runtime_attr_override
+    }
 
-	Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")
-	Int disk_size = ceil(input_size * 3) + 50
+    Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")
+    Int disk_size = ceil(input_size * 3) + 50
 
-	RuntimeAttr default_attr = object {
-		cpu_cores: 16,
-		mem_gb: 150,
-		disk_gb: disk_size,
-		boot_disk_gb: 10,
-		preemptible_tries: 1,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+    RuntimeAttr default_attr = object {
+        cpu_cores: 16,
+        mem_gb: 150,
+        disk_gb: disk_size,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
 
-	command <<<
-		set -euo pipefail
+    command <<<
+        set -euo pipefail
 
-		if [[ "~{ref_fa}" == *.gz ]]; then
-			ln -s ~{ref_fa} ref.fa.gz
-			ln -s ~{ref_fai} ref.fa.gz.fai
-		else
-			echo "Compressing reference with bgzip..."
-			bgzip -c ~{ref_fa} > ref.fa.gz
-			samtools faidx ref.fa.gz
-		fi
+        if [[ "~{ref_fa}" == *.gz ]]; then
+            ln -s ~{ref_fa} ref.fa.gz
+            ln -s ~{ref_fai} ref.fa.gz.fai
+        else
+            echo "Compressing reference with bgzip..."
+            bgzip -c ~{ref_fa} > ref.fa.gz
+            samtools faidx ref.fa.gz
+        fi
 
-		python3 <<'CODE'
+        python3 <<'CODE'
 import os
 import json
 
 ref_fa_abs = os.path.abspath("ref.fa.gz")
 config = {"reference": ref_fa_abs}
-
 with open("config.json", "w") as f:
-	json.dump(config, f)
+    json.dump(config, f)
 
 os.makedirs("asms", exist_ok=True)
-
 sample_ids = "~{sep=' ' sample_ids}".split(' ')
 mat_files = "~{sep=' ' mat_haplotypes}".split(' ')
 pat_files = "~{sep=' ' pat_haplotypes}".split(' ')
 
 if len(sample_ids) != len(mat_files) or len(sample_ids) != len(pat_files):
-	raise ValueError(f"Input array lengths must match: {len(sample_ids)} samples, {len(mat_files)} maternal, {len(pat_files)} paternal")
+    raise ValueError(f"Input array lengths must match: {len(sample_ids)} samples, {len(mat_files)} maternal, {len(pat_files)} paternal")
 
+vcf_targets = []
 with open("assemblies.tsv", "w") as f:
-	f.write("NAME\tHAP_mat\tHAP_pat\n")
-	
-	for i, sample_id in enumerate(sample_ids):
-		mat_link = f"asms/{sample_id}_mat.fa.gz"
-		pat_link = f"asms/{sample_id}_pat.fa.gz"
+    f.write("NAME\tHAP_mat\tHAP_pat\n")
+    for i, sample_id in enumerate(sample_ids):
+        mat_link = f"asms/{sample_id}_mat.fa.gz"
+        pat_link = f"asms/{sample_id}_pat.fa.gz"
+        os.symlink(os.path.abspath(mat_files[i]), mat_link)
+        os.symlink(os.path.abspath(pat_files[i]), pat_link)
+        
+        mat_link_abs = os.path.abspath(mat_link)
+        pat_link_abs = os.path.abspath(pat_link)
+        f.write(f"{sample_id}\t{mat_link_abs}\t{pat_link_abs}\n")
 
-		os.symlink(os.path.abspath(mat_files[i]), mat_link)
-		os.symlink(os.path.abspath(pat_files[i]), pat_link)
+        vcf_targets.append(f"{sample_id}.vcf.gz")
 
-		mat_link_abs = os.path.abspath(mat_link)
-		pat_link_abs = os.path.abspath(pat_link)
-		
-		f.write(f"{sample_id}\t{mat_link_abs}\t{pat_link_abs}\n")
+with open("vcf_targets.txt", "w") as f:
+    f.write(" ".join(vcf_targets))
 CODE
 
-		python3 -m pav3 call --cores ~{effective_cpu}
+        python3 -m pav3 call --cores ~{effective_cpu} $(cat vcf_targets.txt)
 
-		tar -zcf pav_results.tar.gz results
-		tar -zcf pav_log.tar.gz log
-	>>>
+        tar -zcf pav_results.tar.gz results
+        tar -zcf pav_log.tar.gz log
+    >>>
 
-	output {
-		File results_tar = "pav_results.tar.gz"
-		File log_tar = "pav_log.tar.gz"
-		Array[File] pav_vcfs = glob("*.vcf.gz")
-        Array[File] pav_vcf_idxs = glob("*.vcf.gz.tbi")
-	}
+    output {
+        File results_tar = "pav_results.tar.gz"
+        File log_tar = "pav_log.tar.gz"
+        Array[File] final_vcfs = glob("*.vcf.gz")
+        Array[File] final_vcf_indices = glob("*.vcf.gz.tbi")
+    }
 
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-	}
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
 }
