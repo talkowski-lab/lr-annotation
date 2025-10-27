@@ -143,7 +143,7 @@ This workflow is based on a [tool](https://github.com/PacificBiosciences/trgt) d
 
 References:
 - `TRGT Package`: [v3.0.0](https://github.com/PacificBiosciences/trgt), as seen in the docker used in the [TRGT workflow](wdl/TRGT.wdl), as it was used for All of Us Phase 2. An earlier version of TRGT yielded per-sample costs of nearly 4x this version.
-- `reference_fasta`: [hg38 with no alts](gs://fc-8c3900db-633f-477f-96b3-fb31ae265c44/resources/references/grch38_noalt/GCA_000001405.15_GRCh38_no_alt_analysis_set.fa) from the All of Us workspace.
+- `reference_fasta`: [hg38 with no alts](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/) from the HGSVC3 consortia.
 - `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us.
 
 
@@ -226,6 +226,7 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
 - All VCFs should have suffix `_vcf`, and be coupled with a VCF index file that has a suffix `_vcf_idx`.
 - General tasks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows rather than explicitly defined in the workflow file itself.
 - Workflow file names must always match the workflow defined within them.
+
 
 ### Python
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.

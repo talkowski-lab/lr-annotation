@@ -4,10 +4,10 @@ import "general/Structs.wdl"
 
 workflow AnnotateL1MEAIDFilter {
     input {
-        File fa
+        File rm_fa
+        File rm_out
 
         String prefix
-        File rm_out
 
         String l1meaid_docker
         String l1meaid_filter_docker
@@ -18,9 +18,9 @@ workflow AnnotateL1MEAIDFilter {
 
     call L1MEAID {
         input:
-            fa = fa,
-            prefix = prefix,
+            rm_fa = rm_fa,
             rm_out = rm_out,
+            prefix = prefix,
             docker = l1meaid_docker,
             runtime_attr_override = runtime_attr_limeaid
     }
@@ -41,9 +41,9 @@ workflow AnnotateL1MEAIDFilter {
 
 task L1MEAID {
     input {
-        File fa
-        String prefix
+        File rm_fa
         File rm_out
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -52,7 +52,7 @@ task L1MEAID {
         set -euo pipefail
 
         python3 /opt/src/L1ME-AID/limeaid.py \
-            -i ~{fa} \
+            -i ~{rm_fa} \
             -r ~{rm_out} \
             -o ~{prefix}_limeaid.tsv
     >>>
@@ -64,7 +64,7 @@ task L1MEAID {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 8,
-        disk_gb: 2*ceil(size(fa, "GB")) + 2*ceil(size(rm_out, "GB")) + 10,
+        disk_gb: 2*ceil(size(rm_fa, "GB")) + 2*ceil(size(rm_out, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
