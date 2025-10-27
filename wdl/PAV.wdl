@@ -117,6 +117,8 @@ CODE
 	output {
 		File results_tar = "pav_results.tar.gz"
 		File log_tar = "pav_log.tar.gz"
+		Array[File] pav_vcfs = glob("*.vcf.gz")
+        Array[File] pav_vcf_idxs = glob("*.vcf.gz.tbi")
 	}
 
 	runtime {
