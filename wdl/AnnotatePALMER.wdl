@@ -84,8 +84,8 @@ task FilterPALMER {
                 bedtools merge -c 4,5,6 -o collapse > RMfilter.50bpbuffer.bed
 
             bcftools query -f '%CHROM\t%POS\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${PALMER_vcf} \
-                |awk 'OFS="\t" {print $1,$2-1,$2,$3,$4}' \
-                |sort -k1,1 -k2,2n \
+                | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4}' \
+                | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed
 
             bedtools intersect -wo -a RMfilter.50bpbuffer.bed -b PALMER_calls.bed > intersection

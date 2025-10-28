@@ -198,7 +198,7 @@ task FilterBySvlen {
         set -euo pipefail
 
         bcftools view ~{vcf} \
-            --include 'abs(INFO/SVLEN) > ~{min_svlen}' \
+            --include 'abs(INFO/SVLEN) >= ~{min_svlen}' \
             -Oz -o ~{prefix}.vcf.gz
         
         tabix -p vcf ~{prefix}.vcf.gz
