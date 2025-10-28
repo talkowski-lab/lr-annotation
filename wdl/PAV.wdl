@@ -27,11 +27,9 @@ workflow PAV {
 			runtime_attr_override = runtime_attr_run_pav
 	}
 
-	output {
-		File pav_results_tarball = CallPAV.results_tar
-		File pav_log_tarball = CallPAV.log_tar
-		Array[File] pav_vcfs = CallPAV.final_vcfs
-        Array[File] pav_vcf_idxs = CallPAV.final_vcf_indices
+    output {
+        File pav_results_tarball = CallPAV.results_tar
+        File pav_log_tarball = CallPAV.log_tar
 	}
 }
 
@@ -92,7 +90,6 @@ pat_files = "~{sep=' ' pat_haplotypes}".split(' ')
 if len(sample_ids) != len(mat_files) or len(sample_ids) != len(pat_files):
     raise ValueError(f"Input array lengths must match: {len(sample_ids)} samples, {len(mat_files)} maternal, {len(pat_files)} paternal")
 
-vcf_targets = []
 with open("assemblies.tsv", "w") as f:
     f.write("NAME\tHAP_mat\tHAP_pat\n")
     for i, sample_id in enumerate(sample_ids):
@@ -105,13 +102,9 @@ with open("assemblies.tsv", "w") as f:
         pat_link_abs = os.path.abspath(pat_link)
         f.write(f"{sample_id}\t{mat_link_abs}\t{pat_link_abs}\n")
 
-        vcf_targets.append(f"{sample_id}.vcf.gz")
-
-with open("vcf_targets.txt", "w") as f:
-    f.write(" ".join(vcf_targets))
 CODE
 
-        python3 -m pav3 call --cores ~{effective_cpu} $(cat vcf_targets.txt)
+        python3 -m pav3 call --cores ~{effective_cpu}
 
         tar -zcf pav_results.tar.gz results
         tar -zcf pav_log.tar.gz log
@@ -120,8 +113,6 @@ CODE
     output {
         File results_tar = "pav_results.tar.gz"
         File log_tar = "pav_log.tar.gz"
-        Array[File] final_vcfs = glob("*.vcf.gz")
-        Array[File] final_vcf_indices = glob("*.vcf.gz.tbi")
     }
 
     runtime {
