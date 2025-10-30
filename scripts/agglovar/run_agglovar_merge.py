@@ -23,7 +23,14 @@ def vcf_to_df(vcf_path: str) -> pl.DataFrame:
     variants = []
     with pysam.VariantFile(vcf_path) as vcf_in:
         for record in vcf_in:
-            varlen = record.info.get("SVLEN", [0])[0]
+            svlen_val = record.info.get("SVLEN")
+            if isinstance(svlen_val, (list, tuple)):
+                varlen = svlen_val[0] if svlen_val else 0
+            elif isinstance(svlen_val, (int, float)):
+                varlen = svlen_val
+            else:
+                varlen = 0
+            
             if not varlen and record.alts:
                 varlen = len(record.alts[0]) - len(record.ref)
 
@@ -120,7 +127,7 @@ def main() -> None:
     df_cumulative = vcf_to_df(args.vcfs[0])
     logging.info(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}")
 
-    logging.info("Initializing PairwiseOverlap strategy")
+    logging.info("Initializing PairwiseIntersect strategy")
     join_strategy = PairwiseIntersect(
         ro_min=args.ro_min,
         size_ro_min=args.size_ro_min,

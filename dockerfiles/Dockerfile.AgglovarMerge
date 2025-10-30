@@ -1,31 +1,92 @@
-FROM ubuntu:24.04
+FROM ubuntu:22.04
 
 MAINTAINER Karan Jaisingh
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get -qq update && \
-    apt-get install -yq \
-    bcftools \
-    tabix \
-    python3 \
-    python3-pip \
-    python3-dev \
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    wget \
+    curl \
     git \
-    && \
-    rm -rf /var/lib/apt/lists/*
+    software-properties-common \
+    pkg-config \
+    zlib1g-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libcurl4-gnutls-dev \
+    libncurses5-dev \
+    libgdbm-dev \
+    libc6-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    samtools \
+    bcftools \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install packages normally - let pip use prebuilt wheels for ARM
-RUN python3 -m pip install --break-system-packages \
+# Install Python 3.12
+RUN add-apt-repository ppa:deadsnakes/ppa -y && \
+    apt-get update && \
+    apt-get install -y \
+    python3.12 \
+    python3.12-dev \
+    python3.12-venv \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.12 as default for python3 and python
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 && \
+    update-alternatives --set python3 /usr/bin/python3.12 && \
+    ln -s /usr/bin/python3 /usr/bin/python
+
+# Install pip for Python 3.12
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+
+# Install htslib
+ENV HTSLIB_VERSION="1.20"
+RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && tar xjf htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && rm htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && cd htslib-${HTSLIB_VERSION} \
+    && ./configure --enable-libcurl --enable-gcs --enable-s3 \
+    && make \
+    && make install \
+    && make clean
+
+# Install samtools
+ENV SAMTOOLS_VERSION="1.20"
+RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VERSION}/samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+    && tar xjf samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+    && rm samtools-${SAMTOOLS_VERSION}.tar.bz2 \
+    && cd samtools-${SAMTOOLS_VERSION} \
+    && ./configure --enable-libcurl --enable-gcs --enable-s3 \
+    && make \
+    && make install \
+    && make clean
+
+# Install Minimap2
+RUN cd /opt && \
+    git clone https://github.com/lh3/minimap2.git && \
+    cd minimap2 && \
+    make && \
+    curl -L https://github.com/attractivechaos/k8/releases/download/v0.2.4/k8-0.2.4.tar.bz2 | tar -jxf - && \
+    cp k8-0.2.4/k8-`uname -s` k8
+
+ENV PATH="/opt/minimap2:/opt/minimap2/misc:${PATH}"
+
+RUN python3 -m pip install --no-cache-dir \
+    "agglovar @ git+https://github.com/BeckLaboratory/agglovar.git@main" \
+    snakemake \
+    drmaa \
+    joblib \
+    pulp \
+    matplotlib \
+    matplotlib-venn \
+    pandas \
     pysam \
-    "polars>=0.20.0,<1.0" \
-    && \
-    python3 -m pip install --break-system-packages --no-deps \
-    git+https://github.com/BeckLaboratory/agglovar.git
+    polars \
+    edlib
 
-COPY ./scripts/agglovar/run_agglovar_merge.py /opt/gnomad-lr/scripts/agglovar/
-RUN chmod +x /opt/gnomad-lr/scripts/agglovar/run_agglovar_merge.py
+WORKDIR /app
 
-ENV PATH="/opt/gnomad-lr/scripts/agglovar/:${PATH}"
-
-WORKDIR /data
+# Set default command
+CMD ["/bin/bash"]
