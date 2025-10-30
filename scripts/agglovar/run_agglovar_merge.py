@@ -93,7 +93,7 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
             if row["varlen"]:
                 record.info["SVLEN"] = int(row["varlen"])
             if row["vartype"] != "INS":
-                record.info["END"] = end
+                record.stop = end
 
             vcf_out.write(record)
 
