@@ -1,0 +1,170 @@
+#!/usr/bin/env python3
+
+
+import argparse
+import polars as pl
+import pysam
+from typing import Any, Dict
+from agglovar.pairwise.overlap import PairwiseOverlap
+from agglovar.schema import VARIANT as AGGLOVAR_SCHEMA
+
+
+def vcf_to_df(vcf_path: str) -> pl.DataFrame:
+    """
+    Convert VCF file to Polars DataFrame matching AggloVar schema.
+
+    Args:
+        vcf_path: Path to input VCF file
+
+    Returns:
+        Polars DataFrame with variants in AggloVar schema format
+    """
+    variants = []
+    with pysam.VariantFile(vcf_path) as vcf_in:
+        for record in vcf_in:
+            varlen = record.info.get("SVLEN", [0])[0]
+            if not varlen and record.alts:
+                varlen = len(record.alts[0]) - len(record.ref)
+
+            end = record.info.get("END", record.pos + abs(varlen))
+            if record.info.get("SVTYPE") == "INS" and not record.info.get("END"):
+                end = record.pos + 1
+
+            var_data: Dict[str, Any] = {
+                "chrom": record.chrom,
+                "pos": record.pos,
+                "end": end,
+                "id": record.id,
+                "vartype": record.info.get("SVTYPE", "UNKNOWN"),
+                "varlen": varlen,
+                "ref": record.ref,
+                "alt": record.alts[0] if record.alts else None,
+                "seq": (
+                    record.alts[0] if record.alts and ">" not in record.alts[0] else None
+                ),
+            }
+            variants.append(var_data)
+
+    df = pl.DataFrame(variants)
+    for col, dtype in AGGLOVAR_SCHEMA.items():
+        if col not in df.columns:
+            df = df.with_columns(pl.lit(None, dtype=dtype).alias(col))
+        else:
+            df = df.with_columns(pl.col(col).cast(dtype, strict=False))
+
+    return df.select(list(AGGLOVAR_SCHEMA.keys()))
+
+
+def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) -> None:
+    """
+    Write Polars DataFrame to VCF file using template VCF header.
+
+    Args:
+        df: Polars DataFrame with variants
+        template_vcf_path: Path to template VCF for header
+        output_vcf_path: Path to output VCF file
+    """
+    with pysam.VariantFile(template_vcf_path) as vcf_in:
+        header = vcf_in.header
+        for chrom in df.get_column("chrom").unique().to_list():
+            if chrom not in header.contigs:
+                header.add_line(f"##contig=<ID={chrom},length=249250621>")
+
+    with pysam.VariantFile(output_vcf_path, "w", header=header) as vcf_out:
+        for row in df.iter_rows(named=True):
+            pos = int(row["pos"])
+            end = int(row["end"])
+
+            record = header.new_record(
+                contig=row["chrom"],
+                start=pos - 1,
+                stop=end,
+                alleles=(row["ref"], row["alt"]),
+                id=row["id"],
+            )
+
+            record.info.clear()
+            if row["vartype"]:
+                record.info["SVTYPE"] = row["vartype"]
+            if row["varlen"]:
+                record.info["SVLEN"] = int(row["varlen"])
+            if row["vartype"] != "INS":
+                record.info["END"] = end
+
+            vcf_out.write(record)
+
+
+def main() -> None:
+    """Main entry point for AggloVar merge script."""
+    parser = argparse.ArgumentParser(
+        description="Merge multiple VCFs using AggloVar"
+    )
+    parser.add_argument("--vcfs", nargs="+", required=True, help="Input VCF files")
+    parser.add_argument("--out_vcf", required=True, help="Output VCF file path")
+
+    parser.add_argument("--ro_min", type=float, default=None)
+    parser.add_argument("--size_ro_min", type=float, default=None)
+    parser.add_argument("--offset_max", type=int, default=None)
+    parser.add_argument("--offset_prop_max", type=float, default=None)
+    parser.add_argument("--match_ref", action="store_true", default=False)
+    parser.add_argument("--match_alt", action="store_true", default=False)
+    parser.add_argument("--match_prop_min", type=float, default=None)
+
+    args = parser.parse_args()
+
+    if not args.vcfs:
+        raise ValueError("At least one input VCF is required.")
+
+    print(f"Loading VCF {args.vcfs[0]}...")
+    df_cumulative = vcf_to_df(args.vcfs[0])
+    print(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}.")
+
+    join_strategy = PairwiseOverlap(
+        ro_min=args.ro_min,
+        size_ro_min=args.size_ro_min,
+        offset_max=args.offset_max,
+        offset_prop_max=args.offset_prop_max,
+        match_ref=args.match_ref,
+        match_alt=args.match_alt,
+        match_prop_min=args.match_prop_min,
+    )
+
+    for vcf_path in args.vcfs[1:]:
+        print(f"Loading VCF {vcf_path}...")
+        df_next = vcf_to_df(vcf_path)
+        print(f"Loaded {len(df_next)} variants from {vcf_path}.")
+
+        if len(df_next) == 0:
+            print(f"Skipping empty VCF: {vcf_path}")
+            continue
+
+        print(
+            f"Running pairwise merge with {len(df_cumulative)} cumulative variants..."
+        )
+
+        join_table = join_strategy.join(df_cumulative.lazy(), df_next.lazy()).collect()
+
+        print(f"Found {len(join_table)} overlapping variants.")
+
+        df_next_with_index = df_next.with_row_index("index")
+
+        unmerged_next = df_next_with_index.join(
+            join_table.select("index_b"),
+            left_on="index",
+            right_on="index_b",
+            how="anti",
+        ).drop("index")
+
+        print(f"Adding {len(unmerged_next)} new variants to cumulative set.")
+
+        df_cumulative = pl.concat([df_cumulative, unmerged_next])
+        print(f"Cumulative set now has {len(df_cumulative)} variants.")
+
+    print(f"Total variants in final merged set: {len(df_cumulative)}")
+    print(f"Writing final merged VCF to {args.out_vcf}...")
+    df_to_vcf(df_cumulative, args.vcfs[0], args.out_vcf)
+    print("Merge complete.")
+
+
+if __name__ == "__main__":
+  main()

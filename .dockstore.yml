@@ -55,6 +55,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AgglovarMerge
+    primaryDescriptorPath: /wdl/AgglovarMerge.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: BenchmarkAnnotations
     primaryDescriptorPath: /wdl/BenchmarkAnnotations.wdl
     filters:

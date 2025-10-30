@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import sys
 import hail as hl
 import numpy as np

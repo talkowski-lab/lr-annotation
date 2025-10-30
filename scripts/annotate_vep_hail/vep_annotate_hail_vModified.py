@@ -1,6 +1,10 @@
+#!/usr/bin/env python3
+
+
 import hail as hl
 import numpy as np
 import argparse
+
 
 parser = argparse.ArgumentParser(description="Parse arguments")
 parser.add_argument("-i", dest="vcf_file", help="Input VCF file")

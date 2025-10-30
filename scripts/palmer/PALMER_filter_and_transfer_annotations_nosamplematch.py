@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 import sys
 from Bio import SeqIO
 from pysam import VariantFile
