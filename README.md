@@ -118,6 +118,10 @@ python ./scripts/merge/merge_af_annotated_vcfs.py \
 
 
 ## Additional Workflows
+### [AgglovarMerge](wdl/AgglovarMerge.wdl)
+TODO
+
+
 ### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
 TODO
 

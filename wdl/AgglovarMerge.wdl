@@ -8,6 +8,8 @@ workflow AgglovarMerge {
         Array[File] vcf_idxs
 
         String prefix
+        String run_agglovar_merge_script = "https://raw.githubusercontent.com/talkowski-lab/gnomad-lr/main/scripts/agglovar/run_agglovar_merge.py"
+        
         Float? ro_min
         Float? size_ro_min
         Int? offset_max
@@ -26,6 +28,7 @@ workflow AgglovarMerge {
             vcfs = vcfs,
             vcf_idxs = vcf_idxs,
             prefix = prefix,
+            run_agglovar_merge_script = run_agglovar_merge_script,
             ro_min = ro_min,
             size_ro_min = size_ro_min,
             offset_max = offset_max,
@@ -48,6 +51,7 @@ task RunAgglovarMerge {
         Array[File] vcfs
         Array[File] vcf_idxs
         String prefix
+        String run_agglovar_merge_script
         String docker
 
         Float? ro_min
@@ -72,13 +76,16 @@ task RunAgglovarMerge {
     command <<<
         set -euo pipefail
 
+        curl -s ~{run_agglovar_merge_script} > run_agglovar_merge.py
+        chmod +x run_agglovar_merge.py
+
         for vcf in ~{sep=' ' vcfs}; do
             if [ ! -f "${vcf}.tbi" ] && [ ! -f "${vcf}.csi" ]; then
                 bcftools index -t "${vcf}"
             fi
         done
 
-        run_agglovar_merge.py \
+        python3 run_agglovar_merge.py \
             --vcfs ~{sep=' ' vcfs} \
             --out_vcf "~{prefix}.agglovar.merged.vcf.gz" \
             ~{ro_min_arg} \

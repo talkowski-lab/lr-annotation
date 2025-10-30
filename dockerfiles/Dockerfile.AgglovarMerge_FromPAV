@@ -1,0 +1,13 @@
+FROM us-central1-docker.pkg.dev/talkowski-training/kj-development/pav:kj_V3
+
+MAINTAINER Karan Jaisingh
+
+# PAV has pav3 which depends on agglovar, but we need to install full agglovar with pairwise module
+RUN python3 -m pip install --no-cache-dir git+https://github.com/BeckLaboratory/agglovar.git
+
+COPY ./scripts/agglovar/run_agglovar_merge.py /opt/gnomad-lr/scripts/agglovar/
+RUN chmod +x /opt/gnomad-lr/scripts/agglovar/run_agglovar_merge.py
+
+ENV PATH="/opt/gnomad-lr/scripts/agglovar/:${PATH}"
+
+CMD ["/bin/bash"]

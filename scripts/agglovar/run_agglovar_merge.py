@@ -1,12 +1,27 @@
 #!/usr/bin/env python3
 
+"""
+Merge multiple VCF files using AggloVar library.
+
+This script reads multiple VCFs, converts them to Polars DataFrames matching the
+AggloVar schema, and iteratively merges them using the PairwiseOverlap strategy.
+The final merged DataFrame is then written back to a VCF file.
+"""
 
 import argparse
+import logging
+import sys
+from typing import Any, Dict
+
+import agglovar
 import polars as pl
 import pysam
-from typing import Any, Dict
-from agglovar.pairwise.overlap import PairwiseOverlap
-from agglovar.schema import VARIANT as AGGLOVAR_SCHEMA
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
 
 
 def vcf_to_df(vcf_path: str) -> pl.DataFrame:
@@ -19,6 +34,8 @@ def vcf_to_df(vcf_path: str) -> pl.DataFrame:
     Returns:
         Polars DataFrame with variants in AggloVar schema format
     """
+    logging.info(f"Converting VCF to DataFrame: {vcf_path}")
+    
     variants = []
     with pysam.VariantFile(vcf_path) as vcf_in:
         for record in vcf_in:
@@ -46,13 +63,16 @@ def vcf_to_df(vcf_path: str) -> pl.DataFrame:
             variants.append(var_data)
 
     df = pl.DataFrame(variants)
-    for col, dtype in AGGLOVAR_SCHEMA.items():
+    logging.info(f"Parsed {len(variants)} variants from {vcf_path}")
+    
+    for col, dtype in agglovar.schema.VARIANT.items():
         if col not in df.columns:
             df = df.with_columns(pl.lit(None, dtype=dtype).alias(col))
         else:
             df = df.with_columns(pl.col(col).cast(dtype, strict=False))
 
-    return df.select(list(AGGLOVAR_SCHEMA.keys()))
+    logging.info(f"Schema conversion complete for {vcf_path}")
+    return df.select(list(agglovar.schema.VARIANT.keys()))
 
 
 def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) -> None:
@@ -64,6 +84,7 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
         template_vcf_path: Path to template VCF for header
         output_vcf_path: Path to output VCF file
     """
+    logging.info(f"Writing {len(df)} variants to {output_vcf_path}")
     with pysam.VariantFile(template_vcf_path) as vcf_in:
         header = vcf_in.header
         for chrom in df.get_column("chrom").unique().to_list():
@@ -96,6 +117,8 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
 
 def main() -> None:
     """Main entry point for AggloVar merge script."""
+    logging.info("Starting AggloVar merge script")
+    
     parser = argparse.ArgumentParser(
         description="Merge multiple VCFs using AggloVar"
     )
@@ -111,15 +134,19 @@ def main() -> None:
     parser.add_argument("--match_prop_min", type=float, default=None)
 
     args = parser.parse_args()
+    
+    logging.info(f"Input VCFs: {args.vcfs}")
+    logging.info(f"Output VCF: {args.out_vcf}")
 
     if not args.vcfs:
         raise ValueError("At least one input VCF is required.")
 
-    print(f"Loading VCF {args.vcfs[0]}...")
+    logging.info(f"Loading first VCF: {args.vcfs[0]}")
     df_cumulative = vcf_to_df(args.vcfs[0])
-    print(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}.")
+    logging.info(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}")
 
-    join_strategy = PairwiseOverlap(
+    logging.info("Initializing PairwiseOverlap strategy")
+    join_strategy = agglovar.pairwise.overlap.PairwiseOverlap(
         ro_min=args.ro_min,
         size_ro_min=args.size_ro_min,
         offset_max=args.offset_max,
@@ -129,22 +156,18 @@ def main() -> None:
         match_prop_min=args.match_prop_min,
     )
 
-    for vcf_path in args.vcfs[1:]:
-        print(f"Loading VCF {vcf_path}...")
+    for idx, vcf_path in enumerate(args.vcfs[1:], 1):
+        logging.info(f"Processing VCF {idx}/{len(args.vcfs)-1}: {vcf_path}")
         df_next = vcf_to_df(vcf_path)
-        print(f"Loaded {len(df_next)} variants from {vcf_path}.")
+        logging.info(f"Loaded {len(df_next)} variants from {vcf_path}")
 
         if len(df_next) == 0:
-            print(f"Skipping empty VCF: {vcf_path}")
+            logging.warning(f"Skipping empty VCF: {vcf_path}")
             continue
 
-        print(
-            f"Running pairwise merge with {len(df_cumulative)} cumulative variants..."
-        )
-
+        logging.info(f"Running pairwise merge with {len(df_cumulative)} cumulative variants")
         join_table = join_strategy.join(df_cumulative.lazy(), df_next.lazy()).collect()
-
-        print(f"Found {len(join_table)} overlapping variants.")
+        logging.info(f"Found {len(join_table)} overlapping variants")
 
         df_next_with_index = df_next.with_row_index("index")
 
@@ -155,15 +178,13 @@ def main() -> None:
             how="anti",
         ).drop("index")
 
-        print(f"Adding {len(unmerged_next)} new variants to cumulative set.")
-
+        logging.info(f"Adding {len(unmerged_next)} new variants to cumulative set")
         df_cumulative = pl.concat([df_cumulative, unmerged_next])
-        print(f"Cumulative set now has {len(df_cumulative)} variants.")
+        logging.info(f"Cumulative set now has {len(df_cumulative)} variants")
 
-    print(f"Total variants in final merged set: {len(df_cumulative)}")
-    print(f"Writing final merged VCF to {args.out_vcf}...")
+    logging.info(f"Total variants in final merged set: {len(df_cumulative)}")
     df_to_vcf(df_cumulative, args.vcfs[0], args.out_vcf)
-    print("Merge complete.")
+    logging.info("Merge complete!")
 
 
 if __name__ == "__main__":
