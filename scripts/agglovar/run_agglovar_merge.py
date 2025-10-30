@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
 
-"""
-Merge multiple VCF files using AggloVar library.
-
-This script reads multiple VCFs, converts them to Polars DataFrames matching the
-AggloVar schema, and iteratively merges them using the PairwiseOverlap strategy.
-The final merged DataFrame is then written back to a VCF file.
-"""
-
 import argparse
 import logging
 import sys
@@ -16,6 +8,7 @@ from typing import Any, Dict
 import agglovar
 import polars as pl
 import pysam
+from agglovar.pairwise.overlap import PairwiseOverlap
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,15 +18,6 @@ logging.basicConfig(
 
 
 def vcf_to_df(vcf_path: str) -> pl.DataFrame:
-    """
-    Convert VCF file to Polars DataFrame matching AggloVar schema.
-
-    Args:
-        vcf_path: Path to input VCF file
-
-    Returns:
-        Polars DataFrame with variants in AggloVar schema format
-    """
     logging.info(f"Converting VCF to DataFrame: {vcf_path}")
     
     variants = []
@@ -76,14 +60,6 @@ def vcf_to_df(vcf_path: str) -> pl.DataFrame:
 
 
 def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) -> None:
-    """
-    Write Polars DataFrame to VCF file using template VCF header.
-
-    Args:
-        df: Polars DataFrame with variants
-        template_vcf_path: Path to template VCF for header
-        output_vcf_path: Path to output VCF file
-    """
     logging.info(f"Writing {len(df)} variants to {output_vcf_path}")
     with pysam.VariantFile(template_vcf_path) as vcf_in:
         header = vcf_in.header
@@ -116,7 +92,6 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
 
 
 def main() -> None:
-    """Main entry point for AggloVar merge script."""
     logging.info("Starting AggloVar merge script")
     
     parser = argparse.ArgumentParser(
@@ -146,7 +121,7 @@ def main() -> None:
     logging.info(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}")
 
     logging.info("Initializing PairwiseOverlap strategy")
-    join_strategy = agglovar.pairwise.overlap.PairwiseOverlap(
+    join_strategy = PairwiseOverlap(
         ro_min=args.ro_min,
         size_ro_min=args.size_ro_min,
         offset_max=args.offset_max,
