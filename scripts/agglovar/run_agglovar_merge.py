@@ -8,7 +8,7 @@ from typing import Any, Dict
 import agglovar
 import polars as pl
 import pysam
-from agglovar.pairwise.overlap import PairwiseOverlap
+from agglovar.join.pair import PairwiseIntersect
 
 logging.basicConfig(
     level=logging.INFO,
@@ -121,7 +121,7 @@ def main() -> None:
     logging.info(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}")
 
     logging.info("Initializing PairwiseOverlap strategy")
-    join_strategy = PairwiseOverlap(
+    join_strategy = PairwiseIntersect(
         ro_min=args.ro_min,
         size_ro_min=args.size_ro_min,
         offset_max=args.offset_max,
