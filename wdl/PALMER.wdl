@@ -169,7 +169,7 @@ task RunPALMERShard {
 	}
 }
 
-task MergePALMEROutputs {
+task MergePalmerOutputs {
 	input {
 		Array[File] calls_shards
 		Array[File] tsd_reads_shards

@@ -85,17 +85,14 @@ def main():
                     if rec.alts[0] != str(INS_fa[SV["id"]].seq):
                         continue
 
-                    # check that there's enough sample overlap
+                    # calculate sample overlap
                     GTs = [rec.samples[sample]["GT"] for sample in samples]
                     SV_samples = []
                     for GT, sample in zip(GTs, samples):
                         if 1 in GT:
                             SV_samples.append(sample)
                     shared_samples = list(set(SV_samples) & set(MEI_samples))
-                    if (
-                        shared_samples
-                    ):  # at least one shared sample between MEI and SV calls
-                        # write annotation file:
+                    if (shared_samples):  # at least one shared sample between MEI and SV calls
                         sys.stdout.write(
                             "%s\t%s\t%s\t%s\t%s\t%d\n"
                             % (

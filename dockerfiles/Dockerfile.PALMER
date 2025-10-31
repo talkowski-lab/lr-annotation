@@ -9,10 +9,10 @@ RUN apt-get -y update \
 	&& apt-get clean
 
 COPY ./dockerfiles/environment.yml /opt/gnomad-lr/scripts/palmer/
-COPY ./scripts/palmer/PALMER_to_VCF_with_seq.py /opt/gnomad-lr/scripts/palmer/
-COPY ./scripts/palmer/PALMER_to_VCF.py /opt/gnomad-lr/scripts/palmer/
-COPY ./scripts/palmer/PALMER_filter_and_transfer_annotations_nosamplematch.py /opt/gnomad-lr/scripts/palmer/
-COPY ./scripts/palmer/PALMER_filter_and_transfer_annotations.py /opt/gnomad-lr/scripts/palmer/
+COPY ./scripts/palmer/PALMER_to_vcf_with_seq.py /opt/gnomad-lr/scripts/palmer/
+COPY ./scripts/palmer/PALMER_to_vcf.py /opt/gnomad-lr/scripts/palmer/
+COPY ./scripts/palmer/PALMER_transfer_annotations_no_sample_match.py /opt/gnomad-lr/scripts/palmer/
+COPY ./scripts/palmer/PALMER_transfer_annotations.py /opt/gnomad-lr/scripts/palmer/
 
 RUN mamba env create -f /opt/gnomad-lr/scripts/palmer/environment.yml && mamba clean -a -y
 ENV PATH=/opt/conda/envs/filter/bin/:/root/google-cloud-sdk/bin/:${PATH}

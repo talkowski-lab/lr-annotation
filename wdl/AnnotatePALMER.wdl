@@ -90,7 +90,7 @@ task FilterPALMER {
 
             bedtools intersect -wo -a RMfilter.50bpbuffer.bed -b PALMER_calls.bed > intersection
 
-            python /opt/gnomad-lr/scripts/palmer/PALMER_filter_and_transfer_annotations.py \
+            python /opt/gnomad-lr/scripts/palmer/PALMER_transfer_annotations.py \
                 intersection \
                 ~{vcf} \
                 ~{rm_fa} \

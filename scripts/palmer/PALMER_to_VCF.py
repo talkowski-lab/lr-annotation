@@ -138,7 +138,7 @@ def main():
         cur = calls[cid]
         if cur["5inv"]:
             print(
-                "%s\t%s\t%s\tN\tN\t60\t."
+                "%s\t%s\t%s\tN\tN\t60\t.\t"
                 "SVTYPE=INS;ME_TYPE=%s;SVLEN=%d;CONF_READS=%s;ORI=%s;"
                 "POLYA_LEN=%s;TSD_5PRIME_LEN=%s;TSD_3PRIME_LEN=%s;"
                 "TRANSD_LEN=%s;INVERSION_5PRIME\tGT\t0/1"
@@ -158,7 +158,7 @@ def main():
             )
         else:
             print(
-                "%s\t%s\t%s\tN\tN\t60\t."
+                "%s\t%s\t%s\tN\tN\t60\t.\t"
                 "SVTYPE=INS;ME_TYPE=%s;SVLEN=%d;CONF_READS=%s;ORI=%s;"
                 "POLYA_LEN=%s;TSD_5PRIME_LEN=%s;TSD_3PRIME_LEN=%s;"
                 "TRANSD_LEN=%s\tGT\t0/1"

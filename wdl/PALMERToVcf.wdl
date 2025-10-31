@@ -58,7 +58,7 @@ task ConvertPALMERToVcf {
     command <<<
         set -euo pipefail
 
-        python /opt/gnomad-lr/scripts/palmer/PALMER_to_VCF.py \
+        python /opt/gnomad-lr/scripts/palmer/PALMER_to_vcf.py \
             ~{PALMER_calls} \
             ~{ME_type} \
             ~{sample} \
