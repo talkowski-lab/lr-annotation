@@ -85,7 +85,7 @@ task RunAgglovarMerge {
             fi
         done
 
-        python3 run_agglovar_merge.py \
+        python run_agglovar_merge.py \
             --vcfs ~{sep=' ' vcfs} \
             --out_vcf "~{prefix}.agglovar.merged.vcf" \
             ~{ro_min_arg} \
@@ -96,6 +96,7 @@ task RunAgglovarMerge {
             ~{match_alt_arg} \
             ~{match_prop_min_arg}
 
+        bgzip "~{prefix}.agglovar.merged.vcf"
         bcftools index -t "~{prefix}.agglovar.merged.vcf.gz"
     >>>
 
