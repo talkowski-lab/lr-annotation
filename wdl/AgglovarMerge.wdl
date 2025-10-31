@@ -87,7 +87,7 @@ task RunAgglovarMerge {
 
         python3 run_agglovar_merge.py \
             --vcfs ~{sep=' ' vcfs} \
-            --out_vcf "~{prefix}.agglovar.merged.vcf.gz" \
+            --out_vcf "~{prefix}.agglovar.merged.vcf" \
             ~{ro_min_arg} \
             ~{size_ro_min_arg} \
             ~{offset_max_arg} \

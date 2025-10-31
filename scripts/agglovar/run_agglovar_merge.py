@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+
 import argparse
-import logging
 import sys
 from typing import Any, Dict
 
@@ -10,64 +10,71 @@ import polars as pl
 import pysam
 from agglovar.join.pair import PairwiseIntersect
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    stream=sys.stdout
-)
 
-
-def vcf_to_df(vcf_path: str) -> pl.DataFrame:
-    logging.info(f"Converting VCF to DataFrame: {vcf_path}")
+def get_chrom_sort_key(chrom: str) -> tuple:
+    chrom_str = str(chrom).lower()
     
+    if chrom_str.startswith('chr'):
+        chrom_part = chrom_str[3:]
+    else:
+        chrom_part = chrom_str
+    
+    if chrom_part.isdigit():
+        return (0, int(chrom_part), '')
+    elif chrom_part == 'x':
+        return (1, 0, '')
+    elif chrom_part == 'y':
+        return (1, 1, '')
+    elif chrom_part in ['m', 'mt']:
+        return (1, 2, '')
+    else:
+        return (2, 0, chrom_part)
+
+
+def vcf_to_df(vcf_path: str) -> pl.DataFrame:    
     variants = []
     with pysam.VariantFile(vcf_path) as vcf_in:
         for record in vcf_in:
             svlen_val = record.info.get("SVLEN")
             if isinstance(svlen_val, (list, tuple)):
                 varlen = svlen_val[0] if svlen_val else 0
-            elif isinstance(svlen_val, (int, float)):
-                varlen = svlen_val
             else:
-                varlen = 0
+                varlen = svlen_val
             
             if not varlen and record.alts:
                 varlen = len(record.alts[0]) - len(record.ref)
 
-            end = record.info.get("END", record.pos + abs(varlen))
-            if record.info.get("SVTYPE") == "INS" and not record.info.get("END"):
-                end = record.pos + 1
+            svtype = record.info.get("SVTYPE", "Unknown")
+
+            end = record.stop if record.stop else record.pos + abs(varlen)
 
             var_data: Dict[str, Any] = {
                 "chrom": record.chrom,
                 "pos": record.pos,
                 "end": end,
                 "id": record.id,
-                "vartype": record.info.get("SVTYPE", "UNKNOWN"),
+                "vartype": svtype,
                 "varlen": varlen,
-                "ref": record.ref,
-                "alt": record.alts[0] if record.alts else None,
-                "seq": (
-                    record.alts[0] if record.alts and ">" not in record.alts[0] else None
-                ),
+                "ref": "N",
+                "alt": svtype,
+                "seq": record.alts[0] if record.alts else None
             }
             variants.append(var_data)
 
     df = pl.DataFrame(variants)
-    logging.info(f"Parsed {len(variants)} variants from {vcf_path}")
-    
     for col, dtype in agglovar.schema.VARIANT.items():
         if col not in df.columns:
             df = df.with_columns(pl.lit(None, dtype=dtype).alias(col))
         else:
             df = df.with_columns(pl.col(col).cast(dtype, strict=False))
-
-    logging.info(f"Schema conversion complete for {vcf_path}")
+    
     return df.select(list(agglovar.schema.VARIANT.keys()))
 
 
 def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) -> None:
-    logging.info(f"Writing {len(df)} variants to {output_vcf_path}")
+    df_sorted = df.to_dicts()
+    df_sorted.sort(key=lambda x: (get_chrom_sort_key(x["chrom"]), x["pos"], x["end"]))
+    
     with pysam.VariantFile(template_vcf_path) as vcf_in:
         header = vcf_in.header
         for chrom in df.get_column("chrom").unique().to_list():
@@ -75,15 +82,12 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
                 header.add_line(f"##contig=<ID={chrom},length=249250621>")
 
     with pysam.VariantFile(output_vcf_path, "w", header=header) as vcf_out:
-        for row in df.iter_rows(named=True):
-            pos = int(row["pos"])
-            end = int(row["end"])
-
+        for row in df_sorted:
             record = header.new_record(
                 contig=row["chrom"],
-                start=pos - 1,
-                stop=end,
-                alleles=(row["ref"], row["alt"]),
+                start=row["pos"],
+                stop=row["end"],
+                alleles=("N", row["vartype"]),
                 id=row["id"],
             )
 
@@ -91,18 +95,14 @@ def df_to_vcf(df: pl.DataFrame, template_vcf_path: str, output_vcf_path: str) ->
             if row["vartype"]:
                 record.info["SVTYPE"] = row["vartype"]
             if row["varlen"]:
-                record.info["SVLEN"] = int(row["varlen"])
-            if row["vartype"] != "INS":
-                record.stop = end
+                record.info["SVLEN"] = row["varlen"]
 
             vcf_out.write(record)
 
 
-def main() -> None:
-    logging.info("Starting AggloVar merge script")
-    
+def main() -> None:    
     parser = argparse.ArgumentParser(
-        description="Merge multiple VCFs using AggloVar"
+        description="Merge multiple VCFs using Agglovar"
     )
     parser.add_argument("--vcfs", nargs="+", required=True, help="Input VCF files")
     parser.add_argument("--out_vcf", required=True, help="Output VCF file path")
@@ -116,18 +116,8 @@ def main() -> None:
     parser.add_argument("--match_prop_min", type=float, default=None)
 
     args = parser.parse_args()
-    
-    logging.info(f"Input VCFs: {args.vcfs}")
-    logging.info(f"Output VCF: {args.out_vcf}")
 
-    if not args.vcfs:
-        raise ValueError("At least one input VCF is required.")
-
-    logging.info(f"Loading first VCF: {args.vcfs[0]}")
     df_cumulative = vcf_to_df(args.vcfs[0])
-    logging.info(f"Loaded {len(df_cumulative)} variants from {args.vcfs[0]}")
-
-    logging.info("Initializing PairwiseIntersect strategy")
     join_strategy = PairwiseIntersect(
         ro_min=args.ro_min,
         size_ro_min=args.size_ro_min,
@@ -139,18 +129,8 @@ def main() -> None:
     )
 
     for idx, vcf_path in enumerate(args.vcfs[1:], 1):
-        logging.info(f"Processing VCF {idx}/{len(args.vcfs)-1}: {vcf_path}")
         df_next = vcf_to_df(vcf_path)
-        logging.info(f"Loaded {len(df_next)} variants from {vcf_path}")
-
-        if len(df_next) == 0:
-            logging.warning(f"Skipping empty VCF: {vcf_path}")
-            continue
-
-        logging.info(f"Running pairwise merge with {len(df_cumulative)} cumulative variants")
         join_table = join_strategy.join(df_cumulative.lazy(), df_next.lazy()).collect()
-        logging.info(f"Found {len(join_table)} overlapping variants")
-
         df_next_with_index = df_next.with_row_index("index")
 
         unmerged_next = df_next_with_index.join(
@@ -160,14 +140,9 @@ def main() -> None:
             how="anti",
         ).drop("index")
 
-        logging.info(f"Adding {len(unmerged_next)} new variants to cumulative set")
         df_cumulative = pl.concat([df_cumulative, unmerged_next])
-        logging.info(f"Cumulative set now has {len(df_cumulative)} variants")
-
-    logging.info(f"Total variants in final merged set: {len(df_cumulative)}")
+    
     df_to_vcf(df_cumulative, args.vcfs[0], args.out_vcf)
-    logging.info("Merge complete!")
-
 
 if __name__ == "__main__":
   main()

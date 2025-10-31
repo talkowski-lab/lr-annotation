@@ -9,7 +9,7 @@ RUN apt-get -y update \
 	&& apt-get clean
 
 COPY ./dockerfiles/environment.yml /opt/gnomad-lr/scripts/palmer/
-COPY ./scripts/palmer/PALMER_to_vcf_with_seq.py /opt/gnomad-lr/scripts/palmer/
+COPY ./scripts/palmer/PALMER_to_vcf_with_sequence.py /opt/gnomad-lr/scripts/palmer/
 COPY ./scripts/palmer/PALMER_to_vcf.py /opt/gnomad-lr/scripts/palmer/
 COPY ./scripts/palmer/PALMER_transfer_annotations_no_sample_match.py /opt/gnomad-lr/scripts/palmer/
 COPY ./scripts/palmer/PALMER_transfer_annotations.py /opt/gnomad-lr/scripts/palmer/
