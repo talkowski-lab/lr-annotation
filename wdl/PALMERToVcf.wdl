@@ -5,7 +5,7 @@ import "general/Structs.wdl"
 workflow PALMERToVcf {
     input {
         Array[File] PALMER_calls
-        Array[String] ME_type
+        Array[String] mei_types
 
         String prefix
         String sample
@@ -22,7 +22,7 @@ workflow PALMERToVcf {
         call ConvertPALMERToVcf {
             input:
                 PALMER_calls = PALMER_calls[i],
-                ME_type = ME_type[i],
+                mei_type = mei_types[i],
                 ref_fai = ref_fai,
                 sample = sample,
                 docker = pipeline_docker,
@@ -48,7 +48,7 @@ workflow PALMERToVcf {
 task ConvertPALMERToVcf {
     input {
         File PALMER_calls
-        String ME_type
+        String mei_type
         String sample
         File ref_fai
         String docker
@@ -60,18 +60,18 @@ task ConvertPALMERToVcf {
 
         python /opt/gnomad-lr/scripts/palmer/PALMER_to_vcf.py \
             ~{PALMER_calls} \
-            ~{ME_type} \
+            ~{mei_type} \
             ~{sample} \
             ~{ref_fai} \
             | bcftools sort -Oz \
-            > ~{sample}.PALMER_calls.~{ME_type}.vcf.gz
+            > ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
         
-        tabix ~{sample}.PALMER_calls.~{ME_type}.vcf.gz
+        tabix ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
     >>>
 
     output {
-        File vcf = "~{sample}.PALMER_calls.~{ME_type}.vcf.gz"
-        File vcf_idx = "~{sample}.PALMER_calls.~{ME_type}.vcf.gz.tbi"
+        File vcf = "~{sample}.PALMER_calls.~{mei_type}.vcf.gz"
+        File vcf_idx = "~{sample}.PALMER_calls.~{mei_type}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

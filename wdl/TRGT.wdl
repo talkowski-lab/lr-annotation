@@ -12,7 +12,7 @@ workflow TRGT {
         String sex
 
         File ref_fa
-        File ref_fa_index
+        File ref_fai
         File repeatCatalog
         String catalog_name
 
@@ -31,7 +31,7 @@ workflow TRGT {
             is_female = is_female,
             outprefix = sample_id,
             ref_fa = ref_fa,
-            ref_fa_index = ref_fa_index,
+            ref_fai = ref_fai,
             repeatCatalog = repeatCatalog,
             catalog_name = catalog_name,
             docker = trgt_docker,
@@ -67,7 +67,7 @@ task ProcessWithTRGT {
         Boolean is_female
         Boolean verbose = false
         File ref_fa
-        File ref_fa_index
+        File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
     }

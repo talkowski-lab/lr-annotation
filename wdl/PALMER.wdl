@@ -9,7 +9,7 @@ workflow PALMER {
 
 		String prefix
 		String mode
-		String MEI_type
+		String mei_type
 		Array[String] contigs
 
 		File ref_fa
@@ -40,7 +40,7 @@ workflow PALMER {
 				bai = SplitBam.bais[i],
 				prefix = prefix,
 				mode = mode,
-				MEI_type = MEI_type,
+				mei_type = mei_type,
 				ref_fa = ref_fa,
 				docker = palmer_docker,
 				runtime_attr_override = runtime_attr_run_palmer
@@ -113,7 +113,7 @@ task RunPALMERShard {
 		File bai
 		String prefix
 		String mode
-		String MEI_type
+		String mei_type
 		File ref_fa
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -134,14 +134,14 @@ task RunPALMERShard {
 			--input ${bam_base} \
 			--ref_fa ~{ref_fa} \
 			--ref_ver GRCh38 \
-			--type ~{MEI_type} \
+			--type ~{mei_type} \
 			--mode ~{mode} \
 			--output "~{prefix}" \
 			--chr $chrom \
 			--workdir "${dir}/${chrom}/"
 
-		sed "s/$/\t~{MEI_type}/" ${chrom}/~{prefix}_calls.txt > ~{prefix}_calls_shard.txt || touch ~{prefix}_calls_shard.txt
-		sed "s/$/\t~{MEI_type}/" ${chrom}/~{prefix}_tsd_reads.txt > ~{prefix}_tsd_reads_shard.txt || touch ~{prefix}_tsd_reads_shard.txt
+		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt > ~{prefix}_calls_shard.txt || touch ~{prefix}_calls_shard.txt
+		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_tsd_reads.txt > ~{prefix}_tsd_reads_shard.txt || touch ~{prefix}_tsd_reads_shard.txt
 	>>>
 
 	output {

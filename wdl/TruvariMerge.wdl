@@ -5,7 +5,7 @@ import "general/Structs.wdl"
 workflow TruvariMerge {
     input {
         Array[File] vcfs
-        Array[File] vcf_idx
+        Array[File] vcf_idxs
 
         String prefix
         String? truvari_params
@@ -24,7 +24,7 @@ workflow TruvariMerge {
     call BcftoolsMerge {
         input:
             vcfs = vcfs,
-            vcf_idx = vcf_idx,
+            vcf_idxs = vcf_idxs,
             prefix = prefix,
             params = bcftools_merge_params,
             preprocess_script = preprocess_script,
@@ -52,7 +52,7 @@ workflow TruvariMerge {
 task BcftoolsMerge {
     input {
         Array[File] vcfs
-        Array[File] vcf_idx
+        Array[File] vcf_idxs
         String prefix
         String params=""
         File? preprocess_script

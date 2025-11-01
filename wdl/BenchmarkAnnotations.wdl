@@ -8,8 +8,8 @@ import "benchmarking/ShardedBenchmarks.wdl" as Sharded
 
 workflow BenchmarkAnnotations {
     input {
-        File vcf_eval
-        File vcf_eval_idx
+        File vcf
+        File vcf_idx
         File vcf_truth
         File vcf_truth_idx
         File vcf_sv_truth
@@ -78,8 +78,8 @@ workflow BenchmarkAnnotations {
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetEval {
             input:
-                vcf = vcf_eval,
-                vcf_index = vcf_eval_idx,
+                vcf = vcf,
+                vcf_index = vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker_image = pipeline_docker,
