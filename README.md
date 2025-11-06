@@ -3,16 +3,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 
-## Pipeline Steps
-- [AnnotateAF.wdl](#annotateafwdl).
-- [AnnotateL1MEAIDFilter.wdl](#annotatel1meaidfilterwdl).
-- [AnnotatePALMER.wdl](#annotatepalmerwdl).
-- [AnnotateSVAN.wdl](#annotatesvanwdl).
-- [AnnotateSVAnnotate.wdl](#annotatesvannotatewdl).
-- [AnnotateVEPHail.wdl](#annotatevephailwdl).
-
-
-
 ## Cohort
 - HGSVC3.
 	- Data:
@@ -49,8 +39,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 ## Annotation Workflows
-### [AnnotateAF.wdl](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
-This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs. It is based off the `AnnotateVcf.wdl` workflow.
+### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
+This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
 
 Inputs:
 - `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.
@@ -60,7 +50,7 @@ References:
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
 
 
-### [AnnotateL1MEAIDFilter.wdl](wdl/AnnotateL1MEAIDFilter.wdl)
+### [AnnotateL1MEAIDFilter](wdl/AnnotateL1MEAIDFilter.wdl)
 This workflow leverages [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) in order to annotate and then filter MEIs in the input VCF. It outputs a filtered version of the output from _RepeatMasker_.
 
 Inputs:
@@ -68,7 +58,7 @@ Inputs:
 - `rm_out`: Output by _RepeatMasker_.
 
 
-### [AnnotatePALMER.wdl](wdl/AnnotatePALMER.wdl)
+### [AnnotatePALMER](wdl/AnnotatePALMER.wdl)
 This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order to annotate MEI calls for a cohort in a given cohort VCF. It retains the genotypes present in the VCF, simply adding an INFO field `ME_TYPE` to insertions whose characteristics match those of the PALMER calls.
 
 Inputs:
@@ -79,7 +69,7 @@ References:
 - `ref_fai`.
 
 
-### [AnnotateSVAN.wdl](wdl/AnnotateSVAN.wdl)
+### [AnnotateSVAN](wdl/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
 References:
@@ -90,7 +80,7 @@ References:
 - `mei_fasta`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 
 
-### [AnnotateSVAnnotate.wdl](wdl/AnnotateSVAnnotate.wdl)
+### [AnnotateSVAnnotate](wdl/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SV through this workflow, ignoring all SNVs and InDels.
 
 References:
@@ -98,7 +88,7 @@ References:
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 
 
-### [AnnotateVEPHail.wdl](wdl/AnnotateVEPHail.wdl)
+### [AnnotateVEPHail](wdl/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
 
 References:
@@ -109,7 +99,7 @@ References:
 
 
 ## Downstream Workflows
-### [BenchmarkAnnotations.wdl](wdl/BenchmarkAnnotations.wdl)
+### [BenchmarkAnnotations](wdl/BenchmarkAnnotations.wdl)
 This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
 
 The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
@@ -159,7 +149,7 @@ Inputs:
 - `match_prop_min`: Minimum required match on sequence context.
 
 
-### [MinimapAlignment.wdl](wdl/MinimapAlignment.wdl)
+### [MinimapAlignment](wdl/MinimapAlignment.wdl)
 This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
 
 Inputs:
@@ -172,7 +162,7 @@ References:
 - `ref_fai`.
 
 
-### [PALMER.wdl](wdl/PALMER.wdl)
+### [PALMER](wdl/PALMER.wdl)
 This workflow runs PALMER on an aligned assembly in order to generate MEI calls.
 
 Inputs:
@@ -185,7 +175,7 @@ References:
 - `ref_fai`.
 
 
-### [PALMERToVcf.wdl](wdl/PALMERToVcf.wdl)
+### [PALMERToVcf](wdl/PALMERToVcf.wdl)
 This workflow converts a series of raw PALMER calls into an integrated VCF with multiple types of MEI calls.
 
 Inputs:
@@ -288,7 +278,7 @@ References:
 
 
 ## Archived
-###  [AnnotateSTRs.wdl](archive/wdl/AnnotateSTRs.wdl)
+###  [AnnotateSTRs](archive/wdl/AnnotateSTRs.wdl)
 This workflow is based on a [script](https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/filter_vcf_to_STR_variants.py) developed by Ben Weisburd to annotate STRs based on their sequence context. It involves reading the nucleotide content of each variant, and comparing this to its surrounding reference genome context.
 
 References:

@@ -7,7 +7,7 @@ from pysam import VariantFile
 
 # intersection output:
 # 0:chrom 1:range_start 2:range_end 3:position(s) 4:REF(s) 5:SVLEN(s) (<<
-# from target VCF <<) 6:chrom 7:pos-1 8:pos 9:mei_len 10:sample(s) (<<
+# from target VCF <<) 6:chrom 7:pos-1 8:pos 9:ID 10:mei_len 11:sample(s) (<<
 # from MEI VCF <<)
 
 
@@ -32,8 +32,9 @@ def main():
     for line in intersect_output:
         line = line.strip().split("\t")
         chrom = line[0]
-        MEI_length = int(line[9])
-        MEI_samples = line[10].rstrip(",").split(",")
+        MEI_ID = line[9]
+        MEI_length = int(line[10])
+        MEI_samples = line[11].rstrip(",").split(",")
 
         SVs = []
         SV_positions = line[3].split(",")
@@ -94,7 +95,7 @@ def main():
                     shared_samples = list(set(SV_samples) & set(MEI_samples))
                     if (shared_samples):  # at least one shared sample between MEI and SV calls
                         sys.stdout.write(
-                            "%s\t%s\t%s\t%s\t%s\t%d\n"
+                            "%s\t%s\t%s\t%s\t%s\t%d\t%s\n"
                             % (
                                 chrom,
                                 SV["pos"],
@@ -102,6 +103,7 @@ def main():
                                 rec.alts[0],
                                 ME_type,
                                 MEI_length,
+                                MEI_ID,
                             )
                         )
                     else:
