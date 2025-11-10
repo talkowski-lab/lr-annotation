@@ -163,27 +163,12 @@ References:
 
 
 ### [PALMER](wdl/PALMER.wdl)
-This workflow runs PALMER on an aligned assembly in order to generate MEI calls.
+This workflow runs PALMER on an aligned assembly in order to generate MEI calls. It then converst theseraw PALMER calls into an integrated VCF with multiple types of MEI calls.
 
 Inputs:
 - `bam`: Aligned assembly.
 - `bai`: Index for aligned assembly.
-- `mei_type`: MEI mode to run PALMER in (one of `ALU`, `SVA`, `LINE` or `HERVK`).
-
-References:
-- `ref_fa`.
-- `ref_fai`.
-
-
-### [PALMERToVcf](wdl/PALMERToVcf.wdl)
-This workflow converts a series of raw PALMER calls into an integrated VCF with multiple types of MEI calls.
-
-Inputs:
-- `PALMER_calls`: Series of raw PALMER calls to integrate.
-- `me_types`: Corresponding MEI modes for each of the raw PALMER calls (one of `ALU`, `SVA`, `LINE` or `HERVK`).
-
-References:
-- `ref_fai`.
+- `mei_type`: MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
 
 
 ### [PAV](wdl/PAV.wdl)

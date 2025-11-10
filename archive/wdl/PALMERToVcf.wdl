@@ -58,11 +58,11 @@ task ConvertPALMERToVcf {
     command <<<
         set -euo pipefail
 
-        python /opt/gnomad-lr/scripts/palmer/PALMER_to_vcf.py \
-            ~{PALMER_calls} \
-            ~{mei_type} \
-            ~{sample} \
-            ~{ref_fai} \
+        python /opt/gnomad-lr/scripts/mei/PALMER_to_vcf.py \
+            --palmer_calls ~{PALMER_calls} \
+            --mei_type ~{mei_type} \
+            --sample ~{sample} \
+            --ref_fai ~{ref_fai} \
             | bcftools sort -Oz \
             > ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
         
