@@ -21,6 +21,7 @@ workflow PALMER {
 
 		String utils_docker
 		String palmer_docker
+		String palmer_pipeline_docker
 
 		RuntimeAttr? runtime_attr_split_bam
 		RuntimeAttr? runtime_attr_run_palmer
@@ -81,7 +82,7 @@ workflow PALMER {
 				mei_type = mei_type,
 				sample = sample,
 				ref_fai = ref_fai,
-				docker = palmer_docker,
+				docker = palmer_pipeline_docker,
 				runtime_attr_override = runtime_attr_palmer_to_vcf
 		}
 	}
@@ -91,7 +92,7 @@ workflow PALMER {
 			vcfs = ConvertPALMERToVcf.vcf,
 			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
 			prefix = prefix,
-			docker = palmer_docker,
+			docker = palmer_pipeline_docker,
 			runtime_attr_override = runtime_attr_concat_sort_vcfs
 	}
 
