@@ -56,8 +56,8 @@ workflow PALMER {
 			scatter (i in range(length(SplitBamPat.bams))) {
 				call RunPALMERShard as RunPALMERShardPat {
 					input:
-						bam = select_first([SplitBamPat.bams])[i],
-						bai = select_first([SplitBamPat.bais])[i],
+						bam = SplitBamPat.bams[i],
+						bai = SplitBamPat.bais[i],
 						prefix = prefix + ".pat",
 						mode = mode,
 						mei_type = mei_type,
@@ -69,8 +69,8 @@ workflow PALMER {
 
 			call MergePALMEROutputs as MergePALMEROutputsPat {
 				input:
-					calls_shards = select_first([RunPALMERShardPat.calls_shard]),
-					tsd_reads_shards = select_first([RunPALMERShardPat.tsd_reads_shard]),
+					calls_shards = RunPALMERShardPat.calls_shard,
+					tsd_reads_shards = RunPALMERShardPat.tsd_reads_shard,
 					prefix = prefix + ".pat",
 					mei_type = mei_type,
 					docker = utils_docker,
@@ -78,8 +78,8 @@ workflow PALMER {
 			}
 		}
 
-		File calls_file_pat = select_first([MergePALMEROutputsPat.calls, select_first([override_palmer_calls_pat])[idx]])
-		File tsd_file_pat = select_first([MergePALMEROutputsPat.tsd_reads, select_first([override_palmer_tsd_files_pat])[idx]])
+		File calls_file_pat = if defined (override_palmer_calls_pat) then select_first([override_palmer_calls_pat])[idx] else select_first([MergePALMEROutputsPat.calls])
+		File tsd_file_pat = if defined (override_palmer_tsd_files_pat) then select_first([override_palmer_tsd_files_pat])[idx] else select_first([MergePALMEROutputsPat.tsd_reads])
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfPat {
 			input:
@@ -107,8 +107,8 @@ workflow PALMER {
 			scatter (i in range(length(SplitBamMat.bams))) {
 				call RunPALMERShard as RunPALMERShardMat {
 					input:
-						bam = select_first([SplitBamMat.bams])[i],
-						bai = select_first([SplitBamMat.bais])[i],
+						bam = SplitBamMat.bams[i],
+						bai = SplitBamMat.bais[i],
 						prefix = prefix + ".mat",
 						mode = mode,
 						mei_type = mei_type,
@@ -120,8 +120,8 @@ workflow PALMER {
 
 			call MergePALMEROutputs as MergePALMEROutputsMat {
 				input:
-					calls_shards = select_first([RunPALMERShardMat.calls_shard]),
-					tsd_reads_shards = select_first([RunPALMERShardMat.tsd_reads_shard]),
+					calls_shards = RunPALMERShardMat.calls_shard,
+					tsd_reads_shards = RunPALMERShardMat.tsd_reads_shard,
 					prefix = prefix + ".mat",
 					mei_type = mei_type,
 					docker = utils_docker,
@@ -129,8 +129,8 @@ workflow PALMER {
 			}
 		}
 
-		File calls_file_mat = select_first([MergePALMEROutputsMat.calls, select_first([override_palmer_calls_mat])[idx]])
-		File tsd_file_mat = select_first([MergePALMEROutputsMat.tsd_reads, select_first([override_palmer_tsd_files_mat])[idx]])
+		File calls_file_mat = if defined (override_palmer_calls_mat) then select_first([override_palmer_calls_mat])[idx] else select_first([MergePALMEROutputsMat.calls])
+		File tsd_file_mat = if defined (override_palmer_tsd_files_mat) then select_first([override_palmer_tsd_files_mat])[idx] else select_first([MergePALMEROutputsMat.tsd_reads])
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfMat {
 			input:
