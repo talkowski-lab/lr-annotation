@@ -9,10 +9,11 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Convert PALMER MEI calls to VCF format."
     )
-    parser.add_argument("palmer_calls", help="PALMER calls file")
-    parser.add_argument("mei_type", help="Mobile element type (e.g., ALU, LINE1, SVA)")
-    parser.add_argument("sample", help="Sample name")
-    parser.add_argument("ref_fai", help="Reference genome FAI index file")
+    parser.add_argument("--palmer_calls", required=True, help="PALMER calls file")
+    parser.add_argument("--mei_type", required=True, help="Mobile element type (e.g., ALU, LINE1, SVA)")
+    parser.add_argument("--sample", required=True, help="Sample name")
+    parser.add_argument("--ref_fai", required=True, help="Reference genome FAI index file")
+    parser.add_argument("--haplotype", required=True, help="Haplotype genotype (e.g., 1|0 or 0|1)")
     return parser.parse_args()
 
 
@@ -89,7 +90,7 @@ def parse_palmer_calls(callfile_path, min_conf=1):
     return calls
 
 
-def write_vcf_records(calls, mei_type):
+def write_vcf_records(calls, mei_type, haplotype):
     for cid, call in calls.items():
         info_fields = (
             f"SVTYPE=INS;ME_TYPE={mei_type};SVLEN={call['length']};"
@@ -100,7 +101,7 @@ def write_vcf_records(calls, mei_type):
         if call["5inv"]:
             info_fields += ";INVERSION_5PRIME"
         
-        print(f"{call['chrom']}\t{call['pos']}\t{cid}\tN\tN\t60\t.\t{info_fields}\tGT\t0/1")
+        print(f"{call['chrom']}\t{call['pos']}\t{cid}\tN\tN\t60\t.\t{info_fields}\tGT\t{haplotype}")
 
 
 def main():
@@ -108,7 +109,7 @@ def main():
     
     write_vcf_header(args.ref_fai, args.sample)
     calls = parse_palmer_calls(args.palmer_calls)
-    write_vcf_records(calls, args.mei_type)
+    write_vcf_records(calls, args.mei_type, args.haplotype)
 
 
 if __name__ == "__main__":

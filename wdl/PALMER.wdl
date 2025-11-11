@@ -4,20 +4,26 @@ import "general/Structs.wdl"
 
 workflow PALMER {
 	input {
-		File? bam
-		File? bai
+		File bam_pat
+		File bai_pat
+		File bam_mat
+		File bai_mat
 
 		String prefix
 		String sample
-		String? mode
+		String mode
 		Array[String] mei_types
-		Array[String]? contigs
+		Array[String] contigs
 
-		File? ref_fa
+		File ref_fa
 		File ref_fai
 
-		Array[File]? override_palmer_calls
-		Array[File]? override_palmer_tsd_files
+		Array[File]? override_palmer_calls_pat
+		Array[File]? override_palmer_tsd_files_pat
+		Array[File]? override_palmer_calls_mat
+		Array[File]? override_palmer_tsd_files_mat
+
+		Array[String]? truvari_collapse_params
 
 		String utils_docker
 		String palmer_docker
@@ -27,80 +33,151 @@ workflow PALMER {
 		RuntimeAttr? runtime_attr_run_palmer
 		RuntimeAttr? runtime_attr_merge_palmer_outputs
 		RuntimeAttr? runtime_attr_palmer_to_vcf
+		RuntimeAttr? runtime_attr_truvari_collapse
 		RuntimeAttr? runtime_attr_concat_sort_vcfs
-	}
-
-	Boolean run_palmer = !defined(override_palmer_calls)
-
-	if (run_palmer) {
-		call SplitBam {
-			input:
-				bam = select_first([bam]),
-				bai = select_first([bai]),
-				prefix = prefix,
-				contigs = select_first([contigs]),
-				docker = utils_docker,
-				runtime_attr_override = runtime_attr_split_bam
-		}
 	}
 
 	scatter (idx in range(length(mei_types))) {
 		String mei_type = mei_types[idx]
+		String collapse_params = if defined(truvari_collapse_params) then select_first([truvari_collapse_params])[idx] else "--pctsize 0.9 --pctovl 0.9 --pctseq 0.9 --refdist 500"
 
-		if (run_palmer) {
-			scatter (i in range(length(select_first([SplitBam.bams])))) {
-				call RunPALMERShard {
+		# Paternal haplotype
+		if (!defined(override_palmer_calls_pat)) {
+			call SplitBam as SplitBamPat {
+				input:
+					bam = bam_pat,
+					bai = bai_pat,
+					prefix = prefix + ".pat",
+					contigs = contigs,
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_split_bam
+			}
+
+			scatter (i in range(length(SplitBamPat.bams))) {
+				call RunPALMERShard as RunPALMERShardPat {
 					input:
-						bam = select_first([SplitBam.bams])[i],
-						bai = select_first([SplitBam.bais])[i],
-						prefix = prefix,
-						mode = select_first([mode]),
+						bam = select_first([SplitBamPat.bams])[i],
+						bai = select_first([SplitBamPat.bais])[i],
+						prefix = prefix + ".pat",
+						mode = mode,
 						mei_type = mei_type,
-						ref_fa = select_first([ref_fa]),
+						ref_fa = ref_fa,
 						docker = palmer_docker,
 						runtime_attr_override = runtime_attr_run_palmer
 				}
 			}
 
-			call MergePALMEROutputs {
+			call MergePALMEROutputs as MergePALMEROutputsPat {
 				input:
-					calls_shards = select_first([RunPALMERShard.calls_shard]),
-					tsd_reads_shards = select_first([RunPALMERShard.tsd_reads_shard]),
-					prefix = prefix,
+					calls_shards = select_first([RunPALMERShardPat.calls_shard]),
+					tsd_reads_shards = select_first([RunPALMERShardPat.tsd_reads_shard]),
+					prefix = prefix + ".pat",
 					mei_type = mei_type,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_merge_palmer_outputs
 			}
 		}
 
-		File calls_file = select_first([MergePALMEROutputs.calls, select_first([override_palmer_calls])[idx]])
-		File tsd_file = select_first([MergePALMEROutputs.tsd_reads, select_first([override_palmer_tsd_files])[idx]])
+		File calls_file_pat = select_first([MergePALMEROutputsPat.calls, select_first([override_palmer_calls_pat])[idx]])
+		File tsd_file_pat = select_first([MergePALMEROutputsPat.tsd_reads, select_first([override_palmer_tsd_files_pat])[idx]])
 
-		call ConvertPALMERToVcf {
+		call ConvertPALMERToVcf as ConvertPALMERToVcfPat {
 			input:
-				PALMER_calls = calls_file,
+				PALMER_calls = calls_file_pat,
 				mei_type = mei_type,
 				sample = sample,
 				ref_fai = ref_fai,
+				haplotype = "1|0",
 				docker = palmer_pipeline_docker,
 				runtime_attr_override = runtime_attr_palmer_to_vcf
+		}
+
+		# Maternal haplotype
+		if (!defined(override_palmer_calls_mat)) {
+			call SplitBam as SplitBamMat {
+				input:
+					bam = bam_mat,
+					bai = bai_mat,
+					prefix = prefix + ".mat",
+					contigs = contigs,
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_split_bam
+			}
+
+			scatter (i in range(length(SplitBamMat.bams))) {
+				call RunPALMERShard as RunPALMERShardMat {
+					input:
+						bam = select_first([SplitBamMat.bams])[i],
+						bai = select_first([SplitBamMat.bais])[i],
+						prefix = prefix + ".mat",
+						mode = mode,
+						mei_type = mei_type,
+						ref_fa = ref_fa,
+						docker = palmer_docker,
+						runtime_attr_override = runtime_attr_run_palmer
+				}
+			}
+
+			call MergePALMEROutputs as MergePALMEROutputsMat {
+				input:
+					calls_shards = select_first([RunPALMERShardMat.calls_shard]),
+					tsd_reads_shards = select_first([RunPALMERShardMat.tsd_reads_shard]),
+					prefix = prefix + ".mat",
+					mei_type = mei_type,
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_merge_palmer_outputs
+			}
+		}
+
+		File calls_file_mat = select_first([MergePALMEROutputsMat.calls, select_first([override_palmer_calls_mat])[idx]])
+		File tsd_file_mat = select_first([MergePALMEROutputsMat.tsd_reads, select_first([override_palmer_tsd_files_mat])[idx]])
+
+		call ConvertPALMERToVcf as ConvertPALMERToVcfMat {
+			input:
+				PALMER_calls = calls_file_mat,
+				mei_type = mei_type,
+				sample = sample,
+				ref_fai = ref_fai,
+				haplotype = "0|1",
+				docker = palmer_pipeline_docker,
+				runtime_attr_override = runtime_attr_palmer_to_vcf
+		}
+
+		# Merge haplotypes
+		call TruvariCollapse {
+			input:
+				vcf_pat = ConvertPALMERToVcfPat.vcf,
+				vcf_pat_idx = ConvertPALMERToVcfPat.vcf_idx,
+				vcf_mat = ConvertPALMERToVcfMat.vcf,
+				vcf_mat_idx = ConvertPALMERToVcfMat.vcf_idx,
+				sample = sample,
+				mei_type = mei_type,
+				collapse_params = collapse_params,
+				docker = palmer_pipeline_docker,
+				runtime_attr_override = runtime_attr_truvari_collapse
 		}
 	}
 
 	call ConcatSortVcfs {
 		input:
-			vcfs = ConvertPALMERToVcf.vcf,
-			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
+			vcfs = TruvariCollapse.diploid_vcf,
+			vcf_idxs = TruvariCollapse.diploid_vcf_idx,
 			prefix = prefix,
 			docker = palmer_pipeline_docker,
 			runtime_attr_override = runtime_attr_concat_sort_vcfs
 	}
 
 	output {
-		Array[File] PALMER_calls = calls_file
-		Array[File] PALMER_tsd_reads = tsd_file
-		Array[File] PALMER_vcfs = ConvertPALMERToVcf.vcf
-		Array[File] PALMER_vcf_idxs = ConvertPALMERToVcf.vcf_idx
+		Array[File] PALMER_calls_pat = calls_file_pat
+		Array[File] PALMER_tsd_reads_pat = tsd_file_pat
+		Array[File] PALMER_calls_mat = calls_file_mat
+		Array[File] PALMER_tsd_reads_mat = tsd_file_mat
+		Array[File] PALMER_vcfs_pat = ConvertPALMERToVcfPat.vcf
+		Array[File] PALMER_vcf_idxs_pat = ConvertPALMERToVcfPat.vcf_idx
+		Array[File] PALMER_vcfs_mat = ConvertPALMERToVcfMat.vcf
+		Array[File] PALMER_vcf_idxs_mat = ConvertPALMERToVcfMat.vcf_idx
+		Array[File] PALMER_diploid_vcfs = TruvariCollapse.diploid_vcf
+		Array[File] PALMER_diploid_vcf_idxs = TruvariCollapse.diploid_vcf_idx
 		File PALMER_combined_vcf = ConcatSortVcfs.vcf
 		File PALMER_combined_vcf_idx = ConcatSortVcfs.vcf_idx
 	}
@@ -268,6 +345,7 @@ task ConvertPALMERToVcf {
 		String mei_type
 		String sample
 		File ref_fai
+		String haplotype
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
@@ -280,6 +358,7 @@ task ConvertPALMERToVcf {
 			--mei_type ~{mei_type} \
 			--sample ~{sample} \
 			--ref_fai ~{ref_fai} \
+			--haplotype ~{haplotype} \
 			| bcftools sort -Oz \
 			> ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
 		
@@ -295,6 +374,70 @@ task ConvertPALMERToVcf {
 		cpu_cores: 1,
 		mem_gb: 2,
 		disk_gb: 10*ceil(size(PALMER_calls, "GB") + size(ref_fai, "GB")) + 20,
+		boot_disk_gb: 10,
+		preemptible_tries: 1,
+		max_retries: 0
+	}
+	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+	runtime {
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+	}
+}
+
+task TruvariCollapse {
+	input {
+		File vcf_pat
+		File vcf_pat_idx
+		File vcf_mat
+		File vcf_mat_idx
+		String sample
+		String mei_type
+		String collapse_params
+		String docker
+		RuntimeAttr? runtime_attr_override
+	}
+
+	command <<<
+		set -euo pipefail
+
+		bcftools concat \
+			-a \
+			~{vcf_pat} \
+			~{vcf_mat} \
+		| bcftools sort \
+			-Oz -o combined.vcf.gz
+		
+		tabix combined.vcf.gz
+
+		truvari collapse \
+			-i combined.vcf.gz \
+			-o ~{sample}.~{mei_type}.merged.vcf.gz \
+			-c ~{sample}.~{mei_type}.collapsed.vcf.gz \
+			--hap \
+			~{collapse_params}
+
+		bcftools sort \
+			~{sample}.~{mei_type}.merged.vcf.gz \
+			-Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz
+		
+		tabix ~{sample}.~{mei_type}.merged.sorted.vcf.gz
+	>>>
+
+	output {
+		File diploid_vcf = "~{sample}.~{mei_type}.merged.sorted.vcf.gz"
+		File diploid_vcf_idx = "~{sample}.~{mei_type}.merged.sorted.vcf.gz.tbi"
+	}
+
+	RuntimeAttr default_attr = object {
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: ceil(size(vcf_pat, "GB") + size(vcf_mat, "GB")) * 3 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0

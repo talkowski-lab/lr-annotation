@@ -163,12 +163,23 @@ References:
 
 
 ### [PALMER](wdl/PALMER.wdl)
-This workflow runs PALMER on an aligned assembly in order to generate MEI calls. It then converst theseraw PALMER calls into an integrated VCF with multiple types of MEI calls.
+This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype then finally integrates these into a final VCF containing multiple MEI types.
 
 Inputs:
-- `bam`: Aligned assembly.
-- `bai`: Index for aligned assembly.
-- `mei_type`: MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
+- `bam_pat`: Aligned assembly for paternal haplotype.
+- `bai_pat`: Index for aligned assembly for paternal haplotype.
+- `bam_mat`: Aligned assembly for maternal haplotype.
+- `bai_mat`: Index for aligned assembly for maternal haplotype.
+- `mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
+- `contigs`: Series of contigs to make PALMER calls on.
+- `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype to use if overriding running of PALMER.
+- `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype to use if overriding running of PALMER.
+- `override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype to use if overriding running of PALMER.
+- `override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype to use if overriding running of PALMER.
+
+References:
+- `ref_fa`.
+- `ref_fai`.
 
 
 ### [PAV](wdl/PAV.wdl)
@@ -198,7 +209,7 @@ References:
 
 
 ### [TruvariMerge](wdl/TruvariMerge.wdl)
-This workflow leverages [Truvari](https://github.com/ACEnglish/truvari) in order to merge VCFs whilst collapsing redundant calls. It runs `truvari collapse` with its default parameters of 70% sequence similarity, 70% size similarity, reciprocal overlap of 0% and breakpoint distance of 500 bp.
+This workflow leverages [Truvari](https://github.com/ACEnglish/truvari) in order to merge VCFs whilst collapsing redundant calls. It runs `collapse` with its default parameters of 70% sequence similarity, 70% size similarity, reciprocal overlap of 0% and breakpoint distance of 500 bp.
 
 Inputs:
 - `vcfs`: Series of VCFs to merge.
