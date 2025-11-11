@@ -13,10 +13,10 @@ COPY ./scripts/mei/PALMER_to_vcf_with_sequence.py /opt/gnomad-lr/scripts/mei/
 COPY ./scripts/mei/PALMER_to_vcf.py /opt/gnomad-lr/scripts/mei/
 COPY ./scripts/mei/PALMER_transfer_annotations_no_sample_match.py /opt/gnomad-lr/scripts/mei/
 COPY ./scripts/mei/PALMER_transfer_annotations.py /opt/gnomad-lr/scripts/mei/
+
 RUN mamba env create -f /opt/gnomad-lr/scripts/mei/environment.yml && mamba clean -a -y
 ENV PATH=/opt/conda/envs/filter/bin/:/root/google-cloud-sdk/bin/:${PATH}
 ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/conda/envs/filter/lib/
 
 RUN curl https://sdk.cloud.google.com | bash -s -- --disable-prompts
-
 RUN echo "source activate filter" > ~/.bashrc

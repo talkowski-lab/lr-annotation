@@ -153,6 +153,8 @@ workflow PALMER {
 				sample = sample,
 				mei_type = mei_type,
 				collapse_params = collapse_params,
+				ref_fa = ref_fa,
+				ref_fai = ref_fai,
 				docker = palmer_pipeline_docker,
 				runtime_attr_override = runtime_attr_truvari_collapse
 		}
@@ -399,6 +401,8 @@ task TruvariCollapse {
 		String sample
 		String mei_type
 		String collapse_params
+		File ref_fa
+		File ref_fai
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
@@ -416,6 +420,7 @@ task TruvariCollapse {
 		tabix combined.vcf.gz
 
 		truvari collapse \
+			--reference ~{ref_fa} \
 			-i combined.vcf.gz \
 			-o ~{sample}.~{mei_type}.merged.vcf.gz \
 			-c ~{sample}.~{mei_type}.collapsed.vcf.gz \
