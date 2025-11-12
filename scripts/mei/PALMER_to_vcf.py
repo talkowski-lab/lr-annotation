@@ -67,6 +67,7 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
             if line.startswith("cluster_id\t"):
                 continue
 
+            # Parse fields
             fields = line.strip().split("\t")
             
             # Filter by confidence threshold
@@ -85,12 +86,10 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
             chrom = fields[1]
             pos = round(numpy.median([int(fields[2]), int(fields[3]), int(fields[4]), int(fields[5])]))
             
-            # Get REF and ALT values
+            # Derive REF and ALT
             insertion_seq = insertion_seqs.get(cid, "")
-            ref_pos = pos - 1
-            ref_base = ref_fasta.fetch(chrom, ref_pos, ref_pos + 1)
-            ref = ref_base
-            alt = ref_base + insertion_seq
+            ref = ref_fasta.fetch(chrom, pos - 1, pos).upper()
+            alt = ref + insertion_seq.upper()
 
             # Set baseline VCF record fields
             call = {
