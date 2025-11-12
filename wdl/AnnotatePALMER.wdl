@@ -8,7 +8,8 @@ workflow AnnotatePALMER {
         File vcf_idx
 
         String prefix
-        Array[File] PALMER_vcfs
+        File PALMER_vcf
+        File PALMER_vcf_idx
         Array[String] ME_types
 
         File rm_out
@@ -25,7 +26,8 @@ workflow AnnotatePALMER {
             vcf = vcf,
             vcf_idx = vcf_idx,
             prefix = prefix,
-            PALMER_vcfs = PALMER_vcfs,
+            PALMER_vcf = PALMER_vcf,
+            PALMER_vcf_idx = PALMER_vcf_idx,
             ME_types = ME_types,
             rm_out = rm_out,
             rm_fa = rm_fa,
@@ -45,7 +47,8 @@ task FilterPALMER {
         File vcf
         File vcf_idx
         String prefix
-        Array[File] PALMER_vcfs
+        File PALMER_vcf
+        File PALMER_vcf_idx
         Array[String] ME_types
         File rm_out
         File rm_fa
@@ -60,13 +63,17 @@ task FilterPALMER {
         cur_vcf=~{vcf}
         cut -f1,2 ~{ref_fai} > genome_file
         
-        call_files=(~{sep=" " PALMER_vcfs})
         types=(~{sep=" " ME_types})
 
-        for i in "${!types[@]}"; do
-            ME_type=${types[i]}
-            PALMER_vcf=${call_files[i]}
-            echo "Processing ${ME_type} calls from ${PALMER_vcf}"
+        for ME_type in "${types[@]}"; do
+            echo "Processing ${ME_type} calls from ~{PALMER_vcf}"
+
+            bcftools view \
+                -i "INFO/ME_TYPE='${ME_type}'" \
+                -Oz \
+                -o ${ME_type}_subset.vcf.gz \
+                ~{PALMER_vcf}
+            tabix ${ME_type}_subset.vcf.gz
 
             MEfilter=""
             if [[ "${ME_type}" == "LINE" ]]; then MEfilter="LINE/L1";
@@ -83,7 +90,7 @@ task FilterPALMER {
                 bedtools slop -g genome_file -b 50 | \
                 bedtools merge -c 4,5,6 -o collapse > RMfilter.50bpbuffer.bed
 
-            bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${PALMER_vcf} \
+            bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
                 | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4,$5}' \
                 | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed
@@ -126,7 +133,7 @@ task FilterPALMER {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 5*ceil(size(PALMER_vcfs, "GB")+size(rm_out, "GB")+size(rm_fa, "GB")+size(ref_fai, "GB")+size(vcf, "GB"))+20,
+        disk_gb: 5*ceil(size(PALMER_vcf, "GB")+size(rm_out, "GB")+size(rm_fa, "GB")+size(ref_fai, "GB")+size(vcf, "GB"))+20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
