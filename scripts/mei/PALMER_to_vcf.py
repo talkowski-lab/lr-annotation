@@ -3,6 +3,7 @@
 import argparse
 import sys
 import numpy
+import pysam
 
 
 def parse_args():
@@ -10,8 +11,10 @@ def parse_args():
         description="Convert PALMER MEI calls to VCF format."
     )
     parser.add_argument("--palmer_calls", required=True, help="PALMER calls file")
+    parser.add_argument("--palmer_tsd_reads", required=True, help="PALMER TSD reads file")
     parser.add_argument("--mei_type", required=True, help="Mobile element type (e.g., ALU, LINE1, SVA)")
     parser.add_argument("--sample", required=True, help="Sample name")
+    parser.add_argument("--ref_fa", required=True, help="Reference genome FASTA file")
     parser.add_argument("--ref_fai", required=True, help="Reference genome FAI index file")
     parser.add_argument("--haplotype", required=True, help="Haplotype genotype (e.g., 1|0 or 0|1)")
     return parser.parse_args()
@@ -39,7 +42,23 @@ def write_vcf_header(ref_fai_path, sample):
     print(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}")
 
 
-def parse_palmer_calls(callfile_path, min_conf=1):
+def parse_tsd_reads(tsd_reads_path):
+    insertion_seqs = {}
+    with open(tsd_reads_path, "r") as tsd_file:
+        for line in tsd_file:
+            if line.startswith("cluster_id\t"):
+                continue
+            
+            fields = line.strip().split("\t")
+            cluster_id = fields[0]
+            if cluster_id not in insertion_seqs:
+                whole_insertion_seq = fields[6]
+                insertion_seqs[cluster_id] = whole_insertion_seq
+    
+    return insertion_seqs
+
+
+def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
     calls = {}
     seen_records = set()
 
@@ -50,7 +69,7 @@ def parse_palmer_calls(callfile_path, min_conf=1):
 
             fields = line.strip().split("\t")
             
-            # Filter by confidence threshold (column 10, 0-indexed)
+            # Filter by confidence threshold
             conf = int(fields[10])
             if conf < min_conf:
                 continue
@@ -63,9 +82,22 @@ def parse_palmer_calls(callfile_path, min_conf=1):
 
             # Parse call information
             cid = fields[0]
+            chrom = fields[1]
+            pos = round(numpy.median([int(fields[2]), int(fields[3]), int(fields[4]), int(fields[5])]))
+            
+            # Get REF and ALT values
+            insertion_seq = insertion_seqs.get(cid, "")
+            ref_pos = pos - 1
+            ref_base = ref_fasta.fetch(chrom, ref_pos, ref_pos + 1)
+            ref = ref_base
+            alt = ref_base + insertion_seq
+
+            # Set baseline VCF record fields
             call = {
-                "chrom": fields[1],
-                "pos": round(numpy.median([int(fields[2]), int(fields[3]), int(fields[4]), int(fields[5])])),
+                "chrom": chrom,
+                "pos": pos,
+                "ref": ref,
+                "alt": alt,
                 "conf": fields[10],
                 "ori": fields[13],
                 "polyAlen": fields[14],
@@ -101,15 +133,27 @@ def write_vcf_records(calls, mei_type, haplotype):
         if call["5inv"]:
             info_fields += ";INVERSION_5PRIME"
         
-        print(f"{call['chrom']}\t{call['pos']}\t{cid}\tN\tN\t60\t.\t{info_fields}\tGT\t{haplotype}")
+        print(f"{call['chrom']}\t{call['pos']}\t{cid}\t{call['ref']}\t{call['alt']}\t60\t.\t{info_fields}\tGT\t{haplotype}")
 
 
 def main():
     args = parse_args()
     
+    # Load reference FASTA
+    ref_fasta = pysam.FastaFile(args.ref_fa)
+    
+    # Parse TSD reads to get insertion sequences
+    insertion_seqs = parse_tsd_reads(args.palmer_tsd_reads)
+    
+    # Write VCF header
     write_vcf_header(args.ref_fai, args.sample)
-    calls = parse_palmer_calls(args.palmer_calls)
+    
+    # Parse calls and write records
+    calls = parse_palmer_calls(args.palmer_calls, insertion_seqs, ref_fasta)
     write_vcf_records(calls, args.mei_type, args.haplotype)
+    
+    # Close reference
+    ref_fasta.close()
 
 
 if __name__ == "__main__":

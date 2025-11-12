@@ -84,8 +84,10 @@ workflow PALMER {
 		call ConvertPALMERToVcf as ConvertPALMERToVcfPat {
 			input:
 				PALMER_calls = calls_file_pat,
+				PALMER_tsd_reads = tsd_file_pat,
 				mei_type = mei_type,
 				sample = sample,
+				ref_fa = ref_fa,
 				ref_fai = ref_fai,
 				haplotype = "1|0",
 				docker = palmer_pipeline_docker,
@@ -135,8 +137,10 @@ workflow PALMER {
 		call ConvertPALMERToVcf as ConvertPALMERToVcfMat {
 			input:
 				PALMER_calls = calls_file_mat,
+				PALMER_tsd_reads = tsd_file_mat,
 				mei_type = mei_type,
 				sample = sample,
+				ref_fa = ref_fa,
 				ref_fai = ref_fai,
 				haplotype = "0|1",
 				docker = palmer_pipeline_docker,
@@ -155,7 +159,7 @@ workflow PALMER {
 				collapse_params = collapse_params,
 				ref_fa = ref_fa,
 				ref_fai = ref_fai,
-				docker = palmer_pipeline_docker,
+				docker = utils_docker,
 				runtime_attr_override = runtime_attr_truvari_collapse
 		}
 	}
@@ -344,8 +348,10 @@ task MergePALMEROutputs {
 task ConvertPALMERToVcf {
 	input {
 		File PALMER_calls
+		File PALMER_tsd_reads
 		String mei_type
 		String sample
+		File ref_fa
 		File ref_fai
 		String haplotype
 		String docker
@@ -357,8 +363,10 @@ task ConvertPALMERToVcf {
 
 		python /opt/gnomad-lr/scripts/mei/PALMER_to_vcf.py \
 			--palmer_calls ~{PALMER_calls} \
+			--palmer_tsd_reads ~{PALMER_tsd_reads} \
 			--mei_type ~{mei_type} \
 			--sample ~{sample} \
+			--ref_fa ~{ref_fa} \
 			--ref_fai ~{ref_fai} \
 			--haplotype "~{haplotype}" \
 			| bcftools sort -Oz \
@@ -374,8 +382,8 @@ task ConvertPALMERToVcf {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
-		mem_gb: 2,
-		disk_gb: 10*ceil(size(PALMER_calls, "GB") + size(ref_fai, "GB")) + 20,
+		mem_gb: 4,
+		disk_gb: 10*ceil(size(PALMER_calls, "GB") + size(PALMER_tsd_reads, "GB") + size(ref_fa, "GB") + size(ref_fai, "GB")) + 20,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
