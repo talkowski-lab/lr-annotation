@@ -360,7 +360,7 @@ task ConvertPALMERToVcf {
 			--mei_type ~{mei_type} \
 			--sample ~{sample} \
 			--ref_fai ~{ref_fai} \
-			--haplotype ~{haplotype} \
+			--haplotype "~{haplotype}" \
 			| bcftools sort -Oz \
 			> ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
 		
