@@ -4,6 +4,7 @@ import argparse
 import sys
 import numpy
 import pysam
+import re
 
 
 def parse_args():
@@ -49,7 +50,7 @@ def parse_tsd_reads(tsd_reads_path):
             if line.startswith("cluster_id\t"):
                 continue
             
-            fields = line.strip().split("\t")
+            fields = re.split(r'\t+', line.strip())
             cluster_id = fields[0]
             if cluster_id not in insertion_seqs:
                 whole_insertion_seq = fields[6]
@@ -68,7 +69,7 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
                 continue
 
             # Parse fields
-            fields = line.strip().split("\t")
+            fields = re.split(r'\t+', line.strip())
             
             # Filter by confidence threshold
             conf = int(fields[10])
