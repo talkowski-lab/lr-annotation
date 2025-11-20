@@ -104,7 +104,7 @@ with open("assemblies.tsv", "w") as f:
 
 CODE
 
-        python3 -m pav3 call --cores ~{effective_cpu}
+        python3 -m pav3 call --cores ~{effective_cpu} -- -R call_integrate_sources
 
         tar -zcf pav_results.tar.gz results
         tar -zcf pav_log.tar.gz log
