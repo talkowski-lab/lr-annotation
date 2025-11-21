@@ -205,7 +205,7 @@ task FilterPALMER {
 
             gunzip -c ${ME_type}_annotations.raw.vcf.gz > ${ME_type}_annotations.raw.vcf
             grep '^#' ${ME_type}_annotations.raw.vcf > annotations_to_transfer.vcf
-            grep -v '^#' ${ME_type}_annotations.raw.vcf | sort -k1,1 -k2,2n -u >> annotations_to_transfer.vcf
+            (grep -v '^#' ${ME_type}_annotations.raw.vcf || true) | sort -k1,1 -k2,2n -u >> annotations_to_transfer.vcf
             bgzip -f annotations_to_transfer.vcf
             tabix -f -p vcf annotations_to_transfer.vcf.gz
             rm -f ${ME_type}_annotations.raw.vcf ${ME_type}_annotations.raw.vcf.gz
