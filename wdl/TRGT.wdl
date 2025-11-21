@@ -53,7 +53,7 @@ workflow TRGT {
     output {
         File trgt_vcf = FinalizeTrgtVCF.gcs_path
         File trgt_vcf_idx = FinalizeTrgtTBI.gcs_path
-        File trgt_bam = ProcessWithTRGT.trgt_output_bam
+        # File trgt_bam = ProcessWithTRGT.trgt_output_bam
     }
 }
 
@@ -109,7 +109,7 @@ task ProcessWithTRGT {
     output {
         File trgt_output_vcf = "~{vcf_out_name}.vcf.gz"
         File trgt_output_vcf_idx = "~{vcf_out_name}.vcf.gz.tbi"
-        File trgt_output_bam = "~{vcf_out_name}.spanning.bam"
+        # File trgt_output_bam = "~{vcf_out_name}.spanning.bam"
     }
 
     RuntimeAttr default_attr = object {
