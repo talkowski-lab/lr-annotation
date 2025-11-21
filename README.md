@@ -163,7 +163,7 @@ References:
 
 
 ### [PALMER](wdl/PALMER.wdl)
-This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype then finally integrates these into a final VCF containing multiple MEI types.
+This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
 
 Inputs:
 - `bam_pat`: Aligned assembly for paternal haplotype.
@@ -172,14 +172,19 @@ Inputs:
 - `bai_mat`: Index for aligned assembly for maternal haplotype.
 - `mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
 - `contigs`: Series of contigs to make PALMER calls on.
-- `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype to use if overriding running of PALMER.
-- `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype to use if overriding running of PALMER.
-- `override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype to use if overriding running of PALMER.
-- `override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype to use if overriding running of PALMER.
+- `truvari_collapse_params`: Truvari parameters to use when merging across haplotypes.
+- `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype, causing the workflow to bypass its execution. 
+- `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution. 
+- `override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype, causing the workflow to bypass its execution. 
+- `override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype, causing the workflow to bypass its execution. 
 
 References:
 - `ref_fa`.
 - `ref_fai`.
+
+
+### [PALMER](wdl/PALMERMerge.wdl)
+TODO
 
 
 ### [PAV](wdl/PAV.wdl)

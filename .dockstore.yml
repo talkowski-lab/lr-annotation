@@ -97,7 +97,16 @@ workflows:
       branches:
         - main
       tags:
-        - /.*/   
+        - /.*/
+
+  - subclass: WDL
+    name: PALMERMerge
+    primaryDescriptorPath: /wdl/PALMERMerge.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
 
   - subclass: WDL
     name: PAV
