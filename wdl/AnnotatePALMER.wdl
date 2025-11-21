@@ -30,9 +30,9 @@ workflow AnnotatePALMER {
         Float sequence_similarity_LINE = 0.9
         Float sequence_similarity_HERVK = 0.5
 
-        Int breakpoint_window_ALU = 200
+        Int breakpoint_window_ALU = 500
         Int breakpoint_window_SVA = 1000
-        Int breakpoint_window_LINE = 200
+        Int breakpoint_window_LINE = 500
         Int breakpoint_window_HERVK = 1000
 
         Int min_shared_samples_ALU = 1
