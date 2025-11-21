@@ -1,113 +1,204 @@
 #!/usr/bin/env python3
 
 
+import argparse
+import gzip
 import sys
+from difflib import SequenceMatcher
+
 from Bio import SeqIO
 from pysam import VariantFile
 
-# intersection output:
-# 0:chrom 1:range_start 2:range_end 3:position(s) 4:REF(s) 5:SVLEN(s) (<<
-# from target VCF <<) 6:chrom 7:pos-1 8:pos 9:ID 10:mei_len 11:sample(s) (<<
-# from MEI VCF <<)
+
+def parse_intersection_line(line: str):
+    fields = line.strip().split("\t")
+    return {
+        "chrom": fields[0],
+        "sv_positions": fields[3].split(","),
+        "sv_refs": fields[4].split(","),
+        "sv_lengths": fields[5].split(","),
+        "mei_start_0based": int(fields[7]),
+        "mei_pos_1based": int(fields[8]),
+        "mei_id": fields[9],
+        "mei_length": abs(int(fields[10])),
+        "mei_samples": fields[11].rstrip(",").split(","),
+    }
 
 
-def main():
-    if len(sys.argv) != 5:
-        sys.stderr.write(
-            "Usage: program.py intersect_output target_VCF INS_fa ME_type\n"
-        )
-        sys.exit(1)
+def compute_size_similarity(target_length: int, mei_length: int) -> float:
+    if target_length <= 0 or mei_length <= 0:
+        return 0.0
+    return min(target_length, mei_length) / max(target_length, mei_length)
 
-    intersect_output = open(sys.argv[1], "r")
-    target_VCF = VariantFile(sys.argv[2])
-    INS_fa = SeqIO.index(sys.argv[3], "fasta")
-    ME_type = sys.argv[4]
 
-    if ME_type not in ["SVA", "ALU", "Alu", "L1", "LINE1", "LINE", "HERVK"]:
-        sys.stderr.write("ME type %s not recognized\n" % ME_type)
-        sys.exit(1)
+def compute_reciprocal_overlap(
+    target_start: int, target_length: int, mei_start: int, mei_length: int
+) -> float:
+    target_end = target_start + target_length
+    mei_end = mei_start + mei_length
+    overlap = min(target_end, mei_end) - max(target_start, mei_start)
+    if overlap <= 0:
+        return 0.0
+    return min(overlap / target_length, overlap / mei_length)
 
-    samples = list(target_VCF.header.samples)
 
-    for line in intersect_output:
-        line = line.strip().split("\t")
-        chrom = line[0]
-        MEI_ID = line[9]
-        MEI_length = int(line[10])
-        MEI_samples = line[11].rstrip(",").split(",")
+def compute_sequence_similarity(seq_a: str, seq_b: str) -> float:
+    if not seq_a and not seq_b:
+        return 1.0
+    if not seq_a or not seq_b:
+        return 0.0
+    if seq_a == seq_b:
+        return 1.0
+    return SequenceMatcher(None, seq_a, seq_b).ratio()
 
-        SVs = []
-        SV_positions = line[3].split(",")
-        SV_refs = line[4].split(",")
-        SV_lengths = line[5].split(",")
 
-        for ref, pos, length in zip(SV_refs, SV_positions, SV_lengths):
-            SVs.append(
-                {
-                    "ref": ref.split("_")[0],
-                    "pos": int(pos),
-                    "length": int(length),
-                    "id": "%s:%s;%s" % (chrom, pos, ref),
-                }
-            )
+def record_passes_filters(
+    record,
+    ref_allele: str,
+    sv_length: int,
+    mei_data: dict,
+    inserted_sequence: str,
+    samples: list[str],
+    args: argparse.Namespace,
+) -> bool:
+    svlen_field = record.info.get("SVLEN")
+    svlen = abs(svlen_field[0]) if isinstance(svlen_field, tuple) else abs(svlen_field)
+    target_length = abs(sv_length)
+    if svlen != target_length - 1:
+        return False
 
-        for SV in SVs:
-            # match lengths on 80% reciprocal size percentage but ignore if SVA
-            ratio = min(SV["length"], MEI_length) / max(SV["length"], MEI_length)
-            if ME_type == "SVA" or ratio >= 0.8:
-                for rec in target_VCF.fetch(
-                    chrom, SV["pos"] - 1, SV["pos"]
-                ):  # tested that this is the right way to fetch one position
-                    # skip if the record already has a ME_TYPE annotation
-                    if "ME_TYPE" in rec.info:
+    svtype_field = record.info.get("SVTYPE")
+    svtype = svtype_field[0] if isinstance(svtype_field, tuple) else svtype_field
+    if svtype != "INS":
+        return False
+
+    if record.ref != ref_allele:
+        return False
+
+    if not record.alts:
+        return False
+
+    alt_allele = record.alts[0]
+    sequence_similarity = compute_sequence_similarity(alt_allele, inserted_sequence)
+    if sequence_similarity < args.sequence_similarity:
+        return False
+
+    size_similarity = compute_size_similarity(target_length, mei_data["mei_length"])
+    if size_similarity < args.size_similarity:
+        return False
+
+    reciprocal_overlap = compute_reciprocal_overlap(
+        record.pos - 1, target_length, mei_data["mei_start_0based"], mei_data["mei_length"]
+    )
+    if reciprocal_overlap < args.reciprocal_overlap:
+        return False
+
+    breakpoint_distance = abs(record.pos - mei_data["mei_pos_1based"])
+    if breakpoint_distance > args.breakpoint_window:
+        return False
+
+    genotypes = [record.samples[sample]["GT"] for sample in samples]
+    sv_samples = [sample for gt, sample in zip(genotypes, samples) if 1 in gt]
+    shared = set(sv_samples) & set(mei_data["mei_samples"])
+    if len(shared) < args.min_shared_samples:
+        return False
+
+    return True
+
+
+def write_header(handle):
+    handle.write("##fileformat=VCFv4.2\n")
+    handle.write(
+        "##INFO=<ID=ME_TYPE,Number=1,Type=String,Description=\"Type of mobile element\">\n"
+    )
+    handle.write(
+        "##INFO=<ID=ME_LEN,Number=1,Type=Integer,Description=\"Length of PALMER call\">\n"
+    )
+    handle.write(
+        "##INFO=<ID=ME_ID,Number=1,Type=String,Description=\"ID of the PALMER variant\">\n"
+    )
+    handle.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Transfer PALMER MEI annotations onto a short-read VCF"
+    )
+    parser.add_argument("--intersection", required=True, help="Path to bedtools intersect output")
+    parser.add_argument("--target-vcf", required=True, help="Target VCF to annotate")
+    parser.add_argument("--ins-fa", required=True, help="FASTA with MEI insert sequences")
+    parser.add_argument("--me-type", required=True, help="MEI class under evaluation")
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Destination bgzipped VCF containing transferable annotations",
+    )
+    parser.add_argument(
+        "--reciprocal-overlap",
+        type=float,
+        required=True,
+        help="Minimum reciprocal overlap between PALMER and short-read events (0-1)",
+    )
+    parser.add_argument(
+        "--size-similarity",
+        type=float,
+        required=True,
+        help="Minimum size similarity between PALMER and short-read events (0-1)",
+    )
+    parser.add_argument(
+        "--sequence-similarity",
+        type=float,
+        required=True,
+        help="Minimum sequence similarity between PALMER and short-read events (0-1)",
+    )
+    parser.add_argument(
+        "--breakpoint-window",
+        type=int,
+        required=True,
+        help="Maximum distance (bp) between event breakpoints",
+    )
+    parser.add_argument(
+        "--min-shared-samples",
+        type=int,
+        required=True,
+        help="Minimum number of shared samples required for annotation",
+    )
+    args = parser.parse_args()
+
+    target_vcf = VariantFile(args.target_vcf)
+    ins_fasta = SeqIO.index(args.ins_fa, "fasta")
+    samples = list(target_vcf.header.samples)
+
+    with open(args.intersection, "r", encoding="utf-8") as source, gzip.open(args.output, "wt", encoding="utf-8") as output_handle:
+        write_header(output_handle)
+        for raw_line in source:
+            mei_data = parse_intersection_line(raw_line)
+            chrom = mei_data["chrom"]
+            for ref, pos, length in zip(mei_data["sv_refs"], mei_data["sv_positions"], mei_data["sv_lengths"]):
+                sv_pos = int(pos)
+                sv_length = int(length)
+                ref_allele = ref.split("_")[0]
+                sv_id = f"{chrom}:{pos};{ref}"
+                inserted_sequence = str(ins_fasta[sv_id].seq)
+
+                for record in target_vcf.fetch(chrom, sv_pos - 1, sv_pos):
+                    if "ME_TYPE" in record.info:
                         continue
 
-                    # match on svlen - 1 less as alt length includes the ref nuc
-                    if isinstance(rec.info["SVLEN"], tuple):
-                        svlen = abs(rec.info["SVLEN"][0])
-                    else:
-                        svlen = abs(rec.info["SVLEN"])
-                    if svlen != SV["length"] - 1:
+                    if not record_passes_filters(record, ref_allele, sv_length, mei_data,
+                                                 inserted_sequence, samples, args):
                         continue
 
-                    # ensure that the SVTYPE is an insertion
-                    if isinstance(rec.info["SVTYPE"], tuple):
-                        svtype = rec.info["SVTYPE"][0]
-                    else:
-                        svtype = rec.info["SVTYPE"]
-                    if svtype != "INS":
-                        continue
+                    output_handle.write(
+                        f"{chrom}\t{sv_pos}\t.\t{record.ref}\t{record.alts[0]}\t.\t.\t"
+                    )
+                    output_handle.write(
+                        f"ME_TYPE={args.me_type};ME_LEN={mei_data['mei_length']};ME_ID={mei_data['mei_id']}\n"
+                    )
 
-                    # match on ref
-                    if rec.ref != SV["ref"]:
-                        continue
-
-                    # match on alt
-                    if rec.alts[0] != str(INS_fa[SV["id"]].seq):
-                        continue
-
-                    # calculate sample overlap
-                    GTs = [rec.samples[sample]["GT"] for sample in samples]
-                    SV_samples = []
-                    for GT, sample in zip(GTs, samples):
-                        if 1 in GT:
-                            SV_samples.append(sample)
-                    shared_samples = list(set(SV_samples) & set(MEI_samples))
-                    if (shared_samples):  # at least one shared sample between MEI and SV calls
-                        sys.stdout.write(
-                            "%s\t%s\t%s\t%s\t%s\t%d\t%s\n"
-                            % (
-                                chrom,
-                                SV["pos"],
-                                rec.ref,
-                                rec.alts[0],
-                                ME_type,
-                                MEI_length,
-                                MEI_ID,
-                            )
-                        )
-                    else:
-                        sys.stderr.write("%s\n%s\n#####\n" % (MEI_samples, SV_samples))
+    target_vcf.close()
+    if hasattr(ins_fasta, "close"):
+        ins_fasta.close()
 
 
 if __name__ == "__main__":

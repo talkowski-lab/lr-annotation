@@ -10,11 +10,35 @@ workflow AnnotatePALMER {
         String prefix
         File PALMER_vcf
         File PALMER_vcf_idx
-        Array[String] ME_types
 
         File rm_out
         File rm_fa
         File ref_fai
+
+        Float reciprocal_overlap_ALU = 0.9
+        Float reciprocal_overlap_SVA = 0.5
+        Float reciprocal_overlap_LINE = 0.9
+        Float reciprocal_overlap_HERVK = 0.5
+
+        Float size_similarity_ALU = 0.9
+        Float size_similarity_SVA = 0.5
+        Float size_similarity_LINE = 0.9
+        Float size_similarity_HERVK = 0.5
+
+        Float sequence_similarity_ALU = 0.9
+        Float sequence_similarity_SVA = 0.5
+        Float sequence_similarity_LINE = 0.9
+        Float sequence_similarity_HERVK = 0.5
+
+        Int breakpoint_window_ALU = 200
+        Int breakpoint_window_SVA = 1000
+        Int breakpoint_window_LINE = 200
+        Int breakpoint_window_HERVK = 1000
+
+        Int min_shared_samples_ALU = 1
+        Int min_shared_samples_SVA = 1
+        Int min_shared_samples_LINE = 1
+        Int min_shared_samples_HERVK = 1
 
         String palmer_docker
 
@@ -28,12 +52,31 @@ workflow AnnotatePALMER {
             prefix = prefix,
             PALMER_vcf = PALMER_vcf,
             PALMER_vcf_idx = PALMER_vcf_idx,
-            ME_types = ME_types,
             rm_out = rm_out,
             rm_fa = rm_fa,
             ref_fai = ref_fai,
             docker = palmer_docker,
-            runtime_attr_override = runtime_attr_filter_palmer
+            runtime_attr_override = runtime_attr_filter_palmer,
+            reciprocal_overlap_ALU = reciprocal_overlap_ALU,
+            reciprocal_overlap_LINE = reciprocal_overlap_LINE,
+            reciprocal_overlap_SVA = reciprocal_overlap_SVA,
+            reciprocal_overlap_HERVK = reciprocal_overlap_HERVK,
+            size_similarity_ALU = size_similarity_ALU,
+            size_similarity_LINE = size_similarity_LINE,
+            size_similarity_SVA = size_similarity_SVA,
+            size_similarity_HERVK = size_similarity_HERVK,
+            sequence_similarity_ALU = sequence_similarity_ALU,
+            sequence_similarity_LINE = sequence_similarity_LINE,
+            sequence_similarity_SVA = sequence_similarity_SVA,
+            sequence_similarity_HERVK = sequence_similarity_HERVK,
+            breakpoint_window_ALU = breakpoint_window_ALU,
+            breakpoint_window_LINE = breakpoint_window_LINE,
+            breakpoint_window_SVA = breakpoint_window_SVA,
+            breakpoint_window_HERVK = breakpoint_window_HERVK,
+            min_shared_samples_ALU = min_shared_samples_ALU,
+            min_shared_samples_LINE = min_shared_samples_LINE,
+            min_shared_samples_SVA = min_shared_samples_SVA,
+            min_shared_samples_HERVK = min_shared_samples_HERVK
     }
 
     output {
@@ -49,12 +92,36 @@ task FilterPALMER {
         String prefix
         File PALMER_vcf
         File PALMER_vcf_idx
-        Array[String] ME_types
         File rm_out
         File rm_fa
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
+
+        Float reciprocal_overlap_ALU
+        Float reciprocal_overlap_LINE
+        Float reciprocal_overlap_SVA
+        Float reciprocal_overlap_HERVK
+
+        Float size_similarity_ALU
+        Float size_similarity_LINE
+        Float size_similarity_SVA
+        Float size_similarity_HERVK
+
+        Float sequence_similarity_ALU
+        Float sequence_similarity_LINE
+        Float sequence_similarity_SVA
+        Float sequence_similarity_HERVK
+
+        Int breakpoint_window_ALU
+        Int breakpoint_window_LINE
+        Int breakpoint_window_SVA
+        Int breakpoint_window_HERVK
+
+        Int min_shared_samples_ALU
+        Int min_shared_samples_LINE
+        Int min_shared_samples_SVA
+        Int min_shared_samples_HERVK
     }
 
     command <<<
@@ -62,12 +129,10 @@ task FilterPALMER {
 
         cur_vcf=~{vcf}
         cut -f1,2 ~{ref_fai} > genome_file
-        
-        types=(~{sep=" " ME_types})
+
+        types=("ALU" "LINE" "SVA" "HERVK")
 
         for ME_type in "${types[@]}"; do
-            echo "Processing ${ME_type} calls from ~{PALMER_vcf}"
-
             bcftools view \
                 -i "INFO/ME_TYPE='${ME_type}'" \
                 -Oz \
@@ -82,7 +147,36 @@ task FilterPALMER {
             elif [[ "${ME_type}" == "HERVK" ]]; then MEfilter="LTR/ERVK";
             fi
 
-            if [ -z "$MEfilter" ]; then echo "ERROR: filter type is unset (check that MEI type is one of permitted options)"; exit 1; fi
+            reciprocal_overlap_threshold=0
+            size_similarity_threshold=0
+            sequence_similarity_threshold=0
+            breakpoint_window=0
+            min_shared_samples=0
+            if [[ "${ME_type}" == "ALU" ]]; then
+                reciprocal_overlap_threshold=~{reciprocal_overlap_ALU}
+                size_similarity_threshold=~{size_similarity_ALU}
+                sequence_similarity_threshold=~{sequence_similarity_ALU}
+                breakpoint_window=~{breakpoint_window_ALU}
+                min_shared_samples=~{min_shared_samples_ALU}
+            elif [[ "${ME_type}" == "LINE" ]]; then
+                reciprocal_overlap_threshold=~{reciprocal_overlap_LINE}
+                size_similarity_threshold=~{size_similarity_LINE}
+                sequence_similarity_threshold=~{sequence_similarity_LINE}
+                breakpoint_window=~{breakpoint_window_LINE}
+                min_shared_samples=~{min_shared_samples_LINE}
+            elif [[ "${ME_type}" == "SVA" ]]; then
+                reciprocal_overlap_threshold=~{reciprocal_overlap_SVA}
+                size_similarity_threshold=~{size_similarity_SVA}
+                sequence_similarity_threshold=~{sequence_similarity_SVA}
+                breakpoint_window=~{breakpoint_window_SVA}
+                min_shared_samples=~{min_shared_samples_SVA}
+            elif [[ "${ME_type}" == "HERVK" ]]; then
+                reciprocal_overlap_threshold=~{reciprocal_overlap_HERVK}
+                size_similarity_threshold=~{size_similarity_HERVK}
+                sequence_similarity_threshold=~{sequence_similarity_HERVK}
+                breakpoint_window=~{breakpoint_window_HERVK}
+                min_shared_samples=~{min_shared_samples_HERVK}
+            fi
 
             awk '$11==FILTER' FILTER="${MEfilter}" ~{rm_out} | \
                 awk 'OFS="\t" {print $5,$7,$8}'| sed 's/(//'|sed 's/)//'|awk 'OFS="\t" {print $1,$2+$3}' | \
@@ -98,15 +192,23 @@ task FilterPALMER {
             bedtools intersect -wo -a RMfilter.50bpbuffer.bed -b PALMER_calls.bed > intersection
 
             python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
-                intersection \
-                ~{vcf} \
-                ~{rm_fa} \
-                ${ME_type} \
-                | sort -k1,1 -k2,2n \
-                | uniq \
-                | bgzip \
-                > annotations_to_transfer.tsv.gz
-            tabix -f -b 2 -e 2 annotations_to_transfer.tsv.gz
+                --intersection intersection \
+                --target-vcf ${cur_vcf} \
+                --ins-fa ~{rm_fa} \
+                --me-type ${ME_type} \
+                --output ${ME_type}_annotations.raw.vcf.gz \
+                --reciprocal-overlap "${reciprocal_overlap_threshold}" \
+                --size-similarity "${size_similarity_threshold}" \
+                --sequence-similarity "${sequence_similarity_threshold}" \
+                --breakpoint-window "${breakpoint_window}" \
+                --min-shared-samples "${min_shared_samples}"
+
+            gunzip -c ${ME_type}_annotations.raw.vcf.gz > ${ME_type}_annotations.raw.vcf
+            grep '^#' ${ME_type}_annotations.raw.vcf > annotations_to_transfer.vcf
+            grep -v '^#' ${ME_type}_annotations.raw.vcf | sort -k1,1 -k2,2n -u >> annotations_to_transfer.vcf
+            bgzip -f annotations_to_transfer.vcf
+            tabix -f -p vcf annotations_to_transfer.vcf.gz
+            rm -f ${ME_type}_annotations.raw.vcf ${ME_type}_annotations.raw.vcf.gz
 
             echo '##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">' > line.header
             echo '##INFO=<ID=ME_LEN,Number=.,Type=Integer,Description="Length of SV">' >> line.header
@@ -114,7 +216,7 @@ task FilterPALMER {
 
             bcftools annotate \
                 -Oz \
-                -a annotations_to_transfer.tsv.gz \
+                -a annotations_to_transfer.vcf.gz \
                 -c CHROM,POS,REF,ALT,+ME_TYPE,+ME_LEN,+ME_ID \
                 -h line.header \
                 ${cur_vcf} \
@@ -133,7 +235,7 @@ task FilterPALMER {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 5*ceil(size(PALMER_vcf, "GB")+size(rm_out, "GB")+size(rm_fa, "GB")+size(ref_fai, "GB")+size(vcf, "GB"))+20,
+        disk_gb: 3*ceil(size(vcf, "GB")+size(PALMER_vcf, "GB")+size(rm_out, "GB")+size(rm_fa, "GB"))+20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
