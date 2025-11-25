@@ -12,7 +12,6 @@ workflow AnnotatePALMER {
         File PALMER_vcf_idx
 
         File rm_out
-        # removed rm_fa (ins-fa)
         File ref_fai
 
         Float reciprocal_overlap_ALU = 0.9
@@ -53,7 +52,6 @@ workflow AnnotatePALMER {
             PALMER_vcf = PALMER_vcf,
             PALMER_vcf_idx = PALMER_vcf_idx,
             rm_out = rm_out,
-            # removed rm_fa
             ref_fai = ref_fai,
             docker = palmer_docker,
             runtime_attr_override = runtime_attr_filter_palmer,
@@ -93,7 +91,6 @@ task FilterPALMER {
         File PALMER_vcf
         File PALMER_vcf_idx
         File rm_out
-        # removed rm_fa
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
@@ -234,7 +231,7 @@ task FilterPALMER {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 3*ceil(size(vcf, "GB")+size(PALMER_vcf, "GB")+size(rm_out, "GB")+size(rm_fa, "GB"))+20,
+        disk_gb: 3*ceil(size(vcf, "GB")+size(PALMER_vcf, "GB")+size(rm_out, "GB"))+20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
