@@ -12,7 +12,7 @@ workflow AnnotatePALMER {
         File PALMER_vcf_idx
 
         File rm_out
-        File rm_fa
+        # removed rm_fa (ins-fa)
         File ref_fai
 
         Float reciprocal_overlap_ALU = 0.9
@@ -53,7 +53,7 @@ workflow AnnotatePALMER {
             PALMER_vcf = PALMER_vcf,
             PALMER_vcf_idx = PALMER_vcf_idx,
             rm_out = rm_out,
-            rm_fa = rm_fa,
+            # removed rm_fa
             ref_fai = ref_fai,
             docker = palmer_docker,
             runtime_attr_override = runtime_attr_filter_palmer,
@@ -93,7 +93,7 @@ task FilterPALMER {
         File PALMER_vcf
         File PALMER_vcf_idx
         File rm_out
-        File rm_fa
+        # removed rm_fa
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
@@ -184,8 +184,8 @@ task FilterPALMER {
                 bedtools slop -g genome_file -b 50 | \
                 bedtools merge -c 4,5,6 -o collapse > RMfilter.50bpbuffer.bed
 
-            bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
-                | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4,$5}' \
+            bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\t%REF\t%ALT\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
+                | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4,$5,$6,$7}' \
                 | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed
 
@@ -194,7 +194,6 @@ task FilterPALMER {
             python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
                 --intersection intersection \
                 --target-vcf ${cur_vcf} \
-                --ins-fa ~{rm_fa} \
                 --me-type ${ME_type} \
                 --output ${ME_type}_annotations.raw.vcf.gz \
                 --reciprocal-overlap "${reciprocal_overlap_threshold}" \

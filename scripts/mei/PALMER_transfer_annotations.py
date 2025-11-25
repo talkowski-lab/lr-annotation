@@ -4,7 +4,7 @@
 import argparse
 import gzip
 import sys
-from difflib import SequenceMatcher
+import edlib
 
 from Bio import SeqIO
 from pysam import VariantFile
@@ -22,6 +22,8 @@ def parse_intersection_line(line: str):
         "mei_id": fields[9],
         "mei_length": abs(int(fields[10])),
         "mei_samples": fields[11].rstrip(",").split(","),
+        "palmer_ref": fields[12],
+        "palmer_alt": fields[13],
     }
 
 
@@ -49,7 +51,11 @@ def compute_sequence_similarity(seq_a: str, seq_b: str) -> float:
         return 0.0
     if seq_a == seq_b:
         return 1.0
-    return SequenceMatcher(None, seq_a, seq_b).ratio()
+    result = edlib.align(seq_a, seq_b, task="distance")
+    max_len = max(len(seq_a), len(seq_b))
+    if max_len == 0:
+        return 1.0
+    return 1.0 - (result["editDistance"] / max_len)
 
 
 def record_passes_filters(
@@ -57,7 +63,7 @@ def record_passes_filters(
     ref_allele: str,
     sv_length: int,
     mei_data: dict,
-    inserted_sequence: str,
+    palmer_alt: str,
     samples: list[str],
     args: argparse.Namespace,
 ) -> bool:
@@ -79,7 +85,7 @@ def record_passes_filters(
         return False
 
     alt_allele = record.alts[0]
-    sequence_similarity = compute_sequence_similarity(alt_allele, inserted_sequence)
+    sequence_similarity = compute_sequence_similarity(alt_allele, palmer_alt)
     if sequence_similarity < args.sequence_similarity:
         return False
 
@@ -126,7 +132,6 @@ def main() -> None:
     )
     parser.add_argument("--intersection", required=True, help="Path to bedtools intersect output")
     parser.add_argument("--target-vcf", required=True, help="Target VCF to annotate")
-    parser.add_argument("--ins-fa", required=True, help="FASTA with MEI insert sequences")
     parser.add_argument("--me-type", required=True, help="MEI class under evaluation")
     parser.add_argument(
         "--output",
@@ -166,7 +171,6 @@ def main() -> None:
     args = parser.parse_args()
 
     target_vcf = VariantFile(args.target_vcf)
-    ins_fasta = SeqIO.index(args.ins_fa, "fasta")
     samples = list(target_vcf.header.samples)
 
     with open(args.intersection, "r", encoding="utf-8") as source, gzip.open(args.output, "wt", encoding="utf-8") as output_handle:
@@ -178,15 +182,14 @@ def main() -> None:
                 sv_pos = int(pos)
                 sv_length = int(length)
                 ref_allele = ref.split("_")[0]
-                sv_id = f"{chrom}:{pos};{ref}"
-                inserted_sequence = str(ins_fasta[sv_id].seq)
+                palmer_alt = mei_data["palmer_alt"]
 
                 for record in target_vcf.fetch(chrom, sv_pos - 1, sv_pos):
                     if "ME_TYPE" in record.info:
                         continue
 
                     if not record_passes_filters(record, ref_allele, sv_length, mei_data,
-                                                 inserted_sequence, samples, args):
+                                                 palmer_alt, samples, args):
                         continue
 
                     output_handle.write(
@@ -197,8 +200,6 @@ def main() -> None:
                     )
 
     target_vcf.close()
-    if hasattr(ins_fasta, "close"):
-        ins_fasta.close()
 
 
 if __name__ == "__main__":
