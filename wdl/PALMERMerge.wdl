@@ -53,8 +53,7 @@ task MergeVCFs {
 
         bcftools merge \
             --missing-to-ref \
-            --output-type z \
-            --output ~{prefix}.merged.vcf.gz \
+            -Oz -o ~{prefix}.merged.vcf.gz \
             inputs/*.vcf.gz
 
         tabix ~{prefix}.merged.vcf.gz
