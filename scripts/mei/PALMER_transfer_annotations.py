@@ -3,10 +3,8 @@
 
 import argparse
 import gzip
-import sys
 import edlib
 
-from Bio import SeqIO
 from pysam import VariantFile
 
 

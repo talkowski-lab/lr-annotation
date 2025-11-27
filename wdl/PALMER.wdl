@@ -4,10 +4,15 @@ import "general/Structs.wdl"
 
 workflow PALMER {
 	input {
-		File bam_pat
-		File bai_pat
-		File bam_mat
-		File bai_mat
+		File? bam_pat
+		File? bai_pat
+		Array[File]? override_palmer_calls_pat
+		Array[File]? override_palmer_tsd_files_pat
+
+		File? bam_mat
+		File? bai_mat
+		Array[File]? override_palmer_calls_mat
+		Array[File]? override_palmer_tsd_files_mat
 
 		String prefix
 		String sample
@@ -17,11 +22,6 @@ workflow PALMER {
 
 		File ref_fa
 		File ref_fai
-
-		Array[File]? override_palmer_calls_pat
-		Array[File]? override_palmer_tsd_files_pat
-		Array[File]? override_palmer_calls_mat
-		Array[File]? override_palmer_tsd_files_mat
 
 		Array[String]? truvari_collapse_params
 
@@ -45,8 +45,8 @@ workflow PALMER {
 		if (!defined(override_palmer_calls_pat)) {
 			call SplitBam as SplitBamPat {
 				input:
-					bam = bam_pat,
-					bai = bai_pat,
+					bam = select_first([bam_pat]),
+					bai = select_first([bai_pat]),
 					prefix = prefix + ".pat",
 					contigs = contigs,
 					docker = utils_docker,
@@ -98,8 +98,8 @@ workflow PALMER {
 		if (!defined(override_palmer_calls_mat)) {
 			call SplitBam as SplitBamMat {
 				input:
-					bam = bam_mat,
-					bai = bai_mat,
+					bam = select_first([bam_mat]),
+					bai = select_first([bai_mat]),
 					prefix = prefix + ".mat",
 					contigs = contigs,
 					docker = utils_docker,
