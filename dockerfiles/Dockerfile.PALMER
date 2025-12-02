@@ -1,0 +1,28 @@
+FROM ubuntu:16.04
+
+MAINTAINER Karan Jaisingh
+
+RUN apt-get -y update \
+	&& apt-get -y install make cmake protobuf-compiler gcc g++ zlib1g-dev libcurl4-openssl-dev libbz2-dev tree \
+    liblzma-dev wget curl less pkg-config git libncurses5-dev \
+	&& apt-get clean
+
+# Install blast
+RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.14.0/ncbi-blast-2.14.0+-x64-linux.tar.gz \
+    && tar zxvf ncbi-blast-2.14.0+-x64-linux.tar.gz \
+    && rm ncbi-blast-2.14.0+-x64-linux.tar.gz
+
+# Install samtools
+RUN wget https://github.com/samtools/samtools/releases/download/1.13/samtools-1.13.tar.bz2 \
+    && tar xvf samtools-1.13.tar.bz2 \
+    && rm samtools-1.13.tar.bz2 \
+    && cd samtools-1.13 \
+    && ./configure \
+    && make
+
+# Install PALMER
+RUN git clone https://github.com/kjaisingh/PALMER \
+    && cd PALMER \
+    && make
+
+ENV PATH /samtools-1.13:/ncbi-blast-2.14.0+/bin/:$PATH
