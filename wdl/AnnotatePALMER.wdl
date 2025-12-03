@@ -12,32 +12,33 @@ workflow AnnotatePALMER {
         File PALMER_vcf_idx
 
         File rm_out
+        Int rm_buffer = 50
         File ref_fai
 
-        Float reciprocal_overlap_ALU = 0.9
-        Float reciprocal_overlap_SVA = 0.5
-        Float reciprocal_overlap_LINE = 0.9
-        Float reciprocal_overlap_HERVK = 0.5
+        Float reciprocal_overlap_ALU = 0.0
+        Float reciprocal_overlap_SVA = 0.0
+        Float reciprocal_overlap_LINE = 0.0
+        Float reciprocal_overlap_HERVK = 0.0
 
         Float size_similarity_ALU = 0.9
-        Float size_similarity_SVA = 0.5
+        Float size_similarity_SVA = 0.9
         Float size_similarity_LINE = 0.9
-        Float size_similarity_HERVK = 0.5
+        Float size_similarity_HERVK = 0.9
 
         Float sequence_similarity_ALU = 0.9
-        Float sequence_similarity_SVA = 0.5
+        Float sequence_similarity_SVA = 0.9
         Float sequence_similarity_LINE = 0.9
-        Float sequence_similarity_HERVK = 0.5
+        Float sequence_similarity_HERVK = 0.9
 
-        Int breakpoint_window_ALU = 500
-        Int breakpoint_window_SVA = 1000
-        Int breakpoint_window_LINE = 500
-        Int breakpoint_window_HERVK = 1000
+        Int breakpoint_window_ALU = 10000
+        Int breakpoint_window_SVA = 10000
+        Int breakpoint_window_LINE = 10000
+        Int breakpoint_window_HERVK = 10000
 
-        Int min_shared_samples_ALU = 1
-        Int min_shared_samples_SVA = 1
-        Int min_shared_samples_LINE = 1
-        Int min_shared_samples_HERVK = 1
+        Int min_shared_samples_ALU = 0
+        Int min_shared_samples_SVA = 0
+        Int min_shared_samples_LINE = 0
+        Int min_shared_samples_HERVK = 0
 
         String palmer_docker
 
@@ -52,6 +53,7 @@ workflow AnnotatePALMER {
             PALMER_vcf = PALMER_vcf,
             PALMER_vcf_idx = PALMER_vcf_idx,
             rm_out = rm_out,
+            rm_buffer = rm_buffer,
             ref_fai = ref_fai,
             docker = palmer_docker,
             runtime_attr_override = runtime_attr_filter_palmer,
@@ -91,6 +93,7 @@ task FilterPALMER {
         File PALMER_vcf
         File PALMER_vcf_idx
         File rm_out
+        Int rm_buffer
         File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
@@ -178,15 +181,15 @@ task FilterPALMER {
             awk '$11==FILTER' FILTER="${MEfilter}" ~{rm_out} | \
                 awk 'OFS="\t" {print $5,$7,$8}'| sed 's/(//'|sed 's/)//'|awk 'OFS="\t" {print $1,$2+$3}' | \
                 sed 's/:/\t/'|sed 's/;/\t/' | awk 'OFS="\t" {print $1,$2-1,$2,$2,$3,$4}'| sort -k1,1 -k2,2n | uniq | \
-                bedtools slop -g genome_file -b 50 | \
-                bedtools merge -c 4,5,6 -o collapse > RMfilter.50bpbuffer.bed
+                bedtools slop -g genome_file -b ~{rm_buffer} | \
+                bedtools merge -c 4,5,6 -o collapse > RM_filtered.bed
 
             bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\t%REF\t%ALT\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
                 | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4,$5,$6,$7}' \
                 | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed
 
-            bedtools intersect -wo -a RMfilter.50bpbuffer.bed -b PALMER_calls.bed > intersection
+            bedtools intersect -wo -a RM_filtered.bed -b PALMER_calls.bed > intersection
 
             python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
                 --intersection intersection \
