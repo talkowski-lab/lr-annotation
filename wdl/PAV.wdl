@@ -30,6 +30,8 @@ workflow PAV {
     output {
         File pav_results_tarball = CallPAV.results_tar
         File pav_log_tarball = CallPAV.log_tar
+        Array[File] pav_vcfs = CallPAV.vcfs
+        Array[File] pav_vcf_indices = CallPAV.vcf_indices
 	}
 }
 
@@ -104,7 +106,7 @@ with open("assemblies.tsv", "w") as f:
 
 CODE
 
-        python3 -m pav3 batch --cores ~{effective_cpu} -- -R call_integrate_sources
+        python3 -m pav3 batch --cores ~{effective_cpu}
 
         tar -zcf pav_results.tar.gz results
         tar -zcf pav_log.tar.gz log
@@ -113,6 +115,8 @@ CODE
     output {
         File results_tar = "pav_results.tar.gz"
         File log_tar = "pav_log.tar.gz"
+        Array[File] vcfs = glob("*.vcf.gz")
+        Array[File] vcf_indices = glob("*.vcf.gz.csi")
     }
 
     runtime {
