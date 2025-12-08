@@ -57,7 +57,7 @@ task MergeVCFs {
             inputs/*.vcf.gz
 
         bcftools annotate \
-            --set-id '%CHROM\_%POS\_%FIRST_ALT' \
+            --set-id '%CHROM\_%INFO/TAG\_%POS\_%INFO/END' \
             -Oz -o ~{prefix}.merged.vcf.gz \
             tmp.merged.vcf.gz
 
