@@ -24,8 +24,8 @@ workflow PALMERMerge {
     }
 
     output {
-        File merged_vcf = MergeVCFs.merged_vcf
-        File merged_vcf_idx = MergeVCFs.merged_vcf_idx
+        File palmer_merged_vcf = MergeVCFs.merged_vcf
+        File palmer_merged_vcf_idx = MergeVCFs.merged_vcf_idx
     }
 }
 

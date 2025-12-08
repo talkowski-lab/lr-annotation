@@ -116,7 +116,7 @@ task ProcessWithTRGT {
         cpu_cores: 8,
         mem_gb: 6,
         disk_gb: 10 + 1.3 * ceil(size(bam, "GiB") + size(ref_fa, "GiB") + size(repeatCatalog, "GiB")),
-        boot_disk_gb: 20,
+        boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
     }
