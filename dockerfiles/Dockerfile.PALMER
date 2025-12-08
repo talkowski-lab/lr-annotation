@@ -18,7 +18,8 @@ RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSIO
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
 	&& make install \
-	&& make clean
+	&& make clean \
+	&& ldconfig
 
 # Install blast
 RUN wget https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/2.14.0/ncbi-blast-2.14.0+-x64-linux.tar.gz \
