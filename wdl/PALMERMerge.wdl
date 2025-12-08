@@ -53,8 +53,13 @@ task MergeVCFs {
 
         bcftools merge \
             --missing-to-ref \
-            -Oz -o ~{prefix}.merged.vcf.gz \
+            -Oz -o tmp.merged.vcf.gz \
             inputs/*.vcf.gz
+
+        bcftools annotate \
+            --set-id '%CHROM\_%POS\_%FIRST_ALT' \
+            -Oz -o ~{prefix}.merged.vcf.gz \
+            tmp.merged.vcf.gz
 
         tabix ~{prefix}.merged.vcf.gz
     >>>
