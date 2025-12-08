@@ -10,6 +10,8 @@ from pysam import VariantFile
 
 def parse_intersection_line(line: str):
     fields = line.strip().split("\t")
+    palmer_alts_raw = fields[13]
+    palmer_alts = palmer_alts_raw.split(",") if "," in palmer_alts_raw else [palmer_alts_raw]
     return {
         "chrom": fields[0],
         "sv_positions": fields[3].split(","),
@@ -21,7 +23,7 @@ def parse_intersection_line(line: str):
         "mei_length": abs(int(fields[10])),
         "mei_samples": fields[11].rstrip(",").split(","),
         "palmer_ref": fields[12],
-        "palmer_alt": fields[13],
+        "palmer_alts": palmer_alts,
     }
 
 
@@ -56,12 +58,18 @@ def compute_sequence_similarity(seq_a: str, seq_b: str) -> float:
     return 1.0 - (result["editDistance"] / max_len)
 
 
+def is_non_ref_genotype(gt: tuple) -> bool:
+    if gt is None:
+        return False
+    return any(allele != 0 for allele in gt)
+
+
 def record_passes_filters(
     record,
     ref_allele: str,
     sv_length: int,
     mei_data: dict,
-    palmer_alt: str,
+    palmer_alts: list[str],
     samples: list[str],
     args: argparse.Namespace,
 ) -> bool:
@@ -82,9 +90,12 @@ def record_passes_filters(
     if not record.alts:
         return False
 
-    alt_allele = record.alts[0]
-    sequence_similarity = compute_sequence_similarity(alt_allele, palmer_alt)
-    if sequence_similarity < args.sequence_similarity:
+    best_sequence_similarity = 0.0
+    for target_alt in record.alts:
+        for palmer_alt in palmer_alts:
+            sim = compute_sequence_similarity(target_alt, palmer_alt)
+            best_sequence_similarity = max(best_sequence_similarity, sim)
+    if best_sequence_similarity < args.sequence_similarity:
         return False
 
     size_similarity = compute_size_similarity(target_length, mei_data["mei_length"])
@@ -101,8 +112,10 @@ def record_passes_filters(
     if breakpoint_distance > args.breakpoint_window:
         return False
 
-    genotypes = [record.samples[sample]["GT"] for sample in samples]
-    sv_samples = [sample for gt, sample in zip(genotypes, samples) if 1 in gt]
+    sv_samples = [
+        sample for sample in samples
+        if is_non_ref_genotype(record.samples[sample]["GT"])
+    ]
     shared = set(sv_samples) & set(mei_data["mei_samples"])
     if len(shared) < args.min_shared_samples:
         return False
@@ -180,18 +193,19 @@ def main() -> None:
                 sv_pos = int(pos)
                 sv_length = int(length)
                 ref_allele = ref.split("_")[0]
-                palmer_alt = mei_data["palmer_alt"]
+                palmer_alts = mei_data["palmer_alts"]
 
                 for record in target_vcf.fetch(chrom, sv_pos - 1, sv_pos):
                     if "ME_TYPE" in record.info:
                         continue
 
                     if not record_passes_filters(record, ref_allele, sv_length, mei_data,
-                                                 palmer_alt, samples, args):
+                                                 palmer_alts, samples, args):
                         continue
 
+                    all_alts = ",".join(record.alts)
                     output_handle.write(
-                        f"{chrom}\t{sv_pos}\t.\t{record.ref}\t{record.alts[0]}\t.\t.\t"
+                        f"{chrom}\t{sv_pos}\t.\t{record.ref}\t{all_alts}\t.\t.\t"
                     )
                     output_handle.write(
                         f"ME_TYPE={args.me_type};ME_LEN={mei_data['mei_length']};ME_ID={mei_data['mei_id']}\n"
