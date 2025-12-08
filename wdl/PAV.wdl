@@ -79,7 +79,7 @@ import json
 
 ref_fa_abs = os.path.abspath("ref.fa.gz")
 config = {"reference": ref_fa_abs}
-with open("config.json", "w") as f:
+with open("pav.json", "w") as f:
     json.dump(config, f)
 
 os.makedirs("asms", exist_ok=True)
@@ -104,7 +104,7 @@ with open("assemblies.tsv", "w") as f:
 
 CODE
 
-        python3 -m pav3 call --cores ~{effective_cpu} -- -R call_integrate_sources
+        python3 -m pav3 batch --cores ~{effective_cpu} -- -R call_integrate_sources
 
         tar -zcf pav_results.tar.gz results
         tar -zcf pav_log.tar.gz log

@@ -267,8 +267,10 @@ task RunPALMERShard {
 			--chr $chrom \
 			--workdir "${dir}/${chrom}/"
 
-		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt > ~{prefix}_calls_shard.txt || touch ~{prefix}_calls_shard.txt
-		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt > ~{prefix}_tsd_reads_shard.txt || touch ~{prefix}_tsd_reads_shard.txt
+		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt
+		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt
+		mv ${chrom}/~{prefix}_calls.txt ~{prefix}_calls_shard.txt
+		mv ${chrom}/~{prefix}_TSD_reads.txt ~{prefix}_tsd_reads_shard.txt
 	>>>
 
 	output {
@@ -277,9 +279,9 @@ task RunPALMERShard {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores: 2,
-		mem_gb: 3,
-		disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) * 5 + 20,
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: 4,
 		boot_disk_gb: 5,
 		preemptible_tries: 1,
 		max_retries: 0
@@ -288,7 +290,7 @@ task RunPALMERShard {
 	runtime {
 		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
 		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + 6 + " HDD"
+		disks: "local-disk " + 4 + " HDD"
 		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
 		docker: docker
 		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
