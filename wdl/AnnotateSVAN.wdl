@@ -96,12 +96,12 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
-                mei_bwa_amb = mei_bwa_amb,
-                mei_bwa_ann = mei_bwa_ann,
-                mei_bwa_bwt = mei_bwa_bwt,
-                mei_bwa_pac = mei_bwa_pac,
-                mei_bwa_sa = mei_bwa_sa,
-                mei_minimap_mmi = mei_minimap_mmi,
+                mei_fa_amb = mei_fa_amb,
+                mei_fa_ann = mei_fa_ann,
+                mei_fa_bwt = mei_fa_bwt,
+                mei_fa_pac = mei_fa_pac,
+                mei_fa_sa = mei_fa_sa,
+                mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "ins",
@@ -118,12 +118,12 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
-                mei_bwa_amb = mei_bwa_amb,
-                mei_bwa_ann = mei_bwa_ann,
-                mei_bwa_bwt = mei_bwa_bwt,
-                mei_bwa_pac = mei_bwa_pac,
-                mei_bwa_sa = mei_bwa_sa,
-                mei_minimap_mmi = mei_minimap_mmi,
+                mei_fa_amb = mei_fa_amb,
+                mei_fa_ann = mei_fa_ann,
+                mei_fa_bwt = mei_fa_bwt,
+                mei_fa_pac = mei_fa_pac,
+                mei_fa_sa = mei_fa_sa,
+                mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "del",
@@ -403,12 +403,12 @@ task RunSvanAnnotation {
         File exons_bed
         File repeats_bed
         File mei_fa
-        File mei_bwa_amb
-        File mei_bwa_ann
-        File mei_bwa_bwt
-        File mei_bwa_pac
-        File mei_bwa_sa
-        File mei_minimap_mmi
+        File mei_fa_amb
+        File mei_fa_ann
+        File mei_fa_bwt
+        File mei_fa_pac
+        File mei_fa_sa
+        File mei_fa_mmi
         File ref_fa
         String prefix
         String mode
@@ -525,7 +525,7 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 15,
-        disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_bwa_amb, "GB") + size(mei_bwa_ann, "GB") + size(mei_bwa_bwt, "GB") + size(mei_bwa_pac, "GB") + size(mei_bwa_sa, "GB") + size(mei_minimap_mmi, "GB")) + 25,
+        disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_fa_amb, "GB") + size(mei_fa_ann, "GB") + size(mei_fa_bwt, "GB") + size(mei_fa_pac, "GB") + size(mei_fa_sa, "GB") + size(mei_fa_mmi, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

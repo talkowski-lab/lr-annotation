@@ -19,8 +19,8 @@ workflow AnnotateVEPHail {
         File top_level_fa
         File ref_vep_cache
 
-        String hail_docker
         String vep_hail_docker
+        String hail_docker
         String sv_base_mini_docker
         
         RuntimeAttr? runtime_attr_split_by_chr
