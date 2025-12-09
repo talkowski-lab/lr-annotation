@@ -90,7 +90,7 @@ workflow PALMER {
 				ref_fa = ref_fa,
 				ref_fai = ref_fai,
 				haplotype = "1|0",
-				docker = palmer_pipeline_docker,
+				docker = annotate_palmer_docker,
 				runtime_attr_override = runtime_attr_palmer_to_vcf
 		}
 
@@ -143,7 +143,7 @@ workflow PALMER {
 				ref_fa = ref_fa,
 				ref_fai = ref_fai,
 				haplotype = "0|1",
-				docker = palmer_pipeline_docker,
+				docker = annotate_palmer_docker,
 				runtime_attr_override = runtime_attr_palmer_to_vcf
 		}
 

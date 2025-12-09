@@ -11,7 +11,7 @@ workflow FlagSingletonReads {
         String prefix
         Array[String] contigs
 
-        String pipeline_docker
+        String utils_docker
         Int? variants_per_shard
         
         RuntimeAttr? runtime_attr_subset
@@ -29,7 +29,7 @@ workflow FlagSingletonReads {
             vcf_idx = vcf_idx,
             contigs = contigs,
             prefix = prefix,
-            docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_subset
     }
 
@@ -39,7 +39,7 @@ workflow FlagSingletonReads {
             input_vcf_idx = SubsetVcfToContigs.subset_vcf_idx,
             variants_per_shard = variants_per_shard_eff,
             prefix = prefix,
-            docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_split
     }
 
@@ -51,7 +51,7 @@ workflow FlagSingletonReads {
                 vcf = shard.left,
                 vcf_idx = shard.right,
                 prefix = shard_prefix,
-                pipeline_docker = pipeline_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_populate_tags
         }
         
@@ -60,7 +60,7 @@ workflow FlagSingletonReads {
                 vcf = PopulateTags.tagged_vcf,
                 vcf_idx = PopulateTags.tagged_vcf_idx,
                 prefix = shard_prefix,
-                pipeline_docker = pipeline_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter
         }
     }
@@ -70,7 +70,7 @@ workflow FlagSingletonReads {
             vcfs = FilterSingletonReads.filtered_vcf,
             vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
             outfile_prefix = prefix,
-            docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -85,7 +85,7 @@ task PopulateTags {
         File vcf
         File vcf_idx
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -115,7 +115,7 @@ task PopulateTags {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -126,7 +126,7 @@ task FilterSingletonReads {
         File vcf
         File vcf_idx
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -192,7 +192,7 @@ EOF
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
