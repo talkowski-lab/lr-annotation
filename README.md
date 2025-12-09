@@ -35,6 +35,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 - `contigs`: List of chr1 to chr22, plus chrX and chrY.
+- `contigs_primary`: List of chr1 to chr22.
 - `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa_amb`: Index for `mei_fa`.
@@ -58,6 +59,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 ## Dockers
 - `hail_docker`: `us.gcr.io/talkowski-sv-gnomad/shineren:hail` from Eren.
 - `gatk_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/gatk:2025-05-20-4.6.2.0-4-g1facd911e-NIGHTLY-SNAPSHOT` from the GATK-SV Featured Workspace.
+- `minimap_docker`: `eichlerlab/assembly_eval:0.2` from the Eichler lab.
+- `minimap_finalize_docker`: `us.gcr.io/broad-dsp-lrma/lr-gcloud-samtools:0.1.3` from the DSP long-reads team.
 - `sv_base_mini_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/sv-base-mini:2024-10-25-v0.29-beta-5ea22a52` from the GATK-SV Featured Workspace.
 - `trgt_docker`: `us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0` from the DSP long-reads team.
 
@@ -190,7 +193,7 @@ Inputs:
 - `bam_mat`: Aligned assembly for maternal haplotype.
 - `bai_mat`: Index for aligned assembly for maternal haplotype.
 - `mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
-- `contigs_list`: Series of contigs to make PALMER calls on.
+- `contigs`: Series of contigs to make PALMER calls on.
 - `truvari_collapse_params`: Truvari parameters to use when merging across haplotypes.
 - `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution. 

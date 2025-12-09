@@ -16,8 +16,8 @@ workflow MinimapAlignment {
         File ref_fa
         File ref_fai
 
-        String alignment_docker
-        String finalize_docker
+        String minimap_docker
+        String minimap_finalize_docker
 
         RuntimeAttr? runtime_attr_align_asm2ref
         RuntimeAttr? runtime_attr_finalize
@@ -45,7 +45,7 @@ workflow MinimapAlignment {
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             hap = 1,
-            docker = alignment_docker,
+            docker = minimap_docker,
             runtime_attr_override = runtime_attr_align_asm2ref
     }
 
@@ -58,7 +58,7 @@ workflow MinimapAlignment {
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             hap = 2,
-            docker = alignment_docker,
+            docker = minimap_docker,
             runtime_attr_override = runtime_attr_align_asm2ref
     }
 
@@ -66,7 +66,7 @@ workflow MinimapAlignment {
         input:
             files = [AlignMat.bamOut, AlignMat.pafOut, AlignMat.baiOut, AlignPat.bamOut, AlignPat.pafOut, AlignPat.baiOut],
             outdir = save_to_dir,
-            docker = finalize_docker,
+            docker = minimap_finalize_docker,
             runtime_attr_override = runtime_attr_finalize
     }
 }

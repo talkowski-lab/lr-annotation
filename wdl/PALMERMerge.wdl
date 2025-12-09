@@ -9,7 +9,7 @@ workflow PALMERMerge {
 
         String prefix
 
-        String docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_override_merge_vcfs
     }
@@ -19,7 +19,7 @@ workflow PALMERMerge {
             vcfs = vcfs,
             vcf_idxs = vcf_idxs,
             prefix = prefix,
-            docker = docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_override_merge_vcfs
     }
 
