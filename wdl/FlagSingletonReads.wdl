@@ -18,57 +18,69 @@ workflow FlagSingletonReads {
         RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_populate_tags
         RuntimeAttr? runtime_attr_filter
+        RuntimeAttr? runtime_attr_concat_contig
         RuntimeAttr? runtime_attr_concat
     }
 
     Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
 
-    call Helpers.SubsetVcfToContigs {
-        input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            contigs = contigs,
-            prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset
-    }
-
-    call Helpers.SplitVcfIntoShards {
-        input:
-            input_vcf = SubsetVcfToContigs.subset_vcf,
-            input_vcf_idx = SubsetVcfToContigs.subset_vcf_idx,
-            variants_per_shard = variants_per_shard_eff,
-            prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_split
-    }
-
-    scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
-        String shard_prefix = basename(shard.left, ".vcf.gz")
-        
-        call PopulateTags {
+    scatter (contig in contigs) {
+        call Helpers.SubsetVcfToContig {
             input:
-                vcf = shard.left,
-                vcf_idx = shard.right,
-                prefix = shard_prefix,
+                vcf = vcf,
+                vcf_index = vcf_idx,
+                contig = contig,
+                prefix = prefix,
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_populate_tags
+                runtime_attr_override = runtime_attr_subset
         }
-        
-        call FilterSingletonReads {
+
+        call Helpers.SplitVcfIntoShards {
             input:
-                vcf = PopulateTags.tagged_vcf,
-                vcf_idx = PopulateTags.tagged_vcf_idx,
-                prefix = shard_prefix,
+                input_vcf = SubsetVcfToContig.subset_vcf,
+                input_vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                variants_per_shard = variants_per_shard_eff,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter
+                runtime_attr_override = runtime_attr_split
+        }
+
+        scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
+            String shard_prefix = basename(shard.left, ".vcf.gz")
+            
+            call PopulateTags {
+                input:
+                    vcf = shard.left,
+                    vcf_idx = shard.right,
+                    prefix = shard_prefix,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_populate_tags
+            }
+            
+            call FilterSingletonReads {
+                input:
+                    vcf = PopulateTags.tagged_vcf,
+                    vcf_idx = PopulateTags.tagged_vcf_idx,
+                    prefix = shard_prefix,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_filter
+            }
+        }
+
+        call Helpers.ConcatVcfs as ConcatContigVcfs {
+            input:
+                vcfs = FilterSingletonReads.filtered_vcf,
+                vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
+                outfile_prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_contig
         }
     }
 
     call Helpers.ConcatVcfs as ConcatFilteredVcfs {
         input:
-            vcfs = FilterSingletonReads.filtered_vcf,
-            vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
+            vcfs = ConcatContigVcfs.concat_vcf,
+            vcfs_idx = ConcatContigVcfs.concat_vcf_idx,
             outfile_prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

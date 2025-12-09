@@ -13,7 +13,34 @@ RUN apt-get update && apt-get install -y \
     bcftools \
     tabix \
     git \
+    wget \
+    curl \
+    zlib1g-dev \
+    libcurl4-openssl-dev \
+    libbz2-dev \
+    liblzma-dev \
+    libssl-dev \
+    autoconf \
     && rm -rf /var/lib/apt/lists/*
+
+# Install htslib
+ENV HTSLIB_VERSION="1.20"
+RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSION}/htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && tar xjf htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && rm htslib-${HTSLIB_VERSION}.tar.bz2 \
+    && cd htslib-${HTSLIB_VERSION} \
+    && ./configure --enable-libcurl --enable-gcs --enable-s3 \
+    && make \
+    && make install \
+    && make clean \
+    && ldconfig
+
+# Install seqkit
+ENV SEQKIT_VERSION="2.12.0"
+RUN wget -q https://github.com/shenwei356/seqkit/releases/download/v${SEQKIT_VERSION}/seqkit_linux_amd64.tar.gz \
+    && tar xzf seqkit_linux_amd64.tar.gz \
+    && mv seqkit /usr/local/bin/ \
+    && rm seqkit_linux_amd64.tar.gz
 
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install --no-cache-dir "truvari>=5.0.0"

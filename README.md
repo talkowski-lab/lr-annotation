@@ -61,6 +61,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `gatk_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/gatk:2025-05-20-4.6.2.0-4-g1facd911e-NIGHTLY-SNAPSHOT` from the GATK-SV Featured Workspace.
 - `minimap_docker`: `eichlerlab/assembly_eval:0.2` from the Eichler lab.
 - `minimap_finalize_docker`: `us.gcr.io/broad-dsp-lrma/lr-gcloud-samtools:0.1.3` from the DSP long-reads team.
+- `repeatmasker_docker`: `dfam/tetools:1.8` from DFam.
 - `sv_base_mini_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/sv-base-mini:2024-10-25-v0.29-beta-5ea22a52` from the GATK-SV Featured Workspace.
 - `trgt_docker`: `us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0` from the DSP long-reads team.
 
