@@ -288,7 +288,7 @@ workflow BenchmarkAnnotations {
         input:
             tarballs = select_all(ShardedBenchmarks.plot_tarball),
             prefix = prefix,
-            benchmark_annotations_docker = benchmark_annotations_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
     }
 
