@@ -73,6 +73,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: ExtractRegionFromBAM
+    primaryDescriptorPath: /wdl/ExtractRegionFromBAM.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: FlagSingletonReads
     primaryDescriptorPath: /wdl/FlagSingletonReads.wdl
     filters:

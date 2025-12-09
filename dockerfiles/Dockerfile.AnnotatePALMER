@@ -8,7 +8,7 @@ RUN apt-get -y update \
 	&& apt-get -y install git make cmake protobuf-compiler gcc g++ zlib1g-dev libcurl4-openssl-dev libbz2-dev tree python3-pip liblzma-dev wget curl \
 	&& apt-get clean
 
-COPY ./dockerfiles/environment.yml /opt/gnomad-lr/scripts/mei/
+COPY ./dockerfiles/env/environment.yml /opt/gnomad-lr/scripts/mei/
 COPY ./scripts/mei/PALMER_to_vcf.py /opt/gnomad-lr/scripts/mei/
 COPY ./scripts/mei/PALMER_transfer_annotations.py /opt/gnomad-lr/scripts/mei/
 
