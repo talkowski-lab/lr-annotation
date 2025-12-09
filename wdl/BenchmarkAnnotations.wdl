@@ -21,7 +21,7 @@ workflow BenchmarkAnnotations {
 
         File ref_fa
         File ref_fai
-        File contig_list
+        Array[String] contigs
         
         String pipeline_docker
         String truvari_docker
@@ -72,8 +72,6 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_merge_shard_benchmarks
         RuntimeAttr? runtime_attr_compute_summary_for_contig
     }
-
-    Array[String] contigs = read_lines(contig_list)
 
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetEval {

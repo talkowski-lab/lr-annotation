@@ -34,14 +34,13 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
-- `contigs`: List of chr1 to chr22 from the GATK-SV featured workspace.
-- `contigs_list`: [Panel with chr1-22](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/primary_contigs.list) from the GATK-SV featured workspace.
+- `contigs`: List of chr1 to chr22, plus chrX and chrY.
 - `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa_amb`: Index for `mei_fa`.
 - `mei_fa_ann`: Index for `mei_fa`.
 - `mei_fa_bwt`: Index for `mei_fa`.
-- `mei_fa_minimap_mmi`: Index for `mei_fa`.
+- `mei_fa_mmi`: Index for `mei_fa`.
 - `mei_fa_pac`: Index for `mei_fa`.
 - `mei_fa_sa`: Index for `mei_fa`.
 - `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
@@ -191,7 +190,7 @@ Inputs:
 - `bam_mat`: Aligned assembly for maternal haplotype.
 - `bai_mat`: Index for aligned assembly for maternal haplotype.
 - `mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
-- `contigs`: Series of contigs to make PALMER calls on.
+- `contigs_list`: Series of contigs to make PALMER calls on.
 - `truvari_collapse_params`: Truvari parameters to use when merging across haplotypes.
 - `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution. 
