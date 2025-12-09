@@ -19,7 +19,7 @@ workflow AnnotateVEPHail {
         File top_level_fa
         File ref_vep_cache
 
-        String vep_hail_docker
+        String annotate_vep_hail_docker
         String hail_docker
         String sv_base_mini_docker
         
@@ -51,7 +51,7 @@ workflow AnnotateVEPHail {
                 vep_annotate_hail_python_script=vep_annotate_hail_python_script,
                 top_level_fa=top_level_fa,
                 ref_vep_cache=ref_vep_cache,
-                vep_hail_docker=vep_hail_docker,
+                docker=annotate_vep_hail_docker,
                 genome_build=genome_build,
                 runtime_attr_override=runtime_attr_vep_annotate
         }
@@ -82,7 +82,7 @@ task VepAnnotate {
         File ref_vep_cache
         String genome_build
         String vep_annotate_hail_python_script
-        String vep_hail_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 

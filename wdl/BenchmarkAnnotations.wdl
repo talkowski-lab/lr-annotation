@@ -2,9 +2,9 @@ version 1.0
 
 import "general/Structs.wdl"
 import "general/Helpers.wdl" as Helpers
-import "benchmarking/BedtoolsClosestSV.wdl" as Bedtools
-import "benchmarking/TruvariMatch.wdl" as Truvari
-import "benchmarking/ShardedBenchmarks.wdl" as Sharded
+import "benchmarking/BedtoolsClosestSV.wdl" as BedtoolsClosest
+import "benchmarking/TruvariMatch.wdl" as TruvariMatch
+import "benchmarking/ShardedBenchmarks.wdl" as ShardedBenchmarks
 
 workflow BenchmarkAnnotations {
     input {
@@ -23,8 +23,8 @@ workflow BenchmarkAnnotations {
         File ref_fai
         Array[String] contigs
         
-        String pipeline_docker
-        String truvari_docker
+        String benchmark_annotations_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
@@ -80,7 +80,7 @@ workflow BenchmarkAnnotations {
                 vcf_index = vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.eval",
-                docker_image = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_eval
         }
 
@@ -91,7 +91,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\"'",
                 prefix = "~{prefix}.~{contig}.truth",
-                docker_image = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_truth
         }
 
@@ -102,7 +102,7 @@ workflow BenchmarkAnnotations {
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
                 prefix = "~{prefix}.~{contig}.sv_truth",
-                docker_image = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
@@ -111,7 +111,7 @@ workflow BenchmarkAnnotations {
                 vcf = SubsetTruth.subset_vcf,
                 vcf_index = SubsetTruth.subset_vcf_index,
                 prefix = "~{prefix}.~{contig}.truth.renamed",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_rename_truth
         }
 
@@ -120,7 +120,7 @@ workflow BenchmarkAnnotations {
                 vcf = SubsetSVTruth.subset_vcf,
                 vcf_index = SubsetSVTruth.subset_vcf_index,
                 prefix = "~{prefix}.~{contig}.sv_truth.renamed",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_rename_sv_truth
         }
 
@@ -129,7 +129,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth_snv = RenameTruthIds.renamed_vcf,
                 vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_extract_truth_vep_header
         }
 
@@ -138,11 +138,11 @@ workflow BenchmarkAnnotations {
                 vcf_eval = SubsetEval.subset_vcf,
                 vcf_truth = RenameTruthIds.renamed_vcf,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_exact_match
         }
 
-        call Truvari.TruvariMatch as TruvariMatches {
+        call TruvariMatch.TruvariMatch as TruvariMatch {
             input:
                 vcf_eval = ExactMatch.unmatched_vcf,
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
@@ -151,8 +151,7 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
-                truvari_docker = truvari_docker,
+                utils_docker = utils_docker,
                 runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
                 runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
                 runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
@@ -164,14 +163,14 @@ workflow BenchmarkAnnotations {
                 runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
-        call Bedtools.BedtoolsClosestSV as BedtoolsClosest {
+        call BedtoolsClosest.BedtoolsClosestSV as BedtoolsClosest {
             input:
-                vcf_eval = TruvariMatches.unmatched_vcf,
-                vcf_eval_index = TruvariMatches.unmatched_vcf_index,
+                vcf_eval = TruvariMatch.unmatched_vcf,
+                vcf_eval_index = TruvariMatch.unmatched_vcf_index,
                 vcf_sv_truth = RenameSVTruthIds.renamed_vcf,
                 vcf_sv_truth_index = RenameSVTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
-                sv_pipeline_docker = pipeline_docker,
+                bedtools_closest_docker = benchmark_annotations_docker,
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
                 runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
                 runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
@@ -190,20 +189,20 @@ workflow BenchmarkAnnotations {
 
         call AnnotateBedtoolsMatches {
             input:
-                truvari_unmatched_vcf = TruvariMatches.unmatched_vcf,
-                truvari_unmatched_vcf_index = TruvariMatches.unmatched_vcf_index,
+                truvari_unmatched_vcf = TruvariMatch.unmatched_vcf,
+                truvari_unmatched_vcf_index = TruvariMatch.unmatched_vcf_index,
                 closest_bed = BedtoolsClosest.closest_bed,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_bedtools_annotate_unmatched
         }
 
         call Helpers.ConcatVcfs as BuildFinalContigVcf {
             input:
-                vcfs = [ExactMatch.matched_vcf, TruvariMatches.matched_vcf, TruvariMatches.dropped_vcf, AnnotateBedtoolsMatches.bedtools_matched_vcf, AnnotateBedtoolsMatches.final_unmatched_vcf],
-                vcfs_idx = [ExactMatch.matched_vcf_index, TruvariMatches.matched_vcf_index, TruvariMatches.dropped_vcf_index, AnnotateBedtoolsMatches.bedtools_matched_vcf_index, AnnotateBedtoolsMatches.final_unmatched_vcf_index],
+                vcfs = [ExactMatch.matched_vcf, TruvariMatch.matched_vcf, TruvariMatch.dropped_vcf, AnnotateBedtoolsMatches.bedtools_matched_vcf, AnnotateBedtoolsMatches.final_unmatched_vcf],
+                vcfs_idx = [ExactMatch.matched_vcf_index, TruvariMatch.matched_vcf_index, TruvariMatch.dropped_vcf_index, AnnotateBedtoolsMatches.bedtools_matched_vcf_index, AnnotateBedtoolsMatches.final_unmatched_vcf_index],
                 outfile_prefix = "~{prefix}.~{contig}",
-                docker_image = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_build_final_vcf
         }
 
@@ -212,7 +211,7 @@ workflow BenchmarkAnnotations {
                 final_vcf = BuildFinalContigVcf.concat_vcf,
                 final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_collect_matched_ids
         }
 
@@ -224,11 +223,11 @@ workflow BenchmarkAnnotations {
                 vcf_truth_sv = RenameSVTruthIds.renamed_vcf,
                 vcf_truth_sv_index = RenameSVTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_extract_truth_info
         }
 
-        call Sharded.ShardAndComputeBenchmarks as RunShardedBenchmarks {
+        call ShardedBenchmarks.ShardAndComputeBenchmarks as ShardedBenchmarks {
             input:
                 final_vcf = BuildFinalContigVcf.concat_vcf,
                 final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
@@ -238,7 +237,7 @@ workflow BenchmarkAnnotations {
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 variants_per_shard = variants_per_shard,
                 skip_vep_categories = skip_vep_categories,
                 runtime_attr_shard_matched_eval = runtime_attr_shard_matched_eval,
@@ -255,7 +254,7 @@ workflow BenchmarkAnnotations {
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
-                pipeline_docker = pipeline_docker,
+                docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_compute_summary_for_contig
         }
     }
@@ -265,7 +264,7 @@ workflow BenchmarkAnnotations {
             vcfs = select_all(BuildFinalContigVcf.concat_vcf),
             vcfs_idx = select_all(BuildFinalContigVcf.concat_vcf_idx),
             outfile_prefix = prefix,
-            docker_image = pipeline_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }
 
@@ -273,7 +272,7 @@ workflow BenchmarkAnnotations {
         input:
             tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
             merged_filename = "~{prefix}.benchmark_summary.tsv",
-            hail_docker = pipeline_docker,
+            hail_docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
@@ -281,15 +280,15 @@ workflow BenchmarkAnnotations {
         input:
             tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
             merged_filename = "~{prefix}.summary_stats.tsv",
-            hail_docker = pipeline_docker,
+            hail_docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
     call MergePlotTarballs {
         input:
-            tarballs = select_all(RunShardedBenchmarks.plot_tarball),
+            tarballs = select_all(ShardedBenchmarks.plot_tarball),
             prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            benchmark_annotations_docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
     }
 
@@ -307,7 +306,7 @@ task ExactMatch {
         File vcf_eval
         File vcf_truth
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -340,7 +339,7 @@ task ExactMatch {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -352,7 +351,7 @@ task AnnotateBedtoolsMatches {
         File truvari_unmatched_vcf_index
         File closest_bed
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -398,7 +397,7 @@ task AnnotateBedtoolsMatches {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -409,7 +408,7 @@ task CollectMatchedIDs {
         File final_vcf
         File final_vcf_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -438,7 +437,7 @@ task CollectMatchedIDs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -449,7 +448,7 @@ task ExtractTruthVepHeader {
         File vcf_truth_snv
         File vcf_truth_snv_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -477,7 +476,7 @@ task ExtractTruthVepHeader {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -491,7 +490,7 @@ task ExtractTruthInfoForMatched {
         File vcf_truth_sv
         File vcf_truth_sv_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -525,7 +524,7 @@ task ExtractTruthInfoForMatched {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -540,7 +539,7 @@ task ComputeSummaryForContig {
         File truth_vep_header
         String contig
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -574,7 +573,7 @@ task ComputeSummaryForContig {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -584,7 +583,7 @@ task MergePlotTarballs {
     input {
         Array[File] tarballs
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -619,7 +618,7 @@ task MergePlotTarballs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

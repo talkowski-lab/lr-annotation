@@ -24,7 +24,7 @@ workflow AnnotateSVAN {
         File mei_fa_mmi
         File ref_fa
 
-        String svan_docker
+        String annotate_svan_docker
         Int? variants_per_shard
 
         RuntimeAttr? runtime_attr_separate
@@ -43,7 +43,7 @@ workflow AnnotateSVAN {
             vcf_idx = vcf_idx,
             min_svlen = min_svlen,
             prefix = "~{prefix}.filtered",
-            docker = svan_docker
+            docker = annotate_svan_docker
     }
 
     call Helpers.SplitVcfIntoShards {
@@ -52,7 +52,7 @@ workflow AnnotateSVAN {
             input_vcf_idx = FilterBySvlen.filtered_vcf_idx,
             variants_per_shard = variants_per_shard_eff,
             prefix = "~{prefix}.split",
-            docker_image = svan_docker
+            docker = annotate_svan_docker
     }
 
     scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
@@ -63,7 +63,7 @@ workflow AnnotateSVAN {
                 vcf = shard.left,
                 vcf_index = shard.right,
                 prefix = shard_prefix,
-                docker = svan_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_separate
         }
 
@@ -73,7 +73,7 @@ workflow AnnotateSVAN {
                 vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
                 prefix = shard_prefix,
                 mode = "ins",
-                docker = svan_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
         }
 
@@ -83,7 +83,7 @@ workflow AnnotateSVAN {
                 vcf_index = SeparateInsertionsDeletions.del_vcf_index,
                 prefix = shard_prefix,
                 mode = "del",
-                docker = svan_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_del
         }
 
@@ -105,7 +105,7 @@ workflow AnnotateSVAN {
                 ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "ins",
-                docker = svan_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_annotate_ins
         }
 
@@ -127,7 +127,7 @@ workflow AnnotateSVAN {
                 ref_fa = ref_fa,
                 prefix = shard_prefix,
                 mode = "del",
-                docker = svan_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
         }
     }
@@ -137,7 +137,7 @@ workflow AnnotateSVAN {
             vcfs = AnnotateInsertions.annotated_vcf,
             vcfs_idx = AnnotateInsertions.annotated_vcf_index,
             outfile_prefix = prefix + ".insertions",
-            docker_image = svan_docker
+            docker = annotate_svan_docker
     }
 
     call Helpers.ConcatVcfs as ConcatDel {
@@ -145,7 +145,7 @@ workflow AnnotateSVAN {
             vcfs = AnnotateDeletions.annotated_vcf,
             vcfs_idx = AnnotateDeletions.annotated_vcf_index,
             outfile_prefix = prefix + ".deletions",
-            docker_image = svan_docker
+            docker = annotate_svan_docker
     }
 
     call Helpers.ConcatVcfs as ConcatOther {
@@ -153,7 +153,7 @@ workflow AnnotateSVAN {
             vcfs = SeparateInsertionsDeletions.other_vcf,
             vcfs_idx = SeparateInsertionsDeletions.other_vcf_index,
             outfile_prefix = prefix + ".other",
-            docker_image = svan_docker
+            docker_image = annotate_svan_docker
     }
 
     call MergeAnnotatedVcfs {
@@ -165,7 +165,7 @@ workflow AnnotateSVAN {
             other_vcf = ConcatOther.concat_vcf,
             other_vcf_index = ConcatOther.concat_vcf_idx,
             prefix = prefix + "_annotated_filtered",
-            docker = svan_docker,
+            docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -176,7 +176,7 @@ workflow AnnotateSVAN {
             annotated_vcf = MergeAnnotatedVcfs.merged_vcf,
             annotated_vcf_idx = MergeAnnotatedVcfs.merged_vcf_index,
             prefix = prefix,
-            docker = svan_docker
+            docker = annotate_svan_docker
     }
 
     output {

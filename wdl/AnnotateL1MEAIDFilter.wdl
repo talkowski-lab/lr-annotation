@@ -9,8 +9,8 @@ workflow AnnotateL1MEAIDFilter {
 
         String prefix
 
-        String l1meaid_docker
-        String l1meaid_filter_docker
+        String annotate_l1meaid_docker
+        String annotate_l1meaid_filter_docker
 
         RuntimeAttr? runtime_attr_limeaid
         RuntimeAttr? runtime_attr_filter
@@ -21,7 +21,7 @@ workflow AnnotateL1MEAIDFilter {
             rm_fa = rm_fa,
             rm_out = rm_out,
             prefix = prefix,
-            docker = l1meaid_docker,
+            docker = annotate_l1meaid_docker,
             runtime_attr_override = runtime_attr_limeaid
     }
 
@@ -29,7 +29,7 @@ workflow AnnotateL1MEAIDFilter {
         input:
             limeaid_output = L1MEAID.limeaid_output,
             prefix = prefix,
-            docker = l1meaid_filter_docker,
+            docker = annotate_l1meaid_filter_docker,
             runtime_attr_override = runtime_attr_filter
     }
 

@@ -27,7 +27,7 @@ workflow PALMER {
 
 		String utils_docker
 		String palmer_docker
-		String palmer_pipeline_docker
+		String annotate_palmer_docker
 
 		RuntimeAttr? runtime_attr_split_bam
 		RuntimeAttr? runtime_attr_run_palmer

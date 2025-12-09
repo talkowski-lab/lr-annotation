@@ -231,18 +231,6 @@ Inputs:
 - `repeat_catalog_trgt`.
 
 
-### [TruvariMerge](wdl/TruvariMerge.wdl)
-This workflow leverages [Truvari](https://github.com/ACEnglish/truvari) in order to merge VCFs whilst collapsing redundant calls. It runs `collapse` with its default parameters of 70% sequence similarity, 70% size similarity, reciprocal overlap of 0% and breakpoint distance of 500 bp.
-
-Inputs:
-- `vcfs`: Series of VCFs to merge.
-- `vcf_idxs`: Indexes of VCFs to merge.
-
-References:
-- `ref_fa`.
-- `ref_fai`.
-
-
 ## Code Conventions
 ### WDL
 - Workflows should be structured in the following order, with each of the below separated by a blank line:

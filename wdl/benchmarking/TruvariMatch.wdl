@@ -11,8 +11,7 @@ workflow TruvariMatch {
         File ref_fa
         File ref_fai
         String prefix
-        String pipeline_docker
-        String truvari_docker
+        String utils_docker
         
         RuntimeAttr? runtime_attr_filter_eval_vcf
         RuntimeAttr? runtime_attr_filter_truth_vcf
@@ -30,7 +29,7 @@ workflow TruvariMatch {
             vcf_eval = vcf_eval,
             vcf_eval_index = vcf_eval_index,
             prefix = "~{prefix}.filtered_eval",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_filter_eval_vcf
     }
 
@@ -39,7 +38,7 @@ workflow TruvariMatch {
             vcf_truth = vcf_truth,
             vcf_truth_index = vcf_truth_index,
             prefix = "~{prefix}.filtered_truth",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_filter_truth_vcf
     }
 
@@ -56,7 +55,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             prefix = "~{prefix}.0.9",
-            truvari_docker = truvari_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_09
     }
 
@@ -69,7 +68,7 @@ workflow TruvariMatch {
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.9",
             prefix = "~{prefix}.0.9.annotated",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_annotate_matched_09
     }
 
@@ -86,7 +85,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             prefix = "~{prefix}.0.7",
-            truvari_docker = truvari_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_07
     }
 
@@ -99,7 +98,7 @@ workflow TruvariMatch {
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7.annotated",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_annotate_matched_07
     }
 
@@ -116,7 +115,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             prefix = "~{prefix}.0.5",
-            truvari_docker = truvari_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_05
     }
 
@@ -129,7 +128,7 @@ workflow TruvariMatch {
             tag_name = "gnomAD_V4_match",
             tag_value = "TRUVARI_0.5",
             prefix = "~{prefix}.0.5.annotated",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_annotate_matched_05
     }
 
@@ -138,7 +137,7 @@ workflow TruvariMatch {
             vcfs = [AnnotateMatched_09.vcf_out, AnnotateMatched_07.vcf_out, AnnotateMatched_05.vcf_out],
             vcfs_idx = [AnnotateMatched_09.vcf_out_index, AnnotateMatched_07.vcf_out_index, AnnotateMatched_05.vcf_out_index],
             prefix = "~{prefix}.truvari_combined",
-            pipeline_docker = pipeline_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_matched
     }
 
@@ -157,7 +156,7 @@ task FilterEvalVcf {
         File vcf_eval
         File vcf_eval_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -192,7 +191,7 @@ task FilterEvalVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -203,7 +202,7 @@ task FilterTruthVcf {
         File vcf_truth
         File vcf_truth_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -234,7 +233,7 @@ task FilterTruthVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -252,7 +251,7 @@ task RunTruvari {
         Int sizemin
         Int sizefilt
         String prefix
-        String truvari_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -296,7 +295,7 @@ task RunTruvari {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: truvari_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -311,7 +310,7 @@ task AnnotateTruvariMatchesWithTruthID {
         String tag_name
         String tag_value
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -366,7 +365,7 @@ task AnnotateTruvariMatchesWithTruthID {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -377,7 +376,7 @@ task ConcatTruvariResults {
         Array[File] vcfs
         Array[File] vcfs_idx
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -407,7 +406,7 @@ task ConcatTruvariResults {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

@@ -10,7 +10,7 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth
         File vcf_sv_truth_index
         String prefix
-        String sv_pipeline_docker
+        String bedtools_closest_docker
         
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
@@ -33,7 +33,7 @@ workflow BedtoolsClosestSV {
             vcf = vcf_eval,
             vcf_idx = vcf_eval_index,
             prefix = "~{prefix}.eval.symbolic",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
@@ -41,7 +41,7 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             prefix = "~{prefix}.eval",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_split_eval
     }
 
@@ -50,7 +50,7 @@ workflow BedtoolsClosestSV {
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_index,
             prefix = "~{prefix}.truth",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_split_truth
     }
 
@@ -59,15 +59,15 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.del_bed,
             bed_b = SplitTruth.del_bed,
             svtype = "DEL",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_compare_del
     }
     
-    call Helpers.SelectMatchedSVs as CalcuDEL {
+    call SelectMatchedSVs as CalcuDEL {
         input:
             input_bed = CompareDEL.output_bed,
             svtype = "DEL",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_calcu_del
     }
 
@@ -76,15 +76,15 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.dup_bed,
             bed_b = SplitTruth.dup_bed,
             svtype = "DUP",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_compare_dup
     }
     
-    call Helpers.SelectMatchedSVs as CalcuDUP {
+    call SelectMatchedSVs as CalcuDUP {
         input:
             input_bed = CompareDUP.output_bed,
             svtype = "DUP",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_calcu_dup
     }
 
@@ -93,15 +93,15 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.ins_bed,
             bed_b = SplitTruth.ins_bed,
             svtype = "INS",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_compare_ins
     }
     
-    call Helpers.SelectMatchedINSs as CalcuINS {
+    call SelectMatchedINSs as CalcuINS {
         input:
             input_bed = CompareINS.output_bed,
             svtype = "INS",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_calcu_ins
     }
 
@@ -110,15 +110,15 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.inv_bed,
             bed_b = SplitTruth.inv_bed,
             svtype = "INV",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_compare_inv
     }
     
-    call Helpers.SelectMatchedSVs as CalcuINV {
+    call SelectMatchedSVs as CalcuINV {
         input:
             input_bed = CompareINV.output_bed,
             svtype = "INV",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_calcu_inv
     }
 
@@ -127,15 +127,15 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.bnd_bed,
             bed_b = SplitTruth.bnd_bed,
             svtype = "BND",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_compare_bnd
     }
     
-    call Helpers.SelectMatchedINSs as CalcuBND {
+    call SelectMatchedINSs as CalcuBND {
         input:
             input_bed = CompareBND.output_bed,
             svtype = "BND",
-            sv_pipeline_docker = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_calcu_bnd
     }
 
@@ -143,7 +143,7 @@ workflow BedtoolsClosestSV {
         input:
             files = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             outfile_name = "~{prefix}.comparison.bed",
-            docker_image = sv_pipeline_docker,
+            docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
@@ -151,3 +151,84 @@ workflow BedtoolsClosestSV {
         File closest_bed = MergeComparisons.concatenated_file
     }
 } 
+
+task SelectMatchedSVs {
+    input {
+        File input_bed
+        String svtype
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String prefix = basename(input_bed, ".bed")
+
+    command <<<
+        set -euo pipefail
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
+            -i ~{input_bed} \
+            -o ~{prefix}.comparison
+    >>>
+
+    output {
+        File output_comp = "~{prefix}.comparison"
+    }    
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SelectMatchedINSs {
+    input {
+        File input_bed
+        String svtype
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String prefix = basename(input_bed, ".bed")
+
+    command <<<
+        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
+            -i ~{input_bed} \
+            -o ~{prefix}.comparison
+    >>>
+
+    output {
+        File output_comp = "~{prefix}.comparison"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}

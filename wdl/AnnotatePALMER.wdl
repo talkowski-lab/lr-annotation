@@ -40,7 +40,7 @@ workflow AnnotatePALMER {
         Int min_shared_samples_LINE = 0
         Int min_shared_samples_HERVK = 0
 
-        String palmer_docker
+        String annotate_palmer_docker
 
         RuntimeAttr? runtime_attr_filter_palmer
     }
@@ -55,7 +55,7 @@ workflow AnnotatePALMER {
             rm_out = rm_out,
             rm_buffer = rm_buffer,
             ref_fai = ref_fai,
-            docker = palmer_docker,
+            docker = annotate_palmer_docker,
             runtime_attr_override = runtime_attr_filter_palmer,
             reciprocal_overlap_ALU = reciprocal_overlap_ALU,
             reciprocal_overlap_LINE = reciprocal_overlap_LINE,

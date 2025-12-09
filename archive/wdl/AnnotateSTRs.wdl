@@ -35,7 +35,7 @@ workflow AnnotateSTRs {
             input_vcf_index = vcf_index,
             variants_per_shard = variants_per_shard_eff,
             output_prefix = prefix,
-            docker_image = pipeline_docker
+            docker = pipeline_docker
     }
 
     scatter (shard in zip(SplitVcfIntoShards.split_vcfs, SplitVcfIntoShards.split_vcf_indexes)) {
@@ -82,7 +82,7 @@ workflow AnnotateSTRs {
             vcfs = PostprocessVcf.restored_id_vcf,
             vcfs_idx = PostprocessVcf.restored_id_vcf_index,
             outfile_prefix = prefix,
-            docker_image = pipeline_docker
+            docker = pipeline_docker
     }
 
     call AnnotateOriginalVcf {

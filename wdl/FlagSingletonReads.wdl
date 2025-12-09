@@ -23,13 +23,13 @@ workflow FlagSingletonReads {
 
     Int variants_per_shard_eff = select_first([variants_per_shard, 1000000000])
 
-    call SubsetVcfToContigs {
+    call Helpers.SubsetVcfToContigs {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
             contigs = contigs,
             prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            docker = pipeline_docker,
             runtime_attr_override = runtime_attr_subset
     }
 
@@ -39,7 +39,7 @@ workflow FlagSingletonReads {
             input_vcf_idx = SubsetVcfToContigs.subset_vcf_idx,
             variants_per_shard = variants_per_shard_eff,
             prefix = prefix,
-            docker_image = pipeline_docker,
+            docker = pipeline_docker,
             runtime_attr_override = runtime_attr_split
     }
 
@@ -70,7 +70,7 @@ workflow FlagSingletonReads {
             vcfs = FilterSingletonReads.filtered_vcf,
             vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
             outfile_prefix = prefix,
-            docker_image = pipeline_docker,
+            docker = pipeline_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -181,48 +181,6 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: ceil(size(vcf, "GB")) + 5,
-        disk_gb: ceil(size(vcf, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SubsetVcfToContigs {
-    input {
-        File vcf
-        File vcf_idx
-        Array[String] contigs
-        String prefix
-        String pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools view ~{vcf} --regions ~{sep=',' contigs} -Oz -o ~{prefix}.subset.vcf.gz
-        tabix -p vcf ~{prefix}.subset.vcf.gz
-    >>>
-
-    output {
-        File subset_vcf = "~{prefix}.subset.vcf.gz"
-        File subset_vcf_idx = "~{prefix}.subset.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
         disk_gb: ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,

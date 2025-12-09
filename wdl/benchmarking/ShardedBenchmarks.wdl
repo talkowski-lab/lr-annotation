@@ -6,15 +6,18 @@ workflow ShardAndComputeBenchmarks {
     input {
         File final_vcf
         File final_vcf_index
+
         File matched_ids_tsv
         File truth_tsv_snv
         File truth_tsv_sv
         File truth_vep_header
+
         String contig
         String prefix
-        String pipeline_docker
         Int variants_per_shard
         String? skip_vep_categories
+
+        String sharded_benchmarks_docker
 
         RuntimeAttr? runtime_attr_shard_matched_eval
         RuntimeAttr? runtime_attr_compute_shard_benchmarks
@@ -26,7 +29,7 @@ workflow ShardAndComputeBenchmarks {
             matched_ids_tsv = matched_ids_tsv,
             variants_per_shard = variants_per_shard,
             prefix = prefix,
-            pipeline_docker = pipeline_docker,
+            docker = sharded_benchmarks_docker,
             runtime_attr_override = runtime_attr_shard_matched_eval
     }
 
@@ -43,7 +46,7 @@ workflow ShardAndComputeBenchmarks {
                 shard_label = "~{shard_idx}",
                 prefix = prefix,
                 skip_vep_categories = skip_vep_categories,
-                pipeline_docker = pipeline_docker,
+                docker = sharded_benchmarks_docker,
                 runtime_attr_override = runtime_attr_compute_shard_benchmarks
         }
     }
@@ -56,7 +59,7 @@ workflow ShardAndComputeBenchmarks {
             contig = contig,
             prefix = prefix,
             skip_vep_categories = skip_vep_categories,
-            pipeline_docker = pipeline_docker,
+            docker = sharded_benchmarks_docker,
             runtime_attr_override = runtime_attr_merge_shard_benchmarks
     }
 
@@ -70,7 +73,7 @@ task ShardMatchedEval {
         File matched_ids_tsv
         Int variants_per_shard
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -100,7 +103,7 @@ task ShardMatchedEval {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -118,7 +121,7 @@ task ComputeShardBenchmarks {
         String shard_label
         String prefix
         String? skip_vep_categories
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -156,7 +159,7 @@ task ComputeShardBenchmarks {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -170,7 +173,7 @@ task MergeShardBenchmarks {
         String contig
         String prefix
         String? skip_vep_categories
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -203,7 +206,7 @@ task MergeShardBenchmarks {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

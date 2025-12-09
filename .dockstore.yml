@@ -134,12 +134,3 @@ workflows:
         - main
       tags:
         - /.*/
-
-  - subclass: WDL
-    name: TruvariMerge
-    primaryDescriptorPath: /wdl/TruvariMerge.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/

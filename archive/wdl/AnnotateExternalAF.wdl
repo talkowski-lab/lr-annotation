@@ -407,7 +407,6 @@ task ConcatVcfs {
         Boolean sort_vcf_list = false
         String? outfile_prefix
         String pipeline_docker
-
         RuntimeAttr? runtime_attr_override
     }
 

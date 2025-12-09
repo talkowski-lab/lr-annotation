@@ -28,3 +28,12 @@ python ./scripts/merge/merge_functionally_annotated_vcfs.py \
     --svannotate-vcf ./data/functionally_annotated/svannotate.vcf.gz \
     -o ./data/functionally_annotated/functionally_annotated.vcf.gz
 ```
+
+### [TruvariMerge](wdl/TruvariMerge.wdl)
+This workflow leverages [Truvari](https://github.com/ACEnglish/truvari) in order to merge VCFs whilst collapsing redundant calls. It runs `collapse` with its default parameters of 70% sequence similarity, 70% size similarity, reciprocal overlap of 0% and breakpoint distance of 500 bp.
+
+Inputs:
+- `vcfs`: Series of VCFs to merge.
+- `vcf_idxs`: Indexes of VCFs to merge.
+- `ref_fa`.
+- `ref_fai`.

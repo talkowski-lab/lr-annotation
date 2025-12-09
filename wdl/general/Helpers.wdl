@@ -949,7 +949,7 @@ task SplitVcfIntoShards {
     File input_vcf_idx
     Int variants_per_shard
     String prefix
-    String docker_image
+    String docker
     RuntimeAttr? runtime_attr_override
   }
 
@@ -987,7 +987,7 @@ task SplitVcfIntoShards {
     memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
     disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
     bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-    docker: docker_image
+    docker: docker
     preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
     maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
   }
@@ -999,7 +999,7 @@ task ConcatVcfs {
     Array[File]? vcfs_idx
     Boolean merge_sort = false
     String outfile_prefix = "concat"
-    String docker_image
+    String docker
     RuntimeAttr? runtime_attr_override
   }
 
@@ -1027,7 +1027,7 @@ task ConcatVcfs {
     cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
     preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
     maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-    docker: docker_image
+    docker: docker
     bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
   }
 
@@ -1055,7 +1055,7 @@ task SubsetVcfToContig {
         String contig
         String? args_string
         String prefix
-        String docker_image
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1089,7 +1089,7 @@ task SubsetVcfToContig {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1099,7 +1099,7 @@ task ConcatFiles {
     input {
         Array[File] files
         String outfile_name
-        String docker_image
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1127,7 +1127,7 @@ task ConcatFiles {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker_image
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1138,7 +1138,7 @@ task SplitQueryVcf {
         File vcf
         File? vcf_idx
         String prefix
-        String sv_pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1179,7 +1179,7 @@ task SplitQueryVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1190,14 +1190,14 @@ task BedtoolsClosest {
         File bed_a
         File bed_b
         String svtype
-        String sv_pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
-        set -eu
+        set -euo pipefail
+        
         paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) | sed -e "s/#//g" > ~{svtype}.bed
-        set -o pipefail
         bedtools closest -wo -a <(sort -k1,1 -k2,2n ~{bed_a}) -b <(sort -k1,1 -k2,2n ~{bed_b}) >> ~{svtype}.bed
     >>>
 
@@ -1219,88 +1219,7 @@ task BedtoolsClosest {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SelectMatchedSVs {
-    input {
-        File input_bed
-        String svtype
-        String sv_pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    String prefix = basename(input_bed, ".bed")
-
-    command <<<
-        set -euo pipefail
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
-            -i ~{input_bed} \
-            -o ~{prefix}.comparison
-    >>>
-
-    output {
-        File output_comp = "~{prefix}.comparison"
-    }    
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_pipeline_docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SelectMatchedINSs {
-    input {
-        File input_bed
-        String svtype
-        String sv_pipeline_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    String prefix = basename(input_bed, ".bed")
-
-    command <<<
-        Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
-            -i ~{input_bed} \
-            -o ~{prefix}.comparison
-    >>>
-
-    output {
-        File output_comp = "~{prefix}.comparison"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1311,7 +1230,7 @@ task ConvertToSymbolic {
         File vcf
         File vcf_idx
         String prefix
-        String sv_pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1343,7 +1262,7 @@ task ConvertToSymbolic {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
   }
@@ -1354,7 +1273,7 @@ task RenameVariantIds {
         File vcf
         File vcf_index
         String prefix
-        String pipeline_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1383,14 +1302,14 @@ task RenameVariantIds {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: pipeline_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
 task FinalizeToFile {
-    meta{
+    meta {
         description: "Copies the given file to the specified bucket."
     }
 
