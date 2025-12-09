@@ -1,6 +1,6 @@
 version 1.0
 
-import "Structs.wdl"
+import "general/Structs.wdl"
 
 workflow ExtractRegionFromBAM {
     input {
@@ -12,6 +12,7 @@ workflow ExtractRegionFromBAM {
         String gatk_docker
         String sv_pipeline_docker
         RuntimeAttr? runtime_attr_extract_region
+        RuntimeAttr? runtime_attr_tabix_bam
     }
 
     call ExtractRegion {
