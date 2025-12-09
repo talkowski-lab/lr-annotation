@@ -14,7 +14,7 @@ workflow AnnotateSVAnnotate {
         File coding_gtf
         File noncoding_bed
 
-        String utils_docker
+        String annotate_sv_annotate_docker
         String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -34,7 +34,7 @@ workflow AnnotateSVAnnotate {
                 prefix = "~{prefix}.~{contig}",
                 locus = contig,
                 min_svlen = min_svlen,
-                docker = utils_docker,
+                docker = annotate_sv_annotate_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
           }
 
@@ -43,7 +43,7 @@ workflow AnnotateSVAnnotate {
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.doubled",
-                docker = utils_docker,
+                docker = annotate_sv_annotate_docker,
                 runtime_attr_override = runtime_attr_preprocess
         }
 
@@ -65,7 +65,7 @@ workflow AnnotateSVAnnotate {
             vcfs_idx = SubsetVcf.unannotated_vcf_idx,
             allow_overlaps = true,
             outfile_prefix = "~{prefix}.unannotated.concat",
-            docker = utils_docker,
+            docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_concat_unannotated
     }
 
@@ -75,7 +75,7 @@ workflow AnnotateSVAnnotate {
             vcfs_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
             allow_overlaps = true,
             outfile_prefix = "~{prefix}.concat",
-            docker = utils_docker,
+            docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_concat_annotated
     }
 
@@ -86,7 +86,7 @@ workflow AnnotateSVAnnotate {
             unannotated_vcf = ConcatUnannotated.concat_vcf,
             unannotated_vcf_idx = ConcatUnannotated.concat_vcf_index,
             prefix = prefix,
-            docker = utils_docker,
+            docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -97,7 +97,7 @@ workflow AnnotateSVAnnotate {
             original_vcf = vcf,
             original_vcf_idx = vcf_idx,
             prefix = prefix,
-            docker = utils_docker,
+            docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_postprocess
     }
 
