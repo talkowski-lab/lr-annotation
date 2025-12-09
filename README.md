@@ -142,7 +142,7 @@ Inputs:
 
 
 ### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
-This workflow looks for variants that are supported by just 1 read, and adds the `SINGLE_READ_SUPPORT` filter status to them. Such variants are defined as those that are called in just 1 sample, and have an allele depth (AD) of just 1 in that sample.
+TODO
 
 
 ### TODO: Merge N Annotated VCFs
@@ -172,6 +172,10 @@ Inputs:
 - `offset_match`: Maximum allowable breakpoint distance.
 - `offset_prop_max`: Maximum allowable breakpoint distance as a proportion of variant length.
 - `match_prop_min`: Minimum required match on sequence context.
+
+
+### [ExtractRegionFromBAM](wdl/ExtractRegionFromBAM.wdl)
+TODO
 
 
 ### [MinimapAlignment](wdl/MinimapAlignment.wdl)
