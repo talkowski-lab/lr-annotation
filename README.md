@@ -32,9 +32,32 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 
-## Pipeline-Wide References
+## References
+- `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
+- `contigs_list`: [Panel with chr1-22](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/primary_contigs.list) from the GATK-SV featured workspace.
+- `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `mei_fa`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `mei_fa_amb`: Index for `mei_fa`.
+- `mei_fa_ann`: Index for `mei_fa`.
+- `mei_fa_bwt`: Index for `mei_fa`.
+- `mei_fa_minimap_mmi`: Index for `mei_fa`.
+- `mei_fa_pac`: Index for `mei_fa`.
+- `mei_fa_sa`: Index for `mei_fa`.
+- `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
+- `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
 - `ref_fa`: Reference sequence, derived from what was used for [PAV](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/).
-- `ref_fai`: Index for the reference sequence.
+- `ref_fai`: Index for `ref_fa`.
+- `ref_vep_cache`: [v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/). This also contains a series of additional references, which include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
+- `repeats_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `repeat_catalog_trgt`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us Phase 2.
+- `top_level_fa`: [hg38 Release 76](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
+- `vntr_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+
+
+
+## Dockers
+- `gatk_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/gatk:2025-05-20-4.6.2.0-4-g1facd911e-NIGHTLY-SNAPSHOT` from the GATK-SV Featured Workspace.
+- `sv_base_mini_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/sv-base-mini:2024-10-25-v0.29-beta-5ea22a52` from the GATK-SV Featured Workspace.
 
 
 
@@ -45,9 +68,8 @@ This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-fi
 Inputs:
 - `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.
 - `ped_file`: Six column file containing the cohort pedigree, with specifications described in [this article](https://gatk.broadinstitute.org/hc/en-us/articles/360035531972-PED-Pedigree-format).
-
-References:
-- `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
+- `contigs_list`.
+- `par_bed`.
 
 
 ### [AnnotateL1MEAIDFilter](wdl/AnnotateL1MEAIDFilter.wdl)
@@ -64,37 +86,35 @@ This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order
 Inputs:
 - `rm_fa`: Output by _RepeatMasker_.
 - `rm_out`: Output by _RepeatMasker_.
-
-References:
 - `ref_fai`.
 
 
 ### [AnnotateSVAN](wdl/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
-References:
+Inputs:
 - `ref_fa`.
-- `vntr_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `repeats_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `mei_fasta`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `vntr_bed`.
+- `exons_bed`.
+- `repeats_bed`.
+- `mei_fasta`.
 
 
 ### [AnnotateSVAnnotate](wdl/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SV through this workflow, ignoring all SNVs and InDels.
 
-References:
-- `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
-- `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
+Inputs:
+- `noncoding_bed`.
+- `coding_gtf`.
 
 
 ### [AnnotateVEPHail](wdl/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
 
-References:
+Inputs:
 - `ref_fa`.
-- `top_level_fa`: [hg38 Release 76](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
-- `ref_vep_cache`: [v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/). This also contains a series of additional references, which include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
+- `top_level_fa`.
+- `ref_vep_cache`.
 
 
 
@@ -110,8 +130,6 @@ The workflow undergoes multiple rounds of variant matching in order to determine
 Inputs:
 - `vcf_truth`: VCF containing SNV & indels to evaluate against.
 - `vcf_sv_truth`: VCF containing SVs to evaluate against
-
-References:
 - `ref_fa`.
 - `ref_fai`.
 
@@ -156,8 +174,6 @@ Inputs:
 - `assembly_mat`: Maternal assembly.
 - `assembly_pat`: Paternal assembly.
 - `minimap_flags`: Parameters to use when running Minimap2.
-
-References:
 - `ref_fa`.
 - `ref_fai`.
 
@@ -177,13 +193,11 @@ Inputs:
 - `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype, causing the workflow to bypass its execution. 
-
-References:
 - `ref_fa`.
 - `ref_fai`.
 
 
-### [PALMER](wdl/PALMERMerge.wdl)
+### [PALMERMerge](wdl/PALMERMerge.wdl)
 TODO
 
 
@@ -206,11 +220,9 @@ Inputs:
 - `bam`: Aligned reads.
 - `bai`: Index for aligned reads.
 - `sex`: Sex of sample (one of `M` or `F`).
-
-References:
 - `ref_fa`.
 - `ref_fai`.
-- `repeat_catalog`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us Phase 2.
+- `repeat_catalog_trgt`.
 
 
 ### [TruvariMerge](wdl/TruvariMerge.wdl)
@@ -276,36 +288,6 @@ References:
 - Running `flake8` should yield no errors.
 - All code written should use 2-space tabs for indentation.
 
-
-
-## Archived
-###  [AnnotateSTRs](archive/wdl/AnnotateSTRs.wdl)
-This workflow is based on a [script](https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/filter_vcf_to_STR_variants.py) developed by Ben Weisburd to annotate STRs based on their sequence context. It involves reading the nucleotide content of each variant, and comparing this to its surrounding reference genome context.
-
-References:
-- `ref_fa`.
-
-
-### [Merge AF Annotated VCFs](archive/scripts/merge/merge_af_annotated_vcfs.py)
-This script takes in multiple VCFs containing various AF-related annotations, as produced by the AF annotation workflow, and synthesizes them into an integrated VCF in which each record contains the annotations for that record across all the input VCFs.
-
-Below illustrates an example of its use:
-```
-python ./scripts/merge/merge_af_annotated_vcfs.py \
-	./data/annotated_af/annotated.ancestry_sex.vcf.gz \
-	./data/annotated_af/annotated.ancestry.vcf.gz \
-	./data/annotated_af/annotated.sex.vcf.gz \
-	-o ./data/annotated_af/annotated_af.vcf.gz
-```
-
-
-### [Merge Functionally Annotated VCFs](archive/scripts/merge/merge_functionally_annotated_vcfs.py)
-This script takes in VCFs produced by the functional annotation workflows, and synthesizes them into an integrated VCF in which any < 50 bp contains only the VEP annotations while any variant ≥ 50 bp contains only SVAnnotate annotations.
-
-Below illustrates an example of its use:
-```
-python ./scripts/merge/merge_functionally_annotated_vcfs.py \
-	--vep-vcf ./data/functionally_annotated/vep.vcf.gz \
-	--svannotate-vcf ./data/functionally_annotated/svannotate.vcf.gz \
-	-o ./data/functionally_annotated/functionally_annotated.vcf.gz
-```
+### Workspace Setup
+- All references should be passed in via workspace data.
+- TODO: All dockers should be passed in via workspace data.

@@ -13,7 +13,7 @@ workflow TRGT {
 
         File ref_fa
         File ref_fai
-        File repeatCatalog
+        File repeat_catalog_trgt
         String catalog_name
 
         String gcs_out_dir
@@ -32,7 +32,7 @@ workflow TRGT {
             outprefix = sample_id,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
-            repeatCatalog = repeatCatalog,
+            repeat_catalog_trgt = repeat_catalog_trgt,
             catalog_name = catalog_name,
             docker = trgt_docker,
             runtime_attr_override = runtime_attr_process_with_trgt
@@ -62,7 +62,7 @@ task ProcessWithTRGT {
         File bam
         File bai
         String outprefix
-        File repeatCatalog
+        File repeat_catalog_trgt
         String catalog_name
         Boolean is_female
         Boolean verbose = false
@@ -85,7 +85,7 @@ task ProcessWithTRGT {
             ~{true='--verbose' false=' ' verbose} \
             genotype \
             --genome ~{ref_fa} \
-            --repeats ~{repeatCatalog} \
+            --repeats ~{repeat_catalog_trgt} \
             --reads ~{bam} \
             --threads "${nproc}" \
             --output-prefix ~{vcf_out_name} \
@@ -115,7 +115,7 @@ task ProcessWithTRGT {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 6,
-        disk_gb: 10 + ceil(1.2 * size(bam, "GiB") + size(ref_fa, "GiB") + size(repeatCatalog, "GiB")),
+        disk_gb: 10 + ceil(1.2 * size(bam, "GiB") + size(ref_fa, "GiB") + size(repeat_catalog_trgt, "GiB")),
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

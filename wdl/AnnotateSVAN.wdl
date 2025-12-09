@@ -10,17 +10,18 @@ workflow AnnotateSVAN {
 
         String prefix
         Int min_svlen
+
         File vntr_bed
         File exons_bed
         File repeats_bed
 
         File mei_fa
-        File mei_bwa_amb
-        File mei_bwa_ann
-        File mei_bwa_bwt
-        File mei_bwa_pac
-        File mei_bwa_sa
-        File mei_minimap_mmi
+        File mei_fa_amb
+        File mei_fa_ann
+        File mei_fa_bwt
+        File mei_fa_pac
+        File mei_fa_sa
+        File mei_fa_mmi
         File ref_fa
 
         String svan_docker
