@@ -267,10 +267,8 @@ task RunPALMERShard {
 			--chr $chrom \
 			--workdir "${dir}/${chrom}/"
 
-		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt
-		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt
-		mv ${chrom}/~{prefix}_calls.txt ~{prefix}_calls_shard.txt
-		mv ${chrom}/~{prefix}_TSD_reads.txt ~{prefix}_tsd_reads_shard.txt
+		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt > ~{prefix}_calls_shard.txt || touch ~{prefix}_calls_shard.txt
+		sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt > ~{prefix}_tsd_reads_shard.txt || touch ~{prefix}_tsd_reads_shard.txt
 	>>>
 
 	output {
