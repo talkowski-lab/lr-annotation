@@ -237,7 +237,7 @@ workflow BenchmarkAnnotations {
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
+                sharded_benchmarks_docker = benchmark_annotations_docker,
                 variants_per_shard = variants_per_shard,
                 skip_vep_categories = skip_vep_categories,
                 runtime_attr_shard_matched_eval = runtime_attr_shard_matched_eval,

@@ -153,7 +153,7 @@ workflow AnnotateSVAN {
             vcfs = SeparateInsertionsDeletions.other_vcf,
             vcfs_idx = SeparateInsertionsDeletions.other_vcf_index,
             outfile_prefix = prefix + ".other",
-            docker_image = annotate_svan_docker
+            docker = annotate_svan_docker
     }
 
     call MergeAnnotatedVcfs {
