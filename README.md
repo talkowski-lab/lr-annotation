@@ -60,6 +60,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `hail_docker`: `us.gcr.io/talkowski-sv-gnomad/shineren:hail` from Eren.
 - `gatk_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/gatk:2025-05-20-4.6.2.0-4-g1facd911e-NIGHTLY-SNAPSHOT` from the GATK-SV Featured Workspace.
 - `sv_base_mini_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/sv-base-mini:2024-10-25-v0.29-beta-5ea22a52` from the GATK-SV Featured Workspace.
+- `trgt_docker`: `us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0` from the DSP long-reads team.
 
 
 
@@ -132,7 +133,7 @@ The workflow undergoes multiple rounds of variant matching in order to determine
 
 Inputs:
 - `vcf_truth`: VCF containing SNV & indels to evaluate against.
-- `vcf_sv_truth`: VCF containing SVs to evaluate against
+- `vcf_sv_truth`: VCF containing SVs to evaluate against.
 - `ref_fa`.
 - `ref_fai`.
 
