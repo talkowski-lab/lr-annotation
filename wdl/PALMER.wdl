@@ -31,7 +31,6 @@ workflow PALMER {
 
 		RuntimeAttr? runtime_attr_split_bam
 		RuntimeAttr? runtime_attr_run_palmer
-		RuntimeAttr? runtime_attr_merge_palmer_outputs
 		RuntimeAttr? runtime_attr_palmer_to_vcf
 		RuntimeAttr? runtime_attr_truvari_collapse
 		RuntimeAttr? runtime_attr_concat_sort_vcfs
@@ -53,33 +52,22 @@ workflow PALMER {
 					runtime_attr_override = runtime_attr_split_bam
 			}
 
-			scatter (i in range(length(SplitBamPat.bams))) {
-				call RunPALMERShard as RunPALMERShardPat {
-					input:
-						bam = SplitBamPat.bams[i],
-						bai = SplitBamPat.bais[i],
-						prefix = prefix + ".pat",
-						mode = mode,
-						mei_type = mei_type,
-						ref_fa = ref_fa,
-						docker = palmer_docker,
-						runtime_attr_override = runtime_attr_run_palmer
-				}
-			}
-
-			call MergePALMEROutputs as MergePALMEROutputsPat {
+			call RunPALMER as RunPALMERPat {
 				input:
-					calls_shards = RunPALMERShardPat.calls_shard,
-					tsd_reads_shards = RunPALMERShardPat.tsd_reads_shard,
+					bams = SplitBamPat.bams,
+					bais = SplitBamPat.bais,
 					prefix = prefix + ".pat",
+					mode = mode,
 					mei_type = mei_type,
-					docker = utils_docker,
-					runtime_attr_override = runtime_attr_merge_palmer_outputs
+					contigs = contigs,
+					ref_fa = ref_fa,
+					docker = palmer_docker,
+					runtime_attr_override = runtime_attr_run_palmer
 			}
 		}
 
-		File calls_file_pat = if defined (override_palmer_calls_pat) then select_first([override_palmer_calls_pat])[idx] else select_first([MergePALMEROutputsPat.calls])
-		File tsd_file_pat = if defined (override_palmer_tsd_files_pat) then select_first([override_palmer_tsd_files_pat])[idx] else select_first([MergePALMEROutputsPat.tsd_reads])
+		File calls_file_pat = if defined (override_palmer_calls_pat) then select_first([override_palmer_calls_pat])[idx] else select_first([RunPALMERPat.calls])
+		File tsd_file_pat = if defined (override_palmer_tsd_files_pat) then select_first([override_palmer_tsd_files_pat])[idx] else select_first([RunPALMERPat.tsd_reads])
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfPat {
 			input:
@@ -106,33 +94,22 @@ workflow PALMER {
 					runtime_attr_override = runtime_attr_split_bam
 			}
 
-			scatter (i in range(length(SplitBamMat.bams))) {
-				call RunPALMERShard as RunPALMERShardMat {
-					input:
-						bam = SplitBamMat.bams[i],
-						bai = SplitBamMat.bais[i],
-						prefix = prefix + ".mat",
-						mode = mode,
-						mei_type = mei_type,
-						ref_fa = ref_fa,
-						docker = palmer_docker,
-						runtime_attr_override = runtime_attr_run_palmer
-				}
-			}
-
-			call MergePALMEROutputs as MergePALMEROutputsMat {
+			call RunPALMER as RunPALMERMat {
 				input:
-					calls_shards = RunPALMERShardMat.calls_shard,
-					tsd_reads_shards = RunPALMERShardMat.tsd_reads_shard,
+					bams = SplitBamMat.bams,
+					bais = SplitBamMat.bais,
 					prefix = prefix + ".mat",
+					mode = mode,
 					mei_type = mei_type,
-					docker = utils_docker,
-					runtime_attr_override = runtime_attr_merge_palmer_outputs
+					contigs = contigs,
+					ref_fa = ref_fa,
+					docker = palmer_docker,
+					runtime_attr_override = runtime_attr_run_palmer
 			}
 		}
 
-		File calls_file_mat = if defined (override_palmer_calls_mat) then select_first([override_palmer_calls_mat])[idx] else select_first([MergePALMEROutputsMat.calls])
-		File tsd_file_mat = if defined (override_palmer_tsd_files_mat) then select_first([override_palmer_tsd_files_mat])[idx] else select_first([MergePALMEROutputsMat.tsd_reads])
+		File calls_file_mat = if defined (override_palmer_calls_mat) then select_first([override_palmer_calls_mat])[idx] else select_first([RunPALMERMat.calls])
+		File tsd_file_mat = if defined (override_palmer_tsd_files_mat) then select_first([override_palmer_tsd_files_mat])[idx] else select_first([RunPALMERMat.tsd_reads])
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfMat {
 			input:
@@ -217,7 +194,7 @@ task SplitBam {
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
 		mem_gb: 4,
-		disk_gb: ceil(size(bam, "GB") * 3) + 10,
+		disk_gb: ceil(size(bam, "GB")) * 3 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
@@ -234,92 +211,60 @@ task SplitBam {
 	}
 }
 
-task RunPALMERShard {
+task RunPALMER {
 	input {
-		File bam
-		File bai
+		Array[File] bams
+		Array[File] bais
 		String prefix
 		String mode
 		String mei_type
+		Array[String] contigs
 		File ref_fa
 		String docker
 		RuntimeAttr? runtime_attr_override
 	}
 
 	command <<<
-		set -euo pipefail
+		set -x
 
 		dir=$(pwd)
 
-		mv ~{bam} ./
-		mv ~{bai} ./
-		bam_base=$(basename ~{bam})
-		chrom=$(echo $bam_base | sed 's/\.bam$//' | rev | cut -f1 -d '_' | rev)
-
-		mkdir -p "${chrom}"
-		/PALMER/PALMER \
-			--input ${bam_base} \
-			--ref_fa ~{ref_fa} \
-			--ref_ver GRCh38 \
-			--type ~{mei_type} \
-			--mode ~{mode} \
-			--output "~{prefix}" \
-			--chr $chrom \
-			--workdir "${dir}/${chrom}/"
-
-		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt
-		sed -i "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt
-		mv ${chrom}/~{prefix}_calls.txt ~{prefix}_calls_shard.txt
-		mv ${chrom}/~{prefix}_TSD_reads.txt ~{prefix}_tsd_reads_shard.txt
-	>>>
-
-	output {
-		File calls_shard = "~{prefix}_calls_shard.txt"
-		File tsd_reads_shard = "~{prefix}_tsd_reads_shard.txt"
-	}
-
-	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
-		disk_gb: 4,
-		boot_disk_gb: 5,
-		preemptible_tries: 1,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + 4 + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-	}
-}
-
-task MergePALMEROutputs {
-	input {
-		Array[File] calls_shards
-		Array[File] tsd_reads_shards
-		String prefix
-		String mei_type
-		String docker
-		RuntimeAttr? runtime_attr_override
-	}
-
-	command <<<
-		set -euo pipefail
-
-		head -n1 ~{calls_shards[0]} > ~{prefix}_~{mei_type}_calls.txt
-		for f in ~{sep=' ' calls_shards}; do
-			grep -v '^cluster_id' $f >> ~{prefix}_~{mei_type}_calls.txt || true
+		for bai in ~{sep=' ' bais}; do
+			mv ${bai} ./
 		done
 
-		head -n1 ~{tsd_reads_shards[0]} > ~{prefix}_~{mei_type}_tsd_reads.txt
-		for f in ~{sep=' ' tsd_reads_shards}; do
-			grep -v '^cluster_id' $f >> ~{prefix}_~{mei_type}_tsd_reads.txt || true
+		for bam_file in ~{sep=' ' bams}; do
+			mv ${bam_file} ./
+			bam=$(basename ${bam_file})
+			chrom=$(echo $bam | sed 's/\.bam$//' | rev | cut -f1 -d '_' | rev)
+
+			mkdir -p "${chrom}"
+			/PALMER/PALMER \
+				--input ${bam} \
+				--ref_fa ~{ref_fa} \
+				--ref_ver GRCh38 \
+				--type ~{mei_type} \
+				--mode ~{mode} \
+				--output "~{prefix}" \
+				--chr $chrom \
+				--workdir "${dir}/${chrom}/" &
 		done
+
+		wait
+
+		for chrom in ~{sep=' ' contigs}; do
+			touch ${chrom}/~{prefix}_calls.txt
+			touch ${chrom}/~{prefix}_TSD_reads.txt
+
+			sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_calls.txt >> calls.txt
+			sed "s/$/\t~{mei_type}/" ${chrom}/~{prefix}_TSD_reads.txt >> TSD_reads.txt
+		done
+
+		head -n1 calls.txt > ~{prefix}_~{mei_type}_calls.txt
+		grep -v '^cluster_id' calls.txt >> ~{prefix}_~{mei_type}_calls.txt || true
+
+		head -n1 TSD_reads.txt > ~{prefix}_~{mei_type}_tsd_reads.txt
+		grep -v '^cluster_id' TSD_reads.txt >> ~{prefix}_~{mei_type}_tsd_reads.txt || true
 	>>>
 
 	output {
@@ -328,9 +273,9 @@ task MergePALMEROutputs {
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 2,
-		disk_gb: ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) * 2 + 10,
+		cpu_cores: length(bams),
+		mem_gb: 4,
+		disk_gb: ceil(size(bams, "GB") + size(ref_fa, "GB")) * 3,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
@@ -385,7 +330,7 @@ task ConvertPALMERToVcf {
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
 		mem_gb: 4,
-		disk_gb: 10*ceil(size(PALMER_calls, "GB") + size(PALMER_tsd_reads, "GB") + size(ref_fa, "GB") + size(ref_fai, "GB")) + 20,
+		disk_gb: ceil(size(PALMER_calls, "GB") + size(PALMER_tsd_reads, "GB") + size(ref_fa, "GB")) * 5 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
@@ -493,7 +438,7 @@ task ConcatSortVcfs {
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
 		mem_gb: 2,
-		disk_gb: 5*ceil(size(vcfs, "GB")) + 5,
+		disk_gb: ceil(size(vcfs, "GB")) * 3 + 5,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
