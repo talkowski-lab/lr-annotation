@@ -12,7 +12,6 @@ workflow ExtractRegionFromBAM {
         String gatk_docker
         String sv_pipeline_docker
         RuntimeAttr? runtime_attr_extract_region
-        RuntimeAttr? runtime_attr_tabix_bam
     }
 
     call ExtractRegion {
@@ -56,7 +55,7 @@ task ExtractRegion {
 
     output {
         File regional_bam = "~{prefix}.~{chrom}_~{start}_~{end}.bam"
-        File regional_bai = "~{prefix}.~{chrom}_~{start}_~{end}.bam.bai"
+        File regional_bai = "~{prefix}.~{chrom}_~{start}_~{end}.bai"
     }
 
     RuntimeAttr default_attr = object {
@@ -65,7 +64,7 @@ task ExtractRegion {
         disk_gb: 15 + ceil(size(bam, "GiB")*2),
         boot_disk_gb: 10,
         preemptible_tries: 1,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
