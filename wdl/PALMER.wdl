@@ -274,9 +274,9 @@ task RunPALMER {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: length(bams),
-		mem_gb: 16,
+		mem_gb: 64,
 		disk_gb: ceil(size(bams, "GiB") + size(ref_fa, "GiB")) * 10,
-		boot_disk_gb: 10,
+		boot_disk_gb: 25,
 		preemptible_tries: 1,
 		max_retries: 0
 	}

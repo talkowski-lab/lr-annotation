@@ -145,11 +145,11 @@ def main():
     # Parse TSD reads to get insertion sequences
     insertion_seqs = parse_tsd_reads(args.palmer_tsd_reads)
     
-    # Write VCF header
-    write_vcf_header(args.ref_fai, args.sample)
-    
-    # Parse calls and write records
+    # Parse calls to get VCF records
     calls = parse_palmer_calls(args.palmer_calls, insertion_seqs, ref_fasta)
+
+    # Write VCF
+    write_vcf_header(args.ref_fai, args.sample)
     write_vcf_records(calls, args.mei_type, args.haplotype)
     
     # Close reference
