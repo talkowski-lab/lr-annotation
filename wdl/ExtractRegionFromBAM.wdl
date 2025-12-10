@@ -51,11 +51,13 @@ task ExtractRegion {
            -I ~{bam} \
            -L ~{chrom}:~{start}-~{end} \
            -O "~{prefix}.~{chrom}_~{start}_~{end}.bam"
+
+        samtools index "~{prefix}.~{chrom}_~{start}_~{end}.bam"
     >>>
 
     output {
         File regional_bam = "~{prefix}.~{chrom}_~{start}_~{end}.bam"
-        File regional_bai = "~{prefix}.~{chrom}_~{start}_~{end}.bai"
+        File regional_bai = "~{prefix}.~{chrom}_~{start}_~{end}.bam.bai"
     }
 
     RuntimeAttr default_attr = object {
