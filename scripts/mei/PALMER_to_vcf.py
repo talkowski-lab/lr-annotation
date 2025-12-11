@@ -108,8 +108,8 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
             }
 
             # Calculate MEI length
-            tmp_end = round(numpy.median([int(fields[8]), int(fields[9])]))
             tmp_start = round(numpy.median([int(fields[6]), int(fields[7])]))
+            tmp_end = round(numpy.median([int(fields[8]), int(fields[9])]))
             if call["5inv"]:
                 tmp_5invend = int(fields[19])
                 tmp_5invstart = int(fields[20])

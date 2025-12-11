@@ -10,7 +10,7 @@ workflow MinimapAlignment {
         String prefix
         String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
-        Int minimap_threads = 32
+        Int minimap_threads = 8
         String where_to_save
 
         File ref_fa
@@ -114,8 +114,8 @@ task AlignAssembly {
 
     RuntimeAttr default_attr = object {
         cpu_cores: threads,
-        mem_gb: 2*threads,
-        disk_gb: 2*ceil(size(assembly_fa, "GB") + size(ref_fa, "GB")) + 5,
+        mem_gb: threads * 2,
+        disk_gb: ceil(size(assembly_fa, "GB") + size(ref_fa, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
