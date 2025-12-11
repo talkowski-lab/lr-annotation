@@ -10,7 +10,7 @@ workflow MinimapAlignment {
         String prefix
         String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
-        Int minimap_threads = 8
+        Int minimap_threads = 16
         String where_to_save
 
         File ref_fa
