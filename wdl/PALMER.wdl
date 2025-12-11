@@ -83,8 +83,8 @@ workflow PALMER {
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfPat {
 			input:
-				PALMER_calls = calls_file_pat,
-				PALMER_tsd_reads = tsd_file_pat,
+				palmer_calls = calls_file_pat,
+				palmer_tsd_reads = tsd_file_pat,
 				mei_type = mei_type,
 				sample = sample,
 				ref_fa = ref_fa,
@@ -136,8 +136,8 @@ workflow PALMER {
 
 		call ConvertPALMERToVcf as ConvertPALMERToVcfMat {
 			input:
-				PALMER_calls = calls_file_mat,
-				PALMER_tsd_reads = tsd_file_mat,
+				palmer_calls = calls_file_mat,
+				palmer_tsd_reads = tsd_file_mat,
 				mei_type = mei_type,
 				sample = sample,
 				ref_fa = ref_fa,
@@ -174,18 +174,21 @@ workflow PALMER {
 	}
 
 	output {
-		Array[File] PALMER_calls_pat = calls_file_pat
-		Array[File] PALMER_tsd_reads_pat = tsd_file_pat
-		Array[File] PALMER_calls_mat = calls_file_mat
-		Array[File] PALMER_tsd_reads_mat = tsd_file_mat
-		Array[File] PALMER_vcfs_pat = ConvertPALMERToVcfPat.vcf
-		Array[File] PALMER_vcf_idxs_pat = ConvertPALMERToVcfPat.vcf_idx
-		Array[File] PALMER_vcfs_mat = ConvertPALMERToVcfMat.vcf
-		Array[File] PALMER_vcf_idxs_mat = ConvertPALMERToVcfMat.vcf_idx
-		Array[File] PALMER_diploid_vcfs = TruvariCollapse.diploid_vcf
-		Array[File] PALMER_diploid_vcf_idxs = TruvariCollapse.diploid_vcf_idx
-		File PALMER_combined_vcf = ConcatSortVcfs.vcf
-		File PALMER_combined_vcf_idx = ConcatSortVcfs.vcf_idx
+		Array[File] palmer_pat_calls = calls_file_pat
+		Array[File] palmer_pat_tsd_reads = tsd_file_pat
+		Array[File] palmer_pat_vcfs = ConvertPALMERToVcfPat.vcf
+		Array[File] palmer_pat_vcfs_idxs = ConvertPALMERToVcfPat.vcf_idx
+
+		Array[File] palmer_mat_calls = calls_file_mat
+		Array[File] palmer_mat_tsd_reads = tsd_file_mat
+		Array[File] palmer_mat_vcfs = ConvertPALMERToVcfMat.vcf
+		Array[File] palmer_mat_vcfs_idxs = ConvertPALMERToVcfMat.vcf_idx
+
+		Array[File] palmer_diploid_vcfs = TruvariCollapse.diploid_vcf
+		Array[File] palmer_diploid_vcfs_idxs = TruvariCollapse.diploid_vcf_idx
+
+		File palmer_combined_vcf = ConcatSortVcfs.vcf
+		File palmer_combined_vcf_idx = ConcatSortVcfs.vcf_idx
 	}
 }
 
@@ -349,8 +352,8 @@ task MergePALMEROutputs {
 
 task ConvertPALMERToVcf {
 	input {
-		File PALMER_calls
-		File PALMER_tsd_reads
+		File palmer_calls
+		File palmer_tsd_reads
 		String mei_type
 		String sample
 		File ref_fa
@@ -364,28 +367,28 @@ task ConvertPALMERToVcf {
 		set -euo pipefail
 
 		python /opt/gnomad-lr/scripts/mei/PALMER_to_vcf.py \
-			--palmer_calls ~{PALMER_calls} \
-			--palmer_tsd_reads ~{PALMER_tsd_reads} \
+			--palmer_calls ~{palmer_calls} \
+			--palmer_tsd_reads ~{palmer_tsd_reads} \
 			--mei_type ~{mei_type} \
 			--sample ~{sample} \
 			--ref_fa ~{ref_fa} \
 			--ref_fai ~{ref_fai} \
 			--haplotype "~{haplotype}" \
 			| bcftools sort -Oz \
-			> ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
+			> ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 		
-		tabix ~{sample}.PALMER_calls.~{mei_type}.vcf.gz
+		tabix ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 	>>>
 
 	output {
-		File vcf = "~{sample}.PALMER_calls.~{mei_type}.vcf.gz"
-		File vcf_idx = "~{sample}.PALMER_calls.~{mei_type}.vcf.gz.tbi"
+		File vcf = "~{sample}.palmer_calls.~{mei_type}.vcf.gz"
+		File vcf_idx = "~{sample}.palmer_calls.~{mei_type}.vcf.gz.tbi"
 	}
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
 		mem_gb: 4,
-		disk_gb: ceil(size(PALMER_calls, "GB") + size(PALMER_tsd_reads, "GB") + size(ref_fa, "GB")) * 5 + 10,
+		disk_gb: ceil(size(palmer_calls, "GB") + size(palmer_tsd_reads, "GB") + size(ref_fa, "GB")) * 5 + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
