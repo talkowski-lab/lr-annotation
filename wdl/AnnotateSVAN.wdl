@@ -195,16 +195,6 @@ task FilterBySvlen {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
 
@@ -220,6 +210,15 @@ task FilterBySvlen {
         File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -242,16 +241,6 @@ task MergeWithOriginal {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: ceil(size(original_vcf, "GB") + size(annotated_vcf, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
 
@@ -269,6 +258,15 @@ task MergeWithOriginal {
         File final_vcf_idx = "~{prefix}.svan_annotated.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(original_vcf, "GB") + size(annotated_vcf, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -288,16 +286,6 @@ task SeparateInsertionsDeletions {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 3.75,
-        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -euo pipefail
@@ -328,6 +316,15 @@ task SeparateInsertionsDeletions {
         File other_vcf_index = "~{prefix}.other_variants.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 3.75,
+        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -348,16 +345,6 @@ task GenerateTRF {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 7.5,
-        disk_gb: ceil(size(vcf, "GB") * 3) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -euo pipefail
@@ -387,6 +374,15 @@ task GenerateTRF {
         File trf_output = "~{prefix}.~{mode}_trf.out"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 7.5,
+        disk_gb: ceil(size(vcf, "GB") * 3) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -560,16 +556,6 @@ task MergeAnnotatedVcfs {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 7.5,
-        disk_gb: 50,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
         
@@ -591,6 +577,15 @@ task MergeAnnotatedVcfs {
         File merged_vcf_index = "~{prefix}.svan_annotated.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 7.5,
+        disk_gb: 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

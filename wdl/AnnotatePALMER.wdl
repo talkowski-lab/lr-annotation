@@ -15,10 +15,10 @@ workflow AnnotatePALMER {
         Int rm_buffer = 50
         File ref_fai
 
-        Float reciprocal_overlap_ALU = 0.0
-        Float reciprocal_overlap_SVA = 0.0
-        Float reciprocal_overlap_LINE = 0.0
-        Float reciprocal_overlap_HERVK = 0.0
+        Float reciprocal_overlap_ALU = 0.9
+        Float reciprocal_overlap_SVA = 0.9
+        Float reciprocal_overlap_LINE = 0.9
+        Float reciprocal_overlap_HERVK = 0.9
 
         Float size_similarity_ALU = 0.9
         Float size_similarity_SVA = 0.9
