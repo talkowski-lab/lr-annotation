@@ -19,6 +19,7 @@ workflow TRGT {
         String gcs_out_dir
         String trgt_docker
         RuntimeAttr? runtime_attr_process_with_trgt
+        RuntimeAttr? runtime_attr_finalize_to_file
     }
 
     Boolean is_female = 'F' == sex
@@ -41,13 +42,15 @@ workflow TRGT {
     call Helpers.FinalizeToFile as FinalizeTrgtVCF { 
         input: 
             outdir = outdir, 
-            file = ProcessWithTRGT.trgt_output_vcf     
+            file = ProcessWithTRGT.trgt_output_vcf,
+            runtime_attr_override = runtime_attr_finalize_to_file    
     }
 
     call Helpers.FinalizeToFile as FinalizeTrgtTBI { 
         input: 
             outdir = outdir, 
-            file = ProcessWithTRGT.trgt_output_vcf_idx 
+            file = ProcessWithTRGT.trgt_output_vcf_idx,
+            runtime_attr_override = runtime_attr_finalize_to_file
     }
 
     output {
