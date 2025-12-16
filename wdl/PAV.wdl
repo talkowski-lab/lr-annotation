@@ -52,20 +52,16 @@ task CallPAV {
         RuntimeAttr? runtime_attr_override
     }
 
-    Float input_size = size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")
-    Int disk_size = ceil(input_size * 3) + 50
-
     RuntimeAttr default_attr = object {
         cpu_cores: 16,
-        mem_gb: 150,
-        disk_gb: disk_size,
-        boot_disk_gb: 10,
+        mem_gb: 50,
+        disk_gb: ceil((size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")) * 3) + 10,
+        boot_disk_gb: 20,
         preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     Int effective_cpu = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-
     command <<<
         set -euo pipefail
 
