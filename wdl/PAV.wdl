@@ -32,6 +32,9 @@ workflow PAV {
         File pav_log_tarball = CallPAV.log_tar
         Array[File] pav_vcfs = CallPAV.vcfs
         Array[File] pav_vcf_indices = CallPAV.vcf_indices
+
+        File? debug_sam = CallPAV.debug_sam
+        Array[File]? debug_temp = CallPAV.debug_temp
 	}
 }
 
@@ -117,6 +120,9 @@ CODE
         File log_tar = "pav_log.tar.gz"
         Array[File] vcfs = glob("*.vcf.gz")
         Array[File] vcf_indices = glob("*.vcf.gz.csi")
+
+        File? debug_sam = "temp/HG00733/align/trim-none/align_qry_mat.sam.gz"
+        Array[File]? debug_temp = glob("temp/**/*")
     }
 
     runtime {
@@ -127,5 +133,6 @@ CODE
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        continueOnReturnCode: [0, 1]
     }
 }

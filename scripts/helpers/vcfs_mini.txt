@@ -1,3 +1,0 @@
-gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/TRGT/phase2/TRGT/TRs_v2.1/HG00097_trgt.TRs_v2.1.vcf.gz
-gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/TRGT/phase2/TRGT/TRs_v2.1/HG00099_trgt.TRs_v2.1.vcf.gz
-gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/TRGT/phase2/TRGT/TRs_v2.1/HG00126_trgt.TRs_v2.1.vcf.gz
