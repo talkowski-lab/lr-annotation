@@ -116,7 +116,7 @@ task PopulateTags {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(size(vcf, "GB") * 2) + 10,
+        disk_gb:2 *  ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

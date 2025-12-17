@@ -63,7 +63,7 @@ task ExtractRegion {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: 10 + ceil(1.2 * size(bam, "GiB")),
+        disk_gb: ceil(size(bam, "GiB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

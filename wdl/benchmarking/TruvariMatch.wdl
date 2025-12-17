@@ -180,7 +180,7 @@ task FilterEvalVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: ceil(size(vcf_eval, "GB")) * 3 + 5,
+        disk_gb: 3 * ceil(size(vcf_eval, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -222,7 +222,7 @@ task FilterTruthVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: ceil(size(vcf_truth, "GB")) * 3 + 5,
+        disk_gb: 3 * ceil(size(vcf_truth, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -284,7 +284,7 @@ task RunTruvari {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) * 5 + 20,
+        disk_gb: 3 * ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -354,7 +354,7 @@ task AnnotateTruvariMatchesWithTruthID {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) * 2 + 10,
+        disk_gb: 2 * ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -395,7 +395,7 @@ task ConcatTruvariResults {
      RuntimeAttr default_attr = object {
         cpu_cores: 1, 
         mem_gb: 4, 
-        disk_gb: ceil(size(vcfs, "GB")) * 2 + 5,
+        disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 1,
         max_retries: 0

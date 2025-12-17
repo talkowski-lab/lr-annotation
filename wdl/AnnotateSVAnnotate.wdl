@@ -138,7 +138,7 @@ task SubsetVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: 4*ceil(size([vcf, vcf_idx], "GB")) + 2,
+        disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -185,7 +185,7 @@ task PreprocessVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(10 + size(vcf, "GB") * 2),
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -216,13 +216,13 @@ task AnnotateFunctionalConsequences {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: ceil(10 + size(vcf, "GB") * 5),
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int java_mem_mb = ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]) * 1000 * 0.7)
+    Int java_mem_mb = 1000 * 0.7 * ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]))
 
     command <<<
         set -euo pipefail
@@ -292,7 +292,7 @@ task ConcatVcfs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(10 + size(vcfs, "GB") * 2),
+        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -338,7 +338,7 @@ task MergeVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(unannotated_vcf, "GB")*2),
+        disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(unannotated_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -381,7 +381,7 @@ task PostprocessVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 3.75,
-        disk_gb: ceil(10 + size(annotated_vcf, "GB")*2 + size(original_vcf, "GB")),
+        disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

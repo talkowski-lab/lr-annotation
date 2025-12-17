@@ -7,8 +7,8 @@ workflow AnnotateMEDs {
     input {
         File vcf
         File vcf_idx
-        File contig_list
         File med_catalog
+        Array[String] contigs
 
         String prefix
         String utils_docker
@@ -23,8 +23,6 @@ workflow AnnotateMEDs {
         RuntimeAttr? runtime_attr_annotate
         RuntimeAttr? runtime_attr_concat
     }
-
-    Array[String] contigs = read_lines(contig_list)
 
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetContig {
@@ -107,7 +105,7 @@ task ExtractDeletionsToBed {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 10,
+        disk_gb: 2*ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -152,7 +150,7 @@ task BedtoolsIntersect {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 2,
-        disk_gb: 10,
+        disk_gb: 2*ceil(size(bed_a, "GB") + size(bed_b, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -280,7 +278,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 10,
+        disk_gb: 2*ceil(size(vcf, "GB") + size(intersect_bed, "GB") + size(med_catalog, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1

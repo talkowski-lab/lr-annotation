@@ -146,7 +146,7 @@ task PreprocessMergedVcf {
 
     RuntimeAttr default_attr = object {
         mem_gb: 4,
-        disk_gb: ceil(10 + size(vcf, "GB") * 2),
+        disk_gb: ceil(10 + size(vcf, "GB")),
         cpu_cores: 1,
         preemptible_tries: 3,
         max_retries: 1,

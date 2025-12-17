@@ -86,6 +86,10 @@ Inputs:
 - `rm_out`: Output by _RepeatMasker_.
 
 
+### [AnnotateMEDs](wdl/AnnotateMEDs.wdl)
+TODO
+
+
 ### [AnnotatePALMER](wdl/AnnotatePALMER.wdl)
 This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order to annotate MEI calls for a cohort in a given cohort VCF. It retains the genotypes present in the VCF, simply adding an INFO field `ME_TYPE` to insertions whose characteristics match those of the PALMER calls.
 

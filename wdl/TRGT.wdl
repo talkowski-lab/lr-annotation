@@ -118,7 +118,7 @@ task ProcessWithTRGT {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 6,
-        disk_gb: 10 + ceil(1.2 * size(bam, "GiB") + size(ref_fa, "GiB") + size(repeat_catalog_trgt, "GiB")),
+        disk_gb: ceil(size(bam, "GiB") + size(ref_fa, "GiB") + size(repeat_catalog_trgt, "GiB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

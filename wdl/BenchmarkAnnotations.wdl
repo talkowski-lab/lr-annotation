@@ -328,7 +328,7 @@ task ExactMatch {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 2 + 10,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -386,7 +386,7 @@ task AnnotateBedtoolsMatches {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 10 + ceil(size(truvari_unmatched_vcf, "GB")) * 3,
+        disk_gb: 3 * ceil(size(truvari_unmatched_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -426,7 +426,7 @@ task CollectMatchedIDs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
+        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -465,7 +465,7 @@ task ExtractTruthVepHeader {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(vcf_truth_snv, "GB") * 1.5 + 2),
+        disk_gb: 2 * ceil(size(vcf_truth_snv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -513,7 +513,7 @@ task ExtractTruthInfoForMatched {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: ceil(size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) * 2 + 10,
+        disk_gb: 2 * ceil(size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -562,7 +562,7 @@ task ComputeSummaryForContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: ceil(size(final_vcf, "GB")) * 2 + 5,
+        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -607,7 +607,7 @@ task MergePlotTarballs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(tarballs, "GB")) * 2 + 10,
+        disk_gb: 2 * ceil(size(tarballs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
