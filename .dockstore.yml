@@ -10,6 +10,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateMEDs
+    primaryDescriptorPath: /wdl/AnnotateMEDs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotatePALMER
     primaryDescriptorPath: /wdl/AnnotatePALMER.wdl
     filters:
