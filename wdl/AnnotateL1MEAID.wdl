@@ -61,6 +61,7 @@ workflow AnnotateL1MEAID {
     output {
         File l1meaid_annotated_vcf = AnnotateVCF.annotated_vcf
         File l1meaid_annotated_vcf_idx = AnnotateVCF.annotated_vcf_idx
+        File limeaid_output = L1MEAID.limeaid_output
         File l1meaid_filtered_output = L1MEAIDFilter.filtered_output
         File rm_out = RepeatMasker.rm_out
         File rm_fa = RepeatMasker.rm_fa
