@@ -2,7 +2,7 @@ version 1.0
 
 import "general/Structs.wdl"
 
-workflow AnnotateRepeatMasker {
+workflow RepeatMasker {
     input {
         File vcf
         File vcf_idx

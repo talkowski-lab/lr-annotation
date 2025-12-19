@@ -78,12 +78,10 @@ Inputs:
 - `par_bed`.
 
 
-### [AnnotateL1MEAIDFilter](wdl/AnnotateL1MEAIDFilter.wdl)
-This workflow leverages [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) in order to annotate and then filter MEIs in the input VCF. It outputs a filtered version of the output from _RepeatMasker_.
+### [AnnotateL1MEAID](wdl/AnnotateL1MEAIDFilter.wdl)
+This workflow runs _RepeatMasker_, and then uses its output to run [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) in order to annotate and then filter MEIs in the input VCF.
 
-Inputs:
-- `rm_fa`: Output by _RepeatMasker_.
-- `rm_out`: Output by _RepeatMasker_.
+TODO
 
 
 ### [AnnotateMEDs](wdl/AnnotateMEDs.wdl)

@@ -1,8 +1,8 @@
 version: 1.2
 workflows:
   - subclass: WDL
-    name: AnnotateL1MEAIDFilter
-    primaryDescriptorPath: /wdl/AnnotateL1MEAIDFilter.wdl
+    name: AnnotateL1MEAID
+    primaryDescriptorPath: /wdl/AnnotateL1MEAID.wdl
     filters:
       branches:
         - main
