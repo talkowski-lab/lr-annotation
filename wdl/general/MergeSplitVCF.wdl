@@ -108,7 +108,7 @@ task CombineVCFs {
 
     output {
         File combined_vcf = if sort_after_merge then sorted_vcf_name else merged_vcf_name
-        File combined_vcf_index = if sort_after_merge then sorted_vcf_name + ".tbi" else merged_vcf_name + ".tbi"
+        File combined_vcf_idx = if sort_after_merge then sorted_vcf_name + ".tbi" else merged_vcf_name + ".tbi"
     }
 }
 

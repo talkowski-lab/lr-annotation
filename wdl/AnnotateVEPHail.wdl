@@ -71,7 +71,7 @@ workflow AnnotateVEPHail {
 
     output {
         File vep_annotated_vcf = CombineVCFs.combined_vcf
-        File vep_annotated_vcf_index = CombineVCFs.combined_vcf_index
+        File vep_annotated_vcf_idx = CombineVCFs.combined_vcf_idx
     }
 }   
 
