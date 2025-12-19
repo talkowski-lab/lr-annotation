@@ -181,7 +181,7 @@ workflow AnnotateSVAN {
 
     output {
         File svan_annotated_vcf = MergeWithOriginal.final_vcf
-        File svan_annotated_vcf_index = MergeWithOriginal.final_vcf_idx
+        File svan_annotated_vcf_idx = MergeWithOriginal.final_vcf_idx
     }
 }
 
