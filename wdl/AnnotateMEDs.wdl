@@ -25,7 +25,7 @@ workflow AnnotateMEDs {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetContig {
+        call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
                 vcf_index = vcf_idx,
@@ -35,17 +35,17 @@ workflow AnnotateMEDs {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call ExtractDeletionsToBed as ExtractDEL {
+        call ExtractDeletionsToBed {
             input:
-                vcf = SubsetContig.subset_vcf,
+                vcf = SubsetVcfToContig.subset_vcf,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_bedtools
         }
 
-        call BedtoolsIntersect as IntersectMED {
+        call IntersectMED {
             input:
-                bed_a = ExtractDEL.del_bed,
+                bed_a = ExtractDeletionsToBed.del_bed,
                 bed_b = med_catalog,
                 prefix = "~{prefix}.~{contig}",
                 reciprocal_overlap = reciprocal_overlap,
@@ -53,11 +53,9 @@ workflow AnnotateMEDs {
                 runtime_attr_override = runtime_attr_bedtools
         }
 
-        call GenerateMedAnnotationTable as AnnotateContig {
+        call GenerateMedAnnotationTable {
             input:
-                vcf = SubsetContig.subset_vcf,
                 intersect_bed = IntersectMED.intersect_bed,
-                med_catalog = med_catalog,
                 prefix = "~{prefix}.~{contig}",
                 size_similarity = size_similarity,
                 reciprocal_overlap = reciprocal_overlap,
@@ -70,7 +68,7 @@ workflow AnnotateMEDs {
 
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            tsvs = AnnotateContig.annotations_tsv,
+            tsvs = GenerateMedAnnotationTable.annotations_tsv,
             outfile_prefix = prefix + ".med_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -93,7 +91,7 @@ task ExtractDeletionsToBed {
         set -euo pipefail
 
         bcftools view -i 'SVTYPE=="DEL"' ~{vcf} | \
-            bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' > ~{prefix}.del.bed
+            bcftools query -f '%CHROM\t%POS\t%END\t%REF\t%ALT\t%ID\n' > ~{prefix}.del.bed
     >>>
 
     output {
@@ -120,7 +118,7 @@ task ExtractDeletionsToBed {
     }
 }
 
-task BedtoolsIntersect {
+task IntersectMED {
     input {
         File bed_a
         File bed_b
@@ -167,9 +165,7 @@ task BedtoolsIntersect {
 
 task GenerateMedAnnotationTable {
     input {
-        File vcf
         File intersect_bed
-        File med_catalog
         String prefix
         Float size_similarity
         Float reciprocal_overlap
@@ -181,8 +177,6 @@ task GenerateMedAnnotationTable {
 
     command <<<
         set -euo pipefail
-
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{vcf} > variant_fields.tsv
 
         python3 <<'EOF'
 import pandas as pd
@@ -218,15 +212,6 @@ def passes_criteria(del_start, del_end, med_start, med_end, size_similarity, rec
     return True
 
 bed = pd.read_csv("~{intersect_bed}", sep='\t', header=None)
-variants = pd.read_csv(
-    "variant_fields.tsv",
-    sep='\t',
-    header=None,
-    names=['CHROM', 'POS', 'REF', 'ALT', 'ID']
-)
-
-variants.dropna(subset=['ID'], inplace=True)
-variant_lookup = variants.drop_duplicates(subset=['ID']).set_index('ID')
 
 size_similarity = float(~{size_similarity})
 reciprocal_overlap = float(~{reciprocal_overlap})
@@ -236,32 +221,30 @@ annotations = []
 
 for _, row in bed.iterrows():
     # bedtools intersect -wa -wb outputs:
-    # A (VCF): 0=chrom, 1=start, 2=end, 3=ID
-    # B (MED): 4=chrom, 5=start, 6=end, 7=ID, 8=seq, 9=designation
+    # A (del.bed): 0=chrom, 1=pos, 2=end, 3=ref, 4=alt, 5=id
+    # B (MED): 6=chrom, 7=start, 8=end, 9=ID, 10=seq, 11=designation
     del_chrom = row[0]
     del_start = int(row[1])
     del_end = int(row[2])
-    del_id = row[3]
+    del_ref = row[3]
+    del_alt = row[4]
+    del_id = row[5]
 
-    med_start = int(row[5])
-    med_end = int(row[6])
-    designation = row[9]
+    med_start = int(row[7])
+    med_end = int(row[8])
+    designation = row[11]
     
     me_type = get_me_type(designation)
     
     if not me_type:
         continue
 
-    if del_id not in variant_lookup.index:
-        continue
-
     if passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
-        record = variant_lookup.loc[del_id]
         annotations.append([
-            record['CHROM'],
-            int(record['POS']),
-            record['REF'],
-            record['ALT'],
+            del_chrom,
+            del_start,
+            del_ref,
+            del_alt,
             del_id,
             me_type
         ])
@@ -281,7 +264,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2*ceil(size(vcf, "GB") + size(intersect_bed, "GB") + size(med_catalog, "GB")) + 5,
+        disk_gb: 2*ceil(size(intersect_bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
