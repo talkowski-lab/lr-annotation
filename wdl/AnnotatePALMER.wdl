@@ -80,8 +80,7 @@ workflow AnnotatePALMER {
     }
 
     output {
-        File palmer_annotated_vcf = FilterPALMER.annotated_vcf
-        File palmer_annotated_vcf_idx = FilterPALMER.annotated_vcf_idx
+        File annotations_tsv_palmer = FilterPALMER.annotations_tsv
     }
 }
 
@@ -127,7 +126,6 @@ task FilterPALMER {
     command <<<
         set -euo pipefail
 
-        cur_vcf=~{vcf}
         cut -f1,2 ~{ref_fai} > genome_file
 
         types=("ALU" "LINE" "SVA" "HERVK")
@@ -193,42 +191,22 @@ task FilterPALMER {
 
             python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
                 --intersection intersection \
-                --target-vcf ${cur_vcf} \
+                --target-vcf ~{vcf} \
                 --me-type ${ME_type} \
-                --output ${ME_type}_annotations.raw.vcf.gz \
+                --output ${ME_type}_annotations.tsv \
                 --reciprocal-overlap "${reciprocal_overlap_threshold}" \
                 --size-similarity "${size_similarity_threshold}" \
                 --sequence-similarity "${sequence_similarity_threshold}" \
                 --breakpoint-window "${breakpoint_window}" \
                 --min-shared-samples "${min_shared_samples}"
-
-            gunzip -c ${ME_type}_annotations.raw.vcf.gz > ${ME_type}_annotations.raw.vcf
-            grep '^#' ${ME_type}_annotations.raw.vcf > annotations_to_transfer.vcf
-            (grep -v '^#' ${ME_type}_annotations.raw.vcf || true) | sort -k1,1 -k2,2n -u >> annotations_to_transfer.vcf
-            bgzip -f annotations_to_transfer.vcf
-            tabix -f -p vcf annotations_to_transfer.vcf.gz
-            rm -f ${ME_type}_annotations.raw.vcf ${ME_type}_annotations.raw.vcf.gz
-
-            echo '##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">' > line.header
-            echo '##INFO=<ID=ME_LEN,Number=.,Type=Integer,Description="Length of SV">' >> line.header
-            echo '##INFO=<ID=ME_ID,Number=.,Type=String,Description="ID of the PALMER variant">' >> line.header
-
-            bcftools annotate \
-                -Oz \
-                -a annotations_to_transfer.vcf.gz \
-                -c CHROM,POS,REF,ALT,+ME_TYPE,+ME_LEN,+ME_ID \
-                -h line.header \
-                ${cur_vcf} \
-                > tmp.vcf.gz
-            cp tmp.vcf.gz ~{prefix}.anno.vcf.gz
-            tabix -f ~{prefix}.anno.vcf.gz
-            cur_vcf=~{prefix}.anno.vcf.gz
         done
+
+        cat ALU_annotations.tsv LINE_annotations.tsv SVA_annotations.tsv HERVK_annotations.tsv | \
+            sort -k1,1 -k2,2n | uniq > ~{prefix}.palmer_annotations.tsv
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.anno.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.anno.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.palmer_annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

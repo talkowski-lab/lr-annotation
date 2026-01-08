@@ -2,7 +2,6 @@
 
 
 import argparse
-import gzip
 import edlib
 
 from pysam import VariantFile
@@ -123,20 +122,6 @@ def record_passes_filters(
     return True
 
 
-def write_header(handle):
-    handle.write("##fileformat=VCFv4.2\n")
-    handle.write(
-        "##INFO=<ID=ME_TYPE,Number=1,Type=String,Description=\"Type of mobile element\">\n"
-    )
-    handle.write(
-        "##INFO=<ID=ME_LEN,Number=1,Type=Integer,Description=\"Length of PALMER call\">\n"
-    )
-    handle.write(
-        "##INFO=<ID=ME_ID,Number=1,Type=String,Description=\"ID of the PALMER variant\">\n"
-    )
-    handle.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Transfer PALMER MEI annotations onto a short-read VCF"
@@ -147,7 +132,7 @@ def main() -> None:
     parser.add_argument(
         "--output",
         required=True,
-        help="Destination bgzipped VCF containing transferable annotations",
+        help="Destination TSV containing transferable annotations",
     )
     parser.add_argument(
         "--reciprocal-overlap",
@@ -184,8 +169,7 @@ def main() -> None:
     target_vcf = VariantFile(args.target_vcf)
     samples = list(target_vcf.header.samples)
 
-    with open(args.intersection, "r", encoding="utf-8") as source, gzip.open(args.output, "wt", encoding="utf-8") as output_handle:
-        write_header(output_handle)
+    with open(args.intersection, "r", encoding="utf-8") as source, open(args.output, "w", encoding="utf-8") as output_handle:
         for raw_line in source:
             mei_data = parse_intersection_line(raw_line)
             chrom = mei_data["chrom"]
@@ -205,10 +189,10 @@ def main() -> None:
 
                     all_alts = ",".join(record.alts)
                     output_handle.write(
-                        f"{chrom}\t{sv_pos}\t.\t{record.ref}\t{all_alts}\t.\t.\t"
+                        f"{chrom}\t{sv_pos}\t{record.ref}\t{all_alts}\t{record.id}\t"
                     )
                     output_handle.write(
-                        f"ME_TYPE={args.me_type};ME_LEN={mei_data['mei_length']};ME_ID={mei_data['mei_id']}\n"
+                        f"{args.me_type}\t{mei_data['mei_length']}\t{mei_data['mei_id']}\n"
                     )
 
     target_vcf.close()
