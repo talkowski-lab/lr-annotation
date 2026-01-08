@@ -71,10 +71,12 @@ This repository serves as a home for all scripts, workflows and processes for an
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
 This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
 
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
+
 Inputs:
 - `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.
 - `ped_file`: Six column file containing the cohort pedigree, with specifications described in [this article](https://gatk.broadinstitute.org/hc/en-us/articles/360035531972-PED-Pedigree-format).
-- `contigs_list`.
+- `contigs`.
 - `par_bed`.
 
 
@@ -94,6 +96,7 @@ This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order
 Inputs:
 - `rm_fa`: Output by _RepeatMasker_.
 - `rm_out`: Output by _RepeatMasker_.
+- `contigs`.
 - `ref_fai`.
 
 
@@ -101,20 +104,23 @@ Inputs:
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
 Inputs:
-- `ref_fa`.
-- `vntr_bed`.
+- `contigs`.
 - `exons_bed`.
-- `repeats_bed`.
 - `mei_fasta`.
+- `ref_fa`.
+- `repeats_bed`.
+- `vntr_bed`.
 
 
 ### [AnnotateSVAnnotate](wdl/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SV through this workflow, ignoring all SNVs and InDels.
 
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
+
 Inputs:
+- `coding_gtf`.
 - `contigs`.
 - `noncoding_bed`.
-- `coding_gtf`.
 
 
 ### [AnnotateVEPHail](wdl/AnnotateVEPHail.wdl)
@@ -122,8 +128,8 @@ This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://use
 
 Inputs:
 - `ref_fa`.
-- `top_level_fa`.
 - `ref_vep_cache`.
+- `top_level_fa`.
 
 
 
@@ -191,12 +197,12 @@ Inputs:
 - `bam_mat`: Aligned assembly for maternal haplotype.
 - `bai_mat`: Index for aligned assembly for maternal haplotype.
 - `mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
-- `contigs`: Series of contigs to make PALMER calls on.
 - `truvari_collapse_params`: Truvari parameters to use when merging across haplotypes.
 - `override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype, causing the workflow to bypass its execution. 
 - `override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype, causing the workflow to bypass its execution. 
+- `contigs`.
 - `ref_fa`.
 - `ref_fai`.
 

@@ -93,14 +93,13 @@ task AnnotateSequentially {
     command <<<
         set -euo pipefail
 
-        python3 <<'EOF'
+        python3 <<EOF
 import sys
-import json
 
-info_names = json.loads('~{write_json(info_names)}')
-info_descriptions = json.loads('~{write_json(info_descriptions)}')
-info_types = json.loads('~{write_json(info_types)}')
-info_numbers = json.loads('~{write_json(info_numbers)}')
+info_names = [line.strip().split('\t') for line in open('~{write_tsv(info_names)}')]
+info_descriptions = [line.strip().split('\t') for line in open('~{write_tsv(info_descriptions)}')]
+info_types = [line.strip().split('\t') for line in open('~{write_tsv(info_types)}')]
+info_numbers = [line.strip().split('\t') for line in open('~{write_tsv(info_numbers)}')]
 
 if len(info_names) != len(info_descriptions) or len(info_names) != len(info_types) or len(info_names) != len(info_numbers):
     sys.stderr.write("Error: All info arrays must have the same length\n")
