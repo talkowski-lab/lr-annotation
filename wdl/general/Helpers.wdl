@@ -1133,6 +1133,46 @@ task ConcatFiles {
     }
 }
 
+task ConcatTsvs {
+    input {
+        Array[File] tsvs
+        String outfile_prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String outfile_name = outfile_prefix + ".tsv"
+
+    command <<<
+        set -euo pipefail
+
+        cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{outfile_name}
+    >>>
+
+    output {
+        File concatenated_tsv = "~{outfile_name}"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: ceil(size(tsvs, "GB") * 1.2) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task SplitQueryVcf {
     input {
         File vcf

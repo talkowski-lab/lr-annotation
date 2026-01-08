@@ -53,7 +53,7 @@ workflow AnnotateMEDs {
                 runtime_attr_override = runtime_attr_bedtools
         }
 
-        call AnnotateVcfWithMED as AnnotateContig {
+        call GenerateMedAnnotationTable as AnnotateContig {
             input:
                 vcf = SubsetContig.subset_vcf,
                 intersect_bed = IntersectMED.intersect_bed,
@@ -68,18 +68,16 @@ workflow AnnotateMEDs {
         }
     }
 
-    call Helpers.ConcatVcfs as ConcatVCF {
+    call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            vcfs = AnnotateContig.annotated_vcf,
-            vcfs_idx = AnnotateContig.annotated_vcf_idx,
-            outfile_prefix = prefix + ".med_annotated",
+            tsvs = AnnotateContig.annotations_tsv,
+            outfile_prefix = prefix + ".med_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File med_vcf = ConcatVCF.concat_vcf
-        File med_vcf_idx = ConcatVCF.concat_vcf_idx
+        File annotations_tsv_meds = MergeAnnotations.concatenated_tsv
     }
 }
 
@@ -167,7 +165,7 @@ task BedtoolsIntersect {
     }
 }
 
-task AnnotateVcfWithMED {
+task GenerateMedAnnotationTable {
     input {
         File vcf
         File intersect_bed
@@ -184,14 +182,9 @@ task AnnotateVcfWithMED {
     command <<<
         set -euo pipefail
 
-        if bcftools view -h ~{vcf} | grep -q "ID=ME_TYPE"; then
-            touch me_header.txt
-        else
-            echo '##INFO=<ID=ME_TYPE,Number=1,Type=String,Description="Type of mobile element">' > me_header.txt
-        fi
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{vcf} > variant_fields.tsv
 
         python3 <<'EOF'
-import sys
 import pandas as pd
 
 def get_me_type(designation):
@@ -221,10 +214,19 @@ def passes_criteria(del_start, del_end, med_start, med_end, size_similarity, rec
         return False
     if abs(del_start - med_start) > breakpoint_window and abs(del_end - med_end) > breakpoint_window:
         return False
-        
+
     return True
 
 bed = pd.read_csv("~{intersect_bed}", sep='\t', header=None)
+variants = pd.read_csv(
+    "variant_fields.tsv",
+    sep='\t',
+    header=None,
+    names=['CHROM', 'POS', 'REF', 'ALT', 'ID']
+)
+
+variants.dropna(subset=['ID'], inplace=True)
+variant_lookup = variants.drop_duplicates(subset=['ID']).set_index('ID')
 
 size_similarity = float(~{size_similarity})
 reciprocal_overlap = float(~{reciprocal_overlap})
@@ -247,32 +249,33 @@ for _, row in bed.iterrows():
     
     me_type = get_me_type(designation)
     
-    if me_type and passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
-        annotations.append([del_chrom, del_start + 1, del_id, me_type])
+    if not me_type:
+        continue
 
-out_df = pd.DataFrame(annotations, columns=['CHROM', 'POS', 'ID', 'ME_TYPE'])
+    if del_id not in variant_lookup.index:
+        continue
+
+    if passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
+        record = variant_lookup.loc[del_id]
+        annotations.append([
+            record['CHROM'],
+            int(record['POS']),
+            record['REF'],
+            record['ALT'],
+            del_id,
+            me_type
+        ])
+
+out_df = pd.DataFrame(annotations, columns=['CHROM', 'POS', 'REF', 'ALT', 'ID', 'ME_TYPE'])
 out_df.drop_duplicates(subset=['ID'], inplace=True)
-out_df.to_csv("annotations.tsv", sep='\t', index=False, header=False)
+out_df.sort_values(['CHROM', 'POS'], inplace=True)
+out_df.to_csv("~{prefix}.annotations.tsv", sep='\t', index=False, header=False)
 
 EOF
-
-        sort -k1,1 -k2,2n annotations.tsv | bgzip -c > annotations.tsv.gz
-        tabix -s1 -b2 -e2 annotations.tsv.gz
-
-        bcftools annotate \
-            -a annotations.tsv.gz \
-            -h me_header.txt \
-            -c CHROM,POS,ID,INFO/ME_TYPE \
-            -O z \
-            -o ~{prefix}.med_annotated.vcf.gz \
-            ~{vcf}
-
-        tabix -p vcf ~{prefix}.med_annotated.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.med_annotated.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.med_annotated.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {
