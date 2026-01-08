@@ -128,6 +128,10 @@ Inputs:
 
 
 ## Downstream Workflows
+### [Annotate](wdl/Annotate.wdl)
+TODO
+
+
 ### [BenchmarkAnnotations](wdl/BenchmarkAnnotations.wdl)
 This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
 
@@ -145,19 +149,6 @@ Inputs:
 
 ### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
 TODO
-
-
-### TODO: Merge N Annotated VCFs
-This workflow will take in a VCF from each of the above annotation steps, and synthesize the annotations across each, applying logic to merge SNV vs SV information. You could even possibly specify an ordering or specific steps to run (or not run). Each of the input VCFs should be the same size though, which means that each of the above workflows should simply annotate rather than also subset.
-
-For now, we do the following to merge our functionally annotated VCFs with our AF annotated VCFs:
-```
-python ./scripts/merge/merge_af_annotated_vcfs.py \
-	./data/annotated_af/annotated_af.vcf.gz \
-	./data/functionally_annotated/functionally_annotated.vcf.gz \
-	-o ./data/annotated_merged/af_functionally_annotated.vcf.gz
-```
-
 
 
 ## Additional Workflows

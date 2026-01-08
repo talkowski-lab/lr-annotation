@@ -48,7 +48,7 @@ workflow Annotate {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_index,
-                annotations_tsv = Helpers.SubsetTsvToContig.subset_tsv,
+                annotations_tsv = SubsetTsvToContig.subset_tsv,
                 info_names = info_names,
                 info_descriptions = info_descriptions,
                 info_types = info_types,
