@@ -181,11 +181,22 @@ task GenerateL1MEAIDAnnotationTable {
     command <<<
         set -euo pipefail
 
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{vcf} > vcf_lookup.tsv
+
         python3 <<EOF
 import sys
 
+vcf_lookup_file = "vcf_lookup.tsv"
 input_tsv = "~{l1meaid_filtered_tsv}"
 output_anno = "~{prefix}.l1meaid_annotations.tsv"
+
+vcf_lookup = {}
+with open(vcf_lookup_file, 'r') as f:
+    for line in f:
+        fields = line.strip().split('\t')
+        if len(fields) >= 5:
+            chrom, pos, ref, alt, var_id = fields[0], fields[1], fields[2], fields[3], fields[4]
+            vcf_lookup[(chrom, pos, alt)] = (ref, var_id)
 
 with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
     for line in f_in:
@@ -209,15 +220,15 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
         
         if me_type:
             id_parts = var_id_str.split(';')
-            if len(id_parts) >= 2:
+            if len(id_parts) >= 1:
                 location_part = id_parts[0]
-                ref = id_parts[1]
-                
-                try:
-                    chrom, pos = location_part.rsplit(':', 1)
-                    f_out.write(f"{chrom}\t{pos}\t{ref}\t{sequence}\t{me_type}\n")
-                except ValueError:
-                    sys.stderr.write(f"Skipping malformed location: {var_id_str}\n")
+                chrom, pos = location_part.rsplit(':', 1)
+                key = (chrom, pos, sequence)
+                if key in vcf_lookup:
+                    ref, var_id = vcf_lookup[key]
+                    f_out.write(f"{chrom}\t{pos}\t{ref}\t{sequence}\t{var_id}\t{me_type}\n")
+                else:
+                    sys.stderr.write(f"Warning: No matching VCF record for {chrom}:{pos} with alt={sequence[:50]}...\n")
 EOF
     >>>
 
