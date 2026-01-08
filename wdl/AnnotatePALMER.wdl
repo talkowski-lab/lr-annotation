@@ -1,11 +1,13 @@
 version 1.0
 
 import "general/Structs.wdl"
+import "general/Helpers.wdl"
 
 workflow AnnotatePALMER {
     input {
         File vcf
         File vcf_idx
+        Array[String] contigs
 
         String prefix
         File PALMER_vcf
@@ -42,45 +44,67 @@ workflow AnnotatePALMER {
 
         String annotate_palmer_docker
 
+        RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_filter_palmer
+        RuntimeAttr? runtime_attr_concat
     }
 
-    call FilterPALMER {
+    scatter (contig in contigs) {
+        call Helpers.SubsetVcfToContig {
+            input:
+                vcf = vcf,
+                vcf_index = vcf_idx,
+                contig = contig,
+                prefix = prefix,
+                docker = annotate_palmer_docker,
+                runtime_attr_override = runtime_attr_subset
+        }
+
+        call FilterPALMER {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}",
+                PALMER_vcf = PALMER_vcf,
+                PALMER_vcf_idx = PALMER_vcf_idx,
+                rm_out = rm_out,
+                rm_buffer = rm_buffer,
+                ref_fai = ref_fai,
+                docker = annotate_palmer_docker,
+                runtime_attr_override = runtime_attr_filter_palmer,
+                reciprocal_overlap_ALU = reciprocal_overlap_ALU,
+                reciprocal_overlap_LINE = reciprocal_overlap_LINE,
+                reciprocal_overlap_SVA = reciprocal_overlap_SVA,
+                reciprocal_overlap_HERVK = reciprocal_overlap_HERVK,
+                size_similarity_ALU = size_similarity_ALU,
+                size_similarity_LINE = size_similarity_LINE,
+                size_similarity_SVA = size_similarity_SVA,
+                size_similarity_HERVK = size_similarity_HERVK,
+                sequence_similarity_ALU = sequence_similarity_ALU,
+                sequence_similarity_LINE = sequence_similarity_LINE,
+                sequence_similarity_SVA = sequence_similarity_SVA,
+                sequence_similarity_HERVK = sequence_similarity_HERVK,
+                breakpoint_window_ALU = breakpoint_window_ALU,
+                breakpoint_window_LINE = breakpoint_window_LINE,
+                breakpoint_window_SVA = breakpoint_window_SVA,
+                breakpoint_window_HERVK = breakpoint_window_HERVK,
+                min_shared_samples_ALU = min_shared_samples_ALU,
+                min_shared_samples_LINE = min_shared_samples_LINE,
+                min_shared_samples_SVA = min_shared_samples_SVA,
+                min_shared_samples_HERVK = min_shared_samples_HERVK
+        }
+    }
+
+    call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            prefix = prefix,
-            PALMER_vcf = PALMER_vcf,
-            PALMER_vcf_idx = PALMER_vcf_idx,
-            rm_out = rm_out,
-            rm_buffer = rm_buffer,
-            ref_fai = ref_fai,
+            tsvs = FilterPALMER.annotations_tsv,
+            outfile_prefix = prefix + ".palmer_annotations",
             docker = annotate_palmer_docker,
-            runtime_attr_override = runtime_attr_filter_palmer,
-            reciprocal_overlap_ALU = reciprocal_overlap_ALU,
-            reciprocal_overlap_LINE = reciprocal_overlap_LINE,
-            reciprocal_overlap_SVA = reciprocal_overlap_SVA,
-            reciprocal_overlap_HERVK = reciprocal_overlap_HERVK,
-            size_similarity_ALU = size_similarity_ALU,
-            size_similarity_LINE = size_similarity_LINE,
-            size_similarity_SVA = size_similarity_SVA,
-            size_similarity_HERVK = size_similarity_HERVK,
-            sequence_similarity_ALU = sequence_similarity_ALU,
-            sequence_similarity_LINE = sequence_similarity_LINE,
-            sequence_similarity_SVA = sequence_similarity_SVA,
-            sequence_similarity_HERVK = sequence_similarity_HERVK,
-            breakpoint_window_ALU = breakpoint_window_ALU,
-            breakpoint_window_LINE = breakpoint_window_LINE,
-            breakpoint_window_SVA = breakpoint_window_SVA,
-            breakpoint_window_HERVK = breakpoint_window_HERVK,
-            min_shared_samples_ALU = min_shared_samples_ALU,
-            min_shared_samples_LINE = min_shared_samples_LINE,
-            min_shared_samples_SVA = min_shared_samples_SVA,
-            min_shared_samples_HERVK = min_shared_samples_HERVK
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File annotations_tsv_palmer = FilterPALMER.annotations_tsv
+        File annotations_tsv_palmer = MergeAnnotations.concatenated_tsv
     }
 }
 
