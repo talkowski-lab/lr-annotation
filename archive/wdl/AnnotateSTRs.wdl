@@ -130,7 +130,7 @@ task PreprocessVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,
@@ -265,7 +265,7 @@ task PostprocessVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
@@ -314,7 +314,7 @@ task AnnotateOriginalVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(size(original_vcf, "GB") + size(str_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 3,

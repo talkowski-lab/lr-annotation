@@ -137,7 +137,7 @@ task SubsetVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -184,7 +184,7 @@ task PreprocessVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -291,7 +291,7 @@ task ConcatVcfs {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -337,7 +337,7 @@ task MergeVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(unannotated_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -380,7 +380,7 @@ task PostprocessVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,

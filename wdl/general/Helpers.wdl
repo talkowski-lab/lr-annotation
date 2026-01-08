@@ -975,7 +975,7 @@ task SplitVcfIntoShards {
 
   RuntimeAttr default_attr = object {
     cpu_cores: 1,
-    mem_gb: 3.75 + ceil(size(input_vcf,"GiB")*2.5),
+    mem_gb: 4 + ceil(size(input_vcf,"GiB")*2.5),
     disk_gb: 10 + ceil(size(input_vcf,"GiB")*2.5),
     boot_disk_gb: 10,
     preemptible_tries: 1,
@@ -1077,7 +1077,7 @@ task SubsetVcfToContig {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -1173,6 +1173,45 @@ task ConcatTsvs {
     }
 }
 
+task SubsetTsvToContig {
+    input {
+        File tsv
+        String contig
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        awk -v contig="~{contig}" '$1 == contig' ~{tsv} > ~{prefix}.tsv
+    >>>
+
+    output {
+        File subset_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: ceil(size(tsv, "GB") * 1.2) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 3,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task SplitQueryVcf {
     input {
         File vcf
@@ -1207,7 +1246,7 @@ task SplitQueryVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -1247,7 +1286,7 @@ task BedtoolsClosest {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -1290,7 +1329,7 @@ task ConvertToSymbolic {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         boot_disk_gb: 10,
         preemptible_tries: 1,

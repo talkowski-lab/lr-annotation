@@ -378,7 +378,7 @@ task AnnotateExternalAFs {
     }        
 
     RuntimeAttr default_attr = object {
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(10 + 5*(size(vcf, "GB") + size(ref_beds, "GB"))),
         cpu_cores: 1,
         preemptible_tries: 3,
@@ -436,7 +436,7 @@ task ConcatVcfs {
     }
 
     RuntimeAttr default_attr = object {
-        mem_gb: 3.75,
+        mem_gb: 4,
         disk_gb: ceil(10 + size(vcfs, "GB") * 2),
         cpu_cores: 1,
         preemptible_tries: 3,
