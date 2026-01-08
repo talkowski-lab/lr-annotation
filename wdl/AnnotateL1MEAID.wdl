@@ -7,6 +7,7 @@ workflow AnnotateL1MEAID {
     input {
         File vcf
         File vcf_idx
+        Array[String] contigs
         String prefix
 
         String utils_docker
@@ -14,57 +15,74 @@ workflow AnnotateL1MEAID {
         String annotate_l1meaid_docker
         String annotate_l1meaid_filter_docker
 
+        RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
         RuntimeAttr? runtime_attr_limeaid
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat
     }
 
-    call RM.RepeatMasker {
-        input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            prefix = prefix,
-            utils_docker = utils_docker,
-            repeatmasker_docker = repeatmasker_docker,
-            runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
-            runtime_attr_repeat_masker = runtime_attr_repeat_masker
+    scatter (contig in contigs) {
+        call Helpers.SubsetVcfToContig {
+            input:
+                vcf = vcf,
+                vcf_index = vcf_idx,
+                contig = contig,
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset
+        }
+
+        call RM.RepeatMasker {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}",
+                utils_docker = utils_docker,
+                repeatmasker_docker = repeatmasker_docker,
+                runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
+                runtime_attr_repeat_masker = runtime_attr_repeat_masker
+        }
+
+        call L1MEAID {
+            input:
+                rm_fa = RepeatMasker.rm_fa,
+                rm_out = RepeatMasker.rm_out,
+                prefix = "~{prefix}.~{contig}",
+                docker = annotate_l1meaid_docker,
+                runtime_attr_override = runtime_attr_limeaid
+        }
+
+        call L1MEAIDFilter {
+            input:
+                limeaid_output = L1MEAID.limeaid_output,
+                prefix = "~{prefix}.~{contig}",
+                docker = annotate_l1meaid_filter_docker,
+                runtime_attr_override = runtime_attr_filter
+        }
+
+        call GenerateL1MEAIDAnnotationTable {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                l1meaid_filtered_tsv = L1MEAIDFilter.filtered_output,
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate
+        }
     }
 
-    call L1MEAID {
+    call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            rm_fa = RepeatMasker.rm_fa,
-            rm_out = RepeatMasker.rm_out,
-            prefix = prefix,
-            docker = annotate_l1meaid_docker,
-            runtime_attr_override = runtime_attr_limeaid
-    }
-
-    call L1MEAIDFilter {
-        input:
-            limeaid_output = L1MEAID.limeaid_output,
-            prefix = prefix,
-            docker = annotate_l1meaid_filter_docker,
-            runtime_attr_override = runtime_attr_filter
-    }
-
-    call AnnotateVCF {
-        input:
-            vcf = vcf,
-            l1meaid_filtered_tsv = L1MEAIDFilter.filtered_output,
-            prefix = prefix,
+            tsvs = GenerateL1MEAIDAnnotationTable.annotations_tsv,
+            outfile_prefix = prefix + ".l1meaid_annotations",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File l1meaid_annotated_vcf = AnnotateVCF.annotated_vcf
-        File l1meaid_annotated_vcf_idx = AnnotateVCF.annotated_vcf_idx
-        File limeaid_output = L1MEAID.limeaid_output
-        File l1meaid_filtered_output = L1MEAIDFilter.filtered_output
-        File rm_out = RepeatMasker.rm_out
-        File rm_fa = RepeatMasker.rm_fa
+        File annotations_tsv_l1meaid = MergeAnnotations.concatenated_tsv
     }
 }
 
@@ -150,7 +168,7 @@ task L1MEAIDFilter {
     }
 }
 
-task AnnotateVCF {
+task GenerateL1MEAIDAnnotationTable {
     input {
         File vcf
         File l1meaid_filtered_tsv
@@ -166,7 +184,7 @@ task AnnotateVCF {
 import sys
 
 input_tsv = "~{l1meaid_filtered_tsv}"
-output_anno = "annotations.tsv"
+output_anno = "~{prefix}.l1meaid_annotations.tsv"
 
 with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
     for line in f_in:
@@ -200,42 +218,16 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
                 except ValueError:
                     sys.stderr.write(f"Skipping malformed location: {var_id_str}\n")
 EOF
-        
-        if bcftools view -h ~{vcf} | grep -q "ID=ME_TYPE"; then
-            cp ~{vcf} headered.vcf.gz
-        else
-            echo '##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">' > header.txt
-            bcftools annotate -h header.txt -Oz -o headered.vcf.gz ~{vcf}
-        fi
-        bcftools index -t headered.vcf.gz
-        
-        if [ -s annotations.tsv ]; then
-            sort -k1,1 -k2,2n annotations.tsv | bgzip -c > annotations.tsv.gz
-            tabix -s1 -b2 -e2 annotations.tsv.gz
-            
-            bcftools annotate \
-                -a annotations.tsv.gz \
-                -c CHROM,POS,REF,ALT,INFO/ME_TYPE \
-                -Oz -o ~{prefix}.l1meaid_annotated.vcf.gz \
-                headered.vcf.gz
-            
-            bcftools index -t ~{prefix}.l1meaid_annotated.vcf.gz
-        else
-            echo "No matching L1MEAID variants found."
-            mv headered.vcf.gz ~{prefix}.l1meaid_annotated.vcf.gz
-            bcftools index -t ~{prefix}.l1meaid_annotated.vcf.gz
-        fi
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.l1meaid_annotated.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.l1meaid_annotated.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.l1meaid_annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) + 5,
+        disk_gb: 2*ceil(size(l1meaid_filtered_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
