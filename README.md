@@ -128,7 +128,7 @@ Inputs:
 
 
 ## Downstream Workflows
-### [Annotate](wdl/Annotate.wdl)
+### [AnnotateVcf](wdl/AnnotateVcf.wdl)
 TODO
 
 

@@ -154,8 +154,16 @@ workflow AnnotateSVAN {
             runtime_attr_override = runtime_attr_concat
     }
 
+    call MergeHeaderFiles {
+        input:
+            header_files = flatten([AnnotateInsertions.header_file, AnnotateDeletions.header_file]),
+            prefix = prefix,
+            docker = annotate_svan_docker
+    }
+
     output {
         File annotations_tsv_svan = MergeFinal.concatenated_tsv
+        File annotations_header_svan = MergeHeaderFiles.merged_header
     }
 }
 
@@ -435,14 +443,16 @@ def get_svan_annotations(svan_vcf_path, new_field_ids):
             annotations[(chrom, pos, vcf_id)] = field_values
     return annotations
 
-def create_tsv(original_vcf_path, svan_vcf_path, output_tsv_path):
+def create_tsv(original_vcf_path, svan_vcf_path, output_tsv_path, header_path):
     new_field_ids = get_new_info_field_ids(svan_vcf_path, original_vcf_path)
     svan_annotations = get_svan_annotations(svan_vcf_path, new_field_ids)
     
+    # Write header file separately
+    with open(header_path, 'w') as header_file:
+        header_file.write('\t'.join(new_field_ids) + '\n')
+    
+    # Write TSV without header
     with open(output_tsv_path, 'w') as out_tsv:
-        header = ['CHROM', 'POS', 'REF', 'ALT', 'ID'] + new_field_ids
-        out_tsv.write('\t'.join(header) + '\n')
-        
         with open(original_vcf_path, 'r') as f:
             for line in f:
                 if line.startswith('#'):
@@ -456,14 +466,54 @@ def create_tsv(original_vcf_path, svan_vcf_path, output_tsv_path):
                     row = [chrom, pos, ref, alt, vcf_id] + [field_values.get(field_id, '.') for field_id in new_field_ids]
                     out_tsv.write('\t'.join(row) + '\n')
 
-create_tsv('work_dir/input.vcf', 'work_dir/svan_annotated.vcf', '~{prefix}.~{mode}_annotations.tsv')
+create_tsv('work_dir/input.vcf', 'work_dir/svan_annotated.vcf', '~{prefix}.~{mode}_annotations.tsv', '~{prefix}.~{mode}_header.txt')
 CODE
     >>>
 
     output {
         File annotations_tsv = "~{prefix}.~{mode}_annotations.tsv"
+        File header_file = "~{prefix}.~{mode}_header.txt"
     }
 
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeHeaderFiles {
+    input {
+        Array[File] header_files
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        # Concatenate all header files and get unique fields while preserving order
+        cat ~{sep=' ' header_files} | tr '\t' '\n' | awk '!seen[$0]++' | tr '\n' '\t' | sed 's/\t$/\n/' > ~{prefix}.svan_header.txt
+    >>>
+
+    output {
+        File merged_header = "~{prefix}.svan_header.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
