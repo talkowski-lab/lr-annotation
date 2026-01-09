@@ -136,14 +136,12 @@ task SubsetAndReheaderVamos {
         bcftools query -l ~{vamos_vcf} > samples.txt
         
         # Find the sample matching pattern: HPRC AND _SAMPLE_ID_
-        # Both HPRC and the sample ID should be present, with sample ID surrounded by underscores
-        matched_sample=$(grep "HPRC" samples.txt | grep -E "_~{sample_id}_" | head -n1)
+        matched_sample=$(grep "HPRC" samples.txt | grep -E "_~{sample_id}_" | head -n1 || true)
         
         if [ -z "$matched_sample" ]; then
             echo "WARNING: Could not find sample matching pattern with HPRC and _~{sample_id}_ in VCF"
             echo "false" > found_sample.txt
             echo "" > output_sample_id.txt
-            # Create empty placeholder files
             touch ~{output_vcf}
             touch ~{output_vcf}.tbi
             exit 0
