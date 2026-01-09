@@ -153,41 +153,7 @@ Inputs:
 - `ref_fai`.
 
 
-### [FlagSingletonReads](wdl/FlagSingletonReads.wdl)
-TODO
-
-
 ## Additional Workflows
-### [AgglovarMerge](wdl/AgglovarMerge.wdl)
-This workflow leverages [Agglovar](https://github.com/BeckLaboratory/agglovar) in order to merge calls across multiple input VCFs in a custom-defined manner.
-
-Inputs:
-- `vcfs`: Series of VCFs to merge.
-- `vcf_idxs`: Indexes of VCFs to merge.
-- `match_ref`: Determines whether to require a match on the REF tag.
-- `match_alt`: Determines whether to require a match on the ALT tag.
-- `ro_min`: Minimum required reciprocal overlap percentage.
-- `size_ro_min`: Minimum required reciprocal length proportion.
-- `offset_match`: Maximum allowable breakpoint distance.
-- `offset_prop_max`: Maximum allowable breakpoint distance as a proportion of variant length.
-- `match_prop_min`: Minimum required match on sequence context.
-
-
-### [ExtractRegionFromBAM](wdl/ExtractRegionFromBAM.wdl)
-TODO
-
-
-### [MinimapAlignment](wdl/MinimapAlignment.wdl)
-This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
-
-Inputs:
-- `assembly_mat`: Maternal assembly.
-- `assembly_pat`: Paternal assembly.
-- `minimap_flags`: Parameters to use when running Minimap2.
-- `ref_fa`.
-- `ref_fai`.
-
-
 ### [PALMER](wdl/PALMER.wdl)
 This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
 
@@ -209,14 +175,6 @@ Inputs:
 
 ### [PALMERMerge](wdl/PALMERMerge.wdl)
 TODO
-
-
-### [PAV](wdl/PAV.wdl)
-This workflow leverages [PAV](https://github.com/BeckLaboratory/pav) in order to call variants using assemblies. 
-
-Inputs:
-- `mat_haplotypes`: Series of unaligned maternal haplotypes.
-- `pat_haplotypes`: Series of unaligned paternal haplotypes.
 
 
 ### [RepeatMasker](wdl/RepeatMasker.wdl)

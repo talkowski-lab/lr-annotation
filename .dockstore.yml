@@ -20,7 +20,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateMEDs
-    primaryDescriptorPath: /wdl/AnnotateMEDs.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateMEDs.wdl
     filters:
       branches:
         - main
@@ -73,44 +73,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AgglovarMerge
-    primaryDescriptorPath: /wdl/AgglovarMerge.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: BenchmarkAnnotations
     primaryDescriptorPath: /wdl/BenchmarkAnnotations.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: ExtractRegionFromBAM
-    primaryDescriptorPath: /wdl/ExtractRegionFromBAM.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: FlagSingletonReads
-    primaryDescriptorPath: /wdl/FlagSingletonReads.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: MinimapAlignment
-    primaryDescriptorPath: /wdl/MinimapAlignment.wdl
     filters:
       branches:
         - main
@@ -134,15 +98,6 @@ workflows:
         - main
       tags:
         - /.*/
-
-  - subclass: WDL
-    name: PAV
-    primaryDescriptorPath: /wdl/PAV.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/  
 
   - subclass: WDL
     name: RepeatMasker
