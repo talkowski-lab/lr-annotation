@@ -262,7 +262,6 @@ task AggregateAndPlot {
     >>>
     
     output {
-        # Non-ref outputs (always generated)
         File match_data_non_ref = "~{output_prefix}.non_ref_regions.match_data.tsv"
         File genotype_concordance_matrix_non_ref = "~{output_prefix}.non_ref_regions.genotype_concordance_matrix.tsv"
         File similarity_plot_non_ref = "~{output_prefix}.non_ref_regions.similarity_across_callers.png"
@@ -270,14 +269,13 @@ task AggregateAndPlot {
         File length_difference_plot_non_ref = "~{output_prefix}.non_ref_regions.length_difference_across_callers.png"
         File length_diff_vs_locus_size_non_ref = "~{output_prefix}.non_ref_regions.length_difference_vs_locus_size.png"
         
-        # All regions outputs (optional)
-        File? match_data_all = if include_all_regions then "~{output_prefix}.all_regions.match_data.tsv" else None
-        File? genotype_concordance_matrix_all = if include_all_regions then "~{output_prefix}.all_regions.genotype_concordance_matrix.tsv" else None
-        File? similarity_plot_all = if include_all_regions then "~{output_prefix}.all_regions.similarity_across_callers.png" else None
-        File? edit_distance_plot_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_across_callers.png" else None
-        File? length_difference_plot_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_across_callers.png" else None
-        File? length_diff_vs_locus_size_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_vs_locus_size.png" else None
-        File? edit_distance_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_to_reference.png" else None
-        File? length_difference_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_to_reference.png" else None
+        File? match_data_all = if include_all_regions then "~{output_prefix}.all_regions.match_data.tsv" else ""
+        File? genotype_concordance_matrix_all = if include_all_regions then "~{output_prefix}.all_regions.genotype_concordance_matrix.tsv" else ""
+        File? similarity_plot_all = if include_all_regions then "~{output_prefix}.all_regions.similarity_across_callers.png" else ""
+        File? edit_distance_plot_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_across_callers.png" else ""
+        File? length_difference_plot_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_across_callers.png" else ""
+        File? length_diff_vs_locus_size_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_vs_locus_size.png" else ""
+        File? edit_distance_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_to_reference.png" else ""
+        File? length_difference_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_to_reference.png" else ""
     }
 }
