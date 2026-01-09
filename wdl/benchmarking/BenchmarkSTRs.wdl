@@ -138,8 +138,8 @@ task SubsetAndReheaderVamos {
         # Subset to the matched sample and GRCh38_to_GRCh38/GRCh38_to_GRCh38
         bcftools view -s "$matched_sample,GRCh38_to_GRCh38/GRCh38_to_GRCh38" \
             ~{vamos_vcf} \
-            -O z \
-            -o temp.vcf.gz
+            --no-update \
+            -Oz -o temp.vcf.gz
         
         bcftools index -t temp.vcf.gz
         
