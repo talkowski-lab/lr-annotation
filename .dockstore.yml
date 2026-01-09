@@ -29,7 +29,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotatePALMER
-    primaryDescriptorPath: /wdl/AnnotatePALMER.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotatePALMER.wdl
     filters:
       branches:
         - main
