@@ -82,6 +82,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: BenchmarkSTRs
+    primaryDescriptorPath: /wdl/benchmarking/BenchmarkSTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PALMER
     primaryDescriptorPath: /wdl/tools/PALMER.wdl
     filters:
