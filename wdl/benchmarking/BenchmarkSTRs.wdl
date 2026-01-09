@@ -269,13 +269,13 @@ task AggregateAndPlot {
         File length_difference_plot_non_ref = "~{output_prefix}.non_ref_regions.length_difference_across_callers.png"
         File length_diff_vs_locus_size_non_ref = "~{output_prefix}.non_ref_regions.length_difference_vs_locus_size.png"
         
-        File? match_data_all = if include_all_regions then "~{output_prefix}.all_regions.match_data.tsv" else ""
-        File? genotype_concordance_matrix_all = if include_all_regions then "~{output_prefix}.all_regions.genotype_concordance_matrix.tsv" else ""
-        File? similarity_plot_all = if include_all_regions then "~{output_prefix}.all_regions.similarity_across_callers.png" else ""
-        File? edit_distance_plot_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_across_callers.png" else ""
-        File? length_difference_plot_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_across_callers.png" else ""
-        File? length_diff_vs_locus_size_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_vs_locus_size.png" else ""
-        File? edit_distance_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.edit_distance_to_reference.png" else ""
-        File? length_difference_to_reference_all = if include_all_regions then "~{output_prefix}.all_regions.length_difference_to_reference.png" else ""
+        File? match_data_all = "~{output_prefix}.all_regions.match_data.tsv"
+        File? genotype_concordance_matrix_all = "~{output_prefix}.all_regions.genotype_concordance_matrix.tsv"
+        File? similarity_plot_all = "~{output_prefix}.all_regions.similarity_across_callers.png"
+        File? edit_distance_plot_all = "~{output_prefix}.all_regions.edit_distance_across_callers.png"
+        File? length_difference_plot_all = "~{output_prefix}.all_regions.length_difference_across_callers.png"
+        File? length_diff_vs_locus_size_all = "~{output_prefix}.all_regions.length_difference_vs_locus_size.png"
+        File? edit_distance_to_reference_all = "~{output_prefix}.all_regions.edit_distance_to_reference.png"
+        File? length_difference_to_reference_all = "~{output_prefix}.all_regions.length_difference_to_reference.png"
     }
 }
