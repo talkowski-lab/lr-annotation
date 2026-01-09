@@ -37,25 +37,33 @@ workflow BenchmarkSTRs {
                 runtime_attr_override = runtime_attr_subset_vamos
         }
         
-        call RunBenchmark {
-            input:
-                vamos_vcf = SubsetAndReheaderVamos.subsetted_vcf,
-                vamos_vcf_index = SubsetAndReheaderVamos.subsetted_vcf_index,
-                trgt_vcf = trgt_vcf,
-                trgt_vcf_index = trgt_vcf_index,
-                ref_fa = ref_fa,
-                ref_fai = ref_fai,
-                sample_id = sample_id,
-                contigs = contigs,
-                docker = benchmark_strs_docker,
-                runtime_attr_override = runtime_attr_run_benchmark
+        if (SubsetAndReheaderVamos.found_sample) {
+            call RunBenchmark {
+                input:
+                    vamos_vcf = SubsetAndReheaderVamos.subsetted_vcf,
+                    vamos_vcf_index = SubsetAndReheaderVamos.subsetted_vcf_index,
+                    trgt_vcf = trgt_vcf,
+                    trgt_vcf_index = trgt_vcf_index,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    sample_id = sample_id,
+                    contigs = contigs,
+                    docker = benchmark_strs_docker,
+                    runtime_attr_override = runtime_attr_run_benchmark
+            }
+            
+            String valid_sample_id = sample_id
         }
     }
     
+    Array[File] valid_stats_tsvs = select_all(RunBenchmark.stats_tsv)
+    Array[String] valid_sample_ids = select_all(valid_sample_id)
+
+    
     call AggregateAndPlot {
         input:
-            stats_tsvs = RunBenchmark.stats_tsv,
-            sample_ids = sample_ids,
+            stats_tsvs = valid_stats_tsvs,
+            sample_ids = valid_sample_ids,
             output_prefix = output_prefix,
             include_all_regions = include_all_regions,
             docker = benchmark_strs_docker,
@@ -63,7 +71,10 @@ workflow BenchmarkSTRs {
     }
     
     output {
-        Array[File] per_sample_stats = RunBenchmark.stats_tsv
+        Array[File] per_sample_stats = valid_stats_tsvs
+        Array[String] processed_sample_ids = valid_sample_ids
+        File processed_samples_file = AggregateAndPlot.processed_samples_list
+        
         File aggregated_match_data_non_ref = AggregateAndPlot.match_data_non_ref
         File genotype_concordance_matrix_non_ref = AggregateAndPlot.genotype_concordance_matrix_non_ref
         File similarity_plot_non_ref = AggregateAndPlot.similarity_plot_non_ref
@@ -124,16 +135,23 @@ task SubsetAndReheaderVamos {
         # Get list of samples in VCF
         bcftools query -l ~{vamos_vcf} > samples.txt
         
-        # Find the sample matching pattern: _SAMPLE_ID_
-        # The sample ID should be embedded within underscores
-        matched_sample=$(grep -E "_~{sample_id}_" samples.txt | head -n1)
+        # Find the sample matching pattern: HPRC AND _SAMPLE_ID_
+        # Both HPRC and the sample ID should be present, with sample ID surrounded by underscores
+        matched_sample=$(grep "HPRC" samples.txt | grep -E "_~{sample_id}_" | head -n1)
         
         if [ -z "$matched_sample" ]; then
-            echo "ERROR: Could not find sample matching pattern _~{sample_id}_ in VCF"
-            exit 1
+            echo "WARNING: Could not find sample matching pattern with HPRC and _~{sample_id}_ in VCF"
+            echo "false" > found_sample.txt
+            echo "" > output_sample_id.txt
+            # Create empty placeholder files
+            touch ~{output_vcf}
+            touch ~{output_vcf}.tbi
+            exit 0
         fi
         
         echo "Found matching sample: $matched_sample"
+        echo "true" > found_sample.txt
+        echo "~{sample_id}" > output_sample_id.txt
         
         # Subset to the matched sample and GRCh38_to_GRCh38/GRCh38_to_GRCh38
         bcftools view -s "$matched_sample,GRCh38_to_GRCh38/GRCh38_to_GRCh38" \
@@ -155,6 +173,8 @@ task SubsetAndReheaderVamos {
     output {
         File subsetted_vcf = output_vcf
         File subsetted_vcf_index = "~{output_vcf}.tbi"
+        Boolean found_sample = read_boolean("found_sample.txt")
+        String output_sample_id = read_string("output_sample_id.txt")
     }
 }
 
@@ -255,6 +275,9 @@ task AggregateAndPlot {
         # Create file with all stats TSVs
         cat ~{write_lines(stats_tsvs)} > stats_files.txt
         
+        # Write processed sample IDs to file
+        cat ~{write_lines(sample_ids)} > ~{output_prefix}.processed_samples.txt
+        
         python3 /opt/gnomad-lr/scripts/benchmark/aggregate_str_benchmarks.py \
             --stats-files stats_files.txt \
             --output-prefix ~{output_prefix} \
@@ -262,6 +285,7 @@ task AggregateAndPlot {
     >>>
     
     output {
+        File processed_samples_list = "~{output_prefix}.processed_samples.txt"
         File match_data_non_ref = "~{output_prefix}.non_ref_regions.match_data.tsv"
         File genotype_concordance_matrix_non_ref = "~{output_prefix}.non_ref_regions.genotype_concordance_matrix.tsv"
         File similarity_plot_non_ref = "~{output_prefix}.non_ref_regions.similarity_across_callers.png"
