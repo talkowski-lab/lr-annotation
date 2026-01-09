@@ -1,8 +1,8 @@
 version 1.0
 
-import "general/Structs.wdl"
-import "general/Helpers.wdl"
-import "RepeatMasker.wdl" as RM
+import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl"
+import "../tools/RepeatMasker.wdl" as RM
 
 workflow AnnotateL1MEAID {
     input {

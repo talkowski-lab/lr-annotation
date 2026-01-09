@@ -1,6 +1,6 @@
 version 1.0
 
-import "general/Helpers.wdl"
+import "../utils/Helpers.wdl"
 
 workflow TRGT {
     input {

@@ -1,10 +1,10 @@
 version 1.0
 
-import "general/Structs.wdl"
-import "general/Helpers.wdl" as Helpers
-import "benchmarking/BedtoolsClosestSV.wdl" as BedtoolsClosest
-import "benchmarking/TruvariMatch.wdl" as TruvariMatch
-import "benchmarking/ShardedBenchmarks.wdl" as ShardedBenchmarks
+import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl" as Helpers
+import "../benchmarking/BedtoolsClosestSV.wdl" as BedtoolsClosest
+import "../benchmarking/TruvariMatch.wdl" as TruvariMatch
+import "../benchmarking/ShardedBenchmarks.wdl" as ShardedBenchmarks
 
 workflow BenchmarkAnnotations {
     input {

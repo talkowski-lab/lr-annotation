@@ -1,7 +1,7 @@
 version 1.0
 
-import "general/Structs.wdl"
-import "general/Helpers.wdl" as Helpers
+import "utils/Structs.wdl"
+import "utils/Helpers.wdl" as Helpers
 
 workflow AnnotateSTRs {
     input {

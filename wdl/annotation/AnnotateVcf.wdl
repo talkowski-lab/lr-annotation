@@ -1,7 +1,7 @@
 version 1.0
 
-import "general/Structs.wdl"
-import "general/Helpers.wdl"
+import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl"
 
 workflow AnnotateVcf {
     input {

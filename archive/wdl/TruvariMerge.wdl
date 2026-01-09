@@ -1,6 +1,6 @@
 version 1.0
 
-import "general/Structs.wdl"
+import "utils/Structs.wdl"
 
 workflow TruvariMerge {
     input {

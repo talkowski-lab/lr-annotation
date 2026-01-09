@@ -2,7 +2,7 @@ version: 1.2
 workflows:
   - subclass: WDL
     name: AnnotateVcf
-    primaryDescriptorPath: /wdl/AnnotateVcf.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateVcf.wdl
     filters:
       branches:
         - main
@@ -11,7 +11,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateL1MEAID
-    primaryDescriptorPath: /wdl/AnnotateL1MEAID.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
     filters:
       branches:
         - main
@@ -38,7 +38,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateSVAN
-    primaryDescriptorPath: /wdl/AnnotateSVAN.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateSVAN.wdl
     filters:
       branches:
         - main
@@ -47,7 +47,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateSVAnnotate
-    primaryDescriptorPath: /wdl/AnnotateSVAnnotate.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateSVAnnotate.wdl
     filters:
       branches:
         - main
@@ -56,7 +56,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateVEPHail
-    primaryDescriptorPath: /wdl/AnnotateVEPHail.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail.wdl
     filters:
       branches:
         - main
@@ -65,7 +65,7 @@ workflows:
 
   - subclass: WDL
     name: AnnotateVEPHail_vModified
-    primaryDescriptorPath: /wdl/AnnotateVEPHail_vModified.wdl
+    primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail_vModified.wdl
     filters:
       branches:
         - main
@@ -74,7 +74,7 @@ workflows:
 
   - subclass: WDL
     name: BenchmarkAnnotations
-    primaryDescriptorPath: /wdl/BenchmarkAnnotations.wdl
+    primaryDescriptorPath: /wdl/annotation/BenchmarkAnnotations.wdl
     filters:
       branches:
         - main
@@ -83,7 +83,7 @@ workflows:
 
   - subclass: WDL
     name: PALMER
-    primaryDescriptorPath: /wdl/PALMER.wdl
+    primaryDescriptorPath: /wdl/tools/PALMER.wdl
     filters:
       branches:
         - main
@@ -92,7 +92,7 @@ workflows:
 
   - subclass: WDL
     name: PALMERMerge
-    primaryDescriptorPath: /wdl/PALMERMerge.wdl
+    primaryDescriptorPath: /wdl/tools/PALMERMerge.wdl
     filters:
       branches:
         - main
@@ -101,7 +101,7 @@ workflows:
 
   - subclass: WDL
     name: RepeatMasker
-    primaryDescriptorPath: /wdl/RepeatMasker.wdl
+    primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
     filters:
       branches:
         - main
@@ -110,7 +110,7 @@ workflows:
 
   - subclass: WDL
     name: TRGT
-    primaryDescriptorPath: /wdl/TRGT.wdl
+    primaryDescriptorPath: /wdl/tools/TRGT.wdl
     filters:
       branches:
         - main
