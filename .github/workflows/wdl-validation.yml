@@ -1,0 +1,43 @@
+name: Validate Workflows
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'wdl/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'wdl/**'
+
+jobs:
+  womtool_syntax_check:
+    runs-on: ubuntu-latest
+    name: Womtool Syntax Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Download Womtool
+        run: |
+          wget -O womtool.jar https://github.com/broadinstitute/cromwell/releases/download/87/womtool-87.jar
+
+      - name: Validate all WDLs
+        run: |
+          find wdl -type f -name "*.wdl" -print0 | while IFS= read -r -d '' wdl_file; do
+            echo "---------------------------------------------------"
+            echo "Validating: $wdl_file"
+            
+            java -jar womtool.jar validate "$wdl_file"
+            
+            if [ $? -ne 0 ]; then
+              echo "❌ Validation failed for $wdl_file"
+              exit 1
+            fi
+          done

@@ -1,4 +1,4 @@
-name: Test Python Scripts
+name: Lint Scripts
 
 on:
   push:
@@ -25,5 +25,4 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        flake8 scripts/
         flake8 scripts/
