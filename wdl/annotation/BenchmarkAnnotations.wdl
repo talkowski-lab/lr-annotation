@@ -312,6 +312,7 @@ task ExactMatch {
 
     command <<<
         set -euo pipefail
+
         python3 /opt/gnomad-lr/scripts/benchmark/exact_match.py \
             ~{vcf_eval} \
             ~{vcf_truth} \
@@ -414,7 +415,13 @@ task CollectMatchedIDs {
 
     command <<<
         set -euo pipefail
-        bcftools query -i 'INFO/gnomAD_V4_match!="."' -f '%ID\t%INFO/gnomAD_V4_match_ID\n' ~{final_vcf} | bgzip -c > ~{prefix}.matched_ids.tsv.gz
+
+        bcftools query \
+            -i 'INFO/gnomAD_V4_match!="."' \
+            -f '%ID\t%INFO/gnomAD_V4_match_ID\n' \
+            ~{final_vcf} \
+        | bgzip -c > ~{prefix}.matched_ids.tsv.gz
+        
         tabix -s 1 -b 1 -e 1 ~{prefix}.matched_ids.tsv.gz
     >>>
 
@@ -455,7 +462,10 @@ task ExtractTruthVepHeader {
     command <<<
         set -euo pipefail
         
-        bcftools view -h ~{vcf_truth_snv} | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}.truth_vep_header.txt
+        bcftools view \
+            -h \
+            ~{vcf_truth_snv} \
+        | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}.truth_vep_header.txt
     >>>
 
     output {

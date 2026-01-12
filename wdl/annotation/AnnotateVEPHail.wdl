@@ -138,16 +138,13 @@ task VepAnnotate {
         }' > vep_config.json
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
-
-        proj_id=$(gcloud config get-value project)
-
+        
         python3 vep_annotate.py \
             -i ~{vcf} \
             -o ~{vep_annotated_vcf_name} \
             --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
-            --build ~{genome_build} \
-            --project-id $proj_id
+            --build ~{genome_build}
         
         cp $(ls . | grep hail*.log) hail_log.txt
 

@@ -11,7 +11,7 @@ workflow AnnotateVEPHail_vModified {
 
         String cohort_prefix
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
-        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail.py"
+        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail_vModified.py"
         String genome_build = "GRCh38"
         Boolean split_by_chromosome
         Boolean split_into_shards
@@ -140,16 +140,13 @@ task VepAnnotate {
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
 
-        proj_id=$(gcloud config get-value project)
-
         python3 vep_annotate.py \
             -i ~{vcf} \
             -o ~{vep_annotated_vcf_name} \
             --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
-            --build ~{genome_build} \
-            --project-id $proj_id
-        
+            --build ~{genome_build}
+                
         cp $(ls . | grep hail*.log) hail_log.txt
 
         bcftools index -t ~{vep_annotated_vcf_name}

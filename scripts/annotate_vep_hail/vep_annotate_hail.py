@@ -12,7 +12,6 @@ parser.add_argument("-o", dest="vep_annotated_vcf_name", help="Output filename")
 parser.add_argument("--cores", dest="cores", help="CPU cores")
 parser.add_argument("--mem", dest="mem", help="Memory")
 parser.add_argument("--build", dest="build", help="Genome build")
-parser.add_argument("--project-id", dest="project_id", help="Google Project ID")
 
 args = parser.parse_args()
 vcf_file = args.vcf_file
@@ -20,7 +19,6 @@ vep_annotated_vcf_name = args.vep_annotated_vcf_name
 cores = args.cores
 mem = int(np.floor(float(args.mem)))
 build = args.build
-gcp_project = args.project_id
 
 hl.init(
     min_block_size=128,
