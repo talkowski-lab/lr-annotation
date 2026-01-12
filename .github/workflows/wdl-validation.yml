@@ -3,12 +3,8 @@ name: Validate Workflows
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'wdl/**'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'wdl/**'
 
 jobs:
   womtool_syntax_check:
