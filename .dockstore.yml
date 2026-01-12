@@ -92,7 +92,7 @@ workflows:
 
   - subclass: WDL
     name: MergeVEPAF
-    primaryDescriptorPath: /wdl/tools/MergeVEPAF.wdl
+    primaryDescriptorPath: /wdl/annotation_utils/MergeVEPAF.wdl
     filters:
       branches:
         - main
