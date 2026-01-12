@@ -91,6 +91,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergeVEPAF
+    primaryDescriptorPath: /wdl/tools/MergeVEPAF.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PALMER
     primaryDescriptorPath: /wdl/tools/PALMER.wdl
     filters:
