@@ -47,7 +47,7 @@ mt = hl.vep(mt, config="vep_config.json", csq=True, tolerate_parse_error=True)
 
 mt = mt.annotate_rows(info=mt.info.annotate(CSQ=mt.vep))
 
-header["info"]["CSQ"] = {
+header["info"]["vep"] = {
     "Description": hl.eval(mt.vep_csq_header),
     "Number": ".",
     "Type": "String",
