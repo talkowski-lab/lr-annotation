@@ -2,7 +2,7 @@ version 1.0
     
 import "../utils/Structs.wdl"
 import "../utils/ScatterVCF.wdl" as ScatterVCF
-import "../utils/MergeSplitVCF.wdl" as MergeSplitVCF
+import "../utils/Helpers.wdl" as Helpers
 
 workflow AnnotateVEPHail_vModified {
     input {
@@ -57,21 +57,16 @@ workflow AnnotateVEPHail_vModified {
         }
     }
     
-    call MergeSplitVCF.CombineVCFs {
+    call Helpers.ConcatTsvs {
         input:
-            vcf_files=VepAnnotate.vep_vcf_file,
-            vcf_indices=VepAnnotate.vep_vcf_idx,
-            naive=true,
-            allow_overlaps=false,
-            sv_base_mini_docker=sv_base_mini_docker,
-            cohort_prefix=cohort_prefix + ".final",
-            sort_after_merge=true,
+            tsvs=VepAnnotate.vep_tsv_file,
+            outfile_prefix=cohort_prefix + ".vep_annotations",
+            docker=sv_base_mini_docker,
             runtime_attr_override=runtime_attr_combine_vcfs
     }
 
     output {
-        File vep_annotated_vcf = CombineVCFs.combined_vcf
-        File vep_annotated_vcf_idx = CombineVCFs.combined_vcf_idx
+        File vep_annotated_tsv = ConcatTsvs.concatenated_tsv
     }
 }   
 
@@ -149,12 +144,11 @@ task VepAnnotate {
                 
         cp $(ls . | grep hail*.log) hail_log.txt
 
-        bcftools index -t ~{vep_annotated_vcf_name}
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/vep\n' ~{vep_annotated_vcf_name} > ~{prefix}.vep.tsv
     >>>
 
     output {
-        File vep_vcf_file = vep_annotated_vcf_name
-        File vep_vcf_idx = vep_annotated_vcf_name+".tbi"
+        File vep_tsv_file = "~{prefix}.vep.tsv"
         File hail_log = "hail_log.txt"
     }
 }

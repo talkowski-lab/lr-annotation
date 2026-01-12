@@ -2,7 +2,7 @@ version: 1.2
 workflows:
   - subclass: WDL
     name: AnnotateVcf
-    primaryDescriptorPath: /wdl/annotation/AnnotateVcf.wdl
+    primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcf.wdl
     filters:
       branches:
         - main
@@ -84,6 +84,15 @@ workflows:
   - subclass: WDL
     name: BenchmarkSTRs
     primaryDescriptorPath: /wdl/benchmarking/BenchmarkSTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: MergeVEPAF
+    primaryDescriptorPath: /wdl/annotation_utils/MergeVEPAF.wdl
     filters:
       branches:
         - main
