@@ -102,7 +102,6 @@ task VepAnnotate {
 
     String filename = basename(vcf)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf, ".vcf.gz") else basename(vcf, ".vcf.bgz")
-    String vep_annotated_vcf_name = "~{prefix}.vep.vcf.bgz"
 
     command <<<
         set -euo pipefail
@@ -126,7 +125,6 @@ task VepAnnotate {
             "--merged",
             "--fasta", "~{top_level_fa}",
             "--dir_cache", "'$dir_cache_path'",
-            "--vcf_info_field", "vep",
             "-o", "STDOUT"
         ],
         "env": {},
@@ -137,14 +135,12 @@ task VepAnnotate {
 
         python3 vep_annotate.py \
             -i ~{vcf} \
-            -o ~{vep_annotated_vcf_name} \
+            -o ~{prefix}.vep.tsv \
             --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
             --build ~{genome_build}
                 
         cp $(ls . | grep hail*.log) hail_log.txt
-
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/vep\n' ~{vep_annotated_vcf_name} > ~{prefix}.vep.tsv
     >>>
 
     output {
