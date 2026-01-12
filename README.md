@@ -18,7 +18,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- 232 total samples.
 		- High coverage aligned reads, produced directly by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-		- [VCF](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/release2/minigraph-cactus/).
+		- [Published VCF](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=pangenomes/freeze/release2/minigraph-cactus/).
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Notes: 
 		- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
