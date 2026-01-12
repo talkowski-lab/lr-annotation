@@ -10,8 +10,8 @@ workflow AnnotateVEPHail_vModified {
         File vcf_idx
 
         String cohort_prefix
-        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/split_vcf_hail.py"
-        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/annotate_vep_hail/vep_annotate_hail_vModified.py"
+        String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
+        String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail_vModified.py"
         String genome_build = "GRCh38"
         Boolean split_by_chromosome
         Boolean split_into_shards
