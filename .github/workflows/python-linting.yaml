@@ -25,4 +25,4 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        flake8 scripts/
+        flake8 scripts/ --max-line-length=130
