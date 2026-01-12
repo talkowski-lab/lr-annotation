@@ -66,7 +66,7 @@ workflow AnnotateVEPHail_vModified {
     }
 
     output {
-        File vep_annotated_tsv = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_vep = ConcatTsvs.concatenated_tsv
     }
 }   
 
