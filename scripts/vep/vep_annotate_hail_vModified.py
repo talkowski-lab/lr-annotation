@@ -50,7 +50,7 @@ table = rows.select(
     REF=rows.alleles[0],
     ALT=rows.alleles[1],
     ID=rows.rsid,
-    CSQ=hl.delimit(rows.vep, ',') 
+    CSQ=hl.delimit(rows.vep, ","),
 )
 
 table.export(output_tsv, header=False)

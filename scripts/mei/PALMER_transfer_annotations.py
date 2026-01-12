@@ -10,7 +10,9 @@ from pysam import VariantFile
 def parse_intersection_line(line: str):
     fields = line.strip().split("\t")
     palmer_alts_raw = fields[13]
-    palmer_alts = palmer_alts_raw.split(",") if "," in palmer_alts_raw else [palmer_alts_raw]
+    palmer_alts = (
+        palmer_alts_raw.split(",") if "," in palmer_alts_raw else [palmer_alts_raw]
+    )
     return {
         "chrom": fields[0],
         "sv_positions": fields[3].split(","),
@@ -102,7 +104,10 @@ def record_passes_filters(
         return False
 
     reciprocal_overlap = compute_reciprocal_overlap(
-        record.pos - 1, target_length, mei_data["mei_start_0based"], mei_data["mei_length"]
+        record.pos - 1,
+        target_length,
+        mei_data["mei_start_0based"],
+        mei_data["mei_length"],
     )
     if reciprocal_overlap < args.reciprocal_overlap:
         return False
@@ -112,7 +117,8 @@ def record_passes_filters(
         return False
 
     sv_samples = [
-        sample for sample in samples
+        sample
+        for sample in samples
         if is_non_ref_genotype(record.samples[sample]["GT"])
     ]
     shared = set(sv_samples) & set(mei_data["mei_samples"])
@@ -126,7 +132,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Transfer PALMER MEI annotations onto a short-read VCF"
     )
-    parser.add_argument("--intersection", required=True, help="Path to bedtools intersect output")
+    parser.add_argument(
+        "--intersection", required=True, help="Path to bedtools intersect output"
+    )
     parser.add_argument("--target-vcf", required=True, help="Target VCF to annotate")
     parser.add_argument("--me-type", required=True, help="MEI class under evaluation")
     parser.add_argument(
@@ -169,11 +177,15 @@ def main() -> None:
     target_vcf = VariantFile(args.target_vcf)
     samples = list(target_vcf.header.samples)
 
-    with open(args.intersection, "r", encoding="utf-8") as source, open(args.output, "w", encoding="utf-8") as output_handle:
+    with open(args.intersection, "r", encoding="utf-8") as source, open(
+        args.output, "w", encoding="utf-8"
+    ) as output_handle:
         for raw_line in source:
             mei_data = parse_intersection_line(raw_line)
             chrom = mei_data["chrom"]
-            for ref, pos, length in zip(mei_data["sv_refs"], mei_data["sv_positions"], mei_data["sv_lengths"]):
+            for ref, pos, length in zip(
+                mei_data["sv_refs"], mei_data["sv_positions"], mei_data["sv_lengths"]
+            ):
                 sv_pos = int(pos)
                 sv_length = int(length)
                 ref_allele = ref.split("_")[0]
@@ -183,8 +195,15 @@ def main() -> None:
                     if "ME_TYPE" in record.info:
                         continue
 
-                    if not record_passes_filters(record, ref_allele, sv_length, mei_data,
-                                                 palmer_alts, samples, args):
+                    if not record_passes_filters(
+                        record,
+                        ref_allele,
+                        sv_length,
+                        mei_data,
+                        palmer_alts,
+                        samples,
+                        args,
+                    ):
                         continue
 
                     all_alts = ",".join(record.alts)
