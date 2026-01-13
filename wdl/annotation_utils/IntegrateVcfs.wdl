@@ -11,10 +11,11 @@ workflow IntegrateVcfs {
         File sv_vcf_idx
 
         Array[String] contigs
+        Array[String] sample_ids
         Int max_size_snv_indel = 50
         Int min_size_sv = 50
         String prefix
-        
+
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_merge
@@ -25,6 +26,7 @@ workflow IntegrateVcfs {
         input:
             snv_indel_vcf = snv_indel_vcf,
             sv_vcf = sv_vcf,
+            sample_ids = sample_ids,
             runtime_attr_override = runtime_attr_check_samples
     }
 
@@ -34,6 +36,7 @@ workflow IntegrateVcfs {
                 vcf = snv_indel_vcf,
                 vcf_idx = snv_indel_vcf_idx,
                 contig = contig,
+                sample_ids = sample_ids,
                 size_threshold = max_size_snv_indel,
                 use_max_size = true,
                 prefix = "~{prefix}.~{contig}.snv_indel",
@@ -45,6 +48,7 @@ workflow IntegrateVcfs {
                 vcf = sv_vcf,
                 vcf_idx = sv_vcf_idx,
                 contig = contig,
+                sample_ids = sample_ids,
                 size_threshold = min_size_sv,
                 use_max_size = false,
                 prefix = "~{prefix}.~{contig}.sv",
@@ -80,6 +84,7 @@ task CheckSampleConsistency {
     input {
         File snv_indel_vcf
         File sv_vcf
+        Array[String] sample_ids
         RuntimeAttr? runtime_attr_override
     }
 
@@ -107,17 +112,36 @@ task CheckSampleConsistency {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
+
+        printf '%s\n' ~{sep=' ' sample_ids} > requested_samples.txt
 
         bcftools query -l ~{snv_indel_vcf} | sort > snv_indel_samples.txt
         bcftools query -l ~{sv_vcf} | sort > sv_samples.txt
 
-        if ! diff snv_indel_samples.txt sv_samples.txt; then
-            echo "ERROR: Sample lists differ between SNV/indel VCF and SV VCF"
+        missing_in_snv=""
+        missing_in_sv=""
+        
+        while read sample; do
+            if ! grep -q "^${sample}$" snv_indel_samples.txt; then
+                missing_in_snv="${missing_in_snv} ${sample}"
+            fi
+            if ! grep -q "^${sample}$" sv_samples.txt; then
+                missing_in_sv="${missing_in_sv} ${sample}"
+            fi
+        done < requested_samples.txt
+
+        if [ -n "${missing_in_snv}" ]; then
+            echo "ERROR: The following samples are missing from SNV/indel VCF:${missing_in_snv}"
             exit 1
         fi
 
-        echo "Sample lists are consistent"
+        if [ -n "${missing_in_sv}" ]; then
+            echo "ERROR: The following samples are missing from SV VCF:${missing_in_sv}"
+            exit 1
+        fi
+
+        echo "All requested samples are present in both VCFs"
     >>>
 
     output {
@@ -130,6 +154,7 @@ task SubsetAndFilterVcf {
         File vcf
         File vcf_idx
         String contig
+        Array[String] sample_ids
         Int size_threshold
         Boolean use_max_size
         String prefix
@@ -160,9 +185,11 @@ task SubsetAndFilterVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
-        bcftools view -r ~{contig} ~{vcf} -Oz -o subset.vcf.gz
+        printf '%s\n' ~{sep=' ' sample_ids} > samples.txt
+
+        bcftools view -S samples.txt -c 1 -r ~{contig} ~{vcf} -Oz -o subset.vcf.gz
         tabix -p vcf subset.vcf.gz
 
         bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' subset.vcf.gz | \
