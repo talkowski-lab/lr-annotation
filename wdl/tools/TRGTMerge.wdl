@@ -65,8 +65,6 @@ task MergeVCFsByContig {
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     
-    Int threads = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-
     command <<<
         set -euo pipefail
 
@@ -75,7 +73,6 @@ task MergeVCFsByContig {
         trgt merge \
             --vcf-list vcf_list.txt \
             --contig ~{contig} \
-            --threads ~{threads} \
             --write-index \
             --output ~{prefix}.~{contig}.merged.trgt.vcf.gz
     >>>
