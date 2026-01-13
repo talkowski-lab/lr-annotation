@@ -100,8 +100,8 @@ task ExtractDeletionsToBed {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: 2*ceil(size(vcf, "GB")) + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -145,8 +145,8 @@ task IntersectMED {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: 2*ceil(size(bed_a, "GB") + size(bed_b, "GB")) + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(bed_a, "GB") + size(bed_b, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -264,7 +264,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2*ceil(size(intersect_bed, "GB")) + 5,
+        disk_gb: 2 * ceil(size(intersect_bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1

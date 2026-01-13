@@ -370,8 +370,8 @@ task ExactMatch {
     
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 1.5 + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -436,8 +436,8 @@ task CollectMatchedIDsAndINFO {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -479,7 +479,7 @@ task ExtractVepHeader {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) + 5,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -528,8 +528,8 @@ task ShardedMatchedVariants {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(matched_with_info_tsv, "GB")) * 2 + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(matched_with_info_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -586,7 +586,7 @@ task ComputeShardBenchmarks {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 5,
+        disk_gb: 2 * ceil(size(matched_shard_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -633,8 +633,8 @@ task MergeShardBenchmarks {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(af_pair_tsvs[0], "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -683,8 +683,8 @@ task ComputeSummaryForContig {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: ceil(size(final_vcf, "GB")) + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -729,7 +729,7 @@ task MergePlotTarballs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(tarballs, "GB") * 1.5) + 5,
+        disk_gb: 2 * ceil(size(tarballs, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

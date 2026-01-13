@@ -19,10 +19,7 @@ from collections import defaultdict
 
 
 def log_memory(msg):
-    """Log memory usage with timestamp using only standard library."""
-    # Get memory in MB
     usage = resource.getrusage(resource.RUSAGE_SELF)
-    # This is the resident set size in KB, convert to MB
     mem_mb = usage.ru_maxrss / 1024.0
     timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
     print(f"[DEBUG {timestamp}] {msg}: {mem_mb:.2f} MB", file=sys.stderr, flush=True)

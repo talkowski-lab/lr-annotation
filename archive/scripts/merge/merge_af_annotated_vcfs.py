@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Merge VCF files with identical samples and variants but different INFO fields.
-"""
 
 import argparse
 import pysam

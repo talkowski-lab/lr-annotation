@@ -13,7 +13,7 @@ task GetHailMTSize {
 
     RuntimeAttr default_attr = object {
         mem_gb: 4,
-        disk_gb: ceil(base_disk_gb),
+        disk_gb: 2 * ceil(base_disk_gb) + 5,
         cpu_cores: 1,
         preemptible_tries: 1,
         max_retries: 0,
@@ -21,7 +21,6 @@ task GetHailMTSize {
     }
 
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
     
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
@@ -87,8 +86,8 @@ task SplitVcfIntoShards {
 
   RuntimeAttr default_attr = object {
     cpu_cores: 1,
-    mem_gb: 4 + ceil(size(input_vcf,"GiB")*2.5),
-    disk_gb: 10 + ceil(size(input_vcf,"GiB")*2.5),
+    mem_gb: ceil(size(input_vcf,"GiB")) + 5,
+    disk_gb: 2 * ceil(size(input_vcf,"GiB")*2.5) + 10,
     boot_disk_gb: 10,
     preemptible_tries: 1,
     max_retries: 0
@@ -118,13 +117,11 @@ task ConcatVcfs {
   String outfile_name = prefix + ".vcf.gz"
   String merge_flag = if merge_sort then "--allow-overlaps" else ""
   
-  Float input_size = size(vcfs, "GB")
-  Float compression_factor = 3.0
   Float base_disk_gb = 5.0
   Float base_mem_gb = 2.0
   RuntimeAttr default_attr = object {
-    mem_gb: base_mem_gb + compression_factor * input_size,
-    disk_gb: ceil(base_disk_gb + input_size * (1.5 + compression_factor)),
+    mem_gb: 4,
+    disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
     cpu_cores: 1,
     preemptible_tries: 1,
     max_retries: 0,
@@ -181,8 +178,8 @@ task StripGenotypes {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(vcf, "GB") * 1.5) + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -231,7 +228,7 @@ task SubsetVcfToContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB") * 0.5) + 5,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -277,8 +274,8 @@ task ConcatTsvs {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(tsvs, "GB") * 1.2) + 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -316,8 +313,8 @@ task SubsetTsvToContig {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(tsv, "GB") * 1.2) + 5,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
@@ -370,7 +367,7 @@ task SplitQueryVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 10,
+        disk_gb: 2 * ceil(size(bed_a, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -410,7 +407,7 @@ task BedtoolsClosest {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 10,
+        disk_gb: 2 * ceil(size(bed_a, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -454,7 +451,7 @@ task ConvertToSymbolic {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(5 + size(vcf, "GB") * 1.5),
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -495,7 +492,7 @@ task RenameVariantIds {
     RuntimeAttr default_attr = object {
         cpu_cores: 1, 
         mem_gb: 4, 
-        disk_gb: ceil(size(vcf, "GB") * 1.5) + 5,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 1, 
         max_retries: 0
@@ -536,8 +533,8 @@ task FinalizeToFile {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 1,
-        disk_gb: 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(file, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0,
@@ -577,8 +574,8 @@ task FinalizeToDir {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 1,
-        disk_gb: 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(files, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0,

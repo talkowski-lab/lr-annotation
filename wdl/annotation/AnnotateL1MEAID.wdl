@@ -112,7 +112,7 @@ task L1MEAID {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2*ceil(size(rm_fa, "GB")) + 5,
+        disk_gb: 2 * ceil(size(rm_fa, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -152,7 +152,7 @@ task L1MEAIDFilter {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2*ceil(size(limeaid_output, "GB")) + 5,
+        disk_gb: 2 * ceil(size(limeaid_output, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -239,7 +239,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2*ceil(size(l1meaid_filtered_tsv, "GB")) + 5,
+        disk_gb: 2 * ceil(size(l1meaid_filtered_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

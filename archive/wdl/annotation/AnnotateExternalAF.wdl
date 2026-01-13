@@ -189,7 +189,7 @@ task AnnotateFunctionalConsequences {
     }
 
     RuntimeAttr default_attr = object {
-        mem_gb: 2,
+        mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 5),
         cpu_cores: 2,
         preemptible_tries: 3,
@@ -478,7 +478,7 @@ task PostprocessVcf {
     }
 
     RuntimeAttr default_attr = object {
-        mem_gb: 1,
+        mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 3),
         cpu_cores: 1,
         preemptible_tries: 3,

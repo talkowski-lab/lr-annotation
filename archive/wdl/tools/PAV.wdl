@@ -54,7 +54,7 @@ task CallPAV {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 16,
-        mem_gb: 50,
+        mem_gb: 10,
         disk_gb: 3 * ceil(size(mat_haplotypes, "GiB") + size(pat_haplotypes, "GiB") + size(ref_fa, "GiB")) + 10,
         boot_disk_gb: 20,
         preemptible_tries: 1,

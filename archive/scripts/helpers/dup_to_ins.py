@@ -17,14 +17,13 @@ def main():
     )
 
     for rec in vcf_in.fetch():
-        # DUP-->INS
         if rec.info["SVTYPE"] == "DUP":
             rec.info["SVTYPE"] = "INS"
-            rec.info.__setitem__("ORIG_DUP", 1)  # set flag
+            rec.info.__setitem__("ORIG_DUP", 1)
             rec.stop = rec.pos + 1
             if "<DUP>" in rec.alts:
                 rec.alts = ("<INS>",)
-        vcf_out.write(rec)  # write every variant
+        vcf_out.write(rec)
 
 
 if __name__ == "__main__":

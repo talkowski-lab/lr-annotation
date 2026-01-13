@@ -310,7 +310,7 @@ task GenerateTRF {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 7.5,
+        mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) * 3 + 20,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -352,7 +352,7 @@ task RunSvanAnnotation {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 15,
+        mem_gb: 16,
         disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_fa_amb, "GB") + size(mei_fa_ann, "GB") + size(mei_fa_bwt, "GB") + size(mei_fa_pac, "GB") + size(mei_fa_sa, "GB") + size(mei_fa_mmi, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -507,7 +507,7 @@ task MergeHeaderFiles {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
+        mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,

@@ -195,7 +195,7 @@ task RunBenchmark {
     Float input_disk_scale = 2.0
     
     RuntimeAttr default_attr = object {
-        mem_gb: 8,
+        mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 2,
         preemptible_tries: 1,
@@ -247,7 +247,7 @@ task AggregateAndPlot {
     Float input_disk_scale = 3.0
     
     RuntimeAttr default_attr = object {
-        mem_gb: 8,
+        mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         cpu_cores: 2,
         preemptible_tries: 1,

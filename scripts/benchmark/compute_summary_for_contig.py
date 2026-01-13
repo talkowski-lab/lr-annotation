@@ -46,9 +46,6 @@ def parse_truth_info_string(info_str: str) -> Dict[str, str]:
 
 
 def load_truth_info_from_matched(matched_with_info_tsv_path):
-    """Load truth INFO from the enriched matched_with_info TSV.
-    Format: eval_id | truth_id | eval_INFO | truth_INFO
-    """
     truth = {}
     with gzip.open(matched_with_info_tsv_path, "rt") as f:
         for line in f:
@@ -57,7 +54,7 @@ def load_truth_info_from_matched(matched_with_info_tsv_path):
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 4:
                 continue
-            eval_id, truth_id, eval_info_str, truth_info_str = parts[0], parts[1], parts[2], parts[3]
+            _, truth_id, _, truth_info_str = parts[0], parts[1], parts[2], parts[3]
             truth[truth_id] = parse_truth_info_string(truth_info_str)
     return truth
 

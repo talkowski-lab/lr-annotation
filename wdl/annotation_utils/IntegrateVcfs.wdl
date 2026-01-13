@@ -166,7 +166,7 @@ task SubsetAndFilterVcf {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 8,
+        mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * 3.0),
         boot_disk_gb: 10,
         preemptible_tries: 3,

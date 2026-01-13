@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-Merge VEP and SVAnnotate VCF files based on variant size.
-"""
 
 import argparse
 import pysam

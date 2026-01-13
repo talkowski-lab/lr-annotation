@@ -4,7 +4,6 @@ import gzip
 
 
 def load_bed(bed_file):
-    """Load BED file into dict: key=(chrom,ref,alt) -> (start,end)."""
     bed_dict = {}
     with gzip.open(bed_file, "rt") if bed_file.endswith(".gz") else open(bed_file) as f:
         for line in f:
@@ -17,7 +16,6 @@ def load_bed(bed_file):
 
 
 def update_vcf(vcf_file, bed_dict, output_file):
-    """Update VCF with POS from BED and add END= annotation."""
     with gzip.open(vcf_file, "rt") as f_in, gzip.open(output_file, "wt") as f_out:
         for line in f_in:
             if line.startswith("#"):

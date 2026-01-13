@@ -96,7 +96,7 @@ task BcftoolsMerge {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 1,
+        mem_gb: 4,
         disk_gb: 8*ceil(size(vcfs, 'GB')),
         boot_disk_gb: 10,
         preemptible_tries: 1,
@@ -152,7 +152,7 @@ task Truvari {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
+        mem_gb: 4,
         disk_gb: 5 * ceil(size(vcf,"GB") + size(ref_fa,"GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,

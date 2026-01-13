@@ -90,7 +90,6 @@ def extract_vep_annotations(
 
 
 def load_enriched_shard(path: str) -> List[Tuple[str, str, str, str]]:
-    """Load enriched shard TSV with eval_id, truth_id, eval_INFO, truth_INFO."""
     rows = []
     with gzip.open(path, "rt") as f:
         for line in f:

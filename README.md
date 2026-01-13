@@ -18,11 +18,13 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- 232 total samples.
 		- High coverage aligned reads, produced directly by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-		- Base VCF: From Jiadong & HPRC teams.
+		- Base VCFs: From Jiadong & HPRC teams.
+		- VCF: Produced from base VCFs using _IntegrateVcfs_.
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Notes: 
 		- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
-		- VCF has 233 samples, including an additional sample HG03492.
+		- HPRC's base VCF has 233 samples, including an additional sample HG03492.
+		- Jiadong's base VCF has 1218 samples, including many additional samples.
 - Additional Notes:
 	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
 	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.
