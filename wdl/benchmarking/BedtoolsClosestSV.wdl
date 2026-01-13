@@ -244,3 +244,44 @@ task SelectMatchedINSs {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task CreateBedtoolsAnnotationTsv {
+    input {
+        File truvari_unmatched_vcf
+        File truvari_unmatched_vcf_index
+        File closest_bed
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        awk -F'\t' 'NR>1 && $NF!="NA" {print $1"\t"$2"\t"$3"\t"$4"\t"$5"\tBEDTOOLS_CLOSEST\t"$NF}' \
+            ~{closest_bed} > ~{prefix}.bedtools_matched.tsv
+    >>>
+
+    output {
+        File annotation_tsv = "~{prefix}.bedtools_matched.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
