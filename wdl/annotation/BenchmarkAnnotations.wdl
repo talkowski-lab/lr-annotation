@@ -311,7 +311,7 @@ workflow BenchmarkAnnotations {
         input:
             tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
             outfile_name = "~{prefix}.benchmark_summary.tsv",
-            plot_tarballs = MergeShardBenchmarks.plot_tarball,
+            preserve_header = true,
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
@@ -327,7 +327,7 @@ workflow BenchmarkAnnotations {
 
     call MergePlotTarballs {
         input:
-            plot_tarballs = select_all(MergeShardBenchmarks.plot_tarball),
+            tarballs = select_all(MergeShardBenchmarks.plot_tarball),
             prefix = prefix,
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
