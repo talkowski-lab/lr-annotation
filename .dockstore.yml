@@ -109,6 +109,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MinimapAlignment
+    primaryDescriptorPath: /wdl/tools/MinimapAlignment.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PALMER
     primaryDescriptorPath: /wdl/tools/PALMER.wdl
     filters:
