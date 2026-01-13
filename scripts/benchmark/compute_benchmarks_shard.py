@@ -132,7 +132,7 @@ def main():
 
     with open(args.truth_vep_header, "r") as f:
         truth_header_line = f.readline()
-    _, truth_vep_fields = parse_vep_header_line(truth_header_line)
+    truth_vep_key, truth_vep_fields = parse_vep_header_line(truth_header_line)
 
     # Parse skip_vep_categories
     skip_categories = set()
@@ -149,6 +149,9 @@ def main():
     eval_indices = {
         i: cat for i, cat in enumerate(eval_vep_fields) if cat in common_categories
     }
+    truth_indices = {
+        i: cat for i, cat in enumerate(truth_vep_fields) if cat in common_categories
+    }
     af_rows = []
     vep_counts: Dict[str, Counter] = defaultdict(Counter)
 
@@ -156,7 +159,6 @@ def main():
         eval_info = parse_truth_info_string(eval_info_str)
         truth_info = parse_truth_info_string(truth_info_str)
 
-        # Process AF fields
         eval_af_pairs = {}
         for k, v in eval_info.items():
             if is_af_field(k):
@@ -190,8 +192,11 @@ def main():
 
         # Process VEP annotations
         eval_ann = extract_vep_annotations(eval_info, eval_vep_key, eval_indices)
+        truth_ann = extract_vep_annotations(truth_info, truth_vep_key, truth_indices)
         for cat in common_categories:
             eval_val = eval_ann.get(cat, "N/A")
+            truth_val = truth_ann.get(cat, "N/A")
+            vep_counts[cat][(eval_val, truth_val)] += 1
 
     if af_rows:
         df_af = pd.DataFrame(af_rows)

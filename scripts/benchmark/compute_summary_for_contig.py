@@ -45,20 +45,20 @@ def parse_truth_info_string(info_str: str) -> Dict[str, str]:
     return kv
 
 
-def load_truth_info(tsv_gz_paths):
+def load_truth_info_from_matched(matched_with_info_tsv_path):
+    """Load truth INFO from the enriched matched_with_info TSV.
+    Format: eval_id | truth_id | eval_INFO | truth_INFO
+    """
     truth = {}
-    for p in tsv_gz_paths:
-        if p is None:
-            continue
-        with gzip.open(p, "rt") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                parts = line.rstrip("\n").split("\t", 1)
-                if len(parts) != 2:
-                    continue
-                vid, info = parts
-                truth[vid] = parse_truth_info_string(info)
+    with gzip.open(matched_with_info_tsv_path, "rt") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 4:
+                continue
+            eval_id, truth_id, eval_info_str, truth_info_str = parts[0], parts[1], parts[2], parts[3]
+            truth[truth_id] = parse_truth_info_string(truth_info_str)
     return truth
 
 
@@ -227,12 +227,12 @@ def main():
     ap.add_argument("--prefix", required=True)
     ap.add_argument("--contig", required=True)
     ap.add_argument("--final_vcf", required=True)
-    ap.add_argument("--truth_tsv_snv", required=True)
-    ap.add_argument("--truth_tsv_sv", required=True)
+    ap.add_argument("--annotation_tsv", required=True)
+    ap.add_argument("--matched_with_info_tsv", required=True)
     ap.add_argument("--truth_vep_header", required=True)
     args = ap.parse_args()
 
-    truth_info = load_truth_info([args.truth_tsv_snv, args.truth_tsv_sv])
+    truth_info = load_truth_info_from_matched(args.matched_with_info_tsv)
 
     with open(args.truth_vep_header, "r") as f:
         truth_header_line = f.readline()

@@ -91,6 +91,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: IntegrateVcfs
+    primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: MergeVEPAF
     primaryDescriptorPath: /wdl/annotation_utils/MergeVEPAF.wdl
     filters:

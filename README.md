@@ -132,12 +132,6 @@ Inputs:
 - `top_level_fa`.
 
 
-
-## Downstream Annotation Workflows
-### [AnnotateVcf](wdl/AnnotateVcf.wdl)
-TODO
-
-
 ### [BenchmarkAnnotations](wdl/BenchmarkAnnotations.wdl)
 This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
 
@@ -151,6 +145,21 @@ Inputs:
 - `vcf_sv_truth`: VCF containing SVs to evaluate against.
 - `ref_fa`.
 - `ref_fai`.
+
+
+
+## Downstream Annotation Workflows
+### [AnnotateVcf](wdl/AnnotateVcf.wdl)
+TODO
+
+
+### [IntegrateVcfs](wdl/IntegrateVcfs.wdl)
+TODO
+
+
+### [MergeVEPAF](wdl/MergeVEPAF.wdl)
+TODO
+
 
 
 ## Additional Workflows
@@ -191,6 +200,7 @@ Inputs:
 - `ref_fa`.
 - `ref_fai`.
 - `repeat_catalog_trgt`.
+
 
 
 ## Code Conventions
@@ -243,6 +253,7 @@ Inputs:
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.
 - Running `flake8` should yield no errors.
 - All code written should use 2-space tabs for indentation.
+
 
 ### Workspace Setup
 - All references should be passed in via workspace data.
