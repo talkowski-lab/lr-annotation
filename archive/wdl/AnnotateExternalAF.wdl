@@ -58,7 +58,7 @@ workflow AnnotateExternalAFs {
             vcfs=AnnotateExternalAFs.annotated_vcf,
             vcfs_idx=AnnotateExternalAFs.annotated_tbi,
             allow_overlaps=true,
-            outfile_prefix="~{prefix}.concat",
+            prefix="~{prefix}.concat",
             pipeline_docker=pipeline_docker,
             runtime_attr_override=runtime_attr_concat
     }
@@ -405,14 +405,14 @@ task ConcatVcfs {
         Boolean naive = false
         Boolean sites_only = false
         Boolean sort_vcf_list = false
-        String? outfile_prefix
+        String? prefix
         String pipeline_docker
         RuntimeAttr? runtime_attr_override
     }
 
     # when filtering/sorting/etc, memory usage will likely go up (much of the data will have to
     # be held in memory or disk while working, potentially in a form that takes up more space)
-    String outfile_name = outfile_prefix + ".vcf.gz"
+    String outfile_name = prefix + ".vcf.gz"
     String allow_overlaps_flag = if allow_overlaps then "--allow-overlaps" else ""
     String naive_flag = if naive then "--naive" else ""
     String sites_only_command = if sites_only then "| bcftools view --no-version -G -Oz" else ""

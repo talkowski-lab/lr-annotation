@@ -81,7 +81,7 @@ workflow AnnotateSTRs {
         input:
             vcfs = PostprocessVcf.restored_id_vcf,
             vcfs_idx = PostprocessVcf.restored_id_vcf_index,
-            outfile_prefix = prefix,
+            prefix = prefix,
             docker = pipeline_docker
     }
 

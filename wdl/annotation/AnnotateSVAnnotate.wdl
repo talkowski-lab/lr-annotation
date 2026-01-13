@@ -64,7 +64,7 @@ workflow AnnotateSVAnnotate {
             vcfs = SubsetVcf.unannotated_vcf,
             vcfs_idx = SubsetVcf.unannotated_vcf_idx,
             allow_overlaps = true,
-            outfile_prefix = "~{prefix}.unannotated.concat",
+            prefix = "~{prefix}.unannotated.concat",
             docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_concat_unannotated
     }
@@ -74,7 +74,7 @@ workflow AnnotateSVAnnotate {
             vcfs = AnnotateFunctionalConsequences.anno_vcf,
             vcfs_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
             allow_overlaps = true,
-            outfile_prefix = "~{prefix}.concat",
+            prefix = "~{prefix}.concat",
             docker = annotate_sv_annotate_docker,
             runtime_attr_override = runtime_attr_concat_annotated
     }
@@ -261,12 +261,12 @@ task ConcatVcfs {
         Boolean naive = false
         Boolean sites_only = false
         Boolean sort_vcf_list = false
-        String? outfile_prefix
+        String? prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
-    String outfile_name = outfile_prefix + ".vcf.gz"
+    String outfile_name = prefix + ".vcf.gz"
     String allow_overlaps_flag = if allow_overlaps then "--allow-overlaps" else ""
     String naive_flag = if naive then "--naive" else ""
     String sites_only_command = if sites_only then "| bcftools view --no-version -G -Oz" else ""

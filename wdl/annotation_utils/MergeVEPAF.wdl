@@ -60,7 +60,7 @@ workflow MergeVEPAF {
         input:
             vcfs = MergeVEPAnnotation.merged_vcf,
             vcfs_idx = MergeVEPAnnotation.merged_vcf_index,
-            outfile_prefix = cohort_prefix,
+            prefix = cohort_prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }

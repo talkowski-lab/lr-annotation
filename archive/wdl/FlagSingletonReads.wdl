@@ -71,7 +71,7 @@ workflow FlagSingletonReads {
             input:
                 vcfs = FilterSingletonReads.filtered_vcf,
                 vcfs_idx = FilterSingletonReads.filtered_vcf_idx,
-                outfile_prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_contig
         }
@@ -81,7 +81,7 @@ workflow FlagSingletonReads {
         input:
             vcfs = ConcatContigVcfs.concat_vcf,
             vcfs_idx = ConcatContigVcfs.concat_vcf_idx,
-            outfile_prefix = prefix,
+            prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
