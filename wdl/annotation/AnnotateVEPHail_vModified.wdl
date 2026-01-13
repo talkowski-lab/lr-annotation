@@ -60,7 +60,7 @@ workflow AnnotateVEPHail_vModified {
     call Helpers.ConcatTsvs {
         input:
             tsvs=VepAnnotate.vep_tsv_file,
-            outfile_prefix=cohort_prefix + ".vep_annotations",
+            prefix=cohort_prefix + ".vep_annotations",
             docker=sv_base_mini_docker,
             runtime_attr_override=runtime_attr_combine_vcfs
     }

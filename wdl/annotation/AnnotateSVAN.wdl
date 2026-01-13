@@ -133,7 +133,7 @@ workflow AnnotateSVAN {
     call Helpers.ConcatTsvs as ConcatIns {
         input:
             tsvs = AnnotateInsertions.annotations_tsv,
-            outfile_prefix = prefix + ".insertions",
+            prefix = prefix + ".insertions",
             docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_concat
     }
@@ -141,7 +141,7 @@ workflow AnnotateSVAN {
     call Helpers.ConcatTsvs as ConcatDel {
         input:
             tsvs = AnnotateDeletions.annotations_tsv,
-            outfile_prefix = prefix + ".deletions",
+            prefix = prefix + ".deletions",
             docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_concat
     }
@@ -149,7 +149,7 @@ workflow AnnotateSVAN {
     call Helpers.ConcatTsvs as MergeFinal {
         input:
             tsvs = [ConcatIns.concatenated_tsv, ConcatDel.concatenated_tsv],
-            outfile_prefix = prefix + ".svan_annotations",
+            prefix = prefix + ".svan_annotations",
             docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_concat
     }

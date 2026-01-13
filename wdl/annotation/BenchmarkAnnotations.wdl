@@ -231,7 +231,7 @@ workflow BenchmarkAnnotations {
         call Helpers.ConcatTsvs as BuildAnnotationTsv {
             input:
                 tsvs = [ExactMatch.annotation_tsv, TruvariMatch.annotation_tsv, BedtoolsClosestSV.annotation_tsv],
-                outfile_name = "~{prefix}.~{contig}.annotations.tsv",
+                prefix = "~{prefix}.~{contig}.annotations",
                 docker = benchmark_annotations_docker
         }
 
@@ -302,7 +302,7 @@ workflow BenchmarkAnnotations {
     call Helpers.ConcatTsvs as MergeAnnotationTsvs {
         input:
             tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
-            outfile_name = "~{prefix}.annotations.tsv.gz",
+            prefix = "~{prefix}.annotations",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
@@ -310,7 +310,7 @@ workflow BenchmarkAnnotations {
     call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
         input:
             tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
-            outfile_name = "~{prefix}.benchmark_summary.tsv",
+            prefix = "~{prefix}.benchmark_summary",
             preserve_header = true,
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
@@ -319,7 +319,7 @@ workflow BenchmarkAnnotations {
     call Helpers.ConcatTsvs as MergeSummaryStats {
         input:
             tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
-            outfile_name = "~{prefix}.summary_stats.tsv",
+            prefix = "~{prefix}.summary_stats",
             preserve_header = true,
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries

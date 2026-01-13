@@ -77,7 +77,7 @@ workflow AnnotateL1MEAID {
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
             tsvs = GenerateL1MEAIDAnnotationTable.annotations_tsv,
-            outfile_prefix = prefix + ".l1meaid_annotations",
+            prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

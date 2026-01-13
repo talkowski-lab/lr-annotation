@@ -69,7 +69,7 @@ workflow AnnotateMEDs {
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
             tsvs = GenerateMedAnnotationTable.annotations_tsv,
-            outfile_prefix = prefix + ".med_annotations",
+            prefix = prefix + ".med_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

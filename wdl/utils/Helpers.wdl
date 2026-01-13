@@ -896,12 +896,12 @@ task ConcatVcfs {
     Array[File] vcfs
     Array[File]? vcfs_idx
     Boolean merge_sort = false
-    String outfile_prefix = "concat"
+    String prefix = "concat"
     String docker
     RuntimeAttr? runtime_attr_override
   }
 
-  String outfile_name = outfile_prefix + ".vcf.gz"
+  String outfile_name = prefix + ".vcf.gz"
   String merge_flag = if merge_sort then "--allow-overlaps" else ""
 
   # when filtering/sorting/etc, memory usage will likely go up (much of the data will have to
@@ -1039,7 +1039,7 @@ task SubsetVcfToContig {
 task ConcatTsvs {
     input {
         Array[File] tsvs
-        String outfile_name
+        String prefix
         String docker
         Boolean preserve_header = false
         Boolean skip_sort = false
@@ -1050,20 +1050,17 @@ task ConcatTsvs {
         set -euo pipefail
 
         if [ "~{preserve_header}" == "true" ]; then
-            # Preserve header from first file, skip headers from rest
-            head -n 1 ~{tsvs[0]} > ~{outfile_name}
-            tail -n +2 -q ~{sep=' ' tsvs} >> ~{outfile_name}
+            head -n 1 ~{tsvs[0]} > ~{prefix}.tsv
+            tail -n +2 -q ~{sep=' ' tsvs} >> ~{prefix}.tsv
         elif [ "~{skip_sort}" == "true" ]; then
-            # Simple concatenation without sorting
-            cat ~{sep=' ' tsvs} > ~{outfile_name}
+            cat ~{sep=' ' tsvs} > ~{prefix}.tsv
         else
-            # Default: concatenate and sort
-            cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{outfile_name}
+            cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv
         fi
     >>>
 
     output {
-        File concatenated_tsv = "~{outfile_name}"
+        File concatenated_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
