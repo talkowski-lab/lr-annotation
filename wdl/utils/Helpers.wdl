@@ -513,20 +513,6 @@ task RenameVariantIds {
 }
 
 task FinalizeToFile {
-    meta {
-        description: "Copies the given file to the specified bucket."
-    }
-
-    parameter_meta {
-        file: {
-            description: "file to finalize",
-            localization_optional: true
-        }
-        keyfile : "[optional] File used to key this finaliation.  Finalization will not take place until the KeyFile exists.  This can be used to force the finaliation to wait until a certain point in a workflow.  NOTE: The latest WDL development spec includes the `after` keyword which will obviate this."
-        outdir: "directory to which files should be uploaded"
-        name:   "name to set for uploaded file"
-    }
-
     input {
         File file
         String outdir
