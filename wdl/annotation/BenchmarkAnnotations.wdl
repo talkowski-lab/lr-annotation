@@ -2,9 +2,8 @@ version 1.0
 
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl" as Helpers
-import "../benchmarking/BedtoolsClosestSV.wdl" as BedtoolsClosest
-import "../benchmarking/TruvariMatch.wdl" as TruvariMatch
-import "../benchmarking/ShardedBenchmarks.wdl" as ShardedBenchmarks
+import "../benchmarking/BedtoolsClosestSV.wdl"
+import "../benchmarking/TruvariMatch.wdl"
 
 workflow BenchmarkAnnotations {
     input {
@@ -17,6 +16,7 @@ workflow BenchmarkAnnotations {
 
         String prefix
         Int variants_per_shard
+        Int truvari_match_min_length = 10
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
 
         File ref_fa
@@ -63,22 +63,51 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_bedtools_merge_comparisons
 
         RuntimeAttr? runtime_attr_bedtools_annotate_unmatched
-        RuntimeAttr? runtime_attr_build_final_vcf
         RuntimeAttr? runtime_attr_collect_matched_ids
+        RuntimeAttr? runtime_attr_extract_eval_vep_header
         RuntimeAttr? runtime_attr_extract_truth_vep_header
-        RuntimeAttr? runtime_attr_extract_truth_info
         RuntimeAttr? runtime_attr_shard_matched_eval
         RuntimeAttr? runtime_attr_compute_shard_benchmarks
         RuntimeAttr? runtime_attr_merge_shard_benchmarks
         RuntimeAttr? runtime_attr_compute_summary_for_contig
+        RuntimeAttr? runtime_attr_merge_benchmark_summaries
+        RuntimeAttr? runtime_attr_merge_plot_tarballs
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetEval {
+        call Helpers.StripGenotypes as StripEvalGenotypes {
             input:
                 vcf = vcf,
                 vcf_index = vcf_idx,
+                prefix = "~{prefix}.~{contig}.eval.stripped",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_subset_eval
+        }
+
+        call Helpers.StripGenotypes as StripTruthGenotypes {
+            input:
+                vcf = vcf_truth,
+                vcf_index = vcf_truth_idx,
+                prefix = "~{prefix}.~{contig}.truth.stripped",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_subset_truth
+        }
+
+        call Helpers.StripGenotypes as StripSVTruthGenotypes {
+            input:
+                vcf = vcf_sv_truth,
+                vcf_index = vcf_sv_truth_idx,
+                prefix = "~{prefix}.~{contig}.sv_truth.stripped",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_subset_sv_truth
+        }
+
+        call Helpers.SubsetVcfToContig as SubsetEval {
+            input:
+                vcf = StripEvalGenotypes.stripped_vcf,
+                vcf_index = StripEvalGenotypes.stripped_vcf_index,
                 contig = contig,
+                strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_eval
@@ -86,10 +115,11 @@ workflow BenchmarkAnnotations {
 
         call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
-                vcf = vcf_truth,
-                vcf_index = vcf_truth_idx,
+                vcf = StripTruthGenotypes.stripped_vcf,
+                vcf_index = StripTruthGenotypes.stripped_vcf_index,
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\"'",
+                strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_truth
@@ -97,10 +127,11 @@ workflow BenchmarkAnnotations {
 
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
             input:
-                vcf = vcf_sv_truth,
-                vcf_index = vcf_sv_truth_idx,
+                vcf = StripSVTruthGenotypes.stripped_vcf,
+                vcf_index = StripSVTruthGenotypes.stripped_vcf_index,
                 contig = contig,
                 args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
+                strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
@@ -124,13 +155,22 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_rename_sv_truth
         }
 
-        call ExtractTruthVepHeader {
+        call ExtractVepHeader as ExtractTruthVepHeader {
             input:
-                vcf_truth_snv = RenameTruthIds.renamed_vcf,
-                vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
-                prefix = "~{prefix}.~{contig}",
+                vcf = RenameTruthIds.renamed_vcf,
+                vcf_index = RenameTruthIds.renamed_vcf_index,
+                prefix = "~{prefix}.~{contig}.truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_extract_truth_vep_header
+        }
+
+        call ExtractVepHeader as ExtractEvalVepHeader {
+            input:
+                vcf = SubsetEval.subset_vcf,
+                vcf_index = SubsetEval.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.eval",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_extract_eval_vep_header
         }
 
         call ExactMatch {
@@ -142,7 +182,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_exact_match
         }
 
-        call TruvariMatch.TruvariMatch as TruvariMatch {
+        call TruvariMatch {
             input:
                 vcf_eval = ExactMatch.unmatched_vcf,
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
@@ -151,6 +191,7 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
+                min_sv_length = truvari_match_min_length,
                 utils_docker = utils_docker,
                 runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
                 runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
@@ -163,7 +204,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
-        call BedtoolsClosest.BedtoolsClosestSV as BedtoolsClosest {
+        call BedtoolsClosestSV {
             input:
                 vcf_eval = TruvariMatch.unmatched_vcf,
                 vcf_eval_index = TruvariMatch.unmatched_vcf_index,
@@ -187,70 +228,69 @@ workflow BenchmarkAnnotations {
                 runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
         }
 
-        call AnnotateBedtoolsMatches {
+        call Helpers.ConcatTsvs as BuildAnnotationTsv {
             input:
-                truvari_unmatched_vcf = TruvariMatch.unmatched_vcf,
-                truvari_unmatched_vcf_index = TruvariMatch.unmatched_vcf_index,
-                closest_bed = BedtoolsClosest.closest_bed,
-                prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_bedtools_annotate_unmatched
+                tsvs = [ExactMatch.annotation_tsv, TruvariMatch.annotation_tsv, BedtoolsClosestSV.annotation_tsv],
+                outfile_name = "~{prefix}.~{contig}.annotations.tsv",
+                docker = benchmark_annotations_docker
         }
 
-        call Helpers.ConcatVcfs as BuildFinalContigVcf {
+        call CollectMatchedIDsAndINFO {
             input:
-                vcfs = [ExactMatch.matched_vcf, TruvariMatch.matched_vcf, TruvariMatch.dropped_vcf, AnnotateBedtoolsMatches.bedtools_matched_vcf, AnnotateBedtoolsMatches.final_unmatched_vcf],
-                vcfs_idx = [ExactMatch.matched_vcf_index, TruvariMatch.matched_vcf_index, TruvariMatch.dropped_vcf_index, AnnotateBedtoolsMatches.bedtools_matched_vcf_index, AnnotateBedtoolsMatches.final_unmatched_vcf_index],
-                outfile_prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_build_final_vcf
-        }
-
-        call CollectMatchedIDs {
-            input:
-                final_vcf = BuildFinalContigVcf.concat_vcf,
-                final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_collect_matched_ids
-        }
-
-        call ExtractTruthInfoForMatched {
-            input:
-                matched_ids_tsv = CollectMatchedIDs.matched_ids_tsv,
+                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                vcf_eval = SubsetEval.subset_vcf,
+                vcf_eval_index = SubsetEval.subset_vcf_index,
                 vcf_truth_snv = RenameTruthIds.renamed_vcf,
                 vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
                 vcf_truth_sv = RenameSVTruthIds.renamed_vcf,
                 vcf_truth_sv_index = RenameSVTruthIds.renamed_vcf_index,
                 prefix = "~{prefix}.~{contig}",
                 docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_extract_truth_info
+                runtime_attr_override = runtime_attr_collect_matched_ids
         }
 
-        call ShardedBenchmarks.ShardAndComputeBenchmarks as ShardedBenchmarks {
+        call ShardedMatchedVariants {
             input:
-                final_vcf = BuildFinalContigVcf.concat_vcf,
-                final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
-                matched_ids_tsv = CollectMatchedIDs.matched_ids_tsv,
-                truth_tsv_snv = ExtractTruthInfoForMatched.truth_info_snv_tsv,
-                truth_tsv_sv = ExtractTruthInfoForMatched.truth_info_sv_tsv,
+                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
+                variants_per_shard = variants_per_shard,
+                prefix = "~{prefix}.~{contig}",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_shard_matched_eval
+        }
+
+        scatter (shard_idx in range(length(ShardedMatchedVariants.shard_tsvs))) {
+            call ComputeShardBenchmarks {
+                input:
+                    matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[shard_idx],
+                    eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
+                    truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
+                    contig = contig,
+                    shard_label = "~{shard_idx}",
+                    prefix = "~{prefix}.~{contig}",
+                    skip_vep_categories = skip_vep_categories,
+                    docker = benchmark_annotations_docker,
+                    runtime_attr_override = runtime_attr_compute_shard_benchmarks
+            }
+        }
+
+        call MergeShardBenchmarks {
+            input:
+                af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
+                vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
-                sharded_benchmarks_docker = benchmark_annotations_docker,
-                variants_per_shard = variants_per_shard,
                 skip_vep_categories = skip_vep_categories,
-                runtime_attr_shard_matched_eval = runtime_attr_shard_matched_eval,
-                runtime_attr_compute_shard_benchmarks = runtime_attr_compute_shard_benchmarks,
-                runtime_attr_merge_shard_benchmarks = runtime_attr_merge_shard_benchmarks
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_merge_shard_benchmarks
         }
 
         call ComputeSummaryForContig {
             input:
-                final_vcf = BuildFinalContigVcf.concat_vcf,
-                final_vcf_index = BuildFinalContigVcf.concat_vcf_idx,
-                truth_tsv_snv = ExtractTruthInfoForMatched.truth_info_snv_tsv,
-                truth_tsv_sv = ExtractTruthInfoForMatched.truth_info_sv_tsv,
+                final_vcf = SubsetEval.subset_vcf,
+                final_vcf_index = SubsetEval.subset_vcf_index,
+                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
@@ -259,45 +299,45 @@ workflow BenchmarkAnnotations {
         }
     }
 
-    call Helpers.ConcatVcfs as MergeFinalVcfs {
+    call Helpers.ConcatTsvs as MergeAnnotationTsvs {
         input:
-            vcfs = select_all(BuildFinalContigVcf.concat_vcf),
-            vcfs_idx = select_all(BuildFinalContigVcf.concat_vcf_idx),
-            outfile_prefix = prefix,
+            tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
+            outfile_name = "~{prefix}.annotations.tsv.gz",
             docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_merge_vcfs
-    }
-
-    call Helpers.MergeResults as MergeBenchmarkSummaries {
-        input:
-            tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
-            merged_filename = "~{prefix}.benchmark_summary.tsv",
-            hail_docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
-    call Helpers.MergeResults as MergeSummaryStats {
+    call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
+        input:
+            tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
+            outfile_name = "~{prefix}.benchmark_summary.tsv",
+            plot_tarballs = MergeShardBenchmarks.plot_tarball,
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_merge_benchmark_summaries
+    }
+
+    call Helpers.ConcatTsvs as MergeSummaryStats {
         input:
             tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
-            merged_filename = "~{prefix}.summary_stats.tsv",
-            hail_docker = benchmark_annotations_docker,
+            outfile_name = "~{prefix}.summary_stats.tsv",
+            preserve_header = true,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
     call MergePlotTarballs {
         input:
-            tarballs = select_all(ShardedBenchmarks.plot_tarball),
+            plot_tarballs = select_all(MergeShardBenchmarks.plot_tarball),
             prefix = prefix,
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
     }
 
     output {
-        File annotated_vcf = MergeFinalVcfs.concat_vcf
-        File annotated_vcf_index = MergeFinalVcfs.concat_vcf_idx
+        File annotation_tsv = MergeAnnotationTsvs.concatenated_tsv
         File plots_tarball = MergePlotTarballs.merged_tarball
-        File benchmark_summaries_tsv = MergeBenchmarkSummaries.merged_tsv
-        File summary_stats_tsv = MergeSummaryStats.merged_tsv
+        File benchmark_summaries_tsv = MergeBenchmarkSummaries.concatenated_tsv
+        File summary_stats_tsv = MergeSummaryStats.concatenated_tsv
     }
 }
 
@@ -317,11 +357,13 @@ task ExactMatch {
             ~{vcf_eval} \
             ~{vcf_truth} \
             ~{prefix}
+        
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/gnomAD_V4_match\t%INFO/gnomAD_V4_match_ID\n' \
+            ~{prefix}.exact_matched.vcf.gz > ~{prefix}.exact_matched.tsv
     >>>
 
     output {
-        File matched_vcf = "~{prefix}.exact_matched.vcf.gz"
-        File matched_vcf_index = "~{prefix}.exact_matched.vcf.gz.tbi"
+        File annotation_tsv = "~{prefix}.exact_matched.tsv"
         File unmatched_vcf = "~{prefix}.unmatched.vcf.gz"
         File unmatched_vcf_index = "~{prefix}.unmatched.vcf.gz.tbi"
     }
@@ -329,7 +371,7 @@ task ExactMatch {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
+        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) * 1.5 + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -346,155 +388,11 @@ task ExactMatch {
     }
 }
 
-task AnnotateBedtoolsMatches {
+task CollectMatchedIDsAndINFO {
     input {
-        File truvari_unmatched_vcf
-        File truvari_unmatched_vcf_index
-        File closest_bed
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        echo '##INFO=<ID=gnomAD_V4_match,Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
-        echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
-
-        bcftools query -f '%ID\t%CHROM\t%POS\t%REF\t%ALT\n' ~{truvari_unmatched_vcf} | sort -k1,1 > eval.coords.tsv
-        awk '($1 != "query_svid"){print $1"\t"$2}' ~{closest_bed} | sort -k1,1 > closest.map.tsv
-        join -t $'\t' -1 1 -2 1 closest.map.tsv eval.coords.tsv | awk -F'\t' '($2 != "."){print $3"\t"$4"\t"$5"\t"$6"\tBEDTOOLS_CLOSEST\t"$2}' | bgzip -c > annots.tab.gz
-        tabix -s 1 -b 2 -e 2 annots.tab.gz
-
-        bcftools annotate -a annots.tab.gz -h header.hdr -c CHROM,POS,REF,ALT,gnomAD_V4_match,gnomAD_V4_match_ID -Oz -o ~{prefix}.unmatched.annotated.vcf.gz ~{truvari_unmatched_vcf}
-        tabix -p vcf -f ~{prefix}.unmatched.annotated.vcf.gz
-
-        bcftools view -i 'INFO/gnomAD_V4_match!="."' ~{prefix}.unmatched.annotated.vcf.gz -Oz -o ~{prefix}.bedtools_matched.vcf.gz
-        tabix -p vcf -f ~{prefix}.bedtools_matched.vcf.gz
-
-        bcftools view -e 'INFO/gnomAD_V4_match!="."' ~{prefix}.unmatched.annotated.vcf.gz -Oz -o ~{prefix}.final_unmatched.vcf.gz
-        tabix -p vcf -f ~{prefix}.final_unmatched.vcf.gz
-    >>>
-
-    output {
-        File bedtools_matched_vcf = "~{prefix}.bedtools_matched.vcf.gz"
-        File bedtools_matched_vcf_index = "~{prefix}.bedtools_matched.vcf.gz.tbi"
-        File final_unmatched_vcf = "~{prefix}.final_unmatched.vcf.gz"
-        File final_unmatched_vcf_index = "~{prefix}.final_unmatched.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: 3 * ceil(size(truvari_unmatched_vcf, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CollectMatchedIDs {
-    input {
-        File final_vcf
-        File final_vcf_index
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools query \
-            -i 'INFO/gnomAD_V4_match!="."' \
-            -f '%ID\t%INFO/gnomAD_V4_match_ID\n' \
-            ~{final_vcf} \
-        | bgzip -c > ~{prefix}.matched_ids.tsv.gz
-        
-        tabix -s 1 -b 1 -e 1 ~{prefix}.matched_ids.tsv.gz
-    >>>
-
-    output {
-        File matched_ids_tsv = "~{prefix}.matched_ids.tsv.gz"
-        File matched_ids_tsv_tbi = "~{prefix}.matched_ids.tsv.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ExtractTruthVepHeader {
-    input {
-        File vcf_truth_snv
-        File vcf_truth_snv_index
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        bcftools view \
-            -h \
-            ~{vcf_truth_snv} \
-        | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}.truth_vep_header.txt
-    >>>
-
-    output {
-        File vep_header_txt = "~{prefix}.truth_vep_header.txt"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf_truth_snv, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ExtractTruthInfoForMatched {
-    input {
-        File matched_ids_tsv
+        File annotation_tsv
+        File vcf_eval
+        File vcf_eval_index
         File vcf_truth_snv
         File vcf_truth_snv_index
         File vcf_truth_sv
@@ -506,24 +404,236 @@ task ExtractTruthInfoForMatched {
 
     command <<<
         set -euo pipefail
-        zcat ~{matched_ids_tsv} | cut -f2 | sort -u > match_ids.list
-        bcftools view -i 'ID=@match_ids.list' ~{vcf_truth_snv} | bcftools query -f '%ID\t%INFO\n' | bgzip -c > ~{prefix}.truth_info_snv.tsv.gz
-        tabix -s 1 -b 1 -e 1 ~{prefix}.truth_info_snv.tsv.gz
-        bcftools view -i 'ID=@match_ids.list' ~{vcf_truth_sv} | bcftools query -f '%ID\t%INFO\n' | bgzip -c > ~{prefix}.truth_info_sv.tsv.gz
-        tabix -s 1 -b 1 -e 1 ~{prefix}.truth_info_sv.tsv.gz
+
+        awk -F'\t' '{print $5}' ~{annotation_tsv} | sort -u > eval_ids.list
+        awk -F'\t' '{print $7}' ~{annotation_tsv} | sort -u > truth_ids.list
+
+        bcftools view -i 'ID=@eval_ids.list' ~{vcf_eval} \
+            | bcftools query -f '%ID\t%INFO\n' \
+            | sort -k1,1 > eval_info.tsv
+
+        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_snv} \
+            | bcftools query -f '%ID\t%INFO\n' > truth_snv_info.tsv
+        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_sv} \
+            | bcftools query -f '%ID\t%INFO\n' > truth_sv_info.tsv
+        cat truth_snv_info.tsv truth_sv_info.tsv | sort -k1,1 > truth_info.tsv
+        
+        awk -F'\t' 'BEGIN{OFS="\t"} {print $5"\t"$7}' ~{annotation_tsv} \
+            | sort -k1,1 \
+            | join -t $'\t' -1 1 -2 1 - eval_info.tsv \
+            | sort -k2,2 \
+            | join -t $'\t' -1 2 -2 1 - truth_info.tsv \
+            | awk 'BEGIN{OFS="\t"} {print $2,$1,$3,$4}' \
+            | bgzip -c > ~{prefix}.matched_with_info.tsv.gz
+        
+        tabix -s 1 -b 1 -e 1 ~{prefix}.matched_with_info.tsv.gz
     >>>
 
     output {
-        File truth_info_snv_tsv = "~{prefix}.truth_info_snv.tsv.gz"
-        File truth_info_snv_tsv_tbi = "~{prefix}.truth_info_snv.tsv.gz.tbi"
-        File truth_info_sv_tsv = "~{prefix}.truth_info_sv.tsv.gz"
-        File truth_info_sv_tsv_tbi = "~{prefix}.truth_info_sv.tsv.gz.tbi"
+        File matched_with_info_tsv = "~{prefix}.matched_with_info.tsv.gz"
+        File matched_with_info_tsv_tbi = "~{prefix}.matched_with_info.tsv.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 2 * ceil(size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        disk_gb: ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ExtractVepHeader {
+    input {
+        File vcf
+        File vcf_index
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        
+        bcftools view \
+            -h \
+            ~{vcf} \
+        | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}_vep_header.txt
+    >>>
+
+    output {
+        File vep_header_txt = "~{prefix}_vep_header.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ShardedMatchedVariants {
+    input {
+        File matched_with_info_tsv
+        Int variants_per_shard
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        
+        mkdir -p shards
+        
+        if [ ! -s ~{matched_with_info_tsv} ] || [ $(zcat ~{matched_with_info_tsv} | wc -l) -eq 0 ]; then
+            echo "No matched variants found, creating empty shard"
+            touch shards/matched.000000.tsv
+            bgzip -f shards/matched.000000.tsv
+        else
+            zcat ~{matched_with_info_tsv} | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
+            if ls shards/matched.*.tsv 1> /dev/null 2>&1; then
+                ls shards/matched.*.tsv | while read f; do bgzip -f "$f"; done
+            fi
+        fi
+    >>>
+
+    output {
+        Array[File] shard_tsvs = glob("shards/*.tsv.gz")
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: ceil(size(matched_with_info_tsv, "GB")) * 2 + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ComputeShardBenchmarks {
+    input {
+        File matched_shard_tsv
+        File eval_vep_header
+        File truth_vep_header
+        String contig
+        String shard_label
+        String prefix
+        String? skip_vep_categories
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        if [ ! -s ~{matched_shard_tsv} ] || [ $(zcat ~{matched_shard_tsv} | wc -l) -eq 0 ]; then
+            echo "Empty shard, creating empty output files"
+            echo -e "af_key\teval_af\ttruth_af" | gzip > ~{prefix}.shard_~{shard_label}.af_pairs.tsv.gz
+            echo -e "category\teval\ttruth\tcount" | gzip > ~{prefix}.shard_~{shard_label}.vep_pairs.tsv.gz
+        else
+            python3 /opt/gnomad-lr/scripts/benchmark/compute_benchmarks_shard.py \
+                --prefix ~{prefix} \
+                --contig ~{contig} \
+                --matched_shard_tsv ~{matched_shard_tsv} \
+                --eval_vep_header ~{eval_vep_header} \
+                --truth_vep_header ~{truth_vep_header} \
+                --shard_label ~{shard_label} \
+                ~{"--skip_vep_categories " + skip_vep_categories}
+        fi
+    >>>
+
+    output {
+        File af_pairs_tsv = "~{prefix}.shard_~{shard_label}.af_pairs.tsv.gz"
+        File vep_pairs_tsv = "~{prefix}.shard_~{shard_label}.vep_pairs.tsv.gz"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeShardBenchmarks {
+    input {
+        Array[File] af_pair_tsvs
+        Array[File] vep_pair_tsvs
+        File truth_vep_header
+        String contig
+        String prefix
+        String? skip_vep_categories
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        python3 /opt/gnomad-lr/scripts/benchmark/merge_benchmarks_from_pairs.py \
+            --prefix ~{prefix} \
+            --contig ~{contig} \
+            --af_pair_tsvs ~{sep=',' af_pair_tsvs} \
+            --vep_pair_tsvs ~{sep=',' vep_pair_tsvs} \
+            --truth_vep_header ~{truth_vep_header} \
+            ~{"--skip_vep_categories " + skip_vep_categories}
+    >>>
+
+    output {
+        File plot_tarball = "~{prefix}.benchmarks.tar.gz"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 8,
+        disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -544,8 +654,8 @@ task ComputeSummaryForContig {
     input {
         File final_vcf
         File final_vcf_index
-        File truth_tsv_snv
-        File truth_tsv_sv
+        File annotation_tsv
+        File matched_with_info_tsv
         File truth_vep_header
         String contig
         String prefix
@@ -555,12 +665,13 @@ task ComputeSummaryForContig {
 
     command <<<
         set -euo pipefail
+
         python3 /opt/gnomad-lr/scripts/benchmark/compute_summary_for_contig.py \
             --prefix ~{prefix} \
             --contig ~{contig} \
             --final_vcf ~{final_vcf} \
-            --truth_tsv_snv ~{truth_tsv_snv} \
-            --truth_tsv_sv ~{truth_tsv_sv} \
+            --annotation_tsv ~{annotation_tsv} \
+            --matched_with_info_tsv ~{matched_with_info_tsv} \
             --truth_vep_header ~{truth_vep_header}
     >>>
 
@@ -572,7 +683,7 @@ task ComputeSummaryForContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
+        disk_gb: ceil(size(final_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -617,7 +728,7 @@ task MergePlotTarballs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(tarballs, "GB")) + 10,
+        disk_gb: ceil(size(tarballs, "GB") * 1.5) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

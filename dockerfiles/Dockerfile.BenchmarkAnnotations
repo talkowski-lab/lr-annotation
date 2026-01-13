@@ -10,8 +10,7 @@ COPY ./scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R /opt/gnomad-lr/scri
 COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
 
-COPY ./scripts/benchmark/annotate_and_benchmark.py /opt/gnomad-lr/scripts/benchmark/
+COPY ./scripts/benchmark/exact_match.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/compute_benchmarks_shard.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/compute_summary_for_contig.py /opt/gnomad-lr/scripts/benchmark/
-COPY ./scripts/benchmark/exact_match.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/merge_benchmarks_from_pairs.py /opt/gnomad-lr/scripts/benchmark/

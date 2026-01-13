@@ -304,108 +304,6 @@ task SplitFamilies {
     }
 }
 
-task MergeResultsPython {
-     input {
-        Array[String] tsvs
-        String hail_docker
-        String merged_filename
-        Float input_size
-        RuntimeAttr? runtime_attr_override
-    }
-
-    Float base_disk_gb = 10.0
-    Float input_disk_scale = 5.0
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 1,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
-
-    command <<<
-        cat <<EOF > merge_tsvs.py
-        import pandas as pd
-        import numpy as np
-        import sys
-
-        tsvs = pd.read_csv(sys.argv[1], header=None)[0].tolist()
-        merged_filename = sys.argv[2]
-
-        dfs = []
-        tot = len(tsvs)
-        merged_df = pd.DataFrame()
-        for i, tsv in enumerate(tsvs):
-            if (i+1)%100==0:
-                print(f"Loading tsv {i+1}/{tot}...")
-            df = pd.read_csv(tsv, sep='\t')
-            merged_df = pd.concat([merged_df, df])
-        merged_df.to_csv(merged_filename, sep='\t', index=False)
-        EOF
-
-        python3 merge_tsvs.py ~{write_lines(tsvs)} ~{merged_filename} > stdout
-    >>>
-
-    output {
-        File merged_tsv = merged_filename 
-    }   
-}
-
-task MergeResults {
-    input {
-        Array[File] tsvs
-        String hail_docker
-        String merged_filename
-        RuntimeAttr? runtime_attr_override
-    }
-
-    Float input_size = size(tsvs, "GB")
-    Float base_disk_gb = 10.0
-    Float input_disk_scale = 5.0
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 1,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
-
-    command <<<
-        head -n 1 ~{tsvs[0]} > ~{merged_filename}; 
-        tail -n +2 -q ~{sep=' ' tsvs} >> ~{merged_filename}
-    >>>
-
-    output {
-        File merged_tsv = merged_filename
-    }
-}
-
 task GetHailMTSize {
     input {
         String mt_uri
@@ -1009,12 +907,12 @@ task ConcatVcfs {
   # when filtering/sorting/etc, memory usage will likely go up (much of the data will have to
   # be held in memory or disk while working, potentially in a form that takes up more space)
   Float input_size = size(vcfs, "GB")
-  Float compression_factor = 5.0
+  Float compression_factor = 3.0
   Float base_disk_gb = 5.0
   Float base_mem_gb = 2.0
   RuntimeAttr default_attr = object {
     mem_gb: base_mem_gb + compression_factor * input_size,
-    disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
+    disk_gb: ceil(base_disk_gb + input_size * (1.5 + compression_factor)),
     cpu_cores: 1,
     preemptible_tries: 1,
     max_retries: 0,
@@ -1048,12 +946,10 @@ task ConcatVcfs {
   }
 }
 
-task SubsetVcfToContig {
+task StripGenotypes {
     input {
         File vcf
         File vcf_index
-        String contig
-        String? args_string
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1062,23 +958,19 @@ task SubsetVcfToContig {
     command <<<
         set -euo pipefail
 
-        bcftools view \
-            ~{vcf} \
-            --regions ~{contig} \
-            ~{if defined(args_string) then args_string else ""} \
-            -Oz -o ~{prefix}.~{contig}.vcf.gz
-        tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
+        bcftools view -G ~{vcf} -Oz -o ~{prefix}.vcf.gz
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File subset_vcf = "~{prefix}.~{contig}.vcf.gz"
-        File subset_vcf_index = "~{prefix}.~{contig}.vcf.gz.tbi"
+        File stripped_vcf = "~{prefix}.vcf.gz"
+        File stripped_vcf_index = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) + 10,
+        mem_gb: 2,
+        disk_gb: ceil(size(vcf, "GB") * 1.5) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -1095,10 +987,14 @@ task SubsetVcfToContig {
     }
 }
 
-task ConcatFiles {
+task SubsetVcfToContig {
     input {
-        Array[File] files
-        String outfile_name
+        File vcf
+        File vcf_index
+        String contig
+        String? args_string
+        Boolean strip_genotypes = true
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -1106,17 +1002,24 @@ task ConcatFiles {
     command <<<
         set -euo pipefail
 
-        cat ~{sep=' ' files} > ~{outfile_name}
+        bcftools view \
+            ~{vcf} \
+            --regions ~{contig} \
+            ~{if defined(args_string) then args_string else ""} \
+            ~{if strip_genotypes then "-G" else ""} \
+            -Oz -o ~{prefix}.~{contig}.vcf.gz
+        tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
     >>>
 
     output {
-        File concatenated_file = "~{outfile_name}"
+        File subset_vcf = "~{prefix}.~{contig}.vcf.gz"
+        File subset_vcf_index = "~{prefix}.~{contig}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: ceil(size(files, "GB") * 1.2) + 10,
+        mem_gb: 4,
+        disk_gb: ceil(size(vcf, "GB") * 0.5) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -1136,17 +1039,27 @@ task ConcatFiles {
 task ConcatTsvs {
     input {
         Array[File] tsvs
-        String outfile_prefix
+        String outfile_name
         String docker
+        Boolean preserve_header = false
+        Boolean skip_sort = false
         RuntimeAttr? runtime_attr_override
     }
-
-    String outfile_name = outfile_prefix + ".tsv"
 
     command <<<
         set -euo pipefail
 
-        cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{outfile_name}
+        if [ "~{preserve_header}" == "true" ]; then
+            # Preserve header from first file, skip headers from rest
+            head -n 1 ~{tsvs[0]} > ~{outfile_name}
+            tail -n +2 -q ~{sep=' ' tsvs} >> ~{outfile_name}
+        elif [ "~{skip_sort}" == "true" ]; then
+            # Simple concatenation without sorting
+            cat ~{sep=' ' tsvs} > ~{outfile_name}
+        else
+            # Default: concatenate and sort
+            cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{outfile_name}
+        fi
     >>>
 
     output {
@@ -1317,7 +1230,7 @@ task ConvertToSymbolic {
         set -euo pipefail
         python /opt/gnomad-lr/scripts/helpers/symbalts.py ~{vcf} | \
             python /opt/gnomad-lr/scripts/helpers/abs_svlen.py /dev/stdin | \
-            bcftools view -Oz > ~{prefix}.vcf.gz
+            bcftools view -G -Oz > ~{prefix}.vcf.gz
 
         tabix -f ~{prefix}.vcf.gz
     >>>
@@ -1330,7 +1243,7 @@ task ConvertToSymbolic {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(10 + size(vcf, "GB") * 2),
+        disk_gb: ceil(5 + size(vcf, "GB") * 1.5),
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -1370,7 +1283,7 @@ task RenameVariantIds {
     RuntimeAttr default_attr = object {
         cpu_cores: 1, 
         mem_gb: 4, 
-        disk_gb: ceil(size(vcf, "GB")) * 2 + 5,
+        disk_gb: ceil(size(vcf, "GB") * 1.5) + 5,
         boot_disk_gb: 10, 
         preemptible_tries: 1, 
         max_retries: 0

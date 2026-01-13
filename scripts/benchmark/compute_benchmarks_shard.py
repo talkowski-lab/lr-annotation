@@ -2,9 +2,8 @@
 
 import argparse
 import gzip
-from typing import Dict, Tuple, List, Set
+from typing import Dict, Tuple, List
 
-import pysam
 import pandas as pd
 from collections import defaultdict, Counter
 
@@ -59,19 +58,6 @@ def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
     return id_key, fmt_fields
 
 
-def get_eval_vep_header_from_vcf(vcf_path: str) -> Tuple[str, List[str]]:
-    with pysam.VariantFile(vcf_path) as vcf:
-        for rec in vcf.header.records:
-            if rec.key == "INFO" and rec.get("ID"):
-                vep_id = rec.get("ID")
-                if vep_id and vep_id.lower() in ["vep", "csq"]:
-                    desc = rec.get("Description", "")
-                    fmt = desc.split("Format:")[-1].strip().strip('"').lower()
-                    fmt_fields = [f.strip() for f in fmt.split("|")]
-                    return vep_id, fmt_fields
-    raise ValueError("Could not find eval VEP/CSQ header in VCF")
-
-
 def get_case_insensitive(info_dict: Dict[str, object], key: str):
     target = key.lower()
     for k, v in info_dict.items():
@@ -103,45 +89,27 @@ def extract_vep_annotations(
     return annos
 
 
-def load_truth_info(tsv_gz_paths: List[str]) -> Dict[str, Dict[str, str]]:
-    truth = {}
-    for p in tsv_gz_paths:
-        if p is None:
-            continue
-        with gzip.open(p, "rt") as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                parts = line.rstrip("\n").split("\t", 1)
-                if len(parts) != 2:
-                    continue
-                vid, info = parts
-                truth[vid] = parse_truth_info_string(info)
-    return truth
-
-
-def load_shard_matches(path: str) -> Tuple[Dict[str, str], Set[str]]:
-    mapping = {}
+def load_enriched_shard(path: str) -> List[Tuple[str, str, str, str]]:
+    """Load enriched shard TSV with eval_id, truth_id, eval_INFO, truth_INFO."""
+    rows = []
     with gzip.open(path, "rt") as f:
         for line in f:
             if not line.strip():
                 continue
             parts = line.rstrip("\n").split("\t")
-            if len(parts) < 2:
+            if len(parts) < 4:
                 continue
-            eval_id, truth_id = parts[0], parts[1]
-            mapping[eval_id] = truth_id
-    return mapping, set(mapping.keys())
+            eval_id, truth_id, eval_info, truth_info = parts[0], parts[1], parts[2], parts[3]
+            rows.append((eval_id, truth_id, eval_info, truth_info))
+    return rows
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prefix", required=True)
     ap.add_argument("--contig", required=True)
-    ap.add_argument("--final_vcf", required=True)
     ap.add_argument("--matched_shard_tsv", required=True)
-    ap.add_argument("--truth_tsv_snv", required=True)
-    ap.add_argument("--truth_tsv_sv", required=True)
+    ap.add_argument("--eval_vep_header", required=True)
     ap.add_argument("--truth_vep_header", required=True)
     ap.add_argument("--shard_label", required=True)
     ap.add_argument(
@@ -156,14 +124,15 @@ def main():
         f"{args.prefix}.{args.contig}.shard_{args.shard_label}.vep_pairs.tsv.gz"
     )
 
-    id_map, shard_eval_ids = load_shard_matches(args.matched_shard_tsv)
-    truth_info = load_truth_info([args.truth_tsv_snv, args.truth_tsv_sv])
+    enriched_rows = load_enriched_shard(args.matched_shard_tsv)
+
+    with open(args.eval_vep_header, "r") as f:
+        eval_header_line = f.readline()
+    eval_vep_key, eval_vep_fields = parse_vep_header_line(eval_header_line)
 
     with open(args.truth_vep_header, "r") as f:
         truth_header_line = f.readline()
     truth_vep_key, truth_vep_fields = parse_vep_header_line(truth_header_line)
-
-    eval_vep_key, eval_vep_fields = get_eval_vep_header_from_vcf(args.final_vcf)
 
     # Parse skip_vep_categories
     skip_categories = set()
@@ -187,59 +156,48 @@ def main():
     af_rows = []
     vep_counts: Dict[str, Counter] = defaultdict(Counter)
 
-    with pysam.VariantFile(args.final_vcf) as vcf_in:
-        for rec in vcf_in:
-            if rec.id not in shard_eval_ids:
-                continue
-            if (
-                "gnomAD_V4_match" not in rec.info
-                or "gnomAD_V4_match_ID" not in rec.info
-            ):
-                continue
-            truth_id = id_map.get(rec.id)
-            if not truth_id:
-                continue
-            truth_rec_info = truth_info.get(truth_id)
-            if not truth_rec_info:
-                continue
+    for eval_id, truth_id, eval_info_str, truth_info_str in enriched_rows:
+        eval_info = parse_truth_info_string(eval_info_str)
+        truth_info = parse_truth_info_string(truth_info_str)
 
-            eval_af_pairs = {
-                normalize_af_field(k): normalize_af_value(v)
-                for k, v in rec.info.items()
-                if is_af_field(k)
-            }
-            truth_af_pairs_raw = {
-                k: v for k, v in truth_rec_info.items() if is_af_field(k)
-            }
-            truth_af_pairs = {}
-            for k, v in truth_af_pairs_raw.items():
-                if "," in v:
-                    v = v.split(",")[0]
-                truth_af_pairs[normalize_af_field(k)] = float(v)
+        # Process AF fields
+        eval_af_pairs = {}
+        for k, v in eval_info.items():
+            if is_af_field(k):
+                try:
+                    val = v.split(",")[0] if "," in v else v
+                    eval_af_pairs[normalize_af_field(k)] = float(val)
+                except (ValueError, AttributeError):
+                    continue
 
-            for key_set, eval_val in eval_af_pairs.items():
-                if key_set in truth_af_pairs and eval_val is not None:
-                    e = float(eval_val)
-                    t = float(truth_af_pairs[key_set])
-                    if e > 0 and t > 0:
-                        af_rows.append(
-                            {
-                                "af_key": "_".join(sorted(list(key_set))),
-                                "eval_af": e,
-                                "truth_af": t,
-                            }
-                        )
+        truth_af_pairs = {}
+        for k, v in truth_info.items():
+            if is_af_field(k):
+                try:
+                    val = v.split(",")[0] if "," in v else v
+                    truth_af_pairs[normalize_af_field(k)] = float(val)
+                except (ValueError, AttributeError):
+                    continue
 
-            eval_ann = extract_vep_annotations(rec.info, eval_vep_key, eval_indices)
-            truth_ann = extract_vep_annotations(
-                truth_rec_info, truth_vep_key, truth_indices
-            )
-            for cat in common_categories:
-                eval_val = eval_ann.get(cat, "N/A")
-                truth_val = truth_ann.get(cat, "N/A")
-                # if eval_val == 'N/A' and truth_val == 'N/A':
-                #     continue
-                vep_counts[cat][(eval_val, truth_val)] += 1
+        for key_set, eval_val in eval_af_pairs.items():
+            if key_set in truth_af_pairs and eval_val is not None:
+                e = float(eval_val)
+                t = float(truth_af_pairs[key_set])
+                if e > 0 and t > 0:
+                    af_rows.append(
+                        {
+                            "af_key": "_".join(sorted(list(key_set))),
+                            "eval_af": e,
+                            "truth_af": t,
+                        }
+                    )
+
+        # Process VEP annotations
+        eval_ann = extract_vep_annotations(eval_info, eval_vep_key, eval_indices)
+        truth_ann = extract_vep_annotations(truth_info, truth_vep_key, truth_indices)
+        for cat in common_categories:
+            eval_val = eval_ann.get(cat, "N/A")
+            truth_val = truth_ann.get(cat, "N/A")
 
     if af_rows:
         df_af = pd.DataFrame(af_rows)

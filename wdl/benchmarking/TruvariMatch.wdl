@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl" as Helpers
 
 workflow TruvariMatch {
     input {
@@ -11,6 +12,7 @@ workflow TruvariMatch {
         File ref_fa
         File ref_fai
         String prefix
+        Int min_sv_length
         String utils_docker
         
         RuntimeAttr? runtime_attr_filter_eval_vcf
@@ -28,6 +30,7 @@ workflow TruvariMatch {
         input:
             vcf_eval = vcf_eval,
             vcf_eval_index = vcf_eval_index,
+            min_sv_length = min_sv_length,
             prefix = "~{prefix}.filtered_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_filter_eval_vcf
@@ -42,7 +45,6 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_filter_truth_vcf
     }
 
-    # Pass 1: pctseq = 0.9
     call RunTruvari as RunTruvari_09 {
         input:
             vcf_eval = FilterEvalVcf.retained_vcf,
@@ -54,25 +56,12 @@ workflow TruvariMatch {
             pctseq = 0.9,
             sizemin = 0,
             sizefilt = 0,
+            tag_value = "TRUVARI_0.9",
             prefix = "~{prefix}.0.9",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_09
     }
 
-    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_09 {
-        input:
-            comp_vcf = RunTruvari_09.matched_vcf,
-            comp_vcf_index = RunTruvari_09.matched_vcf_index,
-            base_vcf = RunTruvari_09.base_matched_vcf,
-            base_vcf_index = RunTruvari_09.base_matched_vcf_index,
-            tag_name = "gnomAD_V4_match",
-            tag_value = "TRUVARI_0.9",
-            prefix = "~{prefix}.0.9.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate_matched_09
-    }
-
-    # Pass 2: pctseq = 0.7
     call RunTruvari as RunTruvari_07 {
         input:
             vcf_eval = RunTruvari_09.unmatched_vcf,
@@ -84,25 +73,12 @@ workflow TruvariMatch {
             pctseq = 0.7,
             sizemin = 0,
             sizefilt = 0,
+            tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_07
     }
 
-    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_07 {
-        input:
-            comp_vcf = RunTruvari_07.matched_vcf,
-            comp_vcf_index = RunTruvari_07.matched_vcf_index,
-            base_vcf = RunTruvari_07.base_matched_vcf,
-            base_vcf_index = RunTruvari_07.base_matched_vcf_index,
-            tag_name = "gnomAD_V4_match",
-            tag_value = "TRUVARI_0.7",
-            prefix = "~{prefix}.0.7.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate_matched_07
-    }
-
-    # Pass 3: pctseq = 0.5
     call RunTruvari as RunTruvari_05 {
         input:
             vcf_eval = RunTruvari_07.unmatched_vcf,
@@ -114,36 +90,23 @@ workflow TruvariMatch {
             pctseq = 0.5,
             sizemin = 0,
             sizefilt = 0,
+            tag_value = "TRUVARI_0.5",
             prefix = "~{prefix}.0.5",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari_05
     }
 
-    call AnnotateTruvariMatchesWithTruthID as AnnotateMatched_05 {
+    call Helpers.ConcatTsvs as ConcatAnnotationTsvs {
         input:
-            comp_vcf = RunTruvari_05.matched_vcf,
-            comp_vcf_index = RunTruvari_05.matched_vcf_index,
-            base_vcf = RunTruvari_05.base_matched_vcf,
-            base_vcf_index = RunTruvari_05.base_matched_vcf_index,
-            tag_name = "gnomAD_V4_match",
-            tag_value = "TRUVARI_0.5",
-            prefix = "~{prefix}.0.5.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate_matched_05
-    }
-
-    call ConcatTruvariResults as ConcatMatched {
-        input:
-            vcfs = [AnnotateMatched_09.vcf_out, AnnotateMatched_07.vcf_out, AnnotateMatched_05.vcf_out],
-            vcfs_idx = [AnnotateMatched_09.vcf_out_index, AnnotateMatched_07.vcf_out_index, AnnotateMatched_05.vcf_out_index],
-            prefix = "~{prefix}.truvari_combined",
+            tsvs = [RunTruvari_09.annotation_tsv, RunTruvari_07.annotation_tsv, RunTruvari_05.annotation_tsv],
+            outfile_name = "~{prefix}.truvari_combined.tsv",
+            skip_sort = true,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_matched
     }
 
     output {
-        File matched_vcf = ConcatMatched.concat_vcf
-        File matched_vcf_index = ConcatMatched.concat_vcf_idx
+        File annotation_tsv = ConcatAnnotationTsvs.concatenated_tsv
         File unmatched_vcf = RunTruvari_05.unmatched_vcf
         File unmatched_vcf_index = RunTruvari_05.unmatched_vcf_index
         File dropped_vcf = FilterEvalVcf.dropped_vcf
@@ -155,6 +118,7 @@ task FilterEvalVcf {
     input {
         File vcf_eval
         File vcf_eval_index
+        Int min_sv_length
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -163,10 +127,10 @@ task FilterEvalVcf {
     command <<<
         set -euo pipefail
         
-        bcftools view -i "ABS(INFO/SVLEN)>=10" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
+        bcftools view -i "ABS(INFO/SVLEN)>=~{min_sv_length}" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
         tabix -p vcf -f ~{prefix}.retained.vcf.gz
 
-        bcftools view -e 'ABS(INFO/SVLEN)>=10' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
+        bcftools view -e 'ABS(INFO/SVLEN)>=~{min_sv_length}' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
         tabix -p vcf -f ~{prefix}.dropped.vcf.gz
     >>>
 
@@ -180,7 +144,7 @@ task FilterEvalVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 3 * ceil(size(vcf_eval, "GB")) + 5,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -222,7 +186,7 @@ task FilterTruthVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 3 * ceil(size(vcf_truth, "GB")) + 5,
+        disk_gb: 2 * ceil(size(vcf_truth, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -250,6 +214,7 @@ task RunTruvari {
         Float pctseq
         Int sizemin
         Int sizefilt
+        String tag_value
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -270,13 +235,22 @@ task RunTruvari {
             --pctseq ~{pctseq} \
             --sizemin ~{sizemin} \
             --sizefilt ~{sizefilt}
+        
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/MatchId\n' "~{prefix}_truvari/tp-comp.vcf.gz" \
+            | awk 'BEGIN{FS=OFS="\t"} {split($6,a,","); print $1,$2,$3,$4,$5,a[1]}' \
+            | LC_ALL=C sort -k6,6 > comp.mid.tsv
+
+        bcftools query -f '%ID\t%INFO/MatchId\n' "~{prefix}_truvari/tp-base.vcf.gz" \
+            | awk 'BEGIN{FS=OFS="\t"} {split($2,a,","); print a[1],$1}' \
+            | LC_ALL=C sort -k1,1 > base.mid2id.tsv
+
+        LC_ALL=C join -t $'\t' -1 6 -2 1 comp.mid.tsv base.mid2id.tsv \
+            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7}' \
+            > ~{prefix}.annotation.tsv
     >>>
 
     output {
-        File matched_vcf = "~{prefix}_truvari/tp-comp.vcf.gz"
-        File matched_vcf_index = "~{prefix}_truvari/tp-comp.vcf.gz.tbi"
-        File base_matched_vcf = "~{prefix}_truvari/tp-base.vcf.gz"
-        File base_matched_vcf_index = "~{prefix}_truvari/tp-base.vcf.gz.tbi"
+        File annotation_tsv = "~{prefix}.annotation.tsv"
         File unmatched_vcf = "~{prefix}_truvari/fp.vcf.gz"
         File unmatched_vcf_index = "~{prefix}_truvari/fp.vcf.gz.tbi"
     }
@@ -284,7 +258,7 @@ task RunTruvari {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: 3 * ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -301,113 +275,6 @@ task RunTruvari {
     }
 }
 
-task AnnotateTruvariMatchesWithTruthID {
-    input {
-        File comp_vcf
-        File comp_vcf_index
-        File base_vcf
-        File base_vcf_index
-        String tag_name
-        String tag_value
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
 
-    command <<<
-        set -euo pipefail
 
-        echo '##INFO=<ID=~{tag_name},Number=1,Type=String,Description="Matching status against gnomAD v4.">' > header.hdr
-        echo '##INFO=<ID=gnomAD_V4_match_ID,Number=1,Type=String,Description="Matching variant ID from gnomAD v4.">' >> header.hdr
-
-        # Build comp: CHROM POS REF ALT base_mid
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MatchId\n' ~{comp_vcf} \
-            | awk 'BEGIN{OFS="\t"} {split($5,a,/,/); print $1,$2,$3,$4,a[1]}' \
-            | LC_ALL=C sort -k5,5 > comp.mid.tsv
-
-        # Build base: base_mid truth_id
-        bcftools query -f '%ID\t%INFO/MatchId\n' ~{base_vcf} \
-            | awk 'BEGIN{OFS="\t"} {split($2,a,/,/); print a[1],$1}' \
-            | LC_ALL=C sort -k1,1 > base.mid2id.tsv
-
-        # Join on base_mid; print CHROM POS REF ALT tag truth_id; then sort by CHROM,POS
-        LC_ALL=C join -t $'\t' -1 5 -2 1 comp.mid.tsv base.mid2id.tsv \
-            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,tag,$6}' \
-            | LC_ALL=C sort -k1,1 -k2,2n \
-            | bgzip -c > annots.tab.gz
-        tabix -s 1 -b 2 -e 2 annots.tab.gz
-
-        bcftools annotate \
-            -a annots.tab.gz \
-            -h header.hdr \
-            -c CHROM,POS,REF,ALT,~{tag_name},gnomAD_V4_match_ID \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{comp_vcf}
-        tabix -p vcf -f ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File vcf_out = "~{prefix}.vcf.gz"
-        File vcf_out_index = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(comp_vcf, "GB") + size(base_vcf, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ConcatTruvariResults {
-    input {
-        Array[File] vcfs
-        Array[File] vcfs_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools concat -a -Oz -o ~{prefix}.vcf.gz ~{sep=' ' vcfs}
-        tabix -p vcf -f ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File concat_vcf = "~{prefix}.vcf.gz"
-        File concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 4, 
-        disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
-        boot_disk_gb: 10, 
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-} 
+ 

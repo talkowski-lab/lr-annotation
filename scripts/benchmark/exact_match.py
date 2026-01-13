@@ -47,9 +47,6 @@ def main():
             if key in truth_variants:
                 record.info["gnomAD_V4_match"] = "EXACT"
                 record.info["gnomAD_V4_match_ID"] = truth_variants[key]
-                if not truth_variants[key] or len(truth_variants[key]) == 0:
-                    i += 1
-                    print(f"{i}: Warning: No matching variant ID found for {key}")
                 matched_out.write(str(record))
             else:
                 unmatched_out.write(str(record))
