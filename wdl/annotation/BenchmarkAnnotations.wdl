@@ -617,6 +617,7 @@ task MergeShardBenchmarks {
 
     command <<<
         set -euo pipefail
+        
         python3 /opt/gnomad-lr/scripts/benchmark/merge_benchmarks_from_pairs.py \
             --prefix ~{prefix} \
             --contig ~{contig} \
