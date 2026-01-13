@@ -81,17 +81,17 @@ Inputs:
 - `par_bed`.
 
 
-### [AnnotateL1MEAID](wdl/AnnotateL1MEAIDFilter.wdl)
+### [AnnotateL1MEAID](wdl/annotation/AnnotateL1MEAIDFilter.wdl)
 This workflow first runs _RepeatMasker_ on an input VCF. It then uses its output to run [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) in order to annotate and filter MEI calls.
 
 TODO
 
 
-### [AnnotateMEDs](wdl/AnnotateMEDs.wdl)
+### [AnnotateMEDs](wdl/annotation/AnnotateMEDs.wdl)
 TODO
 
 
-### [AnnotatePALMER](wdl/AnnotatePALMER.wdl)
+### [AnnotatePALMER](wdl/annotation/AnnotatePALMER.wdl)
 This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order to annotate MEI calls for a cohort in a given cohort VCF. It retains the genotypes present in the VCF, simply adding an INFO field `ME_TYPE` to insertions whose characteristics match those of the PALMER calls.
 
 Inputs:
@@ -101,7 +101,7 @@ Inputs:
 - `ref_fai`.
 
 
-### [AnnotateSVAN](wdl/AnnotateSVAN.wdl)
+### [AnnotateSVAN](wdl/annotation/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
 Inputs:
@@ -113,7 +113,7 @@ Inputs:
 - `vntr_bed`.
 
 
-### [AnnotateSVAnnotate](wdl/AnnotateSVAnnotate.wdl)
+### [AnnotateSVAnnotate](wdl/annotation/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SV through this workflow, ignoring all SNVs and InDels.
 
 Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
@@ -124,7 +124,7 @@ Inputs:
 - `noncoding_bed`.
 
 
-### [AnnotateVEPHail](wdl/AnnotateVEPHail.wdl)
+### [AnnotateVEPHail](wdl/annotation/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
 
 Inputs:
@@ -133,7 +133,7 @@ Inputs:
 - `top_level_fa`.
 
 
-### [BenchmarkAnnotations](wdl/BenchmarkAnnotations.wdl)
+### [BenchmarkAnnotations](wdl/annotation/BenchmarkAnnotations.wdl)
 This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
 
 The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
@@ -150,21 +150,31 @@ Inputs:
 
 
 ## Downstream Annotation Workflows
-### [AnnotateVcf](wdl/AnnotateVcf.wdl)
+### [AnnotateVcf](wdl/annotation_utils/AnnotateVcf.wdl)
 TODO
 
 
-### [IntegrateVcfs](wdl/IntegrateVcfs.wdl)
+### [IntegrateVcfs](wdl/annotation_utils/IntegrateVcfs.wdl)
 TODO
 
 
-### [MergeVEPAF](wdl/MergeVEPAF.wdl)
+### [MergeVEPAF](wdl/annotation_utils/MergeVEPAF.wdl)
 TODO
 
 
 
-## Additional Workflows
-### [PALMER](wdl/PALMER.wdl)
+## Additional Tools
+### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)
+This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
+
+Inputs:
+- `assembly_mat`: Maternal assembly.
+- `assembly_pat`: Paternal assembly.
+- `minimap_flags`: Parameters to use when running Minimap2.
+- `ref_fa`.
+- `ref_fai`.
+
+### [PALMER](wdl/tools/PALMER.wdl)
 This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
 
 Inputs:
@@ -183,15 +193,15 @@ Inputs:
 - `ref_fai`.
 
 
-### [PALMERMerge](wdl/PALMERMerge.wdl)
+### [PALMERMerge](wdl/tools/PALMERMerge.wdl)
 TODO
 
 
-### [RepeatMasker](wdl/RepeatMasker.wdl)
+### [RepeatMasker](wdl/tools/RepeatMasker.wdl)
 This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/RepeatMasker) in order to annotate repeated regions in an input VCF.
 
 
-### [TRGT](wdl/TRGT.wdl)
+### [TRGT](wdl/tools/TRGT.wdl)
 This workflow leverages [TRGT](https://github.com/PacificBiosciences/trgt) in order to genotype short-tandem repeats. 
 
 Inputs:
@@ -201,6 +211,10 @@ Inputs:
 - `ref_fa`.
 - `ref_fai`.
 - `repeat_catalog_trgt`.
+
+
+### [TRGTMerge](wdl/tools/TRGTMerge.wdl)
+TODO
 
 
 

@@ -32,17 +32,6 @@ TODO
 TODO
 
 
-### [MinimapAlignment](wdl/MinimapAlignment.wdl)
-This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
-
-Inputs:
-- `assembly_mat`: Maternal assembly.
-- `assembly_pat`: Paternal assembly.
-- `minimap_flags`: Parameters to use when running Minimap2.
-- `ref_fa`.
-- `ref_fai`.
-
-
 ### [PAV](wdl/PAV.wdl)
 This workflow leverages [PAV](https://github.com/BeckLaboratory/pav) in order to call variants using assemblies. 
 
