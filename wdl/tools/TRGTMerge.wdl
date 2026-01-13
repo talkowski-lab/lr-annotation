@@ -1,7 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
-import "../utils/MergeSplitVCF.wdl" as MergeSplitVCF
+import "../utils/Helpers.wdl"
 
 workflow TRGTMerge {
     input {
@@ -12,10 +12,10 @@ workflow TRGTMerge {
         Array[String] contigs
 
         String trgt_docker
-        String sv_base_mini_docker
+        String utils_docker
 
-        RuntimeAttr? runtime_attr_override_merge_vcfs
-        RuntimeAttr? runtime_attr_override_concat_vcfs
+        RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_concat
     }
 
     scatter (contig in contigs) {
@@ -26,25 +26,22 @@ workflow TRGTMerge {
                 prefix = prefix,
                 contig = contig,
                 docker = trgt_docker,
-                runtime_attr_override = runtime_attr_override_merge_vcfs
+                runtime_attr_override = runtime_attr_merge
         }
     }
 
-    call MergeSplitVCF.CombineVCFs {
+    call Helpers.ConcatVcfs {
         input:
-            vcf_files = MergeVCFsByContig.merged_vcf,
-            vcf_indices = MergeVCFsByContig.merged_vcf_idx,
-            naive = true,
-            allow_overlaps = false,
-            sv_base_mini_docker = sv_base_mini_docker,
-            cohort_prefix = prefix + ".final",
-            sort_after_merge = false,
-            runtime_attr_override = runtime_attr_override_concat_vcfs
+            vcfs = MergeVCFsByContig.merged_vcf,
+            vcfs_idx = MergeVCFsByContig.merged_vcf_idx,
+            prefix = prefix,
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File trgt_merged_vcf = CombineVCFs.combined_vcf
-        File trgt_merged_vcf_idx = CombineVCFs.combined_vcf_idx
+        File trgt_merged_vcf = ConcatVcfs.concat_vcf
+        File trgt_merged_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
@@ -73,7 +70,6 @@ task MergeVCFsByContig {
     command <<<
         set -euo pipefail
 
-        # Create VCF list file
         echo "~{sep='\n' vcfs}" > vcf_list.txt
 
         trgt merge \
