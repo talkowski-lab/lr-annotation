@@ -182,7 +182,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_exact_match
         }
 
-        call TruvariMatch {
+        call TruvariMatch.TruvariMatch {
             input:
                 vcf_eval = ExactMatch.unmatched_vcf,
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
@@ -204,7 +204,7 @@ workflow BenchmarkAnnotations {
                 runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
-        call BedtoolsClosestSV {
+        call BedtoolsClosestSV.BedtoolsClosestSV {
             input:
                 vcf_eval = TruvariMatch.unmatched_vcf,
                 vcf_eval_index = TruvariMatch.unmatched_vcf_index,
@@ -417,7 +417,7 @@ task CollectMatchedIDsAndINFO {
         bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_sv} \
             | bcftools query -f '%ID\t%INFO\n' > truth_sv_info.tsv
         cat truth_snv_info.tsv truth_sv_info.tsv | sort -k1,1 > truth_info.tsv
-        
+
         awk -F'\t' 'BEGIN{OFS="\t"} {print $5"\t"$7}' ~{annotation_tsv} \
             | sort -k1,1 \
             | join -t $'\t' -1 1 -2 1 - eval_info.tsv \
