@@ -41,7 +41,6 @@ def main():
         matched_out.write(str(vcf_in.header))
         unmatched_out.write(str(vcf_in.header))
 
-        i = 0
         for record in vcf_in:
             key = (record.chrom, record.pos, record.ref, record.alts)
             if key in truth_variants:
