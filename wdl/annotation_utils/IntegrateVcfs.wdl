@@ -73,14 +73,23 @@ workflow IntegrateVcfs {
         input:
             vcfs = MergeContigVcfs.concat_vcf,
             vcfs_idx = MergeContigVcfs.concat_vcf_idx,
+            prefix = "~{prefix}.raw",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat
+    }
+
+    call AnnotateSvlenSvtype {
+        input:
+            vcf = ConcatVcfs.concat_vcf,
+            vcf_idx = ConcatVcfs.concat_vcf_idx,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File integrated_vcf = ConcatVcfs.concat_vcf
-        File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File integrated_vcf = AnnotateSvlenSvtype.annotated_vcf
+        File integrated_vcf_idx = AnnotateSvlenSvtype.annotated_vcf_idx
     }
 }
 
@@ -91,29 +100,6 @@ task CheckSampleConsistency {
         Array[String] sample_ids
         String docker
         RuntimeAttr? runtime_attr_override
-    }
-
-    Float input_size = size([snv_indel_vcf, sv_vcf], "GB")
-    Float base_disk_gb = 10.0
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * 2.0),
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_override.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_override.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
     }
 
     command <<<
@@ -152,6 +138,25 @@ task CheckSampleConsistency {
     output {
         String status = "success"
     }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([snv_indel_vcf, sv_vcf], "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
 }
 
 task SubsetAndFilterVcf {
@@ -165,29 +170,6 @@ task SubsetAndFilterVcf {
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
-    }
-
-    Float input_size = size([vcf, vcf_idx], "GB")
-    Float base_disk_gb = 10.0
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * 3.0),
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_override.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_override.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
     }
 
     command <<<
@@ -209,27 +191,7 @@ task SubsetAndFilterVcf {
         }' > keep_ids.txt
 
         if [ -s keep_ids.txt ]; then
-            bcftools view -i 'ID=@keep_ids.txt' subset.vcf.gz | \
-            bcftools annotate -x INFO/SVLEN,INFO/SVTYPE | \
-            bcftools +fill-tags -Oz -o annotated.vcf.gz -- -t 'SVLEN:1=int(strlen(ALT[0])-strlen(REF))'
-
-            bcftools annotate -a <(bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\tSVTYPE=%SVTYPE\n' annotated.vcf.gz | \
-                awk '{
-                    ref_len = length($3)
-                    alt_len = length($4)
-                    if (ref_len == alt_len) {
-                        svtype = "SNV"
-                    } else if (ref_len > alt_len) {
-                        svtype = "DEL"
-                    } else {
-                        svtype = "INS"
-                    }
-                    gsub(/SVTYPE=.*/, "SVTYPE=" svtype, $5)
-                    print $1"\t"$2"\t"$3"\t"$4"\t"$5
-                }' | bgzip -c > svtype_annot.txt.gz && tabix -s1 -b2 -e2 svtype_annot.txt.gz && echo svtype_annot.txt.gz) \
-                -c CHROM,POS,REF,ALT,INFO \
-                -h <(echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">') \
-                annotated.vcf.gz -Oz -o ~{prefix}.vcf.gz
+            bcftools view -i 'ID=@keep_ids.txt' subset.vcf.gz -Oz -o ~{prefix}.vcf.gz
         else
             bcftools view -h subset.vcf.gz | bgzip -c > ~{prefix}.vcf.gz
         fi
@@ -240,6 +202,99 @@ task SubsetAndFilterVcf {
     output {
         File filtered_vcf = "~{prefix}.vcf.gz"
         File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AnnotateSvlenSvtype {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools annotate -x INFO/SVLEN,INFO/SVTYPE ~{vcf} | \
+        bcftools +fill-tags -Oz -o annotated.vcf.gz -- -t 'SVLEN:1=int(strlen(ALT[0])-strlen(REF))'
+
+        > headers.txt
+        if ! bcftools view -h annotated.vcf.gz | grep -q '##INFO=<ID=SVLEN'; then
+            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
+        fi
+        if ! bcftools view -h annotated.vcf.gz | grep -q '##INFO=<ID=SVTYPE'; then
+            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
+        fi
+
+        header_flag=""
+        if [ -s headers.txt ]; then
+            header_flag="-h headers.txt"
+        fi
+
+        bcftools annotate -a <(bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\tSVTYPE=%SVTYPE\n' annotated.vcf.gz | \
+            awk '{
+                ref_len = length($3)
+                alt_len = length($4)
+                if (ref_len == alt_len) {
+                    svtype = "SNV"
+                } else if (ref_len > alt_len) {
+                    svtype = "DEL"
+                } else {
+                    svtype = "INS"
+                }
+                gsub(/SVTYPE=.*/, "SVTYPE=" svtype, $5)
+                print $1"\t"$2"\t"$3"\t"$4"\t"$5
+            }' | bgzip -c > svtype_annot.txt.gz && tabix -s1 -b2 -e2 svtype_annot.txt.gz && echo svtype_annot.txt.gz) \
+            -c CHROM,POS,REF,ALT,INFO \
+            $header_flag \
+            annotated.vcf.gz -Oz -o ~{prefix}.vcf.gz
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
