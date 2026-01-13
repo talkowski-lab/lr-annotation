@@ -15,6 +15,7 @@ workflow IntegrateVcfs {
         Int max_size_snv_indel = 50
         Int min_size_sv = 50
         String prefix
+        String utils_docker
 
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_filter
@@ -27,6 +28,7 @@ workflow IntegrateVcfs {
             snv_indel_vcf = snv_indel_vcf,
             sv_vcf = sv_vcf,
             sample_ids = sample_ids,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_check_samples
     }
 
@@ -40,6 +42,7 @@ workflow IntegrateVcfs {
                 size_threshold = max_size_snv_indel,
                 use_max_size = true,
                 prefix = "~{prefix}.~{contig}.snv_indel",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter
         }
 
@@ -52,6 +55,7 @@ workflow IntegrateVcfs {
                 size_threshold = min_size_sv,
                 use_max_size = false,
                 prefix = "~{prefix}.~{contig}.sv",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter
         }
 
@@ -60,7 +64,7 @@ workflow IntegrateVcfs {
                 vcfs = [SubsetSnvIndel.filtered_vcf, SubsetSv.filtered_vcf],
                 vcfs_idx = [SubsetSnvIndel.filtered_vcf_idx, SubsetSv.filtered_vcf_idx],
                 prefix = "~{prefix}.~{contig}.integrated",
-                docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
     }
@@ -70,7 +74,7 @@ workflow IntegrateVcfs {
             vcfs = MergeContigVcfs.concat_vcf,
             vcfs_idx = MergeContigVcfs.concat_vcf_idx,
             prefix = prefix,
-            docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1",
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -85,6 +89,7 @@ task CheckSampleConsistency {
         File snv_indel_vcf
         File sv_vcf
         Array[String] sample_ids
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -106,7 +111,7 @@ task CheckSampleConsistency {
         memory: select_first([runtime_override.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_override.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        docker: docker
         preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
     }
@@ -158,6 +163,7 @@ task SubsetAndFilterVcf {
         Int size_threshold
         Boolean use_max_size
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -179,7 +185,7 @@ task SubsetAndFilterVcf {
         memory: select_first([runtime_override.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_override.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.1"
+        docker: docker
         preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
     }
