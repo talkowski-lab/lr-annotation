@@ -139,7 +139,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calcu_bnd
     }
 
-    call Helpers.ConcatTsvs as MergeComparisons {
+    call Helpers.ConcatTsvs {
         input:
             tsvs = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             outfile_name = "~{prefix}.comparison.bed",
@@ -152,14 +152,14 @@ workflow BedtoolsClosestSV {
         input:
             truvari_unmatched_vcf = vcf_eval,
             truvari_unmatched_vcf_index = vcf_eval_index,
-            closest_bed = MergeComparisons.concatenated_file,
+            closest_bed = ConcatTsvs.concatenated_tsv,
             prefix = prefix,
             docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
     output {
-        File closest_bed = MergeComparisons.concatenated_tsv
+        File closest_bed = ConcatTsvs.concatenated_tsv
         File annotation_tsv = CreateBedtoolsAnnotationTsv.annotation_tsv
     }
 } 
