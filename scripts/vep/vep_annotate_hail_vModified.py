@@ -12,6 +12,7 @@ parser.add_argument("-o", dest="output_tsv", help="Output TSV file")
 parser.add_argument("--cores", dest="cores", help="CPU cores")
 parser.add_argument("--mem", dest="mem", help="Memory")
 parser.add_argument("--build", dest="build", help="Genome build")
+parser.add_argument("--vep_tag", dest="vep_tag", help="VEP annotation tag prefix", default="vep")
 
 args = parser.parse_args()
 vcf_file = args.vcf_file
@@ -19,6 +20,7 @@ output_tsv = args.output_tsv
 cores = args.cores
 mem = int(np.floor(float(args.mem)))
 build = args.build
+vep_tag = args.vep_tag
 
 hl.init(
     min_block_size=128,
@@ -50,7 +52,7 @@ table = table.select(
     REF=table.alleles[0],
     ALT=table.alleles[1],
     ID=hl.or_else(table.rsid, '.'),
-    CSQ=hl.json(table.vep)
+    CSQ=hl.str(vep_tag + "=") + hl.or_else(table.vep[0], '.')
 )
 
 table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'CSQ')
