@@ -71,25 +71,25 @@ workflow BenchmarkSTRs {
     }
     
     output {
-        Array[File] per_sample_stats = valid_stats_tsvs
-        Array[String] processed_sample_ids = valid_sample_ids
-        File processed_samples_file = AggregateAndPlot.processed_samples_list
+        Array[File] benchmark_strs_per_sample_stats = valid_stats_tsvs
+        Array[String] benchmark_strs_processed_sample_ids = valid_sample_ids
+        File benchmark_strs_processed_samples_file = AggregateAndPlot.processed_samples_list
         
-        File aggregated_match_data_non_ref = AggregateAndPlot.match_data_non_ref
-        File genotype_concordance_matrix_non_ref = AggregateAndPlot.genotype_concordance_matrix_non_ref
-        File similarity_plot_non_ref = AggregateAndPlot.similarity_plot_non_ref
-        File edit_distance_plot_non_ref = AggregateAndPlot.edit_distance_plot_non_ref
-        File length_difference_plot_non_ref = AggregateAndPlot.length_difference_plot_non_ref
-        File length_diff_vs_locus_size_non_ref = AggregateAndPlot.length_diff_vs_locus_size_non_ref
+        File benchmark_strs_aggregated_match_data_non_ref = AggregateAndPlot.match_data_non_ref
+        File benchmark_strs_genotype_concordance_matrix_non_ref = AggregateAndPlot.genotype_concordance_matrix_non_ref
+        File benchmark_strs_similarity_plot_non_ref = AggregateAndPlot.similarity_plot_non_ref
+        File benchmark_strs_edit_distance_plot_non_ref = AggregateAndPlot.edit_distance_plot_non_ref
+        File benchmark_strs_length_difference_plot_non_ref = AggregateAndPlot.length_difference_plot_non_ref
+        File benchmark_strs_length_diff_vs_locus_size_non_ref = AggregateAndPlot.length_diff_vs_locus_size_non_ref
         
-        File? aggregated_match_data_all = AggregateAndPlot.match_data_all
-        File? genotype_concordance_matrix_all = AggregateAndPlot.genotype_concordance_matrix_all
-        File? similarity_plot_all = AggregateAndPlot.similarity_plot_all
-        File? edit_distance_plot_all = AggregateAndPlot.edit_distance_plot_all
-        File? length_difference_plot_all = AggregateAndPlot.length_difference_plot_all
-        File? length_diff_vs_locus_size_all = AggregateAndPlot.length_diff_vs_locus_size_all
-        File? edit_distance_to_reference_all = AggregateAndPlot.edit_distance_to_reference_all
-        File? length_difference_to_reference_all = AggregateAndPlot.length_difference_to_reference_all
+        File? benchmark_strs_aggregated_match_data_all = AggregateAndPlot.match_data_all
+        File? benchmark_strs_genotype_concordance_matrix_all = AggregateAndPlot.genotype_concordance_matrix_all
+        File? benchmark_strs_similarity_plot_all = AggregateAndPlot.similarity_plot_all
+        File? benchmark_strs_edit_distance_plot_all = AggregateAndPlot.edit_distance_plot_all
+        File? benchmark_strs_length_difference_plot_all = AggregateAndPlot.length_difference_plot_all
+        File? benchmark_strs_length_diff_vs_locus_size_all = AggregateAndPlot.length_diff_vs_locus_size_all
+        File? benchmark_strs_edit_distance_to_reference_all = AggregateAndPlot.edit_distance_to_reference_all
+        File? benchmark_strs_length_difference_to_reference_all = AggregateAndPlot.length_difference_to_reference_all
     }
 }
 
@@ -132,10 +132,8 @@ task SubsetAndReheaderVamos {
     command <<<
         set -euo pipefail
         
-        # Get list of samples in VCF
         bcftools query -l ~{vamos_vcf} > samples.txt
         
-        # Find the sample matching pattern: HPRC AND _SAMPLE_ID_
         matched_sample=$(grep "HPRC" samples.txt | grep -E "_~{sample_id}_" | head -n1 || true)
         
         if [ -z "$matched_sample" ]; then
@@ -151,7 +149,6 @@ task SubsetAndReheaderVamos {
         echo "true" > found_sample.txt
         echo "~{sample_id}" > output_sample_id.txt
         
-        # Subset to the matched sample and GRCh38_to_GRCh38/GRCh38_to_GRCh38
         bcftools view -s "$matched_sample,GRCh38_to_GRCh38/GRCh38_to_GRCh38" \
             ~{vamos_vcf} \
             --no-update \
@@ -159,11 +156,9 @@ task SubsetAndReheaderVamos {
         
         bcftools index -t temp.vcf.gz
         
-        # Create reheader file to rename the sample
         echo "$matched_sample ~{sample_id}" > reheader.txt
         echo "GRCh38_to_GRCh38/GRCh38_to_GRCh38 GRCh38_to_GRCh38/GRCh38_to_GRCh38" >> reheader.txt
         
-        # Reheader the VCF
         bcftools reheader -s reheader.txt temp.vcf.gz -o ~{output_vcf}
         bcftools index -t ~{output_vcf}
     >>>
@@ -270,10 +265,7 @@ task AggregateAndPlot {
     command <<<
         set -euo pipefail
         
-        # Create file with all stats TSVs
         cat ~{write_lines(stats_tsvs)} > stats_files.txt
-        
-        # Write processed sample IDs to file
         cat ~{write_lines(sample_ids)} > ~{output_prefix}.processed_samples.txt
         
         python3 /opt/gnomad-lr/scripts/benchmark/aggregate_str_benchmarks.py \

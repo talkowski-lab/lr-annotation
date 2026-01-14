@@ -335,9 +335,9 @@ workflow BenchmarkAnnotations {
 
     output {
         File annotations_tsv_benchmark = MergeAnnotationTsvs.concatenated_tsv
-        File plots_tarball = MergePlotTarballs.merged_tarball
-        File benchmark_summaries_tsv = MergeBenchmarkSummaries.concatenated_tsv
-        File summary_stats_tsv = MergeSummaryStats.concatenated_tsv
+        File benchmark_annotations_plots_tarball = MergePlotTarballs.merged_tarball
+        File benchmark_annotations_summary_tsv = MergeBenchmarkSummaries.concatenated_tsv
+        File benchmark_annotations_stats_tsv = MergeSummaryStats.concatenated_tsv
     }
 }
 
