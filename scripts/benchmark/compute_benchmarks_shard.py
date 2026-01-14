@@ -116,12 +116,8 @@ def main():
     )
     args = ap.parse_args()
 
-    af_out_path = (
-        f"{args.prefix}.{args.contig}.shard_{args.shard_label}.af_pairs.tsv.gz"
-    )
-    vep_out_path = (
-        f"{args.prefix}.{args.contig}.shard_{args.shard_label}.vep_pairs.tsv.gz"
-    )
+    af_out_path = f"{args.prefix}.shard_{args.shard_label}.af_pairs.tsv.gz"
+    vep_out_path = f"{args.prefix}.shard_{args.shard_label}.vep_pairs.tsv.gz"
 
     enriched_rows = load_enriched_shard(args.matched_shard_tsv)
 

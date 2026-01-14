@@ -238,8 +238,9 @@ task AnnotateSvlenSvtype {
 
         bcftools annotate -x INFO/SVLEN,INFO/SVTYPE ~{vcf} | \
         bcftools +fill-tags -Oz -o annotated.vcf.gz -- -t 'SVLEN:1=int(strlen(ALT[0])-strlen(REF))'
+        tabix -p vcf annotated.vcf.gz
 
-        > headers.txt
+        touch headers.txt
         if ! bcftools view -h annotated.vcf.gz | grep -q '##INFO=<ID=SVLEN'; then
             echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
         fi
@@ -247,25 +248,27 @@ task AnnotateSvlenSvtype {
             echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
         fi
 
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' annotated.vcf.gz | \
+        awk '{
+            ref_len = length($3)
+            alt_len = length($4)
+            if (ref_len == alt_len) {
+                svtype = "SNV"
+            } else if (ref_len > alt_len) {
+                svtype = "DEL"
+            } else {
+                svtype = "INS"
+            }
+            print $1"\t"$2"\t"$3"\t"$4"\tSVTYPE="svtype
+        }' | bgzip -c > svtype_annot.txt.gz
+        tabix -s1 -b2 -e2 svtype_annot.txt.gz
+
         header_flag=""
         if [ -s headers.txt ]; then
             header_flag="-h headers.txt"
         fi
 
-        bcftools annotate -a <(bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\tSVTYPE=%SVTYPE\n' annotated.vcf.gz | \
-            awk '{
-                ref_len = length($3)
-                alt_len = length($4)
-                if (ref_len == alt_len) {
-                    svtype = "SNV"
-                } else if (ref_len > alt_len) {
-                    svtype = "DEL"
-                } else {
-                    svtype = "INS"
-                }
-                gsub(/SVTYPE=.*/, "SVTYPE=" svtype, $5)
-                print $1"\t"$2"\t"$3"\t"$4"\t"$5
-            }' | bgzip -c > svtype_annot.txt.gz && tabix -s1 -b2 -e2 svtype_annot.txt.gz && echo svtype_annot.txt.gz) \
+        bcftools annotate -a svtype_annot.txt.gz \
             -c CHROM,POS,REF,ALT,INFO \
             $header_flag \
             annotated.vcf.gz -Oz -o ~{prefix}.vcf.gz
