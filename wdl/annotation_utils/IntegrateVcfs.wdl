@@ -259,7 +259,7 @@ task AnnotateSvlenSvtype {
             } else {
                 svtype = "INS"
             }
-            print $1"\t"$2"\t"$3"\t"$4"\tSVTYPE="svtype
+            print $1"\t"$2"\t"$3"\t"$4"\t"svtype
         }' | bgzip -c > svtype_annot.txt.gz
         tabix -s1 -b2 -e2 svtype_annot.txt.gz
 
@@ -269,7 +269,7 @@ task AnnotateSvlenSvtype {
         fi
 
         bcftools annotate -a svtype_annot.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO \
+            -c CHROM,POS,REF,ALT,INFO/SVTYPE \
             $header_flag \
             annotated.vcf.gz -Oz -o ~{prefix}.vcf.gz
 
