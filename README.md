@@ -29,7 +29,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
 	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.
 	- The pedigrees in the Terra workspace were made to match the callset VCFs.
-	- The sample IDs in the Terra workspace were made to match that of the HPRC Y2 workspace.
 
 
 

@@ -8,17 +8,19 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Parse arguments")
 parser.add_argument("-i", dest="vcf_file", help="Input VCF file")
-parser.add_argument("-o", dest="vep_annotated_vcf_name", help="Output filename")
+parser.add_argument("-o", dest="output_tsv", help="Output TSV file")
 parser.add_argument("--cores", dest="cores", help="CPU cores")
 parser.add_argument("--mem", dest="mem", help="Memory")
 parser.add_argument("--build", dest="build", help="Genome build")
+parser.add_argument("--vep_tag", dest="vep_tag", help="VEP annotation tag prefix", default="vep")
 
 args = parser.parse_args()
 vcf_file = args.vcf_file
-vep_annotated_vcf_name = args.vep_annotated_vcf_name
+output_tsv = args.output_tsv
 cores = args.cores
 mem = int(np.floor(float(args.mem)))
 build = args.build
+vep_tag = args.vep_tag
 
 hl.init(
     min_block_size=128,
@@ -32,9 +34,6 @@ hl.init(
     local_tmpdir="tmp",
 )
 
-
-header = hl.get_vcf_metadata(vcf_file)
-
 mt = hl.import_vcf(
     vcf_file,
     force_bgz=True,
@@ -45,12 +44,17 @@ mt = hl.import_vcf(
 
 mt = hl.vep(mt, config="vep_config.json", csq=True, tolerate_parse_error=True)
 
-mt = mt.annotate_rows(info=mt.info.annotate(CSQ=mt.vep))
+table = mt.rows()
 
-header["info"]["CSQ"] = {
-    "Description": hl.eval(mt.vep_csq_header),
-    "Number": ".",
-    "Type": "String",
-}
+table = table.select(
+    CHROM=table.locus.contig,
+    POS=table.locus.position,
+    REF=table.alleles[0],
+    ALT=table.alleles[1],
+    ID=hl.or_else(table.rsid, '.'),
+    CSQ=hl.str(vep_tag + "=") + hl.or_else(table.vep[0], '.')
+)
 
-hl.export_vcf(dataset=mt, output=vep_annotated_vcf_name, metadata=header)
+table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'CSQ')
+
+table.export(output_tsv, header=False, delimiter='\t')

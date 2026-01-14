@@ -2,7 +2,7 @@ version 1.0
     
 import "../utils/Structs.wdl"
 import "../utils/ScatterVCF.wdl" as ScatterVCF
-import "../utils/MergeSplitVCF.wdl" as MergeSplitVCF
+import "../utils/Helpers.wdl" as Helpers
 
 workflow AnnotateVEPHail {
     input {
@@ -13,6 +13,8 @@ workflow AnnotateVEPHail {
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail.py"
         String genome_build = "GRCh38"
+        String vep_json_schema = "Struct{allele_string:String,colocated_variants:Array[Struct{allele_string:String,clin_sig:Array[String],clin_sig_allele:String,end:Int32,id:String,phenotype_or_disease:Int32,pubmed:Array[Int32],somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,transcription_factors:Array[String],strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,appris:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,flags:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,mane_select:String,mane_plus_clinical:String,minimised:Int32,mirna:Array[String],polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,source:String,strand:Int32,swissprot:String,transcript_id:String,trembl:String,tsl:Int32,uniparc:String,uniprot_isoform:Array[String],variant_allele:String}],variant_class:String}"
+        String vep_tag = "vep"
         Boolean split_by_chromosome
         Boolean split_into_shards
 
@@ -53,25 +55,22 @@ workflow AnnotateVEPHail {
                 ref_vep_cache=ref_vep_cache,
                 docker=annotate_vep_hail_docker,
                 genome_build=genome_build,
+                vep_json_schema=vep_json_schema,
+                vep_tag=vep_tag,
                 runtime_attr_override=runtime_attr_vep_annotate
         }
     }
     
-    call MergeSplitVCF.CombineVCFs {
+    call Helpers.ConcatTsvs {
         input:
-            vcf_files=VepAnnotate.vep_vcf_file,
-            vcf_indices=VepAnnotate.vep_vcf_idx,
-            naive=true,
-            allow_overlaps=false,
-            sv_base_mini_docker=sv_base_mini_docker,
-            cohort_prefix=cohort_prefix + ".final",
-            sort_after_merge=true,
+            tsvs=VepAnnotate.vep_tsv_file,
+            prefix=cohort_prefix + ".vep_annotations",
+            docker=sv_base_mini_docker,
             runtime_attr_override=runtime_attr_combine_vcfs
     }
 
     output {
-        File vep_annotated_vcf = CombineVCFs.combined_vcf
-        File vep_annotated_vcf_idx = CombineVCFs.combined_vcf_idx
+        File annotations_tsv_vep = ConcatTsvs.concatenated_tsv
     }
 }   
 
@@ -81,6 +80,8 @@ task VepAnnotate {
         File top_level_fa
         File ref_vep_cache
         String genome_build
+        String vep_json_schema
+        String vep_tag
         String vep_annotate_hail_python_script
         String docker
         RuntimeAttr? runtime_attr_override
@@ -107,7 +108,6 @@ task VepAnnotate {
 
     String filename = basename(vcf)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf, ".vcf.gz") else basename(vcf, ".vcf.bgz")
-    String vep_annotated_vcf_name = "~{prefix}.vep.vcf.bgz"
 
     command <<<
         set -euo pipefail
@@ -129,31 +129,31 @@ task VepAnnotate {
             "--minimal",
             "--assembly", "~{genome_build}",
             "--merged",
+            "--pick",
+            "--pick_order", "rank",
             "--fasta", "~{top_level_fa}",
             "--dir_cache", "'$dir_cache_path'",
             "-o", "STDOUT"
         ],
         "env": {},
-        "vep_json_schema": "Struct{allele_string:String,colocated_variants:Array[Struct{allele_string:String,clin_sig:Array[String],clin_sig_allele:String,end:Int32,id:String,phenotype_or_disease:Int32,pubmed:Array[Int32],somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,transcription_factors:Array[String],strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,appris:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,flags:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,mane_select:String,mane_plus_clinical:String,minimised:Int32,mirna:Array[String],polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,source:String,strand:Int32,swissprot:String,transcript_id:String,trembl:String,tsl:Int32,uniparc:String,uniprot_isoform:Array[String],variant_allele:String}],variant_class:String}"
+        "vep_json_schema": "~{vep_json_schema}"
         }' > vep_config.json
 
         curl ~{vep_annotate_hail_python_script} > vep_annotate.py
-        
+
         python3 vep_annotate.py \
             -i ~{vcf} \
-            -o ~{vep_annotated_vcf_name} \
+            -o ~{prefix}.vep.tsv \
             --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
-            --build ~{genome_build}
-        
+            --build ~{genome_build} \
+            --vep_tag ~{vep_tag}
+                
         cp $(ls . | grep hail*.log) hail_log.txt
-
-        bcftools index -t ~{vep_annotated_vcf_name}
     >>>
 
     output {
-        File vep_vcf_file = vep_annotated_vcf_name
-        File vep_vcf_idx = vep_annotated_vcf_name+".tbi"
+        File vep_tsv_file = "~{prefix}.vep.tsv"
         File hail_log = "hail_log.txt"
     }
 }

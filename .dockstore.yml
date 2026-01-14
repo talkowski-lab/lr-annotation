@@ -64,15 +64,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateVEPHail_vModified
-    primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail_vModified.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: BenchmarkAnnotations
     primaryDescriptorPath: /wdl/annotation/BenchmarkAnnotations.wdl
     filters:
