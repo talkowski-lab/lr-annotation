@@ -15,8 +15,12 @@ workflow AnnotateVEPHail {
         String genome_build = "GRCh38"
         String vep_json_schema = "Struct{allele_string:String,colocated_variants:Array[Struct{allele_string:String,clin_sig:Array[String],clin_sig_allele:String,end:Int32,id:String,phenotype_or_disease:Int32,pubmed:Array[Int32],somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,transcription_factors:Array[String],strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,appris:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,flags:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,mane_select:String,mane_plus_clinical:String,minimised:Int32,mirna:Array[String],polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,source:String,strand:Int32,swissprot:String,transcript_id:String,trembl:String,tsl:Int32,uniparc:String,uniprot_isoform:Array[String],variant_allele:String}],variant_class:String}"
         String vep_tag = "vep"
-        Boolean split_by_chromosome
-        Boolean split_into_shards
+
+        Boolean localize_vcf = false
+        Boolean get_chromosome_sizes = false
+        Boolean has_index = false
+        Boolean split_by_chromosome = false
+        Boolean split_into_shards = false
 
         File top_level_fa
         File ref_vep_cache
@@ -34,10 +38,12 @@ workflow AnnotateVEPHail {
     call ScatterVCF.ScatterVCF {
         input:
             file=vcf,
-            has_index=true,
             split_vcf_hail_script=split_vcf_hail_script,
             cohort_prefix=cohort_prefix,
             genome_build=genome_build,
+            localize_vcf=localize_vcf,
+            get_chromosome_sizes=get_chromosome_sizes,
+            has_index=has_index,
             split_by_chromosome=split_by_chromosome,
             split_into_shards=split_into_shards,
             hail_docker=hail_docker,

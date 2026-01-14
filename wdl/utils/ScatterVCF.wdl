@@ -8,15 +8,16 @@ workflow ScatterVCF {
         File file
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
         String cohort_prefix
-        Boolean localize_vcf
         String genome_build='GRCh38'
 
+        Boolean localize_vcf
+        Boolean get_chromosome_sizes
         Boolean split_by_chromosome
         Boolean split_into_shards 
-        Boolean get_chromosome_sizes
-        Boolean has_index=false
-        Int n_shards=0
-        Int records_per_shard=0
+        Boolean has_index
+
+        Int n_shards = 0
+        Int records_per_shard = 0
 
         String hail_docker
         String sv_base_mini_docker
