@@ -127,6 +127,7 @@ task VepAnnotate {
             "--assembly", "~{genome_build}",
             "--merged",
             "--pick",
+            "--pick_order", " rank",
             "--fasta", "~{top_level_fa}",
             "--dir_cache", "'$dir_cache_path'",
             "-o", "STDOUT"
