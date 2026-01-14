@@ -11,6 +11,9 @@ workflow TRGTMerge {
         String prefix
         Array[String] contigs
 
+        File ref_fa
+        File ref_fai
+
         String trgt_docker
         String utils_docker
 
@@ -25,6 +28,8 @@ workflow TRGTMerge {
                 vcf_idxs = vcf_idxs,
                 prefix = prefix,
                 contig = contig,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 docker = trgt_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -51,6 +56,8 @@ task MergeVCFsByContig {
         Array[File] vcf_idxs
         String prefix
         String contig
+        File ref_fa
+        File ref_fai
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -73,7 +80,8 @@ task MergeVCFsByContig {
         trgt merge \
             --vcf-list vcf_list.txt \
             --contig ~{contig} \
-            --write-index \
+            --genome ~{ref_fa} \
+            --output-type z \
             --output ~{prefix}.~{contig}.merged.trgt.vcf.gz
     >>>
 
