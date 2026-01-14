@@ -42,15 +42,17 @@ mt = hl.import_vcf(
 
 mt = hl.vep(mt, config="vep_config.json", csq=True, tolerate_parse_error=True)
 
-rows = mt.rows()
+table = mt.rows()
 
-table = rows.select(
-    CHROM=rows.locus.contig,
-    POS=rows.locus.position,
-    REF=rows.alleles[0],
-    ALT=rows.alleles[1],
-    ID=rows.rsid,
-    CSQ=hl.delimit(rows.vep, ","),
+table = table.select(
+    CHROM=table.locus.contig,
+    POS=table.locus.position,
+    REF=table.alleles[0],
+    ALT=table.alleles[1],
+    ID=hl.or_else(table.rsid, '.'),
+    CSQ=hl.json(table.vep)
 )
 
-table.export(output_tsv, header=False)
+table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'CSQ')
+
+table.export(output_tsv, header=False, delimiter='\t')
