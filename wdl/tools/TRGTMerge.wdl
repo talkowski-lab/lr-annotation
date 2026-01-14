@@ -83,6 +83,8 @@ task MergeVCFsByContig {
             --genome ~{ref_fa} \
             --output-type z \
             --output ~{prefix}.~{contig}.merged.trgt.vcf.gz
+
+        tabix -p vcf ~{prefix}.~{contig}.merged.trgt.vcf.gz
     >>>
 
     output {
