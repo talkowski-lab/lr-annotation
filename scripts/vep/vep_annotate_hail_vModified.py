@@ -50,9 +50,9 @@ table = table.select(
     REF=table.alleles[0],
     ALT=table.alleles[1],
     ID=hl.or_else(table.rsid, '.'),
-    most_severe_consequence=hl.or_else(table.vep.most_severe_consequence, '.')
+    CSQ=hl.str("vep=") + hl.or_else(table.vep[0], '.')
 )
 
-table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'most_severe_consequence')
+table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'CSQ')
 
 table.export(output_tsv, header=False, delimiter='\t')
