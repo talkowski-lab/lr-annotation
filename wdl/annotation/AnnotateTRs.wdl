@@ -155,13 +155,13 @@ task AnnotateTRVariants {
         set -euo pipefail
 
         cat > header_additions.txt <<'HEADER_EOF'
-##INFO=<ID=~{tr_info},Number=1,Type=String,Description="Tandem repeat caller identifier">
+##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
 HEADER_EOF
 
         bcftools view -h ~{tr_vcf} | \
             grep -E "^##(INFO|FORMAT|FILTER)=" | \
-            grep -v "^##INFO=<ID=~{tr_info}," | \
+            grep -v "^##INFO=<ID=TR_CALLER," | \
             grep -v "^##FILTER=<ID=~{tr_filter}," \
             >> header_additions.txt || true
 
@@ -175,11 +175,10 @@ HEADER_EOF
         bcftools view -h tr_with_caller.vcf.gz > tr_with_caller_header.txt
         bcftools view -H tr_with_caller.vcf.gz | \
             awk -v tr_info="~{tr_info}" 'BEGIN{FS=OFS="\t"} {
-                # Add TR_CALLER to INFO field
                 if ($8 == "." || $8 == "") {
-                    $8 = tr_info "=" tr_info
+                    $8 = "TR_CALLER=" tr_info
                 } else {
-                    $8 = $8 ";" tr_info "=" tr_info
+                    $8 = $8 ";TR_CALLER=" tr_info
                 }
                 print
             }' | \
