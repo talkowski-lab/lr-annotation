@@ -417,8 +417,8 @@ task ExactMatch {
         
         # Get unmatched variants (present in eval but not in truth)
         # -C: complement, output records from first file missing in others
-        bcftools isec -c none -C ~{vcf_eval} ~{vcf_truth} -Oz -o ~{prefix}.unmatched.vcf.gz
-        tabix -p vcf -f ~{prefix}.unmatched.vcf.gz
+        bcftools isec -c none -C ~{vcf_eval} ~{vcf_truth} | bgzip -c > ~{prefix}.unmatched.vcf.gz
+        tabix -p vcf ~{prefix}.unmatched.vcf.gz
         
         # Clean up temp directory
         rm -rf isec_temp
