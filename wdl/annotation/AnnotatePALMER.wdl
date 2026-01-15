@@ -10,6 +10,7 @@ workflow AnnotatePALMER {
         Array[String] contigs
 
         String prefix
+        Array[String] mei_types
         File PALMER_vcf
         File PALMER_vcf_idx
 
@@ -67,6 +68,7 @@ workflow AnnotatePALMER {
                 prefix = "~{prefix}.~{contig}",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,
+                mei_types = mei_types,
                 rm_out = rm_out,
                 rm_buffer = rm_buffer,
                 ref_fai = ref_fai,
@@ -115,6 +117,7 @@ task FilterPALMER {
         String prefix
         File PALMER_vcf
         File PALMER_vcf_idx
+        Array[String] mei_types
         File rm_out
         Int rm_buffer
         File ref_fai
@@ -152,9 +155,9 @@ task FilterPALMER {
 
         cut -f1,2 ~{ref_fai} > genome_file
 
-        types=("ALU" "LINE" "SVA" "HERVK")
+        mei_types=(~{sep=' ' mei_types})
 
-        for ME_type in "${types[@]}"; do
+        for ME_type in "${mei_types[@]}"; do
             bcftools view \
                 -i "INFO/ME_TYPE='${ME_type}'" \
                 -Oz \
