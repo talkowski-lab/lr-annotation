@@ -154,7 +154,7 @@ workflow BenchmarkAnnotations {
                     vcf = SubsetEval.subset_vcf,
                     vcf_index = SubsetEval.subset_vcf_index,
                     id_format = select_first([rename_id_string_vcf]),
-                    strip_chr = rename_id_strip_chr_vcf,
+                    strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     prefix = "~{prefix}.~{contig}.eval.renamed",
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_subset_eval
@@ -167,7 +167,7 @@ workflow BenchmarkAnnotations {
                     vcf = SubsetTruth.subset_vcf,
                     vcf_index = SubsetTruth.subset_vcf_index,
                     id_format = select_first([rename_id_string_vcf_truth]),
-                    strip_chr = rename_id_strip_chr_vcf_truth,
+                    strip_chr = select_first([rename_id_strip_chr_vcf_truth, false]),
                     prefix = "~{prefix}.~{contig}.truth.renamed",
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_rename_truth
@@ -180,7 +180,7 @@ workflow BenchmarkAnnotations {
                     vcf = SubsetSVTruth.subset_vcf,
                     vcf_index = SubsetSVTruth.subset_vcf_index,
                     id_format = select_first([rename_id_string_vcf_sv_truth]),
-                    strip_chr = rename_id_strip_chr_vcf_sv_truth,
+                    strip_chr = select_first([rename_id_strip_chr_vcf_sv_truth, false]),
                     prefix = "~{prefix}.~{contig}.sv_truth.renamed",
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_rename_sv_truth

@@ -528,7 +528,7 @@ task RenameVariantIds {
         File vcf_index
         String prefix
         String id_format = "%CHROM-%POS-%REF-%ALT"
-        Boolean? strip_chr
+        Boolean strip_chr = false
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -536,14 +536,17 @@ task RenameVariantIds {
     command <<<
         set -euo pipefail
         
+        bcftools annotate --set-id '~{id_format}' ~{vcf} -Oz -o temp_renamed.vcf.gz
+        
         if [ "~{strip_chr}" == "true" ]; then
-            bcftools view -h ~{vcf} > header.txt
-            bcftools view -H ~{vcf} | sed 's/^chr//' | cat header.txt - | bgzip -c > temp_renamed_chr.vcf.gz
-            tabix -p vcf temp_renamed_chr.vcf.gz
-            
-            bcftools annotate --set-id '~{id_format}' temp_renamed_chr.vcf.gz -Oz -o ~{prefix}.vcf.gz
+            bcftools view -h temp_renamed.vcf.gz > header.txt
+            bcftools view -H temp_renamed.vcf.gz \
+                | awk 'BEGIN{OFS="\t"} {gsub(/^chr/, "", $3); print}' \
+                | cat header.txt - \
+                | bgzip -c > ~{prefix}.vcf.gz
+            rm temp_renamed.vcf.gz header.txt
         else
-            bcftools annotate --set-id '~{id_format}' ~{vcf} -Oz -o ~{prefix}.vcf.gz
+            mv temp_renamed.vcf.gz ~{prefix}.vcf.gz
         fi
         
         tabix -p vcf ~{prefix}.vcf.gz
