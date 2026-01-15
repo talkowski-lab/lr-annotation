@@ -258,7 +258,7 @@ task CreateBedtoolsAnnotationTsv {
     command <<<
         set -euo pipefail
 
-        awk -F'\t' 'NR>1 && $NF!="NA" {print $1"\t"$2"\t"$3"\t"$4"\t"$5"\tBEDTOOLS_CLOSEST\t"$NF}' \
+        awk -F'\t' 'NR>1 && $NF!="NA" {print $1"\t"$2"\t"$3"\t"$4"\t"$5"\tBEDTOOLS_CLOSEST\t"$NF"\tSV"}' \
             ~{closest_bed} > ~{prefix}.bedtools_matched.tsv
     >>>
 

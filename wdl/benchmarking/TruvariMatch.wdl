@@ -245,7 +245,7 @@ task RunTruvari {
             | LC_ALL=C sort -k1,1 > base.mid2id.tsv
 
         LC_ALL=C join -t $'\t' -1 6 -2 1 comp.mid.tsv base.mid2id.tsv \
-            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7}' \
+            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7,"SNV_indel"}' \
             > ~{prefix}.annotation.tsv
     >>>
 

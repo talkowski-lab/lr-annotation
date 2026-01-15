@@ -24,10 +24,13 @@ def main():
     vcf_in = pysam.VariantFile(args.vcf_eval)
 
     vcf_in.header.info.add(
-        "gnomAD_V4_match", "1", "String", "Matching status against gnomAD v4."
+        "gnomAD_V4_match_type", "1", "String", "Matching status against gnomAD v4."
     )
     vcf_in.header.info.add(
         "gnomAD_V4_match_ID", "1", "String", "Matching variant ID from gnomAD v4."
+    )
+    vcf_in.header.info.add(
+        "gnomAD_V4_match_source", "1", "String", "Source of matching: SNV_indel or SV."
     )
 
     matched_tmp_path = f"{args.prefix}.exact_matched.tmp.vcf"
@@ -44,8 +47,9 @@ def main():
         for record in vcf_in:
             key = (record.chrom, record.pos, record.ref, record.alts)
             if key in truth_variants:
-                record.info["gnomAD_V4_match"] = "EXACT"
+                record.info["gnomAD_V4_match_type"] = "EXACT"
                 record.info["gnomAD_V4_match_ID"] = truth_variants[key]
+                record.info["gnomAD_V4_match_source"] = "SNV_indel"
                 matched_out.write(str(record))
             else:
                 unmatched_out.write(str(record))

@@ -18,6 +18,16 @@ workflow BenchmarkAnnotations {
         Int variants_per_shard
         Int truvari_match_min_length = 10
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
+        
+        String? args_string_vcf
+        String? args_string_vcf_truth
+        String? args_string_vcf_sv_truth
+        String? rename_id_string_vcf
+        String? rename_id_string_vcf_truth
+        String? rename_id_string_vcf_sv_truth
+        Boolean? strip_chr_vcf
+        Boolean? strip_chr_vcf_truth
+        Boolean? strip_chr_vcf_sv_truth
 
         File ref_fa
         File ref_fai
@@ -107,6 +117,7 @@ workflow BenchmarkAnnotations {
                 vcf = StripEvalGenotypes.stripped_vcf,
                 vcf_index = StripEvalGenotypes.stripped_vcf_index,
                 contig = contig,
+                args_string = args_string_vcf,
                 strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = benchmark_annotations_docker,
@@ -118,7 +129,7 @@ workflow BenchmarkAnnotations {
                 vcf = StripTruthGenotypes.stripped_vcf,
                 vcf_index = StripTruthGenotypes.stripped_vcf_index,
                 contig = contig,
-                args_string = "-i 'FILTER=\"PASS\"'",
+                args_string = args_string_vcf_truth,
                 strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = benchmark_annotations_docker,
@@ -130,35 +141,63 @@ workflow BenchmarkAnnotations {
                 vcf = StripSVTruthGenotypes.stripped_vcf,
                 vcf_index = StripSVTruthGenotypes.stripped_vcf_index,
                 contig = contig,
-                args_string = "-i 'FILTER=\"PASS\" || FILTER=\"MULTIALLELIC\"'",
+                args_string = args_string_vcf_sv_truth,
                 strip_genotypes = false,
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
-        call Helpers.RenameVariantIds as RenameTruthIds {
-            input:
-                vcf = SubsetTruth.subset_vcf,
-                vcf_index = SubsetTruth.subset_vcf_index,
-                prefix = "~{prefix}.~{contig}.truth.renamed",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_rename_truth
+        if (defined(rename_id_string_vcf)) {
+            call Helpers.RenameVariantIds as RenameEvalIds {
+                input:
+                    vcf = SubsetEval.subset_vcf,
+                    vcf_index = SubsetEval.subset_vcf_index,
+                    id_format = select_first([rename_id_string_vcf]),
+                    strip_chr = strip_chr_vcf,
+                    prefix = "~{prefix}.~{contig}.eval.renamed",
+                    docker = benchmark_annotations_docker,
+                    runtime_attr_override = runtime_attr_subset_eval
+            }
         }
 
-        call Helpers.RenameVariantIds as RenameSVTruthIds {
-            input:
-                vcf = SubsetSVTruth.subset_vcf,
-                vcf_index = SubsetSVTruth.subset_vcf_index,
-                prefix = "~{prefix}.~{contig}.sv_truth.renamed",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_rename_sv_truth
+        if (defined(rename_id_string_vcf_truth)) {
+            call Helpers.RenameVariantIds as RenameTruthIds {
+                input:
+                    vcf = SubsetTruth.subset_vcf,
+                    vcf_index = SubsetTruth.subset_vcf_index,
+                    id_format = select_first([rename_id_string_vcf_truth]),
+                    strip_chr = strip_chr_vcf_truth,
+                    prefix = "~{prefix}.~{contig}.truth.renamed",
+                    docker = benchmark_annotations_docker,
+                    runtime_attr_override = runtime_attr_rename_truth
+            }
         }
+
+        if (defined(rename_id_string_vcf_sv_truth)) {
+            call Helpers.RenameVariantIds as RenameSVTruthIds {
+                input:
+                    vcf = SubsetSVTruth.subset_vcf,
+                    vcf_index = SubsetSVTruth.subset_vcf_index,
+                    id_format = select_first([rename_id_string_vcf_sv_truth]),
+                    strip_chr = strip_chr_vcf_sv_truth,
+                    prefix = "~{prefix}.~{contig}.sv_truth.renamed",
+                    docker = benchmark_annotations_docker,
+                    runtime_attr_override = runtime_attr_rename_sv_truth
+            }
+        }
+
+        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, SubsetEval.subset_vcf])
+        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_index, SubsetEval.subset_vcf_index])
+        File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, SubsetTruth.subset_vcf])
+        File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_index, SubsetTruth.subset_vcf_index])
+        File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, SubsetSVTruth.subset_vcf])
+        File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_index, SubsetSVTruth.subset_vcf_index])
 
         call ExtractVepHeader as ExtractTruthVepHeader {
             input:
-                vcf = RenameTruthIds.renamed_vcf,
-                vcf_index = RenameTruthIds.renamed_vcf_index,
+                vcf = truth_vcf_final,
+                vcf_index = truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_extract_truth_vep_header
@@ -166,8 +205,8 @@ workflow BenchmarkAnnotations {
 
         call ExtractVepHeader as ExtractEvalVepHeader {
             input:
-                vcf = SubsetEval.subset_vcf,
-                vcf_index = SubsetEval.subset_vcf_index,
+                vcf = eval_vcf_final,
+                vcf_index = eval_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_extract_eval_vep_header
@@ -175,8 +214,8 @@ workflow BenchmarkAnnotations {
 
         call ExactMatch {
             input:
-                vcf_eval = SubsetEval.subset_vcf,
-                vcf_truth = RenameTruthIds.renamed_vcf,
+                vcf_eval = eval_vcf_final,
+                vcf_truth = truth_vcf_final,
                 prefix = "~{prefix}.~{contig}",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_exact_match
@@ -186,8 +225,8 @@ workflow BenchmarkAnnotations {
             input:
                 vcf_eval = ExactMatch.unmatched_vcf,
                 vcf_eval_index = ExactMatch.unmatched_vcf_index,
-                vcf_truth = RenameTruthIds.renamed_vcf,
-                vcf_truth_index = RenameTruthIds.renamed_vcf_index,
+                vcf_truth = truth_vcf_final,
+                vcf_truth_index = truth_vcf_final_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
@@ -208,8 +247,8 @@ workflow BenchmarkAnnotations {
             input:
                 vcf_eval = TruvariMatch.unmatched_vcf,
                 vcf_eval_index = TruvariMatch.unmatched_vcf_index,
-                vcf_sv_truth = RenameSVTruthIds.renamed_vcf,
-                vcf_sv_truth_index = RenameSVTruthIds.renamed_vcf_index,
+                vcf_sv_truth = sv_truth_vcf_final,
+                vcf_sv_truth_index = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
                 bedtools_closest_docker = benchmark_annotations_docker,
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
@@ -238,12 +277,12 @@ workflow BenchmarkAnnotations {
         call CollectMatchedIDsAndINFO {
             input:
                 annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
-                vcf_eval = SubsetEval.subset_vcf,
-                vcf_eval_index = SubsetEval.subset_vcf_index,
-                vcf_truth_snv = RenameTruthIds.renamed_vcf,
-                vcf_truth_snv_index = RenameTruthIds.renamed_vcf_index,
-                vcf_truth_sv = RenameSVTruthIds.renamed_vcf,
-                vcf_truth_sv_index = RenameSVTruthIds.renamed_vcf_index,
+                vcf_eval = eval_vcf_final,
+                vcf_eval_index = eval_vcf_final_idx,
+                vcf_truth_snv = truth_vcf_final,
+                vcf_truth_snv_index = truth_vcf_final_idx,
+                vcf_truth_sv = sv_truth_vcf_final,
+                vcf_truth_sv_index = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_collect_matched_ids
@@ -287,8 +326,8 @@ workflow BenchmarkAnnotations {
 
         call ComputeSummaryForContig {
             input:
-                eval_vcf = SubsetEval.subset_vcf,
-                eval_vcf_index = SubsetEval.subset_vcf_index,
+                eval_vcf = eval_vcf_final,
+                eval_vcf_index = eval_vcf_final_idx,
                 annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                 matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                 eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
@@ -354,13 +393,31 @@ task ExactMatch {
     command <<<
         set -euo pipefail
 
-        python3 /opt/gnomad-lr/scripts/benchmark/exact_match.py \
-            ~{vcf_eval} \
-            ~{vcf_truth} \
-            ~{prefix}
+        # Find exact matches using bcftools isec
+        # -n=2: output positions present in both files
+        # -c none: require identical REF and ALT alleles (default, but explicit)
+        # Output: 0000.vcf=matched from eval, 0001.vcf=matched from truth (same order)
+        bcftools isec -c none -n=2 -p isec_temp ~{vcf_eval} ~{vcf_truth}
         
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/gnomAD_V4_match\t%INFO/gnomAD_V4_match_ID\n' \
-            ~{prefix}.exact_matched.vcf.gz > ~{prefix}.exact_matched.tsv
+        # Extract eval variant info (CHROM, POS, REF, ALT, ID)
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' isec_temp/0000.vcf > eval_matched.tsv
+        
+        # Extract truth variant IDs
+        bcftools query -f '%ID\n' isec_temp/0001.vcf > truth_matched.tsv
+        
+        # Combine into annotation TSV: CHROM, POS, REF, ALT, eval_ID, match_type, truth_ID, match_source
+        # Both files have matching positions in same genomic order, so paste is safe
+        paste eval_matched.tsv truth_matched.tsv \
+            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \
+            > ~{prefix}.exact_matched.tsv
+        
+        # Get unmatched variants (present in eval but not in truth)
+        # -C: complement, output records from first file missing in others
+        bcftools isec -c none -C ~{vcf_eval} ~{vcf_truth} -Oz -o ~{prefix}.unmatched.vcf.gz
+        tabix -p vcf -f ~{prefix}.unmatched.vcf.gz
+        
+        # Clean up temp directory
+        rm -rf isec_temp
     >>>
 
     output {

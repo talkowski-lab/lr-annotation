@@ -33,6 +33,7 @@ task GetHailMTSize {
     }
 
     command <<<
+        set -euo pipefail
         tot_size=$(gsutil -m du -sh ~{mt_uri} | awk -F '    ' '{ print $1 }')
 
         cat <<EOF > convert_to_gb.py
@@ -65,7 +66,7 @@ task SplitVcfIntoShards {
   }
 
   command <<<
-    set -e
+    set -euo pipefail
 
     mkdir chunks
     bcftools view -h ~{input_vcf} > chunks/header.vcf
@@ -473,14 +474,25 @@ task RenameVariantIds {
         File vcf
         File vcf_index
         String prefix
+        String id_format = "%CHROM-%POS-%REF-%ALT"
+        Boolean? strip_chr
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
+        set -euo pipefail
         
+        if [ "~{strip_chr}" == "true" ]; then
+            bcftools view -h ~{vcf} > header.txt
+            bcftools view -H ~{vcf} | sed 's/^chr//' | cat header.txt - | bgzip -c > temp_renamed_chr.vcf.gz
+            tabix -p vcf temp_renamed_chr.vcf.gz
+            
+            bcftools annotate --set-id '~{id_format}' temp_renamed_chr.vcf.gz -Oz -o ~{prefix}.vcf.gz
+        else
+            bcftools annotate --set-id '~{id_format}' ~{vcf} -Oz -o ~{prefix}.vcf.gz
+        fi
         
-        bcftools annotate --set-id '%CHROM-%POS-%REF-%ALT' ~{vcf} -Oz -o ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 

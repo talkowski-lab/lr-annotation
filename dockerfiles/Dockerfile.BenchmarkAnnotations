@@ -4,13 +4,12 @@ MAINTAINER Karan Jaisingh
 
 RUN apt-get update && apt-get install -y build-essential r-base
 
-COPY ./scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
-COPY ./scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
-
 COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/
 COPY ./scripts/helpers/abs_svlen.py /opt/gnomad-lr/scripts/helpers/
 
-COPY ./scripts/benchmark/exact_match.py /opt/gnomad-lr/scripts/benchmark/
+COPY ./scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
+COPY ./scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
+
 COPY ./scripts/benchmark/compute_benchmarks_shard.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/compute_summary_for_contig.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/merge_benchmarks_from_pairs.py /opt/gnomad-lr/scripts/benchmark/
