@@ -68,8 +68,30 @@ workflow PALMERDiploid {
 			}
 		}
 
-		File calls_file = if defined (override_palmer_calls) then select_first([override_palmer_calls])[idx] else select_first([MergePALMEROutputs.calls])
-		File tsd_file = if defined (override_palmer_tsd_files) then select_first([override_palmer_tsd_files])[idx] else select_first([MergePALMEROutputs.tsd_reads])
+		if (defined(override_palmer_calls)) {
+			call AddMeiTypeColumn as AddMeiTypeToCallsOverride {
+				input:
+					input_file = select_first([override_palmer_calls])[idx],
+					mei_type = mei_type,
+					prefix = prefix,
+					file_type = "calls",
+					docker = utils_docker
+			}
+		}
+
+		if (defined(override_palmer_tsd_files)) {
+			call AddMeiTypeColumn as AddMeiTypeToTsdOverride {
+				input:
+					input_file = select_first([override_palmer_tsd_files])[idx],
+					mei_type = mei_type,
+					prefix = prefix,
+					file_type = "tsd_reads",
+					docker = utils_docker
+			}
+		}
+
+		File calls_file = if defined (override_palmer_calls) then select_first([AddMeiTypeToCallsOverride.output_file]) else select_first([MergePALMEROutputs.calls])
+		File tsd_file = if defined (override_palmer_tsd_files) then select_first([AddMeiTypeToTsdOverride.output_file]) else select_first([MergePALMEROutputs.tsd_reads])
 
 		call ConvertPALMERToVcf {
 			input:
@@ -300,6 +322,46 @@ task ConvertPALMERToVcf {
 		cpu_cores: 1,
 		mem_gb: 4,
 		disk_gb: 5 * ceil(size(palmer_calls, "GB") + size(palmer_tsd_reads, "GB") + size(ref_fa, "GB")) + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 1,
+		max_retries: 0
+	}
+	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+	runtime {
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+	}
+}
+
+task AddMeiTypeColumn {
+	input {
+		File input_file
+		String mei_type
+		String prefix
+		String file_type
+		String docker
+		RuntimeAttr? runtime_attr_override
+	}
+
+	command <<<
+		set -euo pipefail
+
+		sed "s/$/\t~{mei_type}/" ~{input_file} > ~{prefix}_~{mei_type}_~{file_type}.txt
+	>>>
+
+	output {
+		File output_file = "~{prefix}_~{mei_type}_~{file_type}.txt"
+	}
+
+	RuntimeAttr default_attr = object {
+		cpu_cores: 1,
+		mem_gb: 2,
+		disk_gb: 2 * ceil(size(input_file, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0

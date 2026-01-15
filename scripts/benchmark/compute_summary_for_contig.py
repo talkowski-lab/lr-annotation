@@ -132,7 +132,7 @@ def generate_summaries(
                 "match_status": False,
                 "truth_variant_id": ".",
             }
-            
+
             if eval_id in annotations:
                 match_type, truth_id = annotations[eval_id]
                 match_counts[match_type] += 1
@@ -244,7 +244,7 @@ def main():
     with open(args.eval_vep_header, "r") as f:
         eval_header_line = f.readline()
     eval_vep_key, eval_fields = parse_vep_header_line(eval_header_line)
-    
+
     with open(args.truth_vep_header, "r") as f:
         truth_header_line = f.readline()
     truth_vep_key, truth_fields = parse_vep_header_line(truth_header_line)
@@ -259,7 +259,7 @@ def main():
 
     summary_table_path = f"{args.prefix}.benchmark_summary.tsv"
     summary_stats_path = f"{args.prefix}.summary_stats.tsv"
-    
+
     generate_summaries(
         args.eval_vcf,
         annotations,
