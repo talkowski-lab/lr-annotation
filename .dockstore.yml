@@ -100,8 +100,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: ExtractSamplesFromVcf
-    primaryDescriptorPath: /wdl/utils/ExtractSamplesFromVcf.wdl
+    name: CompareSamplesToVcf
+    primaryDescriptorPath: /wdl/utils/CompareSamplesToVcf.wdl
     filters:
       branches:
         - main
