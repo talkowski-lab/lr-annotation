@@ -25,10 +25,10 @@ workflow ExtractSamplesFromVcf {
     }
 
     output {
-        File summary_sample_counts = ExtractSamples.summary
-        File common_samples = ExtractSamples.common_samples
-        File vcf_only_samples = ExtractSamples.vcf_only_samples
-        File sample_list_only_samples = ExtractSamples.sample_list_only_samples
+        File samples_summary_counts = ExtractSamples.summary
+        File samples_common = ExtractSamples.common_samples
+        File samples_vcf_only = ExtractSamples.vcf_only_samples
+        File samples_sample_list_only = ExtractSamples.sample_list_only_samples
     }
 }
 
