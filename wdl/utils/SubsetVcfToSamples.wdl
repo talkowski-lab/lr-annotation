@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl" as Helpers
 
 workflow SubsetVcfToSamples {
     input {
@@ -17,7 +18,7 @@ workflow SubsetVcfToSamples {
     }
 
     scatter (contig in contigs) {
-        call SubsetVcfToSampleList {
+        call Helpers.SubsetVcfToSampleList {
             input:
                 vcf = vcf,
                 vcf_index = vcf_idx,
@@ -29,10 +30,11 @@ workflow SubsetVcfToSamples {
         }
     }
 
-    call ConcatVcfs {
+    call Helpers.ConcatVcfs {
         input:
             vcfs = SubsetVcfToSampleList.subset_vcf,
-            vcf_indices = SubsetVcfToSampleList.subset_vcf_index,
+            vcfs_idx = SubsetVcfToSampleList.subset_vcf_index,
+            merge_sort = true,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcfs
@@ -41,105 +43,7 @@ workflow SubsetVcfToSamples {
     output {
         Array[File] subset_samples_vcf_shards = SubsetVcfToSampleList.subset_vcf
         Array[File] subset_samples_vcf_shards_idx = SubsetVcfToSampleList.subset_vcf_index
-        File subset_samples_vcf = ConcatVcfs.merged_vcf
-        File subset_samples_vcf_idx = ConcatVcfs.merged_vcf_index
-    }
-}
-
-task SubsetVcfToSampleList {
-    input {
-        File vcf
-        File vcf_index
-        Array[String] samples
-        String contig
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        cat > samples.txt <<EOF
-~{sep='\n' samples}
-EOF
-
-        bcftools view \
-            --samples-file samples.txt \
-            --min-ac 1 \
-            --regions ~{contig} \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
-        
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File subset_vcf = "~{prefix}.vcf.gz"
-        File subset_vcf_index = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ConcatVcfs {
-    input {
-        Array[File] vcfs
-        Array[File] vcf_indices
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools concat \
-            --allow-overlaps \
-            ~{sep=' ' vcfs} \
-            -Oz -o ~{prefix}.vcf.gz
-        
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File merged_vcf = "~{prefix}.vcf.gz"
-        File merged_vcf_index = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 3 * ceil(size(vcfs, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        File subset_samples_vcf = ConcatVcfs.concat_vcf
+        File subset_samples_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
