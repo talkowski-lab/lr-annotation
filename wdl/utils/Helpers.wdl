@@ -266,10 +266,10 @@ task SubsetVcfToContig {
         set -euo pipefail
 
         bcftools view \
-            ~{vcf} \
             --regions ~{contig} \
-            ~{if defined(args_string) then args_string else ""} \
             ~{if strip_genotypes then "-G" else ""} \
+            ~{if defined(args_string) then args_string else ""} \
+            ~{vcf} \
             -Oz -o ~{prefix}.~{contig}.vcf.gz
         tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
     >>>
