@@ -101,8 +101,8 @@ task RunAgglovarMerge {
     >>>
 
     output {
-        File merged_vcf = "~{prefix}.agglovar.merged.vcf.gz"
-        File merged_vcf_index = "~{prefix}.agglovar.merged.vcf.gz.tbi"
+        File agglovar_merged_vcf = "~{prefix}.agglovar.merged.vcf.gz"
+        File agglovar_merged_vcf_idx = "~{prefix}.agglovar.merged.vcf.gz.tbi"
     }
     
     RuntimeAttr default_attr = object {

@@ -118,6 +118,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PALMERDiploid
+    primaryDescriptorPath: /wdl/tools/PALMERDiploid.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PALMERMerge
     primaryDescriptorPath: /wdl/tools/PALMERMerge.wdl
     filters:
