@@ -397,32 +397,35 @@ task ExactMatch {
     command <<<
         set -euo pipefail
 
-        # Find exact matches using bcftools isec
-        # -n=2: output positions present in both files
-        # -c none: require identical REF and ALT alleles (default, but explicit)
-        # Output: 0000.vcf=matched from eval, 0001.vcf=matched from truth (same order)
-        bcftools isec -c none -n=2 -p isec_matched ~{vcf_eval} ~{vcf_truth}
+        bcftools isec \
+            -c none \
+            -n=2 \
+            -p isec_matched \
+            ~{vcf_eval} \
+            ~{vcf_truth}
         
-        # Extract eval variant info (CHROM, POS, REF, ALT, ID)
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' isec_matched/0000.vcf > eval_matched.tsv
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
+            isec_matched/0000.vcf > eval_matched.tsv
         
-        # Extract truth variant IDs
-        bcftools query -f '%ID\n' isec_matched/0001.vcf > truth_matched.tsv
+        bcftools query \
+            -f '%ID\n' \
+            isec_matched/0001.vcf > truth_matched.tsv
         
-        # Combine into annotation TSV: CHROM, POS, REF, ALT, eval_ID, match_type, truth_ID, match_source
-        # Both files have matching positions in same genomic order, so paste is safe
         paste eval_matched.tsv truth_matched.tsv \
             | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \
             > ~{prefix}.exact_matched.tsv
         
-        # Get unmatched variants (present in eval but not in truth)
-        # Use -p to output to directory which preserves VCF headers
-        bcftools isec -c none -C -p isec_unmatched ~{vcf_eval} ~{vcf_truth}
-        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.unmatched.vcf.gz
-        tabix -p vcf ~{prefix}.unmatched.vcf.gz
+        bcftools isec \
+            -C \
+            -c none \
+            -p isec_unmatched \
+            ~{vcf_eval} \
+            ~{vcf_truth}
         
-        # Clean up temp directories
-        rm -rf isec_matched isec_unmatched
+        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.unmatched.vcf.gz
+        
+        tabix -p vcf ~{prefix}.unmatched.vcf.gz
     >>>
 
     output {
