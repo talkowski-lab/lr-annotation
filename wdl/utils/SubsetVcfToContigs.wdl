@@ -39,7 +39,7 @@ workflow SubsetVcfToContigs {
     }
 
     output {
-        File subset_vcf = ConcatVcfs.concat_vcf
-        File subset_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File subset_contigs_vcf = ConcatVcfs.concat_vcf
+        File subset_contigs_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
