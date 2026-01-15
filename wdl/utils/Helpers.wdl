@@ -8,29 +8,6 @@ task GetHailMTSize {
         String hail_docker
         RuntimeAttr? runtime_attr_override
     }
-    Float base_disk_gb = 10.0
-    Float input_disk_scale = 5.0
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: 2 * ceil(base_disk_gb) + 5,
-        cpu_cores: 1,
-        preemptible_tries: 1,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-    
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
 
     command <<<
         set -euo pipefail
@@ -50,6 +27,25 @@ task GetHailMTSize {
 
         python3 convert_to_gb.py $tot_size > mt_size.txt
     >>>
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: 25,
+        cpu_cores: 1,
+        preemptible_tries: 1,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: hail_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    }
 
     output {
         Float mt_size = read_lines('mt_size.txt')[0]
@@ -118,9 +114,23 @@ task ConcatVcfs {
 
   String outfile_name = prefix + ".vcf.gz"
   String merge_flag = if merge_sort then "--allow-overlaps" else ""
-  
-  Float base_disk_gb = 5.0
-  Float base_mem_gb = 2.0
+
+  command <<<
+    set -euo pipefail
+    
+    VCFS_FILE="~{write_lines(vcfs)}"
+    if ~{!defined(vcfs_idx)}; then
+      cat ${VCFS_FILE} | xargs -n1 tabix
+    fi
+
+    bcftools concat \
+        -a ~{merge_flag} \
+        --file-list ${VCFS_FILE} \
+        -Oz -o "~{outfile_name}"
+    
+    tabix -p vcf -f "~{outfile_name}"
+  >>>
+
   RuntimeAttr default_attr = object {
     mem_gb: 4,
     disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
@@ -139,17 +149,6 @@ task ConcatVcfs {
     docker: docker
     bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
   }
-
-  command <<<
-    set -euo pipefail
-    
-    VCFS_FILE="~{write_lines(vcfs)}"
-    if ~{!defined(vcfs_idx)}; then
-      cat ${VCFS_FILE} | xargs -n1 tabix
-    fi
-    bcftools concat -a ~{merge_flag} --output-type z --file-list ${VCFS_FILE} --output "~{outfile_name}"
-    tabix -p vcf -f "~{outfile_name}"
-  >>>
 
   output {
     File concat_vcf = outfile_name
@@ -257,7 +256,7 @@ task SubsetVcfToContig {
         File vcf_index
         String contig
         String? args_string
-        Boolean strip_genotypes = true
+        Boolean strip_genotypes = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override

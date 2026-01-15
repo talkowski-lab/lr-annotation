@@ -401,13 +401,13 @@ task ExactMatch {
         # -n=2: output positions present in both files
         # -c none: require identical REF and ALT alleles (default, but explicit)
         # Output: 0000.vcf=matched from eval, 0001.vcf=matched from truth (same order)
-        bcftools isec -c none -n=2 -p isec_temp ~{vcf_eval} ~{vcf_truth}
+        bcftools isec -c none -n=2 -p isec_matched ~{vcf_eval} ~{vcf_truth}
         
         # Extract eval variant info (CHROM, POS, REF, ALT, ID)
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' isec_temp/0000.vcf > eval_matched.tsv
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' isec_matched/0000.vcf > eval_matched.tsv
         
         # Extract truth variant IDs
-        bcftools query -f '%ID\n' isec_temp/0001.vcf > truth_matched.tsv
+        bcftools query -f '%ID\n' isec_matched/0001.vcf > truth_matched.tsv
         
         # Combine into annotation TSV: CHROM, POS, REF, ALT, eval_ID, match_type, truth_ID, match_source
         # Both files have matching positions in same genomic order, so paste is safe
@@ -416,12 +416,13 @@ task ExactMatch {
             > ~{prefix}.exact_matched.tsv
         
         # Get unmatched variants (present in eval but not in truth)
-        # -C: complement, output records from first file missing in others
-        bcftools isec -c none -C ~{vcf_eval} ~{vcf_truth} | bgzip -c > ~{prefix}.unmatched.vcf.gz
+        # Use -p to output to directory which preserves VCF headers
+        bcftools isec -c none -C -p isec_unmatched ~{vcf_eval} ~{vcf_truth}
+        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.unmatched.vcf.gz
         tabix -p vcf ~{prefix}.unmatched.vcf.gz
         
-        # Clean up temp directory
-        rm -rf isec_temp
+        # Clean up temp directories
+        rm -rf isec_matched isec_unmatched
     >>>
 
     output {
