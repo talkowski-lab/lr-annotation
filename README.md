@@ -94,6 +94,7 @@ TODO
 This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order to annotate MEI calls for a cohort in a given cohort VCF. It retains the genotypes present in the VCF, simply adding an INFO field `ME_TYPE` to insertions whose characteristics match those of the PALMER calls.
 
 Inputs:
+- `mei_types`: MEI types to run on - must be a subset of [`ALU`, `SVA`, `LINE` or `HERVK`].
 - `rm_fa`: Output by _RepeatMasker_.
 - `rm_out`: Output by _RepeatMasker_.
 - `contigs`.
