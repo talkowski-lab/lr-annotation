@@ -18,9 +18,11 @@ workflow IntegrateVcfs {
         String utils_docker
 
         RuntimeAttr? runtime_attr_check_samples
-        RuntimeAttr? runtime_attr_filter
+        RuntimeAttr? runtime_attr_filter_snv_indel
+        RuntimeAttr? runtime_attr_filter_sv
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_annotate_svlen_svtype
     }
 
     call CheckSampleConsistency {
@@ -43,7 +45,7 @@ workflow IntegrateVcfs {
                 use_max_size = true,
                 prefix = "~{prefix}.~{contig}.snv_indel",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter
+                runtime_attr_override = runtime_attr_filter_snv_indel
         }
 
         call SubsetAndFilterVcf as SubsetSv {
@@ -56,7 +58,7 @@ workflow IntegrateVcfs {
                 use_max_size = false,
                 prefix = "~{prefix}.~{contig}.sv",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter
+                runtime_attr_override = runtime_attr_filter_sv
         }
 
         call Helpers.ConcatVcfs as MergeContigVcfs {
@@ -84,7 +86,7 @@ workflow IntegrateVcfs {
             vcf_idx = ConcatVcfs.concat_vcf_idx,
             prefix = prefix,
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_annotate_svlen_svtype
     }
 
     output {

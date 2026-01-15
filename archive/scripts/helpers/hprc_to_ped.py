@@ -42,9 +42,9 @@ def main():
                 if sample_id in exclude_set:
                     continue
                 
-                family_id = row["family_id"]
-                paternal_id = row["paternal_id"]
-                maternal_id = row["maternal_id"]
+                family_id = row["family_id"] if row["family_id"] else sample_id
+                paternal_id = row["paternal_id"] if row["paternal_id"] else "0"
+                maternal_id = row["maternal_id"] if row["maternal_id"] else "0"
                 sex = row["sex"]
                 
                 if sex.lower() == "male":

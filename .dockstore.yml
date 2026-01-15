@@ -55,6 +55,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateTRGT
+    primaryDescriptorPath: /wdl/annotation/AnnotateTRGT.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail.wdl
     filters:

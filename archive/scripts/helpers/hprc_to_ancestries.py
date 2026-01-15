@@ -20,6 +20,11 @@ def main():
         help="Path to the ancestries TSV file"
     )
     parser.add_argument(
+        "--ancestries_reference",
+        required=False,
+        help="Path to the ancestries reference TSV file (fallback mapping)"
+    )
+    parser.add_argument(
         "--exclude_samples",
         default="",
         help="Comma-separated list of sample IDs to exclude"
@@ -43,6 +48,16 @@ def main():
             ethnicity = row["ethnicity"].lower()
             ancestry_map[sample] = ethnicity
     
+    pop_to_ancestry = {}
+    if args.ancestries_reference:
+        with open(args.ancestries_reference, "r", encoding="utf-8", errors="replace") as f:
+            reader = csv.reader(f, delimiter="\t")
+            for row in reader:
+                if len(row) >= 2:
+                    ancestry = row[0].lower()
+                    population_abbrev = row[1]
+                    pop_to_ancestry[population_abbrev] = ancestry
+    
     output_file = sys.stdout if args.output == "-" else open(args.output, "w")
     
     try:
@@ -59,7 +74,12 @@ def main():
                     ethnicity = ancestry_map[sample_id]
                     output_file.write(f"{sample_id}\t{ethnicity}\n")
                 else:
-                    print(f"{sample_id}")
+                    population_abbrev = row["population_abbreviation"]
+                    if population_abbrev in pop_to_ancestry:
+                        ethnicity = pop_to_ancestry[population_abbrev]
+                        output_file.write(f"{sample_id}\t{ethnicity}\n")
+                    else:
+                        print(f"{sample_id}")
     
     finally:
         if output_file != sys.stdout:

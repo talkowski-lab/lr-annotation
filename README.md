@@ -123,6 +123,10 @@ Inputs:
 - `noncoding_bed`.
 
 
+### [AnnotateMEDs](wdl/annotation/AnnotateMEDs.wdl)
+TODO
+
+
 ### [AnnotateVEPHail](wdl/annotation/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
 
