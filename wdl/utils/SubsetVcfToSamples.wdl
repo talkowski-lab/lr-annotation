@@ -41,8 +41,6 @@ workflow SubsetVcfToSamples {
     }
 
     output {
-        Array[File] subset_samples_vcf_shards = SubsetVcfToSampleList.subset_vcf
-        Array[File] subset_samples_vcf_shards_idx = SubsetVcfToSampleList.subset_vcf_index
         File subset_samples_vcf = ConcatVcfs.concat_vcf
         File subset_samples_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
