@@ -45,7 +45,23 @@ def parse_truth_info_string(info_str: str) -> Dict[str, str]:
     return kv
 
 
-def load_truth_info_from_matched(matched_with_info_tsv_path):
+def load_annotations_from_tsv(annotation_tsv_path: str) -> Dict[str, Tuple[str, str]]:
+    annotations = {}
+    with open(annotation_tsv_path, "r") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 7:
+                continue
+            eval_id = parts[4]
+            match_type = parts[5]
+            truth_id = parts[6]
+            annotations[eval_id] = (match_type, truth_id)
+    return annotations
+
+
+def load_truth_info_from_matched(matched_with_info_tsv_path: str) -> Dict[str, Dict[str, str]]:
     truth = {}
     with gzip.open(matched_with_info_tsv_path, "rt") as f:
         for line in f:
@@ -54,7 +70,8 @@ def load_truth_info_from_matched(matched_with_info_tsv_path):
             parts = line.rstrip("\n").split("\t")
             if len(parts) < 4:
                 continue
-            _, truth_id, _, truth_info_str = parts[0], parts[1], parts[2], parts[3]
+            truth_id = parts[1]
+            truth_info_str = parts[3]
             truth[truth_id] = parse_truth_info_string(truth_info_str)
     return truth
 
@@ -74,18 +91,6 @@ def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
     return id_key, fmt_fields
 
 
-def get_eval_vep_header_from_vcf(vcf_path: str) -> Tuple[str, List[str]]:
-    with pysam.VariantFile(vcf_path) as vcf:
-        for rec in vcf.header.records:
-            if rec.key == "INFO" and rec.get("ID"):
-                vep_id = rec.get("ID")
-                if vep_id and vep_id.lower() in ["vep", "csq"]:
-                    desc = rec.get("Description", "")
-                    fmt = desc.split("Format:")[-1].strip().strip('"').lower()
-                    return vep_id, [f.strip() for f in fmt.split("|")]
-    raise ValueError("Could not find eval VEP/CSQ header in VCF")
-
-
 def get_vep_annotations(
     info_dict, vep_key: str, indices: Dict[int, str]
 ) -> Dict[str, str]:
@@ -103,66 +108,40 @@ def get_vep_annotations(
     return ann
 
 
-def write_summary_stats(final_vcf_path: str, contig: str, output_path: str):
-    total_variants = 0
-    match_counts = defaultdict(int)
-    with pysam.VariantFile(final_vcf_path) as vcf_in:
-        for record in vcf_in:
-            total_variants += 1
-            if "gnomAD_V4_match" in record.info:
-                match_type = record.info["gnomAD_V4_match"]
-                match_counts[match_type] += 1
-            else:
-                match_counts["UNMATCHED"] += 1
-    total_matched = total_variants - match_counts["UNMATCHED"]
-    summary_stats = {
-        "contig": contig,
-        "total_variants": total_variants,
-        "total_matched": total_matched,
-        "total_unmatched": match_counts["UNMATCHED"],
-        "percent_matched": (
-            (total_matched / total_variants * 100) if total_variants > 0 else 0.0
-        ),
-        "percent_unmatched": (
-            (match_counts["UNMATCHED"] / total_variants * 100)
-            if total_variants > 0
-            else 0.0
-        ),
-    }
-    for match_type, count in match_counts.items():
-        if match_type != "UNMATCHED":
-            summary_stats[f"{str(match_type).lower()}_count"] = count
-            summary_stats[f"{str(match_type).lower()}_percent"] = (
-                (count / total_variants * 100) if total_variants > 0 else 0.0
-            )
-    with open(output_path, "w") as f:
-        f.write("\t".join(summary_stats.keys()) + "\n")
-        f.write("\t".join(str(v) for v in summary_stats.values()) + "\n")
-
-
-def write_summary_table(
-    final_vcf_path: str,
+def generate_summaries(
+    eval_vcf_path: str,
+    annotations: Dict[str, Tuple[str, str]],
     truth_variants: Dict[str, Dict[str, str]],
     vep_keys: Tuple[str, str, Dict[int, str], Dict[int, str]],
-    output_path: str,
+    contig: str,
+    summary_table_path: str,
+    summary_stats_path: str,
 ):
+    """Generate both summary table and stats in a single pass through the VCF."""
     all_rows = []
+    match_counts = defaultdict(int)
+    total_variants = 0
     eval_vep_key, truth_vep_key, eval_indices, truth_indices = vep_keys
 
-    with pysam.VariantFile(final_vcf_path) as vcf_in:
+    with pysam.VariantFile(eval_vcf_path) as vcf_in:
         for record in vcf_in:
+            total_variants += 1
+            eval_id = record.id
             row = {
-                "eval_variant_id": record.id,
+                "eval_variant_id": eval_id,
                 "match_status": False,
                 "truth_variant_id": ".",
             }
-            if "gnomAD_V4_match_ID" in record.info:
-                match_id = record.info["gnomAD_V4_match_ID"]
-                if match_id in truth_variants:
-                    row["match_status"] = True
-                    row["truth_variant_id"] = match_id
+            
+            if eval_id in annotations:
+                match_type, truth_id = annotations[eval_id]
+                match_counts[match_type] += 1
+                row["match_status"] = True
+                row["truth_variant_id"] = truth_id
+                row["match_type"] = match_type
 
-                    truth_info = truth_variants[match_id]
+                if truth_id in truth_variants:
+                    truth_info = truth_variants[truth_id]
                     eval_af_pairs = {
                         normalize_af_field(k): normalize_af_value(v)
                         for k, v in record.info.items()
@@ -198,9 +177,12 @@ def write_summary_table(
                     ):
                         row[f"{category}_eval"] = eval_annos.get(category, "N/A")
                         row[f"{category}_truth"] = truth_annos.get(category, "N/A")
+            else:
+                match_counts["UNMATCHED"] += 1
 
             all_rows.append(row)
 
+    # Write summary table
     df = pd.DataFrame(all_rows)
     cols_to_drop = []
     prefixes = set()
@@ -216,25 +198,56 @@ def write_summary_table(
             if eval_empty and truth_empty:
                 cols_to_drop.extend([ec, tc])
     df.drop(columns=cols_to_drop, inplace=True, errors="ignore")
-    df.to_csv(output_path, sep="\t", index=False, na_rep=".")
+    df.to_csv(summary_table_path, sep="\t", index=False, na_rep=".")
+
+    # Write summary stats
+    total_matched = total_variants - match_counts["UNMATCHED"]
+    summary_stats = {
+        "contig": contig,
+        "total_variants": total_variants,
+        "total_matched": total_matched,
+        "total_unmatched": match_counts["UNMATCHED"],
+        "percent_matched": (
+            (total_matched / total_variants * 100) if total_variants > 0 else 0.0
+        ),
+        "percent_unmatched": (
+            (match_counts["UNMATCHED"] / total_variants * 100)
+            if total_variants > 0
+            else 0.0
+        ),
+    }
+    for match_type, count in match_counts.items():
+        if match_type != "UNMATCHED":
+            summary_stats[f"{str(match_type).lower()}_count"] = count
+            summary_stats[f"{str(match_type).lower()}_percent"] = (
+                (count / total_variants * 100) if total_variants > 0 else 0.0
+            )
+    with open(summary_stats_path, "w") as f:
+        f.write("\t".join(summary_stats.keys()) + "\n")
+        f.write("\t".join(str(v) for v in summary_stats.values()) + "\n")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prefix", required=True)
     ap.add_argument("--contig", required=True)
-    ap.add_argument("--final_vcf", required=True)
+    ap.add_argument("--eval_vcf", required=True)
     ap.add_argument("--annotation_tsv", required=True)
     ap.add_argument("--matched_with_info_tsv", required=True)
+    ap.add_argument("--eval_vep_header", required=True)
     ap.add_argument("--truth_vep_header", required=True)
     args = ap.parse_args()
 
+    annotations = load_annotations_from_tsv(args.annotation_tsv)
     truth_info = load_truth_info_from_matched(args.matched_with_info_tsv)
 
+    with open(args.eval_vep_header, "r") as f:
+        eval_header_line = f.readline()
+    eval_vep_key, eval_fields = parse_vep_header_line(eval_header_line)
+    
     with open(args.truth_vep_header, "r") as f:
         truth_header_line = f.readline()
     truth_vep_key, truth_fields = parse_vep_header_line(truth_header_line)
-    eval_vep_key, eval_fields = get_eval_vep_header_from_vcf(args.final_vcf)
 
     common_categories = set(eval_fields) & set(truth_fields)
     eval_indices = {
@@ -245,15 +258,17 @@ def main():
     }
 
     summary_table_path = f"{args.prefix}.benchmark_summary.tsv"
-    write_summary_table(
-        args.final_vcf,
+    summary_stats_path = f"{args.prefix}.summary_stats.tsv"
+    
+    generate_summaries(
+        args.eval_vcf,
+        annotations,
         truth_info,
         (eval_vep_key, truth_vep_key, eval_indices, truth_indices),
+        args.contig,
         summary_table_path,
+        summary_stats_path,
     )
-
-    summary_stats_path = f"{args.prefix}.summary_stats.tsv"
-    write_summary_stats(args.final_vcf, args.contig, summary_stats_path)
 
 
 if __name__ == "__main__":

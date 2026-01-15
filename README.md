@@ -192,6 +192,10 @@ Inputs:
 - `ref_fai`.
 
 
+### [PALMERDiploid](wdl/tools/PALMERDiploid.wdl)
+TODO
+
+
 ### [PALMERMerge](wdl/tools/PALMERMerge.wdl)
 TODO
 

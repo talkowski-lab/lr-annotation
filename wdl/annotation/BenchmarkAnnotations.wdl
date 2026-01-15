@@ -287,10 +287,11 @@ workflow BenchmarkAnnotations {
 
         call ComputeSummaryForContig {
             input:
-                final_vcf = SubsetEval.subset_vcf,
-                final_vcf_index = SubsetEval.subset_vcf_index,
+                eval_vcf = SubsetEval.subset_vcf,
+                eval_vcf_index = SubsetEval.subset_vcf_index,
                 annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                 matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
+                eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
@@ -653,10 +654,11 @@ task MergeShardBenchmarks {
 
 task ComputeSummaryForContig {
     input {
-        File final_vcf
-        File final_vcf_index
+        File eval_vcf
+        File eval_vcf_index
         File annotation_tsv
         File matched_with_info_tsv
+        File eval_vep_header
         File truth_vep_header
         String contig
         String prefix
@@ -670,9 +672,10 @@ task ComputeSummaryForContig {
         python3 /opt/gnomad-lr/scripts/benchmark/compute_summary_for_contig.py \
             --prefix ~{prefix} \
             --contig ~{contig} \
-            --final_vcf ~{final_vcf} \
+            --eval_vcf ~{eval_vcf} \
             --annotation_tsv ~{annotation_tsv} \
             --matched_with_info_tsv ~{matched_with_info_tsv} \
+            --eval_vep_header ~{eval_vep_header} \
             --truth_vep_header ~{truth_vep_header}
     >>>
 
@@ -684,7 +687,7 @@ task ComputeSummaryForContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(final_vcf, "GB")) + 5,
+        disk_gb: 2 * ceil(size(eval_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
