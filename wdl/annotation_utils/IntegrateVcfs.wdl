@@ -69,29 +69,29 @@ workflow IntegrateVcfs {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
+
+        call AnnotateSvlenSvtype {
+            input:
+                vcf = MergeContigVcfs.concat_vcf,
+                vcf_idx = MergeContigVcfs.concat_vcf_idx,
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_svlen_svtype
+        }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = MergeContigVcfs.concat_vcf,
-            vcfs_idx = MergeContigVcfs.concat_vcf_idx,
-            prefix = "~{prefix}.raw",
+            vcfs = AnnotateSvlenSvtype.annotated_vcf,
+            vcfs_idx = AnnotateSvlenSvtype.annotated_vcf_idx,
+            prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
-    call AnnotateSvlenSvtype {
-        input:
-            vcf = ConcatVcfs.concat_vcf,
-            vcf_idx = ConcatVcfs.concat_vcf_idx,
-            prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate_svlen_svtype
-    }
-
     output {
-        File integrated_vcf = AnnotateSvlenSvtype.annotated_vcf
-        File integrated_vcf_idx = AnnotateSvlenSvtype.annotated_vcf_idx
+        File integrated_vcf = ConcatVcfs.concat_vcf
+        File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
