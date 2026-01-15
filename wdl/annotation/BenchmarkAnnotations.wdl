@@ -215,7 +215,9 @@ workflow BenchmarkAnnotations {
         call ExactMatch {
             input:
                 vcf_eval = eval_vcf_final,
+                vcf_eval_index = eval_vcf_final_idx,
                 vcf_truth = truth_vcf_final,
+                vcf_truth_index = truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_exact_match
@@ -384,7 +386,9 @@ workflow BenchmarkAnnotations {
 task ExactMatch {
     input {
         File vcf_eval
+        File vcf_eval_index
         File vcf_truth
+        File vcf_truth_index
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
