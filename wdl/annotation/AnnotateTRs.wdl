@@ -154,20 +154,19 @@ task AnnotateTRVariants {
     command <<<
         set -euo pipefail
 
-        # Add TR_CALLER header definition to tr_vcf first
+        bcftools query -l ~{vcf} > sample_order.txt
+
+        bcftools view -S sample_order.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
+        tabix -p vcf tr_reordered.vcf.gz
+
         echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">' > tr_caller_header.txt
         
-        echo "Done 1"
-
         bcftools annotate \
             -h tr_caller_header.txt \
             -Oz -o tr_with_header.vcf.gz \
-            ~{tr_vcf}
+            tr_reordered.vcf.gz
         tabix -p vcf tr_with_header.vcf.gz
 
-        echo "Done 2"
-
-        # Add TR_CALLER info tag to all variants
         bcftools view -h tr_with_header.vcf.gz > tr_tagged_header.txt
         bcftools view -H tr_with_header.vcf.gz | \
             awk -v tr_info="~{tr_info}" 'BEGIN{FS=OFS="\t"} {
@@ -182,28 +181,19 @@ task AnnotateTRVariants {
             bgzip -c > tr_tagged.vcf.gz
         tabix -p vcf tr_tagged.vcf.gz
 
-        echo "Done 3"
-
-        # Prepare header additions for final VCF (TR_CALLER + all tr_vcf headers + filter)
         cat > header_additions.txt <<'HEADER_EOF'
 ##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
 HEADER_EOF
-
-        echo "Done 4"
 
         bcftools view -h ~{tr_vcf} | \
             grep -E "^##(INFO|FORMAT|FILTER)=" | \
             grep -v "^##INFO=<ID=TR_CALLER," | \
             grep -v "^##FILTER=<ID=~{tr_filter}," \
             >> header_additions.txt || true
-
-        echo "Done 5"
-
+        
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' tr_tagged.vcf.gz > tr_regions.bed
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' ~{vcf} > vcf_regions.bed
-
-        echo "Done 6"
 
         bedtools intersect \
             -a vcf_regions.bed \
@@ -211,17 +201,13 @@ HEADER_EOF
             -f 1.0 \
             -wa \
             -u > enveloped_variants.bed
-
-        echo "Done 7"
-
+        
         if [ -s enveloped_variants.bed ]; then
             awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter}' \
                 enveloped_variants.bed > filter_annotations.txt
         else
             touch filter_annotations.txt
         fi
-
-        echo "Done 8"
 
         if [ -s filter_annotations.txt ]; then
             bgzip filter_annotations.txt
@@ -242,24 +228,18 @@ HEADER_EOF
             cp ~{vcf_idx} vcf_with_filters.vcf.gz.tbi
         fi
 
-        echo "Done 9"
-
         bcftools annotate \
             -h header_additions.txt \
             -Oz -o tr_with_headers.vcf.gz \
             tr_tagged.vcf.gz
         tabix -p vcf tr_with_headers.vcf.gz
 
-        echo "Done 10"
-
         bcftools concat \
             --allow-overlaps \
             vcf_with_filters.vcf.gz \
             tr_with_headers.vcf.gz \
             -Oz -o ~{prefix}.annotated.vcf.gz
-
-        echo "Done 11"
-        
+                
         tabix -p vcf ~{prefix}.annotated.vcf.gz
     >>>
 
