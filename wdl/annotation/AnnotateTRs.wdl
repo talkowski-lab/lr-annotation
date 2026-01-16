@@ -200,8 +200,8 @@ HEADER_EOF
 
         echo "Done 5"
 
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' tr_tagged.vcf.gz > tr_regions.bed
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' ~{vcf} > vcf_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' tr_tagged.vcf.gz > tr_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' ~{vcf} > vcf_regions.bed
 
         echo "Done 6"
 
@@ -210,14 +210,13 @@ HEADER_EOF
             -b tr_regions.bed \
             -f 1.0 \
             -wa \
-            -u \
-            | cut -f4 > enveloped_variant_ids.txt
+            -u > enveloped_variants.bed
 
         echo "Done 7"
 
-        if [ -s enveloped_variant_ids.txt ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, filter}' \
-                enveloped_variant_ids.txt > filter_annotations.txt
+        if [ -s enveloped_variants.bed ]; then
+            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter}' \
+                enveloped_variants.bed > filter_annotations.txt
         else
             touch filter_annotations.txt
         fi
@@ -229,7 +228,7 @@ HEADER_EOF
             
             bcftools annotate \
                 -a filter_annotations.txt \
-                -c ID,+FILTER \
+                -c CHROM,POS,REF,ALT,+FILTER \
                 -h filter_header.txt \
                 -Oz -o vcf_with_filters.vcf.gz \
                 ~{vcf}
