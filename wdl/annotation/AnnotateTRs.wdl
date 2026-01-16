@@ -154,6 +154,31 @@ task AnnotateTRVariants {
     command <<<
         set -euo pipefail
 
+        # Add TR_CALLER header definition to tr_vcf first
+        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">' > tr_caller_header.txt
+        
+        bcftools annotate \
+            -h tr_caller_header.txt \
+            -Oz -o tr_with_header.vcf.gz \
+            ~{tr_vcf}
+        tabix -p vcf tr_with_header.vcf.gz
+
+        # Add TR_CALLER info tag to all variants
+        bcftools view -h tr_with_header.vcf.gz > tr_tagged_header.txt
+        bcftools view -H tr_with_header.vcf.gz | \
+            awk -v tr_info="~{tr_info}" 'BEGIN{FS=OFS="\t"} {
+                if ($8 == "." || $8 == "") {
+                    $8 = "TR_CALLER=" tr_info
+                } else {
+                    $8 = $8 ";TR_CALLER=" tr_info
+                }
+                print
+            }' | \
+            cat tr_tagged_header.txt - | \
+            bgzip -c > tr_tagged.vcf.gz
+        tabix -p vcf tr_tagged.vcf.gz
+
+        # Prepare header additions for final VCF (TR_CALLER + all tr_vcf headers + filter)
         cat > header_additions.txt <<'HEADER_EOF'
 ##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
@@ -165,57 +190,24 @@ HEADER_EOF
             grep -v "^##FILTER=<ID=~{tr_filter}," \
             >> header_additions.txt || true
 
-        bcftools annotate \
-            -a ~{tr_vcf} \
-            -c INFO \
-            --set-id '%CHROM\_%POS\_%END' \
-            -Oz -o tr_with_caller.vcf.gz \
-            ~{tr_vcf}
-
-        bcftools view -h tr_with_caller.vcf.gz > tr_with_caller_header.txt
-        bcftools view -H tr_with_caller.vcf.gz | \
-            awk -v tr_info="~{tr_info}" 'BEGIN{FS=OFS="\t"} {
-                if ($8 == "." || $8 == "") {
-                    $8 = "TR_CALLER=" tr_info
-                } else {
-                    $8 = $8 ";TR_CALLER=" tr_info
-                }
-                print
-            }' | \
-            cat tr_with_caller_header.txt - | \
-            bgzip -c > tr_tagged.vcf.gz
-        tabix -p vcf tr_tagged.vcf.gz
-
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' tr_tagged.vcf.gz > tr_regions.bed
 
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' ~{vcf} > vcf_regions.bed
 
-        awk 'BEGIN{FS=OFS="\t"}
-        NR==FNR {
-            tr_chr[NR] = $1
-            tr_start[NR] = $2
-            tr_end[NR] = $3
-            tr_count = NR
-            next
-        }
-        {
-            vcf_chr = $1
-            vcf_start = $2
-            vcf_end = $3
-            vcf_id = $4
-            
-            for (i = 1; i <= tr_count; i++) {
-                if (vcf_chr == tr_chr[i] && 
-                    tr_start[i] <= vcf_start && 
-                    vcf_end <= tr_end[i]) {
-                    print vcf_id
-                    break
-                }
-            }
-        }' tr_regions.bed vcf_regions.bed > enveloped_variant_ids.txt
+        # Use bedtools to find variants completely within TR regions
+        # -f 1.0: require 100% of vcf variant to overlap with tr region (complete envelopment)
+        # -wa: write original vcf entry
+        # -u: report each vcf variant only once even if it overlaps multiple TR regions
+        bedtools intersect \
+            -a vcf_regions.bed \
+            -b tr_regions.bed \
+            -f 1.0 \
+            -wa \
+            -u \
+            | cut -f4 > enveloped_variant_ids.txt
 
         if [ -s enveloped_variant_ids.txt ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, filter}' \
+            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, ".", "+", filter}' \
                 enveloped_variant_ids.txt > filter_annotations.txt
         else
             touch filter_annotations.txt
@@ -226,7 +218,7 @@ HEADER_EOF
             
             bcftools annotate \
                 -a filter_annotations.txt \
-                -c ID,FILTER \
+                -c ID,-,+,FILTER \
                 -h filter_header.txt \
                 -Oz -o vcf_with_filters.vcf.gz \
                 ~{vcf}
@@ -258,8 +250,8 @@ HEADER_EOF
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 20,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 3,
         max_retries: 1
