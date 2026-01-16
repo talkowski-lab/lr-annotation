@@ -157,11 +157,15 @@ task AnnotateTRVariants {
         # Add TR_CALLER header definition to tr_vcf first
         echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">' > tr_caller_header.txt
         
+        echo "Done 1"
+
         bcftools annotate \
             -h tr_caller_header.txt \
             -Oz -o tr_with_header.vcf.gz \
             ~{tr_vcf}
         tabix -p vcf tr_with_header.vcf.gz
+
+        echo "Done 2"
 
         # Add TR_CALLER info tag to all variants
         bcftools view -h tr_with_header.vcf.gz > tr_tagged_header.txt
@@ -178,11 +182,15 @@ task AnnotateTRVariants {
             bgzip -c > tr_tagged.vcf.gz
         tabix -p vcf tr_tagged.vcf.gz
 
+        echo "Done 3"
+
         # Prepare header additions for final VCF (TR_CALLER + all tr_vcf headers + filter)
         cat > header_additions.txt <<'HEADER_EOF'
 ##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
 HEADER_EOF
+
+        echo "Done 4"
 
         bcftools view -h ~{tr_vcf} | \
             grep -E "^##(INFO|FORMAT|FILTER)=" | \
@@ -190,8 +198,12 @@ HEADER_EOF
             grep -v "^##FILTER=<ID=~{tr_filter}," \
             >> header_additions.txt || true
 
+        echo "Done 5"
+
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' tr_tagged.vcf.gz > tr_regions.bed
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' ~{vcf} > vcf_regions.bed
+
+        echo "Done 6"
 
         bedtools intersect \
             -a vcf_regions.bed \
@@ -201,19 +213,23 @@ HEADER_EOF
             -u \
             | cut -f4 > enveloped_variant_ids.txt
 
+        echo "Done 7"
+
         if [ -s enveloped_variant_ids.txt ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, ".", "+", filter}' \
+            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, filter}' \
                 enveloped_variant_ids.txt > filter_annotations.txt
         else
             touch filter_annotations.txt
         fi
+
+        echo "Done 8"
 
         if [ -s filter_annotations.txt ]; then
             echo "##FILTER=<ID=~{tr_filter},Description=\"Variant is enveloped by a tandem repeat region\">" > filter_header.txt
             
             bcftools annotate \
                 -a filter_annotations.txt \
-                -c ID,-,+,FILTER \
+                -c ID,+FILTER \
                 -h filter_header.txt \
                 -Oz -o vcf_with_filters.vcf.gz \
                 ~{vcf}
@@ -223,17 +239,23 @@ HEADER_EOF
             cp ~{vcf_idx} vcf_with_filters.vcf.gz.tbi
         fi
 
+        echo "Done 9"
+
         bcftools annotate \
             -h header_additions.txt \
             -Oz -o tr_with_headers.vcf.gz \
             tr_tagged.vcf.gz
         tabix -p vcf tr_with_headers.vcf.gz
 
+        echo "Done 10"
+
         bcftools concat \
             --allow-overlaps \
             vcf_with_filters.vcf.gz \
             tr_with_headers.vcf.gz \
             -Oz -o ~{prefix}.annotated.vcf.gz
+
+        echo "Done 11"
         
         tabix -p vcf ~{prefix}.annotated.vcf.gz
     >>>
