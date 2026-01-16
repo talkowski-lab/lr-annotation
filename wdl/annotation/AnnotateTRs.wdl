@@ -224,14 +224,18 @@ HEADER_EOF
         echo "Done 8"
 
         if [ -s filter_annotations.txt ]; then
-            echo "##FILTER=<ID=~{tr_filter},Description=\"Variant is enveloped by a tandem repeat region\">" > filter_header.txt
+            bgzip filter_annotations.txt
+            tabix -s 1 -b 2 -e 2 filter_annotations.txt.gz
             
+            echo "##FILTER=<ID=~{tr_filter},Description=\"Variant is enveloped by a tandem repeat region\">" > filter_header.txt
+
             bcftools annotate \
-                -a filter_annotations.txt \
+                -a filter_annotations.txt.gz \
                 -c CHROM,POS,REF,ALT,+FILTER \
                 -h filter_header.txt \
                 -Oz -o vcf_with_filters.vcf.gz \
                 ~{vcf}
+            
             tabix -p vcf vcf_with_filters.vcf.gz
         else
             cp ~{vcf} vcf_with_filters.vcf.gz
