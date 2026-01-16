@@ -191,13 +191,8 @@ HEADER_EOF
             >> header_additions.txt || true
 
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' tr_tagged.vcf.gz > tr_regions.bed
-
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\n' ~{vcf} > vcf_regions.bed
 
-        # Use bedtools to find variants completely within TR regions
-        # -f 1.0: require 100% of vcf variant to overlap with tr region (complete envelopment)
-        # -wa: write original vcf entry
-        # -u: report each vcf variant only once even if it overlaps multiple TR regions
         bedtools intersect \
             -a vcf_regions.bed \
             -b tr_regions.bed \
