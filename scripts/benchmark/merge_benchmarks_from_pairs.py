@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import gzip
 import os
 import tarfile
 import gc
@@ -192,11 +191,11 @@ def main():
     vep_plot_dir = os.path.join(out_base, "VEP_plots", args.contig)
     af_groups: Dict[str, List[pd.DataFrame]] = defaultdict(list)
     for i, p in enumerate(af_pair_paths):
-        with gzip.open(p, "rt") as fh:
+        with open(p, "rt") as fh:
             chunk_count = 0
             reader = pd.read_csv(fh, sep="\t", chunksize=200000, iterator=True)
             for chunk in reader:
-                chunk_count += 1
+                chunk_count = chunk_count + 1
                 for key, sub in chunk.groupby("af_key"):
                     af_groups[key].append(sub[["eval_af", "truth_af"]].copy())
 
@@ -216,7 +215,7 @@ def main():
 
     vep_lists: Dict[str, List[pd.DataFrame]] = defaultdict(list)
     for _, p in enumerate(vep_pair_paths):
-        with gzip.open(p, "rt") as fh:
+        with open(p, "rt") as fh:
             chunk_count = 0
             reader = pd.read_csv(
                 fh, sep="\t", keep_default_na=False, chunksize=200000, iterator=True

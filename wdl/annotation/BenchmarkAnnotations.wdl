@@ -471,39 +471,64 @@ task CollectMatchedIDsAndINFO {
     command <<<
         set -euo pipefail
 
-        awk -F'\t' '{print $5}' ~{annotation_tsv} | sort -u > eval_ids.list
-        awk -F'\t' '{print $7}' ~{annotation_tsv} | sort -u > truth_ids.list
+        python3 <<'EOF'
+import subprocess
 
-        bcftools view -i 'ID=@eval_ids.list' ~{vcf_eval} \
-            | bcftools query -f '%ID\t%INFO\n' \
-            | sort -k1,1 > eval_info.tsv
+annotation_tsv = "~{annotation_tsv}"
+vcf_eval = "~{vcf_eval}"
+vcf_truth_snv = "~{vcf_truth_snv}"
+vcf_truth_sv = "~{vcf_truth_sv}"
+prefix = "~{prefix}"
 
-        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_snv} \
-            | bcftools query -f '%ID\t%INFO\n' > truth_snv_info.tsv
-        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_sv} \
-            | bcftools query -f '%ID\t%INFO\n' > truth_sv_info.tsv
-        cat truth_snv_info.tsv truth_sv_info.tsv | sort -k1,1 > truth_info.tsv
+eval_to_truth = {}
+eval_ids = set()
+truth_ids = set()
 
-        awk -F'\t' 'BEGIN{OFS="\t"} {print $5"\t"$7}' ~{annotation_tsv} \
-            | sort -k1,1 \
-            | join -t $'\t' -1 1 -2 1 - eval_info.tsv \
-            | sort -k2,2 \
-            | join -t $'\t' -1 2 -2 1 - truth_info.tsv \
-            | awk 'BEGIN{OFS="\t"} {print $2,$1,$3,$4}' \
-            | bgzip -c > ~{prefix}.matched_with_info.tsv.gz
-        
-        tabix -s 1 -b 1 -e 1 ~{prefix}.matched_with_info.tsv.gz
+with open(annotation_tsv) as f:
+    for line in f:
+        fields = line.strip().split('\t')
+        eval_id = fields[4]
+        truth_id = fields[6]
+        eval_to_truth[eval_id] = truth_id
+        eval_ids.add(eval_id)
+        truth_ids.add(truth_id)
+
+eval_info = {}
+cmd = f"bcftools query -f '%ID\\t%INFO\\n' {vcf_eval}"
+proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+for line in proc.stdout:
+    parts = line.strip().split('\t', 1)
+    if len(parts) == 2 and parts[0] in eval_ids:
+        eval_info[parts[0]] = parts[1]
+proc.wait()
+
+truth_info = {}
+for vcf in [vcf_truth_snv, vcf_truth_sv]:
+    cmd = f"bcftools query -f '%ID\\t%INFO\\n' {vcf}"
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+    for line in proc.stdout:
+        parts = line.strip().split('\t', 1)
+        if len(parts) == 2 and parts[0] in truth_ids:
+            truth_info[parts[0]] = parts[1]
+    proc.wait()
+
+with open(f"{prefix}.matched_with_info.tsv", 'w') as out:
+    for eval_id, truth_id in eval_to_truth.items():
+        eval_inf = eval_info.get(eval_id, '.')
+        truth_inf = truth_info.get(truth_id, '.')
+        out.write(f"{eval_id}\t{truth_id}\t{eval_inf}\t{truth_inf}\n")
+
+EOF
     >>>
 
     output {
-        File matched_with_info_tsv = "~{prefix}.matched_with_info.tsv.gz"
-        File matched_with_info_tsv_tbi = "~{prefix}.matched_with_info.tsv.gz.tbi"
+        File matched_with_info_tsv = "~{prefix}.matched_with_info.tsv"
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 5 * ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -576,20 +601,16 @@ task ShardedMatchedVariants {
         
         mkdir -p shards
         
-        if [ ! -s ~{matched_with_info_tsv} ] || [ $(zcat ~{matched_with_info_tsv} | wc -l) -eq 0 ]; then
+        if [ ! -s ~{matched_with_info_tsv} ] || [ $(cat ~{matched_with_info_tsv} | wc -l) -eq 0 ]; then
             echo "No matched variants found, creating empty shard"
             touch shards/matched.000000.tsv
-            bgzip -f shards/matched.000000.tsv
         else
-            zcat ~{matched_with_info_tsv} | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
-            if ls shards/matched.*.tsv 1> /dev/null 2>&1; then
-                ls shards/matched.*.tsv | while read f; do bgzip -f "$f"; done
-            fi
+            cat ~{matched_with_info_tsv} | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
         fi
     >>>
 
     output {
-        Array[File] shard_tsvs = glob("shards/*.tsv.gz")
+        Array[File] shard_tsvs = glob("shards/*.tsv")
     }
 
     RuntimeAttr default_attr = object {
@@ -628,10 +649,10 @@ task ComputeShardBenchmarks {
     command <<<
         set -euo pipefail
 
-        if [ ! -s ~{matched_shard_tsv} ] || [ $(zcat ~{matched_shard_tsv} | wc -l) -eq 0 ]; then
+        if [ ! -s ~{matched_shard_tsv} ] || [ $(cat ~{matched_shard_tsv} | wc -l) -eq 0 ]; then
             echo "Empty shard, creating empty output files"
-            echo -e "af_key\teval_af\ttruth_af" | gzip > ~{prefix}.shard_~{shard_label}.af_pairs.tsv.gz
-            echo -e "category\teval\ttruth\tcount" | gzip > ~{prefix}.shard_~{shard_label}.vep_pairs.tsv.gz
+            echo -e "af_key\teval_af\ttruth_af" > ~{prefix}.shard_~{shard_label}.af_pairs.tsv
+            echo -e "category\teval\ttruth\tcount" > ~{prefix}.shard_~{shard_label}.vep_pairs.tsv
         else
             python3 /opt/gnomad-lr/scripts/benchmark/compute_benchmarks_shard.py \
                 --prefix ~{prefix} \
@@ -645,8 +666,8 @@ task ComputeShardBenchmarks {
     >>>
 
     output {
-        File af_pairs_tsv = "~{prefix}.shard_~{shard_label}.af_pairs.tsv.gz"
-        File vep_pairs_tsv = "~{prefix}.shard_~{shard_label}.vep_pairs.tsv.gz"
+        File af_pairs_tsv = "~{prefix}.shard_~{shard_label}.af_pairs.tsv"
+        File vep_pairs_tsv = "~{prefix}.shard_~{shard_label}.vep_pairs.tsv"
     }
 
     RuntimeAttr default_attr = object {

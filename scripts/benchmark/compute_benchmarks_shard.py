@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import gzip
 from typing import Dict, Tuple, List
 
 import pandas as pd
@@ -91,7 +90,7 @@ def extract_vep_annotations(
 
 def load_enriched_shard(path: str) -> List[Tuple[str, str, str, str]]:
     rows = []
-    with gzip.open(path, "rt") as f:
+    with open(path, "rt") as f:
         for line in f:
             if not line.strip():
                 continue
@@ -116,8 +115,8 @@ def main():
     )
     args = ap.parse_args()
 
-    af_out_path = f"{args.prefix}.shard_{args.shard_label}.af_pairs.tsv.gz"
-    vep_out_path = f"{args.prefix}.shard_{args.shard_label}.vep_pairs.tsv.gz"
+    af_out_path = f"{args.prefix}.shard_{args.shard_label}.af_pairs.tsv"
+    vep_out_path = f"{args.prefix}.shard_{args.shard_label}.vep_pairs.tsv"
 
     enriched_rows = load_enriched_shard(args.matched_shard_tsv)
 
@@ -195,10 +194,10 @@ def main():
 
     if af_rows:
         df_af = pd.DataFrame(af_rows)
-        with gzip.open(af_out_path, "wt") as f:
+        with open(af_out_path, "wt") as f:
             df_af.to_csv(f, sep="\t", index=False)
     else:
-        with gzip.open(af_out_path, "wt") as f:
+        with open(af_out_path, "wt") as f:
             f.write("af_key\teval_af\ttruth_af\n")
 
     rows = []
@@ -206,7 +205,7 @@ def main():
         for (e, t), c in ctr.items():
             rows.append({"category": cat, "eval": e, "truth": t, "count": c})
     df_vep = pd.DataFrame(rows, columns=["category", "eval", "truth", "count"])
-    with gzip.open(vep_out_path, "wt") as f:
+    with open(vep_out_path, "wt") as f:
         df_vep.to_csv(f, sep="\t", index=False)
 
 
