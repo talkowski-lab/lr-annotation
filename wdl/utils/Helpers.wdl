@@ -266,7 +266,7 @@ task SubsetVcfToContig {
         set -euo pipefail
 
         bcftools view \
-            -i "CHROM='~{contig}'" \
+            -r ~{contig} \
             ~{if strip_genotypes then "-G" else ""} \
             ~{if defined(args_string) then args_string else ""} \
             ~{vcf} \
