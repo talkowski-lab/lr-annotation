@@ -471,54 +471,28 @@ task CollectMatchedIDsAndINFO {
     command <<<
         set -euo pipefail
 
-        python3 <<'EOF'
-import subprocess
+        awk -F'\t' '{print $5}' ~{annotation_tsv} | sort -u > eval_ids.list
+        awk -F'\t' '{print $7}' ~{annotation_tsv} | sort -u > truth_ids.list
 
-annotation_tsv = "~{annotation_tsv}"
-vcf_eval = "~{vcf_eval}"
-vcf_truth_snv = "~{vcf_truth_snv}"
-vcf_truth_sv = "~{vcf_truth_sv}"
-prefix = "~{prefix}"
+        bcftools view -i 'ID=@eval_ids.list' ~{vcf_eval} \
+            | bcftools query -f '%ID\t%INFO\n' \
+            | sort -k1,1 > eval_info.tsv
 
-eval_to_truth = {}
-eval_ids = set()
-truth_ids = set()
+        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_snv} \
+            | bcftools query -f '%ID\t%INFO\n' > truth_snv_info.tsv
+        bcftools view -i 'ID=@truth_ids.list' ~{vcf_truth_sv} \
+            | bcftools query -f '%ID\t%INFO\n' > truth_sv_info.tsv
+        cat truth_snv_info.tsv truth_sv_info.tsv | sort -k1,1 > truth_info.tsv
 
-with open(annotation_tsv) as f:
-    for line in f:
-        fields = line.strip().split('\t')
-        eval_id = fields[4]
-        truth_id = fields[6]
-        eval_to_truth[eval_id] = truth_id
-        eval_ids.add(eval_id)
-        truth_ids.add(truth_id)
-
-eval_info = {}
-cmd = f"bcftools query -f '%ID\\t%INFO\\n' {vcf_eval}"
-proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
-for line in proc.stdout:
-    parts = line.strip().split('\t', 1)
-    if len(parts) == 2 and parts[0] in eval_ids:
-        eval_info[parts[0]] = parts[1]
-proc.wait()
-
-truth_info = {}
-for vcf in [vcf_truth_snv, vcf_truth_sv]:
-    cmd = f"bcftools query -f '%ID\\t%INFO\\n' {vcf}"
-    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
-    for line in proc.stdout:
-        parts = line.strip().split('\t', 1)
-        if len(parts) == 2 and parts[0] in truth_ids:
-            truth_info[parts[0]] = parts[1]
-    proc.wait()
-
-with open(f"{prefix}.matched_with_info.tsv", 'w') as out:
-    for eval_id, truth_id in eval_to_truth.items():
-        eval_inf = eval_info.get(eval_id, '.')
-        truth_inf = truth_info.get(truth_id, '.')
-        out.write(f"{eval_id}\t{truth_id}\t{eval_inf}\t{truth_inf}\n")
-
-EOF
+        awk -F'\t' 'BEGIN{OFS="\t"} {print $5"\t"$7}' ~{annotation_tsv} \
+            | sort -k1,1 \
+            | join -t $'\t' -1 1 -2 1 - eval_info.tsv \
+            | sort -k2,2 \
+            | join -t $'\t' -1 2 -2 1 - truth_info.tsv \
+            | awk 'BEGIN{OFS="\t"} {print $2,$1,$3,$4}' \
+            | bgzip -c > ~{prefix}.matched_with_info.tsv.gz
+        
+        tabix -s 1 -b 1 -e 1 ~{prefix}.matched_with_info.tsv.gz
     >>>
 
     output {
