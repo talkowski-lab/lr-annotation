@@ -138,17 +138,15 @@ task FilterToCatalog {
     command <<<
         set -euo pipefail
         
+        cp ~{catalog_ids} catalog_ids.txt
+        
         cat > filter_script.awk <<'EOF'
 BEGIN {
     while ((getline < "catalog_ids.txt") > 0) {
-        catalog_ids[$0] = 1;
+        allowed_ids[$0] = 1;
     }
 }
-/^#/ {
-    print;
-    next;
-}
-{
+!/^#/ {
     trid = "";
     n = split($8, info_fields, ";");
     for (i = 1; i <= n; i++) {
@@ -158,13 +156,11 @@ BEGIN {
             break;
         }
     }
-    if (trid != "" && trid in catalog_ids) {
+    if (trid != "" && trid in allowed_ids) {
         print;
     }
 }
 EOF
-        
-        cp ~{catalog_ids} catalog_ids.txt
         
         bcftools view -h ~{vcf} > header.vcf
         bcftools view -H ~{vcf} | \
