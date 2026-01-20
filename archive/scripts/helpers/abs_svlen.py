@@ -18,7 +18,7 @@ def main():
                 rec.info["SVLEN"] = (abs(rec.info["SVLEN"][0]),)
             else:
                 rec.info["SVLEN"] = abs(rec.info["SVLEN"])
-        vcf_out.write(rec)  # write every record
+        vcf_out.write(rec)
 
 
 if __name__ == "__main__":

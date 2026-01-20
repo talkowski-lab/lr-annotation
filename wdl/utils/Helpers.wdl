@@ -2,56 +2,6 @@ version 1.0
 
 import "Structs.wdl"
 
-task GetHailMTSize {
-    input {
-        String mt_uri
-        String hail_docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        tot_size=$(gsutil -m du -sh ~{mt_uri} | awk -F '    ' '{ print $1 }')
-
-        cat <<EOF > convert_to_gb.py
-        import sys
-        size = sys.argv[1]
-        unit = sys.argv[2]
-        def convert_to_gib(size, unit):
-            size_dict = {"KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "TiB": 2**40}
-            return float(size) * size_dict[unit] / size_dict["GiB"]
-        size_in_gib = convert_to_gib(size, unit)
-        print(size_in_gib)        
-        EOF
-
-        python3 convert_to_gb.py $tot_size > mt_size.txt
-    >>>
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: 25,
-        cpu_cores: 1,
-        preemptible_tries: 1,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
-
-    output {
-        Float mt_size = read_lines('mt_size.txt')[0]
-    }
-}
-
 task SplitVcfIntoShards {
   input {
     File input_vcf
@@ -106,6 +56,7 @@ task ConcatVcfs {
   input {
     Array[File] vcfs
     Array[File]? vcfs_idx
+    Boolean allow_overlaps = false
     Boolean merge_sort = false
     String prefix = "concat"
     String docker
@@ -113,7 +64,8 @@ task ConcatVcfs {
   }
 
   String outfile_name = prefix + ".vcf.gz"
-  String merge_flag = if merge_sort then "--allow-overlaps" else ""
+  Boolean use_overlaps = allow_overlaps || merge_sort
+  String merge_flag = if use_overlaps then "--allow-overlaps" else ""
 
   command <<<
     set -euo pipefail
@@ -234,6 +186,52 @@ EOF
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SubsetVcfBySize {
+    input {
+        File vcf
+        File vcf_index
+        String locus
+        Int? min_size
+        Int? max_size
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String size_filter = if defined(min_size) && defined(max_size) then "abs(INFO/SVLEN)>=~{min_size} && abs(INFO/SVLEN)<=~{max_size}" else if defined(min_size) then "abs(INFO/SVLEN)>=~{min_size}" else if defined(max_size) then "abs(INFO/SVLEN)<=~{max_size}" else "1==1"
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view ~{vcf} --regions "~{locus}" --include "~{size_filter}" | bgzip > "~{prefix}.vcf.gz"
+        tabix -p vcf "~{prefix}.vcf.gz"
+    >>>
+
+    output {
+        File subset_vcf = "~{prefix}.vcf.gz"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 4 * ceil(size([vcf, vcf_index], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -483,16 +481,68 @@ task ConvertToSymbolic {
         File vcf
         File vcf_idx
         String prefix
+        Boolean strip_genotypes = true
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
+    String genotype_flag = if strip_genotypes then "-G" else ""
+
     command <<<
         set -euo pipefail
 
-        python /opt/gnomad-lr/scripts/helpers/symbalts.py ~{vcf} | \
-            python /opt/gnomad-lr/scripts/helpers/abs_svlen.py /dev/stdin | \
-            bcftools view -G -Oz > ~{prefix}.vcf.gz
+        bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
+
+        python3 <<'CODE' | bcftools view ~{genotype_flag} -Oz > ~{prefix}.vcf.gz
+import sys
+from pysam import VariantFile
+
+vcf_in = VariantFile("~{vcf}")
+svtypes_file = "svtypes.txt"
+
+with open(svtypes_file, 'r') as f:
+    present_svtypes = set(line.strip() for line in f if line.strip())
+
+vcf_out = VariantFile("-", "w", header=vcf_in.header)
+
+if "BND" in present_svtypes:
+    vcf_out.header.add_line(
+        '##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">'
+    )
+
+alt_definitions = {
+    "DEL": '##ALT=<ID=DEL,Description="Deletion">',
+    "DUP": '##ALT=<ID=DUP,Description="Duplication">',
+    "INV": '##ALT=<ID=INV,Description="Inversion">',
+    "INS": '##ALT=<ID=INS,Description="Insertion">'
+}
+
+for alt_id, alt_line in alt_definitions.items():
+    if alt_id in present_svtypes and alt_id not in vcf_out.header.alts:
+        vcf_out.header.add_line(alt_line)
+
+for rec in vcf_in.fetch():
+    if rec.info["SVTYPE"] == "BND":
+        rec.info["BND_ALT"] = rec.alts[0]
+
+    rec.alts = ("<%s>" % rec.info["SVTYPE"],)
+    rec.ref = "N"
+
+    if "SVLEN" in rec.info:
+        if isinstance(rec.info["SVLEN"], tuple):
+            rec.info["SVLEN"] = (abs(rec.info["SVLEN"][0]),)
+        else:
+            rec.info["SVLEN"] = abs(rec.info["SVLEN"])
+
+    if rec.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
+        if isinstance(rec.info["SVLEN"], tuple):
+            svlen = abs(rec.info["SVLEN"][0])
+        else:
+            svlen = abs(rec.info["SVLEN"])
+        rec.stop = rec.pos + svlen
+
+    vcf_out.write(rec)
+CODE
 
         tabix -f ~{prefix}.vcf.gz
     >>>
@@ -520,6 +570,79 @@ task ConvertToSymbolic {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
   }
+}
+
+task RevertSymbolicAlleles {
+    input {
+        File annotated_vcf
+        File annotated_vcf_idx
+        File original_vcf
+        File original_vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'CODE' | bcftools view -Oz -o ~{prefix}.vcf.gz
+import sys
+from pysam import VariantFile
+
+annotated_vcf_path = "~{annotated_vcf}"
+original_vcf_path = "~{original_vcf}"
+
+with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_path) as original_vcf:
+    original_records = {}
+    for record in original_vcf.fetch():
+        original_records[record.id] = record
+
+    vcf_out = VariantFile("-", "w", header=annotated_vcf.header)
+    for annotated_record in annotated_vcf.fetch():
+        if annotated_record.id in original_records:
+            original_record = original_records[annotated_record.id]
+
+            new_record = annotated_record.copy()
+            new_record.ref = original_record.ref
+            new_record.alts = original_record.alts
+            if "SVLEN" in original_record.info:
+                new_record.info["SVLEN"] = original_record.info["SVLEN"]
+
+            if "BND_ALT" in new_record.info:
+                del new_record.info["BND_ALT"]
+
+            vcf_out.write(new_record)
+        else:
+            vcf_out.write(annotated_record)
+CODE
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File reverted_vcf = "~{prefix}.vcf.gz"
+        File reverted_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
 }
 
 task RenameVariantIds {
@@ -658,5 +781,56 @@ task FinalizeToDir {
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
         docker: select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task GetHailMTSize {
+    input {
+        String mt_uri
+        String hail_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        
+        tot_size=$(gsutil -m du -sh ~{mt_uri} | awk -F '    ' '{ print $1 }')
+
+        python3 <<CODE > mt_size.txt
+import sys
+
+size = "$tot_size".split()[0]
+unit = "$tot_size".split()[1]
+
+def convert_to_gib(size, unit):
+    size_dict = {"KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "TiB": 2**40}
+    return float(size) * size_dict[unit] / size_dict["GiB"]
+
+size_in_gib = convert_to_gib(size, unit)
+print(size_in_gib)
+CODE
+    >>>
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: 25,
+        cpu_cores: 1,
+        preemptible_tries: 1,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: hail_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    }
+
+    output {
+        Float mt_size = read_lines('mt_size.txt')[0]
     }
 }
