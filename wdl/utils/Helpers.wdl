@@ -505,6 +505,11 @@ with open(svtypes_file, 'r') as f:
 
 vcf_out = VariantFile("-", "w", header=vcf_in.header)
 
+if len(present_svtypes) > 0:
+    vcf_out.header.add_line(
+        '##ALT=<ID=N,Description="Baseline reference">'
+    )
+
 if "BND" in present_svtypes:
     vcf_out.header.add_line(
         '##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">'
