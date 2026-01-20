@@ -503,13 +503,11 @@ task ConvertToSymbolic {
 import sys
 import pysam
 
-vcf_in = pysam.VariantFile("${INPUT_VCF}")
 svtypes_file = "svtypes.txt"
-
 with open(svtypes_file, 'r') as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header) as vcf_out:
+with pysam.VariantFile("${INPUT_VCF}", 'r') as vcf_in, pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header) as vcf_out:
     if len(present_svtypes) > 0:
         vcf_out.header.add_line(
             '##ALT=<ID=N,Description="Baseline reference">'
@@ -531,29 +529,27 @@ with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header) as vcf_out
         if alt_id in present_svtypes and alt_id not in vcf_out.header.alts:
             vcf_out.header.add_line(alt_line)
 
-    for rec in vcf_in.fetch():
-        if rec.info["SVTYPE"] == "BND":
-            rec.info["BND_ALT"] = rec.alts[0]
+    for record in vcf_in:
+        if record.info["SVTYPE"] == "BND":
+            record.info["BND_ALT"] = record.alts[0]
 
-        rec.alts = ("<%s>" % rec.info["SVTYPE"],)
-        rec.ref = "N"
+        record.alts = ("<%s>" % record.info["SVTYPE"],)
+        record.ref = "N"
 
-        if "SVLEN" in rec.info:
-            if isinstance(rec.info["SVLEN"], tuple):
-                rec.info["SVLEN"] = (abs(rec.info["SVLEN"][0]),)
+        if "SVLEN" in record.info:
+            if isinstance(record.info["SVLEN"], tuple):
+                record.info["SVLEN"] = (abs(record.info["SVLEN"][0]),)
             else:
-                rec.info["SVLEN"] = abs(rec.info["SVLEN"])
+                record.info["SVLEN"] = abs(record.info["SVLEN"])
 
-        if rec.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
-            if isinstance(rec.info["SVLEN"], tuple):
-                svlen = abs(rec.info["SVLEN"][0])
+        if record.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
+            if isinstance(record.info["SVLEN"], tuple):
+                svlen = abs(record.info["SVLEN"][0])
             else:
-                svlen = abs(rec.info["SVLEN"])
-            rec.stop = rec.pos + svlen
+                svlen = abs(record.info["SVLEN"])
+            record.stop = record.pos + svlen
 
-        vcf_out.write(rec)
-
-vcf_in.close()
+        vcf_out.write(record)
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
@@ -602,31 +598,25 @@ task RevertSymbolicAlleles {
 import sys
 import pysam
 
-annotated_vcf_path = "~{annotated_vcf}"
-original_vcf_path = "~{original_vcf}"
-
-with pysam.VariantFile(annotated_vcf_path) as annotated_vcf, pysam.VariantFile(original_vcf_path) as original_vcf:
+with pysam.VariantFile("~{annotated_vcf}", 'r') as annotated_vcf, pysam.VariantFile("~{original_vcf}", 'r') as original_vcf, pysam.VariantFile("~{prefix}.vcf.gz", "w", header=annotated_vcf.header) as vcf_out:
     original_records = {}
-    for record in original_vcf.fetch():
+    for record in original_vcf:
         original_records[record.id] = record
 
-    with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=annotated_vcf.header) as vcf_out:
-        for annotated_record in annotated_vcf.fetch():
-            if annotated_record.id in original_records:
-                original_record = original_records[annotated_record.id]
+    for record in annotated_vcf:
+        if record.id in original_records:
+            original_record = original_records[record.id]
 
-                new_record = annotated_record.copy()
-                new_record.ref = original_record.ref
-                new_record.alts = original_record.alts
-                if "SVLEN" in original_record.info:
-                    new_record.info["SVLEN"] = original_record.info["SVLEN"]
-
-                if "BND_ALT" in new_record.info:
-                    del new_record.info["BND_ALT"]
-
-                vcf_out.write(new_record)
-            else:
-                vcf_out.write(annotated_record)
+            new_record = record.copy()
+            new_record.ref = original_record.ref
+            new_record.alts = original_record.alts
+            if "SVLEN" in original_record.info:
+                new_record.info["SVLEN"] = original_record.info["SVLEN"]
+            if "BND_ALT" in new_record.info:
+                del new_record.info["BND_ALT"]
+            vcf_out.write(new_record)
+        else:
+            vcf_out.write(record)
 CODE
         
         tabix -p vcf ~{prefix}.vcf.gz
