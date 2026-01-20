@@ -200,41 +200,73 @@ task AnnotateSvlenSvtype {
     command <<<
         set -euo pipefail
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/SVLEN\t%INFO/SVTYPE\n' ~{vcf} | \
-        awk '{
+        has_svlen=false
+        has_svtype=false
+        if bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+            has_svlen=true
+        fi
+        if bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+            has_svtype=true
+        fi
+
+        query_fmt='%CHROM\t%POS\t%REF\t%ALT'
+        col_svlen=5
+        col_svtype=5
+        if [ "$has_svlen" = "true" ]; then
+            query_fmt="${query_fmt}\t%INFO/SVLEN"
+            if [ "$has_svtype" = "true" ]; then
+                query_fmt="${query_fmt}\t%INFO/SVTYPE"
+                col_svtype=6
+            fi
+        elif [ "$has_svtype" = "true" ]; then
+            query_fmt="${query_fmt}\t%INFO/SVTYPE"
+        fi
+        query_fmt="${query_fmt}\n"
+
+        bcftools query -f "$query_fmt" ~{vcf} | \
+        awk -v has_svlen="$has_svlen" -v has_svtype="$has_svtype" \
+            -v col_svlen="$col_svlen" -v col_svtype="$col_svtype" '{
             ref_len = length($3)
             alt_len = length($4)
-            has_svlen = ($5 != ".")
-            has_svtype = ($6 != ".")
             
             if (ref_len == alt_len) {
                 if (ref_len == 1) {
-                    svtype = "SNV"
-                    svlen = 1
+                    calc_svtype = "SNV"
+                    calc_svlen = 1
                 } else {
-                    svtype = "INS"
-                    svlen = ref_len
+                    calc_svtype = "INS"
+                    calc_svlen = ref_len
                 }
             } else if (ref_len > alt_len) {
-                svtype = "DEL"
-                svlen = ref_len - alt_len
+                calc_svtype = "DEL"
+                calc_svlen = ref_len - alt_len
             } else {
-                svtype = "INS"
-                svlen = alt_len - ref_len
+                calc_svtype = "INS"
+                calc_svlen = alt_len - ref_len
             }
             
-            final_svtype = has_svtype ? $6 : svtype
-            final_svlen = has_svlen ? $5 : svlen
+            if (has_svtype == "true" && $col_svtype != ".") {
+                final_svtype = $col_svtype
+            } else {
+                final_svtype = calc_svtype
+            }
+            
+            if (has_svlen == "true" && $col_svlen != ".") {
+                final_svlen = $col_svlen
+            } else {
+                final_svlen = calc_svlen
+            }
             
             print $1"\t"$2"\t"$3"\t"$4"\t"final_svtype"\t"final_svlen
         }' | bgzip -c > annot.txt.gz
+        
         tabix -s1 -b2 -e2 annot.txt.gz
 
         touch headers.txt
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+        if [ "$has_svlen" = "false" ]; then
             echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
         fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+        if [ "$has_svtype" = "false" ]; then
             echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
         fi
 
