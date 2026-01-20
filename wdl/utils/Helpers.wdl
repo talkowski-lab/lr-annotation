@@ -494,21 +494,22 @@ task ConvertToSymbolic {
         if [ "~{strip_genotypes}" == "true" ]; then
             bcftools view -G ~{vcf} -Oz -o temp_input.vcf.gz
             tabix -p vcf temp_input.vcf.gz
-            INPUT_VCF="temp_input.vcf.gz"
+            echo "temp_input.vcf.gz" > input_vcf_path.txt
         else
-            INPUT_VCF="~{vcf}"
+            echo "~{vcf}" > input_vcf_path.txt
         fi
 
         python3 <<CODE
-import sys
 import pysam
 
-svtypes_file = "svtypes.txt"
-with open(svtypes_file, 'r') as f:
+with open("input_vcf_path.txt") as f:
+    input_vcf_path = f.read().strip()
+
+with open("svtypes.txt") as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-vcf_in = pysam.VariantFile("${INPUT_VCF}", 'r')
-header = vcf_in.header.copy()
+vcf_in = pysam.VariantFile(input_vcf_path, 'r')
+header = vcf_in.header
 
 if len(present_svtypes) > 0:
     header.add_line('##ALT=<ID=N,Description="Baseline reference">')
@@ -595,23 +596,22 @@ task RevertSymbolicAlleles {
         set -euo pipefail
 
         python3 <<CODE
-import sys
 import pysam
 
 with pysam.VariantFile("~{annotated_vcf}", 'r') as annotated_vcf, pysam.VariantFile("~{original_vcf}", 'r') as original_vcf, pysam.VariantFile("~{prefix}.vcf.gz", "w", header=annotated_vcf.header) as vcf_out:
-    original_records = {}
+    original_data = {}
     for record in original_vcf:
-        original_records[record.id] = record
+        original_data[record.id] = (record.ref, record.alts, record.info.get("SVLEN"))
 
     for record in annotated_vcf:
-        if record.id in original_records:
-            original_record = original_records[record.id]
+        if record.id in original_data:
+            ref, alts, svlen = original_data[record.id]
 
             new_record = record.copy()
-            new_record.ref = original_record.ref
-            new_record.alts = original_record.alts
-            if "SVLEN" in original_record.info:
-                new_record.info["SVLEN"] = original_record.info["SVLEN"]
+            new_record.ref = ref
+            new_record.alts = alts
+            if svlen is not None:
+                new_record.info["SVLEN"] = svlen
             if "BND_ALT" in new_record.info:
                 del new_record.info["BND_ALT"]
             vcf_out.write(new_record)
