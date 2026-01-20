@@ -507,28 +507,26 @@ svtypes_file = "svtypes.txt"
 with open(svtypes_file, 'r') as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-with pysam.VariantFile("${INPUT_VCF}", 'r') as vcf_in, pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header) as vcf_out:
-    if len(present_svtypes) > 0:
-        vcf_out.header.add_line(
-            '##ALT=<ID=N,Description="Baseline reference">'
-        )
+vcf_in = pysam.VariantFile("${INPUT_VCF}", 'r')
+header = vcf_in.header.copy()
 
-    if "BND" in present_svtypes:
-        vcf_out.header.add_line(
-            '##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">'
-        )
+if len(present_svtypes) > 0:
+    header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 
-    alt_definitions = {
-        "DEL": '##ALT=<ID=DEL,Description="Deletion">',
-        "DUP": '##ALT=<ID=DUP,Description="Duplication">',
-        "INV": '##ALT=<ID=INV,Description="Inversion">',
-        "INS": '##ALT=<ID=INS,Description="Insertion">'
-    }
+if "BND" in present_svtypes:
+    header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
 
-    for alt_id, alt_line in alt_definitions.items():
-        if alt_id in present_svtypes and alt_id not in vcf_out.header.alts:
-            vcf_out.header.add_line(alt_line)
+alt_definitions = {
+    "DEL": '##ALT=<ID=DEL,Description="Deletion">',
+    "DUP": '##ALT=<ID=DUP,Description="Duplication">',
+    "INV": '##ALT=<ID=INV,Description="Inversion">',
+    "INS": '##ALT=<ID=INS,Description="Insertion">'
+}
+for alt_id, alt_line in alt_definitions.items():
+    if alt_id in present_svtypes and alt_id not in header.alts:
+        header.add_line(alt_line)
 
+with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=header) as vcf_out:
     for record in vcf_in:
         if record.info["SVTYPE"] == "BND":
             record.info["BND_ALT"] = record.alts[0]
@@ -550,6 +548,8 @@ with pysam.VariantFile("${INPUT_VCF}", 'r') as vcf_in, pysam.VariantFile("~{pref
             record.stop = record.pos + svlen
 
         vcf_out.write(record)
+
+vcf_in.close()
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
