@@ -605,7 +605,7 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
     for record in original_vcf.fetch():
         original_records[record.id] = record
 
-    vcf_out = VariantFile("~{prefix}.vcf", "w", header=annotated_vcf.header)
+    vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=annotated_vcf.header)
     for annotated_record in annotated_vcf.fetch():
         if annotated_record.id in original_records:
             original_record = original_records[annotated_record.id]
@@ -625,7 +625,6 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
     vcf_out.close()
 CODE
         
-        bgzip -c ~{prefix}.vcf > ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
