@@ -499,7 +499,7 @@ task ConvertToSymbolic {
             INPUT_VCF="~{vcf}"
         fi
 
-        python3 <<'CODE'
+        python3 <<CODE
 import sys
 import pysam
 
@@ -598,7 +598,7 @@ task RevertSymbolicAlleles {
     command <<<
         set -euo pipefail
 
-        python3 <<'CODE'
+        python3 <<CODE
 import sys
 import pysam
 
