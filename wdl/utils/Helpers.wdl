@@ -503,7 +503,7 @@ svtypes_file = "svtypes.txt"
 with open(svtypes_file, 'r') as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-vcf_out = VariantFile("temp.vcf", "w", header=vcf_in.header)
+vcf_out = VariantFile("temp.vcf.gz", "wz", header=vcf_in.header)
 
 if len(present_svtypes) > 0:
     vcf_out.header.add_line(
@@ -550,7 +550,8 @@ for rec in vcf_in.fetch():
 vcf_out.close()
 CODE
 
-        bcftools view ~{genotype_flag} temp.vcf -Oz -o ~{prefix}.vcf.gz
+        bcftools view ~{genotype_flag} temp.vcf.gz -Oz -o ~{prefix}.vcf.gz
+
         tabix -f ~{prefix}.vcf.gz
     >>>
 
@@ -605,7 +606,7 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
     for record in original_vcf.fetch():
         original_records[record.id] = record
 
-    vcf_out = VariantFile("temp.vcf", "w", header=annotated_vcf.header)
+    vcf_out = VariantFile("~{prefix}.vcf.gz", "wz", header=annotated_vcf.header)
     for annotated_record in annotated_vcf.fetch():
         if annotated_record.id in original_records:
             original_record = original_records[annotated_record.id]
@@ -625,7 +626,6 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
     vcf_out.close()
 CODE
         
-        bcftools view temp.vcf -Oz -o ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 

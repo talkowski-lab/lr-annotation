@@ -54,7 +54,7 @@ workflow AnnotateSVAnnotate {
             input:
                 vcf = SubsetVcfAnnotated.subset_vcf,
                 vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.doubled",
+                prefix = "~{prefix}.~{contig}.processed",
                 strip_genotypes = false,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_preprocess
@@ -66,7 +66,7 @@ workflow AnnotateSVAnnotate {
                 vcf_idx = PreprocessVcf.processed_vcf_idx,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
-                prefix = "~{prefix}.~{contig}.doubled.anno_func",
+                prefix = "~{prefix}.~{contig}.processed.anno_func",
                 docker = gatk_docker,
                 runtime_attr_override = runtime_attr_annotate_func
         }
@@ -87,7 +87,7 @@ workflow AnnotateSVAnnotate {
             vcfs = AnnotateFunctionalConsequences.anno_vcf,
             vcfs_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
             allow_overlaps = true,
-            prefix = "~{prefix}.concat",
+            prefix = "~{prefix}.annotated.concat",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_annotated
     }
@@ -108,7 +108,7 @@ workflow AnnotateSVAnnotate {
             annotated_vcf_idx = MergeVcf.concat_vcf_idx,
             original_vcf = vcf,
             original_vcf_idx = vcf_idx,
-            prefix = prefix,
+            prefix = "~{prefix}.annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_postprocess
     }
