@@ -228,8 +228,12 @@ task FilterPALMER {
                 --min-shared-samples "${min_shared_samples}"
         done
 
-        cat ALU_annotations.tsv LINE_annotations.tsv SVA_annotations.tsv HERVK_annotations.tsv | \
-            sort -k1,1 -k2,2n | uniq > ~{prefix}.palmer_annotations.tsv
+        annotation_files=()
+        for ME_type in "${mei_types[@]}"; do
+            annotation_files+=("${ME_type}_annotations.tsv")
+        done
+
+        cat "${annotation_files[@]}" | sort -k1,1 -k2,2n | uniq > ~{prefix}.palmer_annotations.tsv
     >>>
 
     output {
