@@ -491,68 +491,60 @@ task ConvertToSymbolic {
 
         bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
 
-        if [ "~{strip_genotypes}" == "true" ]; then
-            bcftools view -G ~{vcf} -Oz -o temp_input.vcf.gz
-            tabix -p vcf temp_input.vcf.gz
-            echo "temp_input.vcf.gz" > input_vcf_path.txt
-        else
-            echo "~{vcf}" > input_vcf_path.txt
-        fi
-
         python3 <<CODE
 import pysam
-
-with open("input_vcf_path.txt") as f:
-    input_vcf_path = f.read().strip()
 
 with open("svtypes.txt") as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-vcf_in = pysam.VariantFile(input_vcf_path, 'r')
-header = vcf_in.header
+with pysam.VariantFile("~{vcf}") as vcf_in:
+    header = vcf_in.header
 
-if len(present_svtypes) > 0:
-    header.add_line('##ALT=<ID=N,Description="Baseline reference">')
+    if len(present_svtypes) > 0:
+        header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 
-if "BND" in present_svtypes:
-    header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
+    if "BND" in present_svtypes:
+        header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
 
-alt_definitions = {
-    "DEL": '##ALT=<ID=DEL,Description="Deletion">',
-    "DUP": '##ALT=<ID=DUP,Description="Duplication">',
-    "INV": '##ALT=<ID=INV,Description="Inversion">',
-    "INS": '##ALT=<ID=INS,Description="Insertion">'
-}
-for alt_id, alt_line in alt_definitions.items():
-    if alt_id in present_svtypes and alt_id not in header.alts:
-        header.add_line(alt_line)
+    alt_definitions = {
+        "DEL": '##ALT=<ID=DEL,Description="Deletion">',
+        "DUP": '##ALT=<ID=DUP,Description="Duplication">',
+        "INV": '##ALT=<ID=INV,Description="Inversion">',
+        "INS": '##ALT=<ID=INS,Description="Insertion">'
+    }
+    for alt_id, alt_line in alt_definitions.items():
+        if alt_id in present_svtypes and alt_id not in header.alts:
+            header.add_line(alt_line)
 
-with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=header) as vcf_out:
-    for record in vcf_in:
-        if record.info["SVTYPE"] == "BND":
-            record.info["BND_ALT"] = record.alts[0]
+    with pysam.VariantFile("~{prefix}.temp.vcf", "w", header=header) as vcf_out:
+        for record in vcf_in:
+            if record.info["SVTYPE"] == "BND":
+                record.info["BND_ALT"] = record.alts[0]
 
-        record.alts = ("<%s>" % record.info["SVTYPE"],)
-        record.ref = "N"
+            record.alts = ("<%s>" % record.info["SVTYPE"],)
+            record.ref = "N"
 
-        if "SVLEN" in record.info:
-            if isinstance(record.info["SVLEN"], tuple):
-                record.info["SVLEN"] = (abs(record.info["SVLEN"][0]),)
-            else:
-                record.info["SVLEN"] = abs(record.info["SVLEN"])
+            if "SVLEN" in record.info:
+                if isinstance(record.info["SVLEN"], tuple):
+                    record.info["SVLEN"] = (abs(record.info["SVLEN"][0]),)
+                else:
+                    record.info["SVLEN"] = abs(record.info["SVLEN"])
 
-        if record.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
-            if isinstance(record.info["SVLEN"], tuple):
-                svlen = abs(record.info["SVLEN"][0])
-            else:
-                svlen = abs(record.info["SVLEN"])
-            record.stop = record.pos + svlen
+            if record.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
+                if isinstance(record.info["SVLEN"], tuple):
+                    svlen = abs(record.info["SVLEN"][0])
+                else:
+                    svlen = abs(record.info["SVLEN"])
+                record.stop = record.pos + svlen
 
-        vcf_out.write(record)
-
-vcf_in.close()
+            vcf_out.write(record)
 CODE
 
+        if [ "~{strip_genotypes}" == "true" ]; then
+            bcftools view -G ~{prefix}.temp.vcf -Oz -o ~{prefix}.vcf.gz
+        else
+            bgzip -c ~{prefix}.temp.vcf > ~{prefix}.vcf.gz
+        fi
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
