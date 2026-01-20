@@ -493,7 +493,7 @@ task ConvertToSymbolic {
 
         bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
 
-        python3 <<'CODE' | bcftools view ~{genotype_flag} -Oz > ~{prefix}.vcf.gz
+        python3 <<'CODE'
 import sys
 from pysam import VariantFile
 
@@ -503,7 +503,7 @@ svtypes_file = "svtypes.txt"
 with open(svtypes_file, 'r') as f:
     present_svtypes = set(line.strip() for line in f if line.strip())
 
-vcf_out = VariantFile("-", "w", header=vcf_in.header)
+vcf_out = VariantFile("temp.vcf", "w", header=vcf_in.header)
 
 if len(present_svtypes) > 0:
     vcf_out.header.add_line(
@@ -547,8 +547,10 @@ for rec in vcf_in.fetch():
         rec.stop = rec.pos + svlen
 
     vcf_out.write(rec)
+vcf_out.close()
 CODE
 
+        bcftools view ~{genotype_flag} temp.vcf -Oz -o ~{prefix}.vcf.gz
         tabix -f ~{prefix}.vcf.gz
     >>>
 
@@ -591,7 +593,7 @@ task RevertSymbolicAlleles {
     command <<<
         set -euo pipefail
 
-        python3 <<'CODE' | bcftools view -Oz -o ~{prefix}.vcf.gz
+        python3 <<'CODE'
 import sys
 from pysam import VariantFile
 
@@ -603,7 +605,7 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
     for record in original_vcf.fetch():
         original_records[record.id] = record
 
-    vcf_out = VariantFile("-", "w", header=annotated_vcf.header)
+    vcf_out = VariantFile("temp.vcf", "w", header=annotated_vcf.header)
     for annotated_record in annotated_vcf.fetch():
         if annotated_record.id in original_records:
             original_record = original_records[annotated_record.id]
@@ -620,8 +622,10 @@ with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(original_vcf_
             vcf_out.write(new_record)
         else:
             vcf_out.write(annotated_record)
+    vcf_out.close()
 CODE
         
+        bcftools view temp.vcf -Oz -o ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
