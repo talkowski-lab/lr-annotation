@@ -30,12 +30,27 @@ def main():
         help="Comma-separated list of sample IDs to exclude"
     )
     parser.add_argument(
+        "--swap_pop",
+        action="append",
+        help="Swap population names in output (format: old,new). Can be specified multiple times."
+    )
+    parser.add_argument(
         "--output",
         default="-",
         help="Output file (default: stdout)"
     )
     
     args = parser.parse_args()
+    
+    swap_map = {}
+    if args.swap_pop:
+        for swap in args.swap_pop:
+            parts = swap.split(",")
+            if len(parts) == 2:
+                old_pop, new_pop = parts
+                swap_map[old_pop.lower()] = new_pop.lower()
+            else:
+                print(f"Warning: Invalid swap format '{swap}', expected 'old,new'", file=sys.stderr)
     
     exclude_set = set(args.exclude_samples.split(",")) if args.exclude_samples else set()
     exclude_set.discard("")
@@ -72,11 +87,13 @@ def main():
                 
                 if sample_id in ancestry_map:
                     ethnicity = ancestry_map[sample_id]
+                    ethnicity = swap_map.get(ethnicity.lower(), ethnicity)
                     output_file.write(f"{sample_id}\t{ethnicity}\n")
                 else:
                     population_abbrev = row["population_abbreviation"]
                     if population_abbrev in pop_to_ancestry:
                         ethnicity = pop_to_ancestry[population_abbrev]
+                        ethnicity = swap_map.get(ethnicity.lower(), ethnicity)
                         output_file.write(f"{sample_id}\t{ethnicity}\n")
                     else:
                         print(f"{sample_id}")

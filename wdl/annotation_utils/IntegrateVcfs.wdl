@@ -12,7 +12,7 @@ workflow IntegrateVcfs {
 
         Array[String] contigs
         Array[String] sample_ids
-        Int max_size_snv_indel = 50
+        Int max_size_snv_indel = 49
         Int min_size_sv = 50
         String prefix
         String utils_docker
@@ -35,27 +35,63 @@ workflow IntegrateVcfs {
     }
 
     scatter (contig in contigs) {
-        call SubsetAndFilterVcf as SubsetSnvIndel {
+        call Helpers.SubsetVcfToSampleList as SubsetSnvIndel {
             input:
                 vcf = snv_indel_vcf,
-                vcf_idx = snv_indel_vcf_idx,
+                vcf_index = snv_indel_vcf_idx,
+                samples = sample_ids,
                 contig = contig,
-                sample_ids = sample_ids,
-                size_threshold = max_size_snv_indel,
-                use_max_size = true,
+                prefix = "~{prefix}.~{contig}.snv_indel.subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_filter_snv_indel
+        }
+
+        call AnnotateSvlenSvtype as AnnotateSnvIndel {
+            input:
+                vcf = SubsetSnvIndel.subset_vcf,
+                vcf_idx = SubsetSnvIndel.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.snv_indel.annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_svlen_svtype
+        }
+
+        call Helpers.SubsetVcfBySize as FilterSnvIndel {
+            input:
+                vcf = AnnotateSnvIndel.annotated_vcf,
+                vcf_index = AnnotateSnvIndel.annotated_vcf_idx,
+                locus = contig,
+                max_size = max_size_snv_indel,
                 prefix = "~{prefix}.~{contig}.snv_indel",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
         }
 
-        call SubsetAndFilterVcf as SubsetSv {
+        call Helpers.SubsetVcfToSampleList as SubsetSv {
             input:
                 vcf = sv_vcf,
-                vcf_idx = sv_vcf_idx,
+                vcf_index = sv_vcf_idx,
+                samples = sample_ids,
                 contig = contig,
-                sample_ids = sample_ids,
-                size_threshold = min_size_sv,
-                use_max_size = false,
+                prefix = "~{prefix}.~{contig}.sv.subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_filter_sv
+        }
+
+        call AnnotateSvlenSvtype as AnnotateSv {
+            input:
+                vcf = SubsetSv.subset_vcf,
+                vcf_idx = SubsetSv.subset_vcf_index,
+                prefix = "~{prefix}.~{contig}.sv.annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_svlen_svtype
+        }
+
+        call Helpers.SubsetVcfBySize as FilterSv {
+            input:
+                vcf = AnnotateSv.annotated_vcf,
+                vcf_index = AnnotateSv.annotated_vcf_idx,
+                locus = contig,
+                min_size = min_size_sv,
                 prefix = "~{prefix}.~{contig}.sv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv
@@ -63,27 +99,18 @@ workflow IntegrateVcfs {
 
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
-                vcfs = [SubsetSnvIndel.filtered_vcf, SubsetSv.filtered_vcf],
-                vcfs_idx = [SubsetSnvIndel.filtered_vcf_idx, SubsetSv.filtered_vcf_idx],
+                vcfs = [FilterSnvIndel.subset_vcf, FilterSv.subset_vcf],
+                vcfs_idx = [FilterSnvIndel.subset_vcf_idx, FilterSv.subset_vcf_idx],
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
-        }
-
-        call AnnotateSvlenSvtype {
-            input:
-                vcf = MergeContigVcfs.concat_vcf,
-                vcf_idx = MergeContigVcfs.concat_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_svlen_svtype
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = AnnotateSvlenSvtype.annotated_vcf,
-            vcfs_idx = AnnotateSvlenSvtype.annotated_vcf_idx,
+            vcfs = MergeContigVcfs.concat_vcf,
+            vcfs_idx = MergeContigVcfs.concat_vcf_idx,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -161,71 +188,6 @@ task CheckSampleConsistency {
     }
 }
 
-task SubsetAndFilterVcf {
-    input {
-        File vcf
-        File vcf_idx
-        String contig
-        Array[String] sample_ids
-        Int size_threshold
-        Boolean use_max_size
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        printf '%s\n' ~{sep=' ' sample_ids} > samples.txt
-
-        bcftools view -S samples.txt -c 1 -r ~{contig} ~{vcf} -Oz -o subset.vcf.gz
-        tabix -p vcf subset.vcf.gz
-
-        bcftools query -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' subset.vcf.gz | \
-        awk -v threshold=~{size_threshold} -v use_max=~{use_max_size} '{
-            ref_len = length($4)
-            alt_len = length($5)
-            size = (ref_len > alt_len) ? (ref_len - alt_len) : (alt_len - ref_len)
-            if ((use_max == "true" && size <= threshold) || (use_max == "false" && size >= threshold)) {
-                print $3
-            }
-        }' > keep_ids.txt
-
-        if [ -s keep_ids.txt ]; then
-            bcftools view -i 'ID=@keep_ids.txt' subset.vcf.gz -Oz -o ~{prefix}.vcf.gz
-        else
-            bcftools view -h subset.vcf.gz | bgzip -c > ~{prefix}.vcf.gz
-        fi
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File filtered_vcf = "~{prefix}.vcf.gz"
-        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
 task AnnotateSvlenSvtype {
     input {
         File vcf
@@ -238,42 +200,53 @@ task AnnotateSvlenSvtype {
     command <<<
         set -euo pipefail
 
-        bcftools annotate -x INFO/SVLEN,INFO/SVTYPE ~{vcf} | \
-        bcftools +fill-tags -Oz -o annotated.vcf.gz -- -t 'SVLEN:1=int(strlen(ALT[0])-strlen(REF))'
-        tabix -p vcf annotated.vcf.gz
-
-        touch headers.txt
-        if ! bcftools view -h annotated.vcf.gz | grep -q '##INFO=<ID=SVLEN'; then
-            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
-        fi
-        if ! bcftools view -h annotated.vcf.gz | grep -q '##INFO=<ID=SVTYPE'; then
-            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
-        fi
-
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' annotated.vcf.gz | \
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/SVLEN\t%INFO/SVTYPE\n' ~{vcf} | \
         awk '{
             ref_len = length($3)
             alt_len = length($4)
+            has_svlen = ($5 != ".")
+            has_svtype = ($6 != ".")
+            
             if (ref_len == alt_len) {
-                svtype = "SNV"
+                if (ref_len == 1) {
+                    svtype = "SNV"
+                    svlen = 1
+                } else {
+                    svtype = "INS"
+                    svlen = ref_len
+                }
             } else if (ref_len > alt_len) {
                 svtype = "DEL"
+                svlen = ref_len - alt_len
             } else {
                 svtype = "INS"
+                svlen = alt_len - ref_len
             }
-            print $1"\t"$2"\t"$3"\t"$4"\t"svtype
-        }' | bgzip -c > svtype_annot.txt.gz
-        tabix -s1 -b2 -e2 svtype_annot.txt.gz
+            
+            final_svtype = has_svtype ? $6 : svtype
+            final_svlen = has_svlen ? $5 : svlen
+            
+            print $1"\t"$2"\t"$3"\t"$4"\t"final_svtype"\t"final_svlen
+        }' | bgzip -c > annot.txt.gz
+        tabix -s1 -b2 -e2 annot.txt.gz
+
+        touch headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
+        fi
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
+        fi
 
         header_flag=""
         if [ -s headers.txt ]; then
             header_flag="-h headers.txt"
         fi
 
-        bcftools annotate -a svtype_annot.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO/SVTYPE \
+        bcftools annotate -a annot.txt.gz \
+            -c CHROM,POS,REF,ALT,INFO/SVTYPE,INFO/SVLEN \
             $header_flag \
-            annotated.vcf.gz -Oz -o ~{prefix}.vcf.gz
+            ~{vcf} -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
