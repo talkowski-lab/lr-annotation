@@ -13,10 +13,10 @@ workflow AnnotateMEDs {
         String prefix
         String utils_docker
 
-        Float size_similarity = 0.5
-        Float reciprocal_overlap = 0.5
-        Int breakpoint_window = 5000
-        Float sequence_similarity = 0.5
+        Float size_similarity = 0.9
+        Float reciprocal_overlap = 0.9
+        Int breakpoint_window = 500
+        Float sequence_similarity = 0.9
 
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_bedtools
