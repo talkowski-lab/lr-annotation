@@ -222,7 +222,7 @@ task AnnotateFunctionalConsequences {
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int java_mem_mb = 1000 * 0.7 * ceil(select_first([runtime_attr.mem_gb, default_attr.mem_gb]))
+    Int java_mem_mb = 1000 * ceil(0.8 * select_first([runtime_attr.mem_gb, default_attr.mem_gb]))
 
     command <<<
         set -euo pipefail

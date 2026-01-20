@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import gzip
 from collections import defaultdict
 from typing import Dict, Tuple, List
 
@@ -63,7 +62,7 @@ def load_annotations_from_tsv(annotation_tsv_path: str) -> Dict[str, Tuple[str, 
 
 def load_truth_info_from_matched(matched_with_info_tsv_path: str) -> Dict[str, Dict[str, str]]:
     truth = {}
-    with gzip.open(matched_with_info_tsv_path, "rt") as f:
+    with open(matched_with_info_tsv_path, "r") as f:
         for line in f:
             if not line.strip():
                 continue
