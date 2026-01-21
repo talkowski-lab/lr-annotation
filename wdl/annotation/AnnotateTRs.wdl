@@ -183,6 +183,7 @@ task AnnotateTRVariants {
 
         cat > header_additions.txt <<'HEADER_EOF'
 ##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
+##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="ID of the tandem repeat variant enveloping this site">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
 HEADER_EOF
 
@@ -200,10 +201,11 @@ HEADER_EOF
             -b tr_regions.bed \
             -f 1.0 \
             -wa \
+            -wb \
             -u > enveloped_variants.bed
         
         if [ -s enveloped_variants.bed ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter}' \
+            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter, $10}' \
                 enveloped_variants.bed > filter_annotations.txt
         else
             touch filter_annotations.txt
@@ -211,14 +213,13 @@ HEADER_EOF
 
         if [ -s filter_annotations.txt ]; then
             bgzip filter_annotations.txt
+            
             tabix -s 1 -b 2 -e 2 filter_annotations.txt.gz
             
-            echo "##FILTER=<ID=~{tr_filter},Description=\"Variant is enveloped by a tandem repeat region\">" > filter_header.txt
-
             bcftools annotate \
                 -a filter_annotations.txt.gz \
-                -c CHROM,POS,REF,ALT,+FILTER \
-                -h filter_header.txt \
+                -c CHROM,POS,REF,ALT,FILTER,INFO/TR_CALLER_ID \
+                -h header_additions.txt \
                 -Oz -o vcf_with_filters.vcf.gz \
                 ~{vcf}
             
