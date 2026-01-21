@@ -217,24 +217,34 @@ task AnnotateSvlenSvtype {
         fi
 
         bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/SVLEN\t%INFO/SVTYPE\n' temp.vcf.gz | \
-        awk '{
+        awk -F'\t' '{
+            split($4, alleles, ",")
             ref_len = length($3)
-            alt_len = length($4)
-            
-            if (ref_len == alt_len) {
-                calc_svtype = (ref_len == 1) ? "SNV" : "INS"
-                calc_svlen = (ref_len == 1) ? 1 : ref_len
-            } else if (ref_len > alt_len) {
-                calc_svtype = "DEL"
-                calc_svlen = ref_len - alt_len
-            } else {
-                calc_svtype = "INS"
-                calc_svlen = alt_len - ref_len
+            max_diff = -1
+            is_all_snv = 1
+            best_type = "SNV"
+
+            for (i in alleles) {
+                alt_len = length(alleles[i])
+                diff = (alt_len > ref_len) ? (alt_len - ref_len) : (ref_len - alt_len)
+                if (diff > max_diff) {
+                    max_diff = diff
+                    best_type = (alt_len > ref_len) ? "INS" : (alt_len < ref_len ? "DEL" : "SNV")
+                }
+                if (alt_len != 1 || ref_len != 1) { is_all_snv = 0 }
             }
-            
+
+            if (is_all_snv == 1) {
+                calc_svtype = "SNV"
+                calc_svlen = 1
+            } else {
+                calc_svtype = best_type
+                calc_svlen = max_diff
+            }
+
             final_svtype = ($6 != ".") ? $6 : calc_svtype
-            final_svlen = (ref_len == 1 && alt_len == 1) ? 1 : (($5 != ".") ? $5 : calc_svlen)
-            
+            final_svlen = (is_all_snv == 1) ? 1 : (($5 != ".") ? $5 : calc_svlen)
+
             print $1"\t"$2"\t"$3"\t"$4"\t"final_svtype"\t"final_svlen
         }' | bgzip -c > annot.txt.gz
         
