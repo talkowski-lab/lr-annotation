@@ -56,14 +56,13 @@ task ConcatVcfs {
   input {
     Array[File] vcfs
     Array[File] vcfs_idx
-    Boolean allow_overlaps = false
-    Boolean merge_sort = false
+    Boolean merge_sort = true
     String prefix = "concat"
     String docker
     RuntimeAttr? runtime_attr_override
   }
 
-  String merge_flag = if (allow_overlaps || merge_sort) then "--allow-overlaps" else ""
+  String merge_flag = if merge_sort then "--allow-overlaps" else ""
 
   command <<<
     set -euo pipefail

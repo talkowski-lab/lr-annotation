@@ -87,7 +87,6 @@ workflow AnnotateSVAnnotate {
         input:
             vcfs = PostprocessVcf.reverted_vcf,
             vcfs_idx = PostprocessVcf.reverted_vcf_idx,
-            allow_overlaps = true,
             prefix = "~{prefix}.annotated.concat",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_annotated
@@ -97,7 +96,6 @@ workflow AnnotateSVAnnotate {
         input:
             vcfs = SubsetVcfUnannotated.subset_vcf,
             vcfs_idx = SubsetVcfUnannotated.subset_vcf_idx,
-            allow_overlaps = true,
             prefix = "~{prefix}.unannotated.concat",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_unannotated
@@ -107,7 +105,6 @@ workflow AnnotateSVAnnotate {
         input:
             vcfs = [ConcatAnnotated.concat_vcf, ConcatUnannotated.concat_vcf],
             vcfs_idx = [ConcatAnnotated.concat_vcf_idx, ConcatUnannotated.concat_vcf_idx],
-            allow_overlaps = true,
             prefix = "~{prefix}.merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
