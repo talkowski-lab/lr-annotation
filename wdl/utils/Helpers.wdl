@@ -68,6 +68,8 @@ task ConcatVcfs {
 
   command <<<
     set -euo pipefail
+    
+    VCFS_FILE="~{write_lines(vcfs)}"
 
     bcftools concat \
         ~{merge_flag} \

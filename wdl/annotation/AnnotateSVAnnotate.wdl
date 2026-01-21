@@ -34,7 +34,7 @@ workflow AnnotateSVAnnotate {
                 vcf_index = vcf_idx,
                 locus = contig,
                 min_size = min_svlen,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.annotate",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -45,7 +45,7 @@ workflow AnnotateSVAnnotate {
                 vcf_index = vcf_idx,
                 locus = contig,
                 max_size = min_svlen - 1,
-                prefix = "~{prefix}.~{contig}.unannotated",
+                prefix = "~{prefix}.~{contig}.unannotate",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -54,7 +54,7 @@ workflow AnnotateSVAnnotate {
             input:
                 vcf = SubsetVcfAnnotated.subset_vcf,
                 vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.processed",
+                prefix = "~{prefix}.~{contig}.preprocessed",
                 strip_genotypes = false,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_preprocess
@@ -66,7 +66,7 @@ workflow AnnotateSVAnnotate {
                 vcf_idx = PreprocessVcf.processed_vcf_idx,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
-                prefix = "~{prefix}.~{contig}.processed.anno_func",
+                prefix = "~{prefix}.~{contig}.functionally_annotated",
                 docker = gatk_docker,
                 runtime_attr_override = runtime_attr_annotate_func
         }
@@ -77,7 +77,7 @@ workflow AnnotateSVAnnotate {
                 annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
                 original_vcf = SubsetVcfAnnotated.subset_vcf,
                 original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                prefix = "~{prefix}.annotated",
+                prefix = "~{prefix}.~{contig}.postprocessed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_postprocess
         }
