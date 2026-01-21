@@ -114,9 +114,7 @@ task SubsetAndReheaderVamos {
         max_retries: 1,
         boot_disk_gb: 10
     }
-    
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-    
     runtime {
         memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
         disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"

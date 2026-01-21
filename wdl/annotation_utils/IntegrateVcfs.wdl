@@ -77,7 +77,7 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_filter_sv
         }
 
-        call AnnotateSvlenSvtype as AnnotateSv {
+        call AnnotateSvlenSvtype {
             input:
                 vcf = SubsetSv.subset_vcf,
                 vcf_idx = SubsetSv.subset_vcf_index,
@@ -88,8 +88,8 @@ workflow IntegrateVcfs {
 
         call Helpers.SubsetVcfBySize as FilterSv {
             input:
-                vcf = AnnotateSv.annotated_vcf,
-                vcf_index = AnnotateSv.annotated_vcf_idx,
+                vcf = AnnotateSvlenSvtype.annotated_vcf,
+                vcf_index = AnnotateSvlenSvtype.annotated_vcf_idx,
                 locus = contig,
                 min_size = min_size_sv,
                 prefix = "~{prefix}.~{contig}.sv",

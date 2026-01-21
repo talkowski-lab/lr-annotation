@@ -63,7 +63,6 @@ task ConcatVcfs {
     RuntimeAttr? runtime_attr_override
   }
 
-  String outfile_name = prefix + ".vcf.gz"
   String merge_flag = if (allow_overlaps || merge_sort) then "--allow-overlaps" else ""
 
   command <<<
@@ -74,10 +73,15 @@ task ConcatVcfs {
     bcftools concat \
         ~{merge_flag} \
         --file-list ${VCFS_FILE} \
-        -Oz -o "~{outfile_name}"
+        -Oz -o "~{prefix}.vcf.gz"
     
-    tabix -p vcf -f "~{outfile_name}"
+    tabix -p vcf -f "~{prefix}.vcf.gz"
   >>>
+
+  output {
+    File concat_vcf = outfile_name
+    File concat_vcf_idx = outfile_name + ".tbi"
+  }
 
   RuntimeAttr default_attr = object {
     mem_gb: 4,
@@ -89,18 +93,13 @@ task ConcatVcfs {
   }
   RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
   runtime {
-    memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-    disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
     cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+    memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+    disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    docker: docker
     preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
     maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-    docker: docker
-    bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-  }
-
-  output {
-    File concat_vcf = outfile_name
-    File concat_vcf_idx = outfile_name + ".tbi"
   }
 }
 
@@ -665,13 +664,13 @@ task FinalizeToFile {
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker: select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -706,13 +705,13 @@ task FinalizeToDir {
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker: select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -743,6 +742,10 @@ print(size_in_gib)
 CODE
     >>>
 
+    output {
+        Float mt_size = read_lines('mt_size.txt')[0]
+    }
+
     RuntimeAttr default_attr = object {
         mem_gb: 4,
         disk_gb: 25,
@@ -753,16 +756,12 @@ CODE
     }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
         preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
         docker: hail_docker
         bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
-
-    output {
-        Float mt_size = read_lines('mt_size.txt')[0]
     }
 }
