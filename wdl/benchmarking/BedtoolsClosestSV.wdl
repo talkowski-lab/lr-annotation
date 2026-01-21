@@ -33,6 +33,7 @@ workflow BedtoolsClosestSV {
             vcf = vcf_eval,
             vcf_idx = vcf_eval_index,
             prefix = "~{prefix}.eval.symbolic",
+            drop_genotypes = true,
             docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }

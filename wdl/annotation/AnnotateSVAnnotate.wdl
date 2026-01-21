@@ -55,7 +55,6 @@ workflow AnnotateSVAnnotate {
                 vcf = SubsetVcfAnnotated.subset_vcf,
                 vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.preprocessed",
-                strip_genotypes = false,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_preprocess
         }
@@ -145,10 +144,7 @@ task AnnotateFunctionalConsequences {
             -V ~{vcf} \
             --non-coding-bed ~{noncoding_bed} \
             --protein-coding-gtf ~{coding_gtf} \
-            -O ~{prefix}.vcf
-        
-        bcftools view -Oz ~{prefix}.vcf > ~{prefix}.vcf.gz
-        tabix ~{prefix}.vcf.gz
+            -O ~{prefix}.vcf.gz
     >>>
 
     output {

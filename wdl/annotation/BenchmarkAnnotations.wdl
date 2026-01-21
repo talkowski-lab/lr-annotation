@@ -86,40 +86,13 @@ workflow BenchmarkAnnotations {
     }
 
     scatter (contig in contigs) {
-        call Helpers.StripGenotypes as StripEvalGenotypes {
+        call Helpers.SubsetVcfToContig as SubsetEval {
             input:
                 vcf = vcf,
                 vcf_index = vcf_idx,
-                prefix = "~{prefix}.~{contig}.eval.stripped",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_subset_eval
-        }
-
-        call Helpers.StripGenotypes as StripTruthGenotypes {
-            input:
-                vcf = vcf_truth,
-                vcf_index = vcf_truth_idx,
-                prefix = "~{prefix}.~{contig}.truth.stripped",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_subset_truth
-        }
-
-        call Helpers.StripGenotypes as StripSVTruthGenotypes {
-            input:
-                vcf = vcf_sv_truth,
-                vcf_index = vcf_sv_truth_idx,
-                prefix = "~{prefix}.~{contig}.sv_truth.stripped",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_subset_sv_truth
-        }
-
-        call Helpers.SubsetVcfToContig as SubsetEval {
-            input:
-                vcf = StripEvalGenotypes.stripped_vcf,
-                vcf_index = StripEvalGenotypes.stripped_vcf_index,
                 contig = contig,
                 args_string = args_string_vcf,
-                strip_genotypes = false,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_eval
@@ -127,11 +100,11 @@ workflow BenchmarkAnnotations {
 
         call Helpers.SubsetVcfToContig as SubsetTruth {
             input:
-                vcf = StripTruthGenotypes.stripped_vcf,
-                vcf_index = StripTruthGenotypes.stripped_vcf_index,
+                vcf = vcf_truth,
+                vcf_index = vcf_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_truth,
-                strip_genotypes = false,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_truth
@@ -139,11 +112,11 @@ workflow BenchmarkAnnotations {
 
         call Helpers.SubsetVcfToContig as SubsetSVTruth {
             input:
-                vcf = StripSVTruthGenotypes.stripped_vcf,
-                vcf_index = StripSVTruthGenotypes.stripped_vcf_index,
+                vcf = vcf_sv_truth,
+                vcf_index = vcf_sv_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_sv_truth,
-                strip_genotypes = false,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth

@@ -4,6 +4,7 @@
 import sys
 from pysam import VariantFile
 
+NULL_GT = [(0, 0), (None, None), (0, ), (None, ), (None, 0)]
 
 def main():
     if len(sys.argv) != 3:
@@ -41,24 +42,34 @@ def main():
     vcf_out = VariantFile("-", "w", header=header)
 
     for rec in vcf_in.fetch():
+        for sample in rec.samples.values():
+            if sample['GT'] in NULL_GT:
+                continue
+            new_gt = []
+            for allele in sample['GT']:
+                if allele is None:
+                    new_gt.append(None)
+                elif allele > 0:
+                    new_gt.append(1)
+                else:
+                    new_gt.append(0)
+            sample['GT'] = tuple(new_gt)
+        
         if rec.info["SVTYPE"] == "BND":
             rec.info["BND_ALT"] = rec.alts[0]
 
-        rec.alts = ("<%s>" % rec.info["SVTYPE"],)
         rec.ref = "N"
+        rec.alts = (f"<{rec.info['SVTYPE']}>", )
 
         if "SVLEN" in rec.info:
-            if isinstance(rec.info["SVLEN"], tuple):
-                rec.info["SVLEN"] = (abs(rec.info["SVLEN"][0]),)
-            else:
-                rec.info["SVLEN"] = abs(rec.info["SVLEN"])
-
-        if rec.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
             if isinstance(rec.info["SVLEN"], tuple):
                 svlen = abs(rec.info["SVLEN"][0])
             else:
                 svlen = abs(rec.info["SVLEN"])
-            rec.stop = rec.pos + svlen
+
+            rec.info["SVLEN"] = svlen
+            if rec.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
+                rec.stop = rec.pos + svlen
 
         vcf_out.write(rec)
 

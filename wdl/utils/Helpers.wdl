@@ -248,7 +248,7 @@ task SubsetVcfToContig {
         File vcf_index
         String contig
         String? args_string
-        Boolean strip_genotypes = false
+        Boolean drop_genotypes = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -259,7 +259,7 @@ task SubsetVcfToContig {
 
         bcftools view \
             -r ~{contig} \
-            ~{if strip_genotypes then "-G" else ""} \
+            ~{if drop_genotypes then "-G" else ""} \
             ~{if defined(args_string) then args_string else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.~{contig}.vcf.gz
@@ -475,7 +475,7 @@ task ConvertToSymbolic {
         File vcf
         File vcf_idx
         String prefix
-        Boolean strip_genotypes = true
+        Boolean drop_genotypes = false
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -485,12 +485,14 @@ task ConvertToSymbolic {
 
         bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
 
-        if [ "~{strip_genotypes}" == "true" ]; then
-            python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
+        if [ "~{drop_genotypes}" == "true" ]; then
+            bcftools view \
+                -G \
                 ~{vcf} \
+            | python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
+                - \
                 svtypes.txt \
             | bcftools view \
-                -G \
                 -Oz -o ~{prefix}.vcf.gz
         else
             python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
@@ -499,7 +501,7 @@ task ConvertToSymbolic {
             | bcftools view \
                 -Oz -o ~{prefix}.vcf.gz
         fi
-
+        
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 

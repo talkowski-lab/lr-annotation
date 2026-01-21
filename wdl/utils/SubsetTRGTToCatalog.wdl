@@ -34,7 +34,6 @@ workflow SubsetTRGTToCatalog {
                 vcf = trgt_merged_vcf,
                 vcf_index = trgt_merged_vcf_idx,
                 contig = contig,
-                strip_genotypes = false,
                 prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf

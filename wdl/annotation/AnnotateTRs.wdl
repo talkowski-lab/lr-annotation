@@ -40,7 +40,6 @@ workflow AnnotateTRs {
                 vcf = vcf,
                 vcf_index = vcf_idx,
                 contig = contig,
-                strip_genotypes = false,
                 prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -51,7 +50,6 @@ workflow AnnotateTRs {
                 vcf = tr_vcf,
                 vcf_index = tr_vcf_idx,
                 contig = contig,
-                strip_genotypes = false,
                 prefix = "~{prefix}.tr",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_tr_vcf
