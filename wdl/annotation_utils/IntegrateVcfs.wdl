@@ -200,43 +200,32 @@ task AnnotateSvlenSvtype {
     command <<<
         set -euo pipefail
 
-        has_svlen=false
-        has_svtype=false
-        if bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
-            has_svlen=true
+        # Add missing headers so we can always query both fields
+        touch new_headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> new_headers.txt
         fi
-        if bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
-            has_svtype=true
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> new_headers.txt
         fi
 
-        query_fmt='%CHROM\t%POS\t%REF\t%ALT'
-        col_svlen=5
-        col_svtype=5
-        if [ "$has_svlen" = "true" ]; then
-            query_fmt="${query_fmt}\t%INFO/SVLEN"
-            if [ "$has_svtype" = "true" ]; then
-                query_fmt="${query_fmt}\t%INFO/SVTYPE"
-                col_svtype=6
-            fi
-        elif [ "$has_svtype" = "true" ]; then
-            query_fmt="${query_fmt}\t%INFO/SVTYPE"
+        if [ -s new_headers.txt ]; then
+            bcftools annotate -h new_headers.txt ~{vcf} -Oz -o temp.vcf.gz
+            tabix -p vcf temp.vcf.gz
+        else
+            ln -s ~{vcf} temp.vcf.gz
+            ln -s ~{vcf_idx} temp.vcf.gz.tbi
         fi
-        query_fmt="${query_fmt}\n"
 
-        bcftools query -f "$query_fmt" ~{vcf} | \
-        awk -v has_svlen="$has_svlen" -v has_svtype="$has_svtype" \
-            -v col_svlen="$col_svlen" -v col_svtype="$col_svtype" '{
+        # Query and annotate with unified awk script
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/SVLEN\t%INFO/SVTYPE\n' temp.vcf.gz | \
+        awk '{
             ref_len = length($3)
             alt_len = length($4)
             
             if (ref_len == alt_len) {
-                if (ref_len == 1) {
-                    calc_svtype = "SNV"
-                    calc_svlen = 1
-                } else {
-                    calc_svtype = "INS"
-                    calc_svlen = ref_len
-                }
+                calc_svtype = (ref_len == 1) ? "SNV" : "INS"
+                calc_svlen = (ref_len == 1) ? 1 : ref_len
             } else if (ref_len > alt_len) {
                 calc_svtype = "DEL"
                 calc_svlen = ref_len - alt_len
@@ -245,40 +234,17 @@ task AnnotateSvlenSvtype {
                 calc_svlen = alt_len - ref_len
             }
             
-            if (has_svtype == "true" && $col_svtype != ".") {
-                final_svtype = $col_svtype
-            } else {
-                final_svtype = calc_svtype
-            }
-            
-            if (has_svlen == "true" && $col_svlen != ".") {
-                final_svlen = $col_svlen
-            } else {
-                final_svlen = calc_svlen
-            }
+            final_svtype = ($6 != ".") ? $6 : calc_svtype
+            final_svlen = (ref_len == 1 && alt_len == 1) ? 1 : (($5 != ".") ? $5 : calc_svlen)
             
             print $1"\t"$2"\t"$3"\t"$4"\t"final_svtype"\t"final_svlen
         }' | bgzip -c > annot.txt.gz
         
         tabix -s1 -b2 -e2 annot.txt.gz
 
-        touch headers.txt
-        if [ "$has_svlen" = "false" ]; then
-            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> headers.txt
-        fi
-        if [ "$has_svtype" = "false" ]; then
-            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">' >> headers.txt
-        fi
-
-        header_flag=""
-        if [ -s headers.txt ]; then
-            header_flag="-h headers.txt"
-        fi
-
         bcftools annotate -a annot.txt.gz \
             -c CHROM,POS,REF,ALT,INFO/SVTYPE,INFO/SVLEN \
-            $header_flag \
-            ~{vcf} -Oz -o ~{prefix}.vcf.gz
+            temp.vcf.gz -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
