@@ -79,8 +79,8 @@ task ConcatVcfs {
   >>>
 
   output {
-    File concat_vcf = outfile_name
-    File concat_vcf_idx = outfile_name + ".tbi"
+    File concat_vcf = "~{prefix}.vcf.gz"
+    File concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
   }
 
   RuntimeAttr default_attr = object {
