@@ -38,8 +38,9 @@ workflow BenchmarkAnnotations {
 
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
-        RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_subset_sv_truth
+        RuntimeAttr? runtime_attr_rename_eval
+        RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
         RuntimeAttr? runtime_attr_exact_match
         RuntimeAttr? runtime_attr_annotate_benchmark
@@ -157,7 +158,7 @@ workflow BenchmarkAnnotations {
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     prefix = "~{prefix}.~{contig}.eval.renamed",
                     docker = benchmark_annotations_docker,
-                    runtime_attr_override = runtime_attr_subset_eval
+                    runtime_attr_override = runtime_attr_rename_eval
             }
         }
 

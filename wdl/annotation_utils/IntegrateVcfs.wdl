@@ -12,7 +12,6 @@ workflow IntegrateVcfs {
 
         Array[String] contigs
         Array[String] sample_ids
-        Int max_size_snv_indel = 49
         Int min_size_sv = 50
         String prefix
         String utils_docker
@@ -60,7 +59,7 @@ workflow IntegrateVcfs {
                 vcf = AnnotateSnvIndel.annotated_vcf,
                 vcf_index = AnnotateSnvIndel.annotated_vcf_idx,
                 locus = contig,
-                max_size = max_size_snv_indel,
+                max_size = min_size_sv - 1,
                 prefix = "~{prefix}.~{contig}.snv_indel",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel

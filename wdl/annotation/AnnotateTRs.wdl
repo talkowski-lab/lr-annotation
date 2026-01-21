@@ -13,6 +13,7 @@ workflow AnnotateTRs {
         String prefix
         String tr_info
         String tr_filter
+        String? tr_rename_ids_string
         Array[String] contigs
 
         String utils_docker
@@ -20,6 +21,7 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tr_vcf
+        RuntimeAttr? runtime_attr_rename_variant_ids
         RuntimeAttr? runtime_attr_annotate_trs
         RuntimeAttr? runtime_attr_concat_vcf
     }
@@ -55,12 +57,24 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_subset_tr_vcf
         }
 
+        if (defined(tr_rename_ids_string)) {
+            call Helpers.RenameVariantIds {
+                input:
+                    vcf = SubsetTrVcf.subset_vcf,
+                    vcf_index = SubsetTrVcf.subset_vcf_index,
+                    id_format = select_first([tr_rename_ids_string]),
+                    prefix = "~{prefix}.~{contig}.renamed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_rename_variant_ids
+            }
+        }
+
         call AnnotateTRVariants {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_index,
-                tr_vcf = SubsetTrVcf.subset_vcf,
-                tr_vcf_idx = SubsetTrVcf.subset_vcf_index,
+                tr_vcf = select_first([RenameVariantIds.renamed_vcf, SubsetTrVcf.subset_vcf]),
+                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_index, SubsetTrVcf.subset_vcf_index]),
                 tr_info = tr_info,
                 tr_filter = tr_filter,
                 prefix = "~{prefix}.~{contig}",
