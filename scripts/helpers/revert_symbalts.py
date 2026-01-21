@@ -16,21 +16,20 @@ def main():
     with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(
         original_vcf_path
     ) as original_vcf:
-
-        original_records = {}
+        original_data = {}
         for record in original_vcf.fetch():
-            original_records[record.id] = record
+            original_data[record.id] = (record.ref, record.alts, record.info.get("SVLEN"))
 
         vcf_out = VariantFile("-", "w", header=annotated_vcf.header)
         for annotated_record in annotated_vcf.fetch():
-            if annotated_record.id in original_records:
-                original_record = original_records[annotated_record.id]
+            if annotated_record.id in original_data:
+                ref, alts, svlen = original_data[annotated_record.id]
 
                 new_record = annotated_record.copy()
-                new_record.ref = original_record.ref
-                new_record.alts = original_record.alts
-                if "SVLEN" in original_record.info:
-                    new_record.info["SVLEN"] = original_record.info["SVLEN"]
+                new_record.ref = ref
+                new_record.alts = alts
+                if svlen is not None:
+                    new_record.info["SVLEN"] = svlen
 
                 if "BND_ALT" in new_record.info:
                     del new_record.info["BND_ALT"]

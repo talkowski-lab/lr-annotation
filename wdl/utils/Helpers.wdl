@@ -491,60 +491,21 @@ task ConvertToSymbolic {
 
         bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
 
-        python3 <<CODE
-import pysam
-
-with open("svtypes.txt") as f:
-    present_svtypes = set(line.strip() for line in f if line.strip())
-
-with pysam.VariantFile("~{vcf}") as vcf_in:
-    header = vcf_in.header
-
-    if len(present_svtypes) > 0:
-        header.add_line('##ALT=<ID=N,Description="Baseline reference">')
-
-    if "BND" in present_svtypes:
-        header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
-
-    alt_definitions = {
-        "DEL": '##ALT=<ID=DEL,Description="Deletion">',
-        "DUP": '##ALT=<ID=DUP,Description="Duplication">',
-        "INV": '##ALT=<ID=INV,Description="Inversion">',
-        "INS": '##ALT=<ID=INS,Description="Insertion">'
-    }
-    for alt_id, alt_line in alt_definitions.items():
-        if alt_id in present_svtypes and alt_id not in header.alts:
-            header.add_line(alt_line)
-
-    with pysam.VariantFile("~{prefix}.temp.vcf", "w", header=header) as vcf_out:
-        for record in vcf_in:
-            if record.info["SVTYPE"] == "BND":
-                record.info["BND_ALT"] = record.alts[0]
-
-            record.alts = ("<%s>" % record.info["SVTYPE"],)
-            record.ref = "N"
-
-            if "SVLEN" in record.info:
-                if isinstance(record.info["SVLEN"], tuple):
-                    record.info["SVLEN"] = (abs(record.info["SVLEN"][0]),)
-                else:
-                    record.info["SVLEN"] = abs(record.info["SVLEN"])
-
-            if record.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
-                if isinstance(record.info["SVLEN"], tuple):
-                    svlen = abs(record.info["SVLEN"][0])
-                else:
-                    svlen = abs(record.info["SVLEN"])
-                record.stop = record.pos + svlen
-
-            vcf_out.write(record)
-CODE
-
         if [ "~{strip_genotypes}" == "true" ]; then
-            bcftools view -G ~{prefix}.temp.vcf -Oz -o ~{prefix}.vcf.gz
+            python /opt/gnomad-lr/scripts/helpers/symbalts.py \
+                ~{vcf} \
+                svtypes.txt \
+            | bcftools view \
+                -G \
+                -Oz -o ~{prefix}.vcf.gz
         else
-            bgzip -c ~{prefix}.temp.vcf > ~{prefix}.vcf.gz
+            python /opt/gnomad-lr/scripts/helpers/symbalts.py \
+                ~{vcf} \
+                svtypes.txt \
+            | bcftools view \
+                -Oz -o ~{prefix}.vcf.gz
         fi
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
@@ -587,30 +548,11 @@ task RevertSymbolicAlleles {
     command <<<
         set -euo pipefail
 
-        python3 <<CODE
-import pysam
+        python /opt/gnomad-lr/scripts/helpers/revert_symbalts.py \
+            ~{annotated_vcf} \
+            ~{original_vcf} \
+        | bcftools view -Oz -o ~{prefix}.vcf.gz
 
-with pysam.VariantFile("~{annotated_vcf}", 'r') as annotated_vcf, pysam.VariantFile("~{original_vcf}", 'r') as original_vcf, pysam.VariantFile("~{prefix}.vcf.gz", "w", header=annotated_vcf.header) as vcf_out:
-    original_data = {}
-    for record in original_vcf:
-        original_data[record.id] = (record.ref, record.alts, record.info.get("SVLEN"))
-
-    for record in annotated_vcf:
-        if record.id in original_data:
-            ref, alts, svlen = original_data[record.id]
-
-            new_record = record.copy()
-            new_record.ref = ref
-            new_record.alts = alts
-            if svlen is not None:
-                new_record.info["SVLEN"] = svlen
-            if "BND_ALT" in new_record.info:
-                del new_record.info["BND_ALT"]
-            vcf_out.write(new_record)
-        else:
-            vcf_out.write(record)
-CODE
-        
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
