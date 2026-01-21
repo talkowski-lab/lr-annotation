@@ -112,20 +112,21 @@ workflow ScatterVCF {
             if (!localize_vcf) {
                 String mt_uri = file
                 call Helpers.GetHailMTSize as getHailMTSize {
-                input:
-                    mt_uri=mt_uri,
-                    hail_docker=hail_docker
+                    input:
+                        mt_uri=mt_uri,
+                        docker=hail_docker
                 }
+                
                 call ScatterVCFRemote {
-                input:
-                    vcf_file=mt_uri,
-                    input_size=getHailMTSize.mt_size,
-                    split_vcf_hail_script=split_vcf_hail_script,
-                    n_shards=select_first([n_shards]),
-                    records_per_shard=select_first([records_per_shard, 0]),
-                    genome_build=genome_build,
-                    hail_docker=hail_docker,
-                    runtime_attr_override=runtime_attr_split_into_shards
+                    input:
+                        vcf_file=mt_uri,
+                        input_size=getHailMTSize.mt_size,
+                        split_vcf_hail_script=split_vcf_hail_script,
+                        n_shards=select_first([n_shards]),
+                        records_per_shard=select_first([records_per_shard, 0]),
+                        genome_build=genome_build,
+                        hail_docker=hail_docker,
+                        runtime_attr_override=runtime_attr_split_into_shards
                 }
             }
         }
