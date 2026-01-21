@@ -213,8 +213,7 @@ HEADER_EOF
             -b tr_regions.bed \
             -f 1.0 \
             -wa \
-            -wb \
-            -u > enveloped_variants.bed
+            -wb > enveloped_variants.bed
         
         if [ -s enveloped_variants.bed ]; then
             awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter, $10}' \
