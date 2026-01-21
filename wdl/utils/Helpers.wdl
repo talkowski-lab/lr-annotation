@@ -492,14 +492,14 @@ task ConvertToSymbolic {
         bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
 
         if [ "~{strip_genotypes}" == "true" ]; then
-            python /opt/gnomad-lr/scripts/helpers/symbalts.py \
+            python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
                 ~{vcf} \
                 svtypes.txt \
             | bcftools view \
                 -G \
                 -Oz -o ~{prefix}.vcf.gz
         else
-            python /opt/gnomad-lr/scripts/helpers/symbalts.py \
+            python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
                 ~{vcf} \
                 svtypes.txt \
             | bcftools view \
@@ -548,7 +548,7 @@ task RevertSymbolicAlleles {
     command <<<
         set -euo pipefail
 
-        python /opt/gnomad-lr/scripts/helpers/revert_symbalts.py \
+        python3 /opt/gnomad-lr/scripts/helpers/revert_symbalts.py \
             ~{annotated_vcf} \
             ~{original_vcf} \
         | bcftools view -Oz -o ~{prefix}.vcf.gz

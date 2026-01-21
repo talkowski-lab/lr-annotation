@@ -200,7 +200,6 @@ task AnnotateSvlenSvtype {
     command <<<
         set -euo pipefail
 
-        # Add missing headers so we can always query both fields
         touch new_headers.txt
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
             echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">' >> new_headers.txt
@@ -217,7 +216,6 @@ task AnnotateSvlenSvtype {
             ln -s ~{vcf_idx} temp.vcf.gz.tbi
         fi
 
-        # Query and annotate with unified awk script
         bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/SVLEN\t%INFO/SVTYPE\n' temp.vcf.gz | \
         awk '{
             ref_len = length($3)
