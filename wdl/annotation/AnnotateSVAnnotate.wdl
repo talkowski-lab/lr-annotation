@@ -70,6 +70,27 @@ workflow AnnotateSVAnnotate {
                 docker = gatk_docker,
                 runtime_attr_override = runtime_attr_annotate_func
         }
+
+        call Helpers.RevertSymbolicAlleles as PostprocessVcf {
+            input:
+                annotated_vcf = AnnotateFunctionalConsequences.anno_vcf,
+                annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
+                original_vcf = SubsetVcfAnnotated.subset_vcf,
+                original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
+                prefix = "~{prefix}.annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_postprocess
+        }
+    }
+
+    call Helpers.ConcatVcfs as ConcatAnnotated {
+        input:
+            vcfs = PostprocessVcf.reverted_vcf,
+            vcfs_idx = PostprocessVcf.reverted_vcf_idx,
+            allow_overlaps = true,
+            prefix = "~{prefix}.annotated.concat",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_annotated
     }
 
     call Helpers.ConcatVcfs as ConcatUnannotated {
@@ -82,16 +103,6 @@ workflow AnnotateSVAnnotate {
             runtime_attr_override = runtime_attr_concat_unannotated
     }
 
-    call Helpers.ConcatVcfs as ConcatAnnotated {
-        input:
-            vcfs = AnnotateFunctionalConsequences.anno_vcf,
-            vcfs_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
-            allow_overlaps = true,
-            prefix = "~{prefix}.annotated.concat",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_annotated
-    }
-
     call Helpers.ConcatVcfs as MergeVcf {
         input:
             vcfs = [ConcatAnnotated.concat_vcf, ConcatUnannotated.concat_vcf],
@@ -102,20 +113,9 @@ workflow AnnotateSVAnnotate {
             runtime_attr_override = runtime_attr_merge
     }
 
-    call Helpers.RevertSymbolicAlleles as PostprocessVcf {
-        input:
-            annotated_vcf = MergeVcf.concat_vcf,
-            annotated_vcf_idx = MergeVcf.concat_vcf_idx,
-            original_vcf = vcf,
-            original_vcf_idx = vcf_idx,
-            prefix = "~{prefix}.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_postprocess
-    }
-
     output {
-        File sv_annotated_vcf = PostprocessVcf.reverted_vcf
-        File sv_annotated_vcf_idx = PostprocessVcf.reverted_vcf_idx
+        File sv_annotated_vcf =  MergeVcf.concat_vcf
+        File sv_annotated_vcf_idx = MergeVcf.concat_vcf_idx
     }
 }
 
@@ -169,5 +169,3 @@ task AnnotateFunctionalConsequences {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
-

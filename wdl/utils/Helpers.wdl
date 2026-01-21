@@ -34,8 +34,8 @@ task SplitVcfIntoShards {
 
   RuntimeAttr default_attr = object {
     cpu_cores: 1,
-    mem_gb: ceil(size(input_vcf,"GiB")) + 5,
-    disk_gb: 2 * ceil(size(input_vcf,"GiB")*2.5) + 10,
+    mem_gb: ceil(size(input_vcf, "GB")) + 5,
+    disk_gb: 2 * ceil(size(input_vcf,"GB")*2.5) + 10,
     boot_disk_gb: 10,
     preemptible_tries: 1,
     max_retries: 0
@@ -55,7 +55,7 @@ task SplitVcfIntoShards {
 task ConcatVcfs {
   input {
     Array[File] vcfs
-    Array[File]? vcfs_idx
+    Array[File] vcfs_idx
     Boolean allow_overlaps = false
     Boolean merge_sort = false
     String prefix = "concat"
@@ -64,19 +64,13 @@ task ConcatVcfs {
   }
 
   String outfile_name = prefix + ".vcf.gz"
-  Boolean use_overlaps = allow_overlaps || merge_sort
-  String merge_flag = if use_overlaps then "--allow-overlaps" else ""
+  String merge_flag = if (allow_overlaps || merge_sort) then "--allow-overlaps" else ""
 
   command <<<
     set -euo pipefail
-    
-    VCFS_FILE="~{write_lines(vcfs)}"
-    if ~{!defined(vcfs_idx)}; then
-      cat ${VCFS_FILE} | xargs -n1 tabix
-    fi
 
     bcftools concat \
-        -a ~{merge_flag} \
+        ~{merge_flag} \
         --file-list ${VCFS_FILE} \
         -Oz -o "~{outfile_name}"
     
@@ -739,8 +733,8 @@ size = "$tot_size".split()[0]
 unit = "$tot_size".split()[1]
 
 def convert_to_gib(size, unit):
-    size_dict = {"KiB": 2**10, "MiB": 2**20, "GiB": 2**30, "TiB": 2**40}
-    return float(size) * size_dict[unit] / size_dict["GiB"]
+    size_dict = {"KiB": 2**10, "MiB": 2**20, "GB": 2**30, "TiB": 2**40}
+    return float(size) * size_dict[unit] / size_dict["GB"]
 
 size_in_gib = convert_to_gib(size, unit)
 print(size_in_gib)
