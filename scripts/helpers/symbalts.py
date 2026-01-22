@@ -4,7 +4,9 @@
 import sys
 from pysam import VariantFile
 
+
 NULL_GT = [(0, 0), (None, None), (0, ), (None, ), (None, 0)]
+
 
 def main():
     if len(sys.argv) != 3:
@@ -54,7 +56,7 @@ def main():
                 else:
                     new_gt.append(0)
             sample['GT'] = tuple(new_gt)
-        
+
         if rec.info["SVTYPE"] == "BND":
             rec.info["BND_ALT"] = rec.alts[0]
 

@@ -33,7 +33,10 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
-        RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_concat_ins
+        RuntimeAttr? runtime_attr_concat_del
+        RuntimeAttr? runtime_attr_concat_final
+        RuntimeAttr? runtime_attr_merge_headers
     }
 
     call FilterBySvlen {
@@ -135,7 +138,7 @@ workflow AnnotateSVAN {
             tsvs = AnnotateInsertions.annotations_tsv,
             prefix = prefix + ".insertions",
             docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_ins
     }
 
     call Helpers.ConcatTsvs as ConcatDel {
@@ -143,7 +146,7 @@ workflow AnnotateSVAN {
             tsvs = AnnotateDeletions.annotations_tsv,
             prefix = prefix + ".deletions",
             docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_del
     }
 
     call Helpers.ConcatTsvs as MergeFinal {
@@ -151,7 +154,7 @@ workflow AnnotateSVAN {
             tsvs = [ConcatIns.concatenated_tsv, ConcatDel.concatenated_tsv],
             prefix = prefix + ".svan_annotations",
             docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_final
     }
 
     call MergeHeaderFiles {
@@ -159,6 +162,7 @@ workflow AnnotateSVAN {
             header_files = flatten([AnnotateInsertions.header_file, AnnotateDeletions.header_file]),
             prefix = prefix,
             docker = annotate_svan_docker
+            runtime_attr_override = runtime_attr_merge_headers
     }
 
     output {
@@ -497,8 +501,12 @@ task MergeHeaderFiles {
     command <<<
         set -euo pipefail
 
-        # Concatenate all header files and get unique fields while preserving order
-        cat ~{sep=' ' header_files} | tr '\t' '\n' | awk '!seen[$0]++' | tr '\n' '\t' | sed 's/\t$/\n/' > ~{prefix}.svan_header.txt
+        cat ~{sep=' ' header_files} \
+            | tr '\t' '\n' \
+            | awk '!seen[$0]++' \
+            | tr '\n' '\t' \
+            | sed 's/\t$/\n/' \
+        > ~{prefix}.svan_header.txt
     >>>
 
     output {

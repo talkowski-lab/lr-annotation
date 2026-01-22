@@ -171,7 +171,7 @@ task AnnotateTRVariants {
         bcftools view -S sample_order.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
         tabix -p vcf tr_reordered.vcf.gz
 
-        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">' > tr_caller_header.txt
+        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller with variants that envelope this site">' > tr_caller_header.txt
         
         bcftools annotate \
             -h tr_caller_header.txt \
@@ -194,8 +194,8 @@ task AnnotateTRVariants {
         tabix -p vcf tr_tagged.vcf.gz
 
         cat > header_additions.txt <<'HEADER_EOF'
-##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller identifier">
-##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="ID of the tandem repeat variant enveloping this site">
+##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller with variants that envelope this site">
+##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="IDs of the tandem repeat variants that envelope this site">
 ##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
 HEADER_EOF
 
