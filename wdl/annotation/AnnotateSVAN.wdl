@@ -38,22 +38,12 @@ workflow AnnotateSVAN {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                locus = contig,
-                min_size = min_svlen,
-                prefix = "~{prefix}.filtered",
-                docker = annotate_svan_docker,
-                runtime_attr_override = runtime_attr_subset
-        }
-
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
+                drop_genotypes = true,
                 prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -61,8 +51,8 @@ workflow AnnotateSVAN {
 
         call SeparateInsertionsDeletions {
             input:
-                vcf = SubsetVcfBySize.subset_vcf,
-                vcf_idx = SubsetVcfBySize.subset_vcf_idx,
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_separate
