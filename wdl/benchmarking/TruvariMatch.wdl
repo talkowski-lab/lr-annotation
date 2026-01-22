@@ -6,9 +6,9 @@ import "../utils/Helpers.wdl" as Helpers
 workflow TruvariMatch {
     input {
         File vcf_eval
-        File vcf_eval_index
+        File vcf_eval_idx
         File vcf_truth
-        File vcf_truth_index
+        File vcf_truth_idx
         File ref_fa
         File ref_fai
         String prefix
@@ -29,7 +29,7 @@ workflow TruvariMatch {
     call FilterEvalVcf {
         input:
             vcf_eval = vcf_eval,
-            vcf_eval_index = vcf_eval_index,
+            vcf_eval_idx = vcf_eval_idx,
             min_sv_length = min_sv_length,
             prefix = "~{prefix}.filtered_eval",
             docker = utils_docker,
@@ -39,7 +39,7 @@ workflow TruvariMatch {
     call FilterTruthVcf {
         input:
             vcf_truth = vcf_truth,
-            vcf_truth_index = vcf_truth_index,
+            vcf_truth_idx = vcf_truth_idx,
             prefix = "~{prefix}.filtered_truth",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_filter_truth_vcf
@@ -48,9 +48,9 @@ workflow TruvariMatch {
     call RunTruvari as RunTruvari_09 {
         input:
             vcf_eval = FilterEvalVcf.retained_vcf,
-            vcf_eval_index = FilterEvalVcf.retained_vcf_index,
+            vcf_eval_idx = FilterEvalVcf.retained_vcf_idx,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
+            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.9,
@@ -65,9 +65,9 @@ workflow TruvariMatch {
     call RunTruvari as RunTruvari_07 {
         input:
             vcf_eval = RunTruvari_09.unmatched_vcf,
-            vcf_eval_index = RunTruvari_09.unmatched_vcf_index,
+            vcf_eval_idx = RunTruvari_09.unmatched_vcf_idx,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
+            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.7,
@@ -82,9 +82,9 @@ workflow TruvariMatch {
     call RunTruvari as RunTruvari_05 {
         input:
             vcf_eval = RunTruvari_07.unmatched_vcf,
-            vcf_eval_index = RunTruvari_07.unmatched_vcf_index,
+            vcf_eval_idx = RunTruvari_07.unmatched_vcf_idx,
             vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_index = FilterTruthVcf.retained_vcf_index,
+            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.5,
@@ -108,16 +108,16 @@ workflow TruvariMatch {
     output {
         File annotation_tsv = ConcatAnnotationTsvs.concatenated_tsv
         File unmatched_vcf = RunTruvari_05.unmatched_vcf
-        File unmatched_vcf_index = RunTruvari_05.unmatched_vcf_index
+        File unmatched_vcf_idx = RunTruvari_05.unmatched_vcf_idx
         File dropped_vcf = FilterEvalVcf.dropped_vcf
-        File dropped_vcf_index = FilterEvalVcf.dropped_vcf_index
+        File dropped_vcf_idx = FilterEvalVcf.dropped_vcf_idx
     }
 }
 
 task FilterEvalVcf {
     input {
         File vcf_eval
-        File vcf_eval_index
+        File vcf_eval_idx
         Int min_sv_length
         String prefix
         String docker
@@ -136,9 +136,9 @@ task FilterEvalVcf {
 
     output {
         File retained_vcf = "~{prefix}.retained.vcf.gz"
-        File retained_vcf_index = "~{prefix}.retained.vcf.gz.tbi"
+        File retained_vcf_idx = "~{prefix}.retained.vcf.gz.tbi"
         File dropped_vcf = "~{prefix}.dropped.vcf.gz"
-        File dropped_vcf_index = "~{prefix}.dropped.vcf.gz.tbi"
+        File dropped_vcf_idx = "~{prefix}.dropped.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -164,7 +164,7 @@ task FilterEvalVcf {
 task FilterTruthVcf {
     input {
         File vcf_truth
-        File vcf_truth_index
+        File vcf_truth_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -180,7 +180,7 @@ task FilterTruthVcf {
 
     output {
         File retained_vcf = "~{prefix}.vcf.gz"
-        File retained_vcf_index = "~{prefix}.vcf.gz.tbi"
+        File retained_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -206,9 +206,9 @@ task FilterTruthVcf {
 task RunTruvari {
     input {
         File vcf_eval
-        File vcf_eval_index
+        File vcf_eval_idx
         File vcf_truth_filtered
-        File vcf_truth_filtered_index
+        File vcf_truth_filtered_idx
         File ref_fa
         File ref_fai
         Float pctseq
@@ -252,7 +252,7 @@ task RunTruvari {
     output {
         File annotation_tsv = "~{prefix}.annotation.tsv"
         File unmatched_vcf = "~{prefix}_truvari/fp.vcf.gz"
-        File unmatched_vcf_index = "~{prefix}_truvari/fp.vcf.gz.tbi"
+        File unmatched_vcf_idx = "~{prefix}_truvari/fp.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

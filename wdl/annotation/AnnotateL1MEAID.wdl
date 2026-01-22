@@ -29,7 +29,7 @@ workflow AnnotateL1MEAID {
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,
@@ -39,7 +39,7 @@ workflow AnnotateL1MEAID {
         call RM.RepeatMasker {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 utils_docker = utils_docker,
                 repeatmasker_docker = repeatmasker_docker,

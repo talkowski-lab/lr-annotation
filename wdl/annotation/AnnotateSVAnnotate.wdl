@@ -31,7 +31,7 @@ workflow AnnotateSVAnnotate {
         call Helpers.SubsetVcfBySize as SubsetVcfAnnotated {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 locus = contig,
                 min_size = min_svlen,
                 prefix = "~{prefix}.~{contig}.annotate",

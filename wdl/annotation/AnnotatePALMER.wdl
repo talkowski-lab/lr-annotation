@@ -54,7 +54,7 @@ workflow AnnotatePALMER {
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = annotate_palmer_docker,
@@ -64,7 +64,7 @@ workflow AnnotatePALMER {
         call FilterPALMER {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,

@@ -26,7 +26,7 @@ workflow MergeVEPAF {
         call Helpers.SubsetVcfToContig as SubsetAF {
             input:
                 vcf = af_annotation_vcf,
-                vcf_index = af_annotation_vcf_idx,
+                vcf_idx = af_annotation_vcf_idx,
                 contig = contig,
                 prefix = "~{cohort_prefix}.~{contig}.af",
                 docker = utils_docker,
@@ -36,7 +36,7 @@ workflow MergeVEPAF {
         call Helpers.SubsetVcfToContig as SubsetVEP {
             input:
                 vcf = vep_annotation_vcf,
-                vcf_index = vep_annotation_vcf_idx,
+                vcf_idx = vep_annotation_vcf_idx,
                 contig = contig,
                 prefix = "~{cohort_prefix}.~{contig}.vep",
                 docker = utils_docker,
@@ -46,9 +46,9 @@ workflow MergeVEPAF {
         call MergeVEPAnnotation {
             input:
                 af_vcf = SubsetAF.subset_vcf,
-                af_vcf_index = SubsetAF.subset_vcf_index,
+                af_vcf_idx = SubsetAF.subset_vcf_idx,
                 vep_vcf = SubsetVEP.subset_vcf,
-                vep_vcf_index = SubsetVEP.subset_vcf_index,
+                vep_vcf_idx = SubsetVEP.subset_vcf_idx,
                 vep_info_field_name = vep_info_field_name,
                 prefix = "~{cohort_prefix}.~{contig}",
                 docker = utils_docker,
@@ -59,7 +59,7 @@ workflow MergeVEPAF {
     call Helpers.ConcatVcfs as MergeVcfs {
         input:
             vcfs = MergeVEPAnnotation.merged_vcf,
-            vcfs_idx = MergeVEPAnnotation.merged_vcf_index,
+            vcfs_idx = MergeVEPAnnotation.merged_vcf_idx,
             prefix = cohort_prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
@@ -67,16 +67,16 @@ workflow MergeVEPAF {
 
     output {
         File merged_vcf = MergeVcfs.concat_vcf
-        File merged_vcf_index = MergeVcfs.concat_vcf_idx
+        File merged_vcf_idx = MergeVcfs.concat_vcf_idx
     }
 }
 
 task MergeVEPAnnotation {
     input {
         File af_vcf
-        File af_vcf_index
+        File af_vcf_idx
         File vep_vcf
-        File vep_vcf_index
+        File vep_vcf_idx
         String vep_info_field_name
         String prefix
         String docker
@@ -103,7 +103,7 @@ task MergeVEPAnnotation {
 
     output {
         File merged_vcf = "~{prefix}.merged.vcf.gz"
-        File merged_vcf_index = "~{prefix}.merged.vcf.gz.tbi"
+        File merged_vcf_idx = "~{prefix}.merged.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

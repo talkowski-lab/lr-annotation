@@ -447,7 +447,7 @@ task MergeHeaderLines {
 task RenameVariantIds {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String id_format = "%CHROM-%POS-%REF-%ALT"
         Boolean strip_chr = false
@@ -476,7 +476,7 @@ task RenameVariantIds {
 
     output {
         File renamed_vcf = "~{prefix}.vcf.gz"
-        File renamed_vcf_index = "~{prefix}.vcf.gz.tbi"
+        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -626,7 +626,7 @@ task SplitVcfIntoShards {
 
   output {
     Array[File] split_vcfs = glob("chunks/*.vcf.gz")
-    Array[File] split_vcf_indexes = glob("chunks/*.vcf.gz.tbi")
+    Array[File] split_vcf_idxes = glob("chunks/*.vcf.gz.tbi")
   }
 
   RuntimeAttr default_attr = object {
@@ -652,7 +652,7 @@ task SplitVcfIntoShards {
 task StripGenotypes {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -667,7 +667,7 @@ task StripGenotypes {
 
     output {
         File stripped_vcf = "~{prefix}.vcf.gz"
-        File stripped_vcf_index = "~{prefix}.vcf.gz.tbi"
+        File stripped_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -732,7 +732,7 @@ task SubsetTsvToContig {
 task SubsetVcfBySize {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String locus
         Int? min_size
         Int? max_size
@@ -759,7 +759,7 @@ task SubsetVcfBySize {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 4 * ceil(size([vcf, vcf_index], "GB")) + 10,
+        disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
@@ -779,7 +779,7 @@ task SubsetVcfBySize {
 task SubsetVcfToContig {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String contig
         String? args_string
         Boolean drop_genotypes = false
@@ -802,7 +802,7 @@ task SubsetVcfToContig {
 
     output {
         File subset_vcf = "~{prefix}.~{contig}.vcf.gz"
-        File subset_vcf_index = "~{prefix}.~{contig}.vcf.gz.tbi"
+        File subset_vcf_idx = "~{prefix}.~{contig}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -828,7 +828,7 @@ task SubsetVcfToContig {
 task SubsetVcfToSampleList {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         Array[String] samples
         String contig
         String prefix
@@ -855,7 +855,7 @@ EOF
 
     output {
         File subset_vcf = "~{prefix}.vcf.gz"
-        File subset_vcf_index = "~{prefix}.vcf.gz.tbi"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

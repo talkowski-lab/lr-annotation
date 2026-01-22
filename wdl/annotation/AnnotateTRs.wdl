@@ -38,7 +38,7 @@ workflow AnnotateTRs {
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,
@@ -48,7 +48,7 @@ workflow AnnotateTRs {
         call Helpers.SubsetVcfToContig as SubsetTrVcf {
             input:
                 vcf = tr_vcf,
-                vcf_index = tr_vcf_idx,
+                vcf_idx = tr_vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.tr",
                 docker = utils_docker,
@@ -59,7 +59,7 @@ workflow AnnotateTRs {
             call Helpers.RenameVariantIds {
                 input:
                     vcf = SubsetTrVcf.subset_vcf,
-                    vcf_index = SubsetTrVcf.subset_vcf_index,
+                    vcf_idx = SubsetTrVcf.subset_vcf_idx,
                     id_format = select_first([tr_rename_ids_string]),
                     prefix = "~{prefix}.~{contig}.renamed",
                     docker = utils_docker,
@@ -70,9 +70,9 @@ workflow AnnotateTRs {
         call AnnotateTRVariants {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_vcf_index,
+                vcf_idx = SubsetVcf.subset_vcf_idx,
                 tr_vcf = select_first([RenameVariantIds.renamed_vcf, SubsetTrVcf.subset_vcf]),
-                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_index, SubsetTrVcf.subset_vcf_index]),
+                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SubsetTrVcf.subset_vcf_idx]),
                 tr_info = tr_info,
                 tr_filter = tr_filter,
                 prefix = "~{prefix}.~{contig}",

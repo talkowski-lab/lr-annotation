@@ -164,6 +164,6 @@ task CombineVCFsCombineSamples {
 
     output {
         File combined_vcf = "~{merged_filename}_merged.vcf.gz"
-        File combined_vcf_index = "~{merged_filename}_merged.vcf.gz.tbi"
+        File combined_vcf_idx = "~{merged_filename}_merged.vcf.gz.tbi"
     }
 }

@@ -28,7 +28,7 @@ workflow AnnotateVcf {
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,
@@ -49,7 +49,7 @@ workflow AnnotateVcf {
         call AnnotateSequentially {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_index,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 annotations_tsvs = SubsetTsvs.subset_tsv,
                 info_names = info_names,
                 info_descriptions = info_descriptions,

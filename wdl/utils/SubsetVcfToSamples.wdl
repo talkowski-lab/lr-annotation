@@ -21,7 +21,7 @@ workflow SubsetVcfToSamples {
         call Helpers.SubsetVcfToSampleList {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 samples = samples,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
@@ -33,7 +33,7 @@ workflow SubsetVcfToSamples {
     call Helpers.ConcatVcfs {
         input:
             vcfs = SubsetVcfToSampleList.subset_vcf,
-            vcfs_idx = SubsetVcfToSampleList.subset_vcf_index,
+            vcfs_idx = SubsetVcfToSampleList.subset_vcf_idx,
             merge_sort = true,
             prefix = prefix,
             docker = utils_docker,

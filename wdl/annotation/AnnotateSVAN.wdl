@@ -39,30 +39,22 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_merge_headers
     }
 
-    call FilterBySvlen {
-        input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            min_svlen = min_svlen,
-            prefix = "~{prefix}.filtered",
-            docker = annotate_svan_docker
-    }
-
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
+        call Helpers.SubsetVcfBySize {
             input:
-                vcf = FilterBySvlen.filtered_vcf,
-                vcf_index = FilterBySvlen.filtered_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                locus = contig,
+                min_size = min_svlen,
+                prefix = "~{prefix}.filtered",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_subset
         }
 
         call SeparateInsertionsDeletions {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_index = SubsetVcfToContig.subset_vcf_index,
+                vcf = SubsetVcfBySize.subset_vcf,
+                vcf_idx = SubsetVcfBySize.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_separate
@@ -71,7 +63,7 @@ workflow AnnotateSVAN {
         call GenerateTRF as GenerateTRFForInsertions {
             input:
                 vcf = SeparateInsertionsDeletions.ins_vcf,
-                vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
+                vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 mode = "ins",
                 docker = annotate_svan_docker,
@@ -81,7 +73,7 @@ workflow AnnotateSVAN {
         call GenerateTRF as GenerateTRFForDeletions {
             input:
                 vcf = SeparateInsertionsDeletions.del_vcf,
-                vcf_index = SeparateInsertionsDeletions.del_vcf_index,
+                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 mode = "del",
                 docker = annotate_svan_docker,
@@ -91,7 +83,7 @@ workflow AnnotateSVAN {
         call RunSvanAnnotation as AnnotateInsertions {
             input:
                 vcf = SeparateInsertionsDeletions.ins_vcf,
-                vcf_index = SeparateInsertionsDeletions.ins_vcf_index,
+                vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
                 trf_output = GenerateTRFForInsertions.trf_output,
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
@@ -115,7 +107,7 @@ workflow AnnotateSVAN {
                 vcf = AnnotateInsertions.annotated_vcf,
                 vcf_idx = AnnotateInsertions.annotated_vcf_idx,
                 original_vcf = SeparateInsertionsDeletions.ins_vcf,
-                original_vcf_idx = SeparateInsertionsDeletions.ins_vcf_index,
+                original_vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
                 prefix = "~{prefix}.~{contig}.ins",
                 docker = annotate_svan_docker
         }
@@ -123,7 +115,7 @@ workflow AnnotateSVAN {
         call RunSvanAnnotation as AnnotateDeletions {
             input:
                 vcf = SeparateInsertionsDeletions.del_vcf,
-                vcf_index = SeparateInsertionsDeletions.del_vcf_index,
+                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
                 trf_output = GenerateTRFForDeletions.trf_output,
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
@@ -147,7 +139,7 @@ workflow AnnotateSVAN {
                 vcf = AnnotateDeletions.annotated_vcf,
                 vcf_idx = AnnotateDeletions.annotated_vcf_idx,
                 original_vcf = SeparateInsertionsDeletions.del_vcf,
-                original_vcf_idx = SeparateInsertionsDeletions.del_vcf_index,
+                original_vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
                 prefix = "~{prefix}.~{contig}.del",
                 docker = annotate_svan_docker
         }
@@ -175,55 +167,10 @@ workflow AnnotateSVAN {
     }
 }
 
-task FilterBySvlen {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        Int min_svlen
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools view ~{vcf} \
-            --include 'abs(INFO/SVLEN) >= ~{min_svlen}' \
-            -Oz -o ~{prefix}.vcf.gz
-        
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File filtered_vcf = "~{prefix}.vcf.gz"
-        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) * 2 + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
 task SeparateInsertionsDeletions {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -251,11 +198,11 @@ task SeparateInsertionsDeletions {
 
     output {
         File ins_vcf = "~{prefix}.insertions.vcf.gz"
-        File ins_vcf_index = "~{prefix}.insertions.vcf.gz.tbi"
+        File ins_vcf_idx = "~{prefix}.insertions.vcf.gz.tbi"
         File del_vcf = "~{prefix}.deletions.vcf.gz"
-        File del_vcf_index = "~{prefix}.deletions.vcf.gz.tbi"
+        File del_vcf_idx = "~{prefix}.deletions.vcf.gz.tbi"
         File other_vcf = "~{prefix}.other_variants.vcf.gz"
-        File other_vcf_index = "~{prefix}.other_variants.vcf.gz.tbi"
+        File other_vcf_idx = "~{prefix}.other_variants.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -281,7 +228,7 @@ task SeparateInsertionsDeletions {
 task GenerateTRF {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         String prefix
         String mode
         String docker
@@ -339,7 +286,7 @@ task GenerateTRF {
 task RunSvanAnnotation {
     input {
         File vcf
-        File vcf_index
+        File vcf_idx
         File trf_output
         File vntr_bed
         File exons_bed

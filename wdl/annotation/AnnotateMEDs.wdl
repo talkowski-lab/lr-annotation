@@ -28,7 +28,7 @@ workflow AnnotateMEDs {
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,

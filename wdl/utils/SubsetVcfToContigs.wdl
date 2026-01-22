@@ -20,7 +20,7 @@ workflow SubsetVcfToContigs {
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
-                vcf_index = vcf_idx,
+                vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,
@@ -31,7 +31,7 @@ workflow SubsetVcfToContigs {
     call Helpers.ConcatVcfs {
         input:
             vcfs = SubsetVcfToContig.subset_vcf,
-            vcfs_idx = SubsetVcfToContig.subset_vcf_index,
+            vcfs_idx = SubsetVcfToContig.subset_vcf_idx,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

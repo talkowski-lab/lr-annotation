@@ -37,7 +37,7 @@ workflow IntegrateVcfs {
         call Helpers.SubsetVcfToSampleList as SubsetSnvIndel {
             input:
                 vcf = snv_indel_vcf,
-                vcf_index = snv_indel_vcf_idx,
+                vcf_idx = snv_indel_vcf_idx,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.snv_indel.subset",
@@ -48,7 +48,7 @@ workflow IntegrateVcfs {
         call AnnotateSvlenSvtype as AnnotateSnvIndel {
             input:
                 vcf = SubsetSnvIndel.subset_vcf,
-                vcf_idx = SubsetSnvIndel.subset_vcf_index,
+                vcf_idx = SubsetSnvIndel.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_svlen_svtype
@@ -57,7 +57,7 @@ workflow IntegrateVcfs {
         call Helpers.SubsetVcfBySize as FilterSnvIndel {
             input:
                 vcf = AnnotateSnvIndel.annotated_vcf,
-                vcf_index = AnnotateSnvIndel.annotated_vcf_idx,
+                vcf_idx = AnnotateSnvIndel.annotated_vcf_idx,
                 locus = contig,
                 max_size = min_size_sv - 1,
                 prefix = "~{prefix}.~{contig}.snv_indel",
@@ -68,7 +68,7 @@ workflow IntegrateVcfs {
         call Helpers.SubsetVcfToSampleList as SubsetSv {
             input:
                 vcf = sv_vcf,
-                vcf_index = sv_vcf_idx,
+                vcf_idx = sv_vcf_idx,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.sv.subset",
@@ -79,7 +79,7 @@ workflow IntegrateVcfs {
         call AnnotateSvlenSvtype {
             input:
                 vcf = SubsetSv.subset_vcf,
-                vcf_idx = SubsetSv.subset_vcf_index,
+                vcf_idx = SubsetSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.sv.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_svlen_svtype
@@ -88,7 +88,7 @@ workflow IntegrateVcfs {
         call Helpers.SubsetVcfBySize as FilterSv {
             input:
                 vcf = AnnotateSvlenSvtype.annotated_vcf,
-                vcf_index = AnnotateSvlenSvtype.annotated_vcf_idx,
+                vcf_idx = AnnotateSvlenSvtype.annotated_vcf_idx,
                 locus = contig,
                 min_size = min_size_sv,
                 prefix = "~{prefix}.~{contig}.sv",

@@ -32,7 +32,7 @@ workflow SubsetTRGTToCatalog {
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
                 vcf = trgt_merged_vcf,
-                vcf_index = trgt_merged_vcf_idx,
+                vcf_idx = trgt_merged_vcf_idx,
                 contig = contig,
                 prefix = prefix,
                 docker = utils_docker,
@@ -42,7 +42,7 @@ workflow SubsetTRGTToCatalog {
         call FilterToCatalog {
             input:
                 vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_vcf_index,
+                vcf_idx = SubsetVcf.subset_vcf_idx,
                 catalog_ids = ExtractCatalogIDs.catalog_ids,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,

@@ -6,9 +6,9 @@ import "../utils/Helpers.wdl" as Helpers
 workflow BedtoolsClosestSV {
     input {
         File vcf_eval
-        File vcf_eval_index
+        File vcf_eval_idx
         File vcf_sv_truth
-        File vcf_sv_truth_index
+        File vcf_sv_truth_idx
         String prefix
         String bedtools_closest_docker
         
@@ -31,7 +31,7 @@ workflow BedtoolsClosestSV {
     call Helpers.ConvertToSymbolic {
         input:
             vcf = vcf_eval,
-            vcf_idx = vcf_eval_index,
+            vcf_idx = vcf_eval_idx,
             prefix = "~{prefix}.eval.symbolic",
             drop_genotypes = true,
             docker = bedtools_closest_docker,
@@ -49,7 +49,7 @@ workflow BedtoolsClosestSV {
     call Helpers.SplitQueryVcf as SplitTruth {
         input:
             vcf = vcf_sv_truth,
-            vcf_idx = vcf_sv_truth_index,
+            vcf_idx = vcf_sv_truth_idx,
             prefix = "~{prefix}.truth",
             docker = bedtools_closest_docker,
             runtime_attr_override = runtime_attr_split_truth
@@ -152,7 +152,7 @@ workflow BedtoolsClosestSV {
     call CreateBedtoolsAnnotationTsv {
         input:
             truvari_unmatched_vcf = vcf_eval,
-            truvari_unmatched_vcf_index = vcf_eval_index,
+            truvari_unmatched_vcf_idx = vcf_eval_idx,
             closest_bed = ConcatTsvs.concatenated_tsv,
             prefix = prefix,
             docker = bedtools_closest_docker,
@@ -249,7 +249,7 @@ task SelectMatchedINSs {
 task CreateBedtoolsAnnotationTsv {
     input {
         File truvari_unmatched_vcf
-        File truvari_unmatched_vcf_index
+        File truvari_unmatched_vcf_idx
         File closest_bed
         String prefix
         String docker
