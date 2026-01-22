@@ -239,11 +239,9 @@ for rec in vcf_in:
         continue
 
     ref_len = len(rec.ref)
-    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or \
-        all(len(a) > ref_len for a in alts) or \
-        all(len(a) < ref_len for a in alts):
-            if ';' in rec.id: 
-                rec.id = rec.id.replace(';', '-')
+    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or all(len(a) > ref_len for a in alts) or all(len(a) < ref_len for a in alts):
+        if ';' in rec.id:
+            rec.id = rec.id.replace(';', '-')
         vcf_out.write(rec)
         continue
 
