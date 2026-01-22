@@ -110,6 +110,16 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_annotate_ins
         }
 
+        call Helpers.ExtractVcfAnnotations as ExtractIns {
+            input:
+                vcf = AnnotateInsertions.annotated_vcf,
+                vcf_idx = AnnotateInsertions.annotated_vcf_idx,
+                original_vcf = SeparateInsertionsDeletions.ins_vcf,
+                original_vcf_idx = SeparateInsertionsDeletions.ins_vcf_index,
+                prefix = "~{prefix}.~{contig}.ins",
+                docker = annotate_svan_docker
+        }
+
         call RunSvanAnnotation as AnnotateDeletions {
             input:
                 vcf = SeparateInsertionsDeletions.del_vcf,
@@ -131,43 +141,37 @@ workflow AnnotateSVAN {
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
         }
+
+        call Helpers.ExtractVcfAnnotations as ExtractDel {
+            input:
+                vcf = AnnotateDeletions.annotated_vcf,
+                vcf_idx = AnnotateDeletions.annotated_vcf_idx,
+                original_vcf = SeparateInsertionsDeletions.del_vcf,
+                original_vcf_idx = SeparateInsertionsDeletions.del_vcf_index,
+                prefix = "~{prefix}.~{contig}.del",
+                docker = annotate_svan_docker
+        }
     }
     
-    call Helpers.ConcatTsvs as ConcatIns {
+    call Helpers.ConcatTsvs as MergeTsvs {
         input:
-            tsvs = AnnotateInsertions.annotations_tsv,
-            prefix = prefix + ".insertions",
-            docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_concat_ins
-    }
-
-    call Helpers.ConcatTsvs as ConcatDel {
-        input:
-            tsvs = AnnotateDeletions.annotations_tsv,
-            prefix = prefix + ".deletions",
-            docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_concat_del
-    }
-
-    call Helpers.ConcatTsvs as MergeFinal {
-        input:
-            tsvs = [ConcatIns.concatenated_tsv, ConcatDel.concatenated_tsv],
+            tsvs = flatten([ExtractIns.annotations_tsv, ExtractDel.annotations_tsv]),
             prefix = prefix + ".svan_annotations",
             docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_concat_final
     }
 
-    call MergeHeaderFiles {
+    call Helpers.MergeHeaderLines as MergeHeaders {
         input:
-            header_files = flatten([AnnotateInsertions.header_file, AnnotateDeletions.header_file]),
+            header_files = flatten([ExtractIns.annotations_header, ExtractDel.annotations_header]),
             prefix = prefix,
-            docker = annotate_svan_docker
+            docker = annotate_svan_docker,
             runtime_attr_override = runtime_attr_merge_headers
     }
 
     output {
-        File annotations_tsv_svan = MergeFinal.concatenated_tsv
-        File annotations_header_svan = MergeHeaderFiles.merged_header
+        File annotations_tsv_svan = MergeTsvs.concatenated_tsv
+        File annotations_header_svan = MergeHeaders.merged_header
     }
 }
 
@@ -382,7 +386,7 @@ task RunSvanAnnotation {
         elif [[ "~{mode}" == "del" ]]; then
             svan_script_name="SVAN-DEL.py"
         else
-            echo "Invalid mode provided to RunSvanAnnotation task: ~{mode}"
+            echo "Invalid mode provided."
             exit 1
         fi
 
@@ -397,131 +401,16 @@ task RunSvanAnnotation {
             svan_annotated \
             -o work_dir
 
-        python3 <<'CODE'
-import sys
+        bgzip -c work_dir/svan_annotated.vcf > ~{prefix}.{mode}.vcf.gz
 
-def get_new_info_field_ids(svan_vcf_path, original_vcf_path):
-    original_info_fields = set()
-    with open(original_vcf_path, 'r') as f:
-        for line in f:
-            if line.startswith('##INFO=<ID='):
-                field_id = line.strip().split(',', 1)[0][len('##INFO=<ID='):]
-                original_info_fields.add(field_id)
-            elif line.startswith('#CHROM'):
-                break
-    
-    svan_info_fields = set()
-    with open(svan_vcf_path, 'r') as f:
-        for line in f:
-            if line.startswith('##INFO=<ID='):
-                field_id = line.strip().split(',', 1)[0][len('##INFO=<ID='):]
-                svan_info_fields.add(field_id)
-            elif line.startswith('#CHROM'):
-                break
-    
-    return sorted(svan_info_fields - original_info_fields)
-
-def parse_info_field(info_string, field_ids):
-    info_dict = {}
-    if info_string == '.':
-        return {field_id: '.' for field_id in field_ids}
-    
-    for item in info_string.split(';'):
-        if '=' in item:
-            key, value = item.split('=', 1)
-            info_dict[key] = value
-        else:
-            info_dict[item] = 'TRUE'
-    
-    return {field_id: info_dict.get(field_id, '.') for field_id in field_ids}
-
-def get_svan_annotations(svan_vcf_path, new_field_ids):
-    annotations = {}
-    with open(svan_vcf_path, 'r') as f:
-        for line in f:
-            if line.startswith('#'):
-                continue
-            parts = line.strip().split('\t')
-            chrom, pos, vcf_id, _, _, _, _, info = parts[:8]
-            field_values = parse_info_field(info, new_field_ids)
-            annotations[(chrom, pos, vcf_id)] = field_values
-    return annotations
-
-def create_tsv(original_vcf_path, svan_vcf_path, output_tsv_path, header_path):
-    new_field_ids = get_new_info_field_ids(svan_vcf_path, original_vcf_path)
-    svan_annotations = get_svan_annotations(svan_vcf_path, new_field_ids)
-    
-    # Write header file separately
-    with open(header_path, 'w') as header_file:
-        header_file.write('\t'.join(new_field_ids) + '\n')
-    
-    # Write TSV without header
-    with open(output_tsv_path, 'w') as out_tsv:
-        with open(original_vcf_path, 'r') as f:
-            for line in f:
-                if line.startswith('#'):
-                    continue
-                parts = line.strip().split('\t')
-                chrom, pos, vcf_id, ref, alt = parts[0], parts[1], parts[2], parts[3], parts[4]
-                
-                key = (chrom, pos, vcf_id)
-                if key in svan_annotations:
-                    field_values = svan_annotations[key]
-                    row = [chrom, pos, ref, alt, vcf_id] + [field_values.get(field_id, '.') for field_id in new_field_ids]
-                    out_tsv.write('\t'.join(row) + '\n')
-
-create_tsv('work_dir/input.vcf', 'work_dir/svan_annotated.vcf', '~{prefix}.~{mode}_annotations.tsv', '~{prefix}.~{mode}_header.txt')
-CODE
+        tabix -p vcf ~{prefix}.{mode}.vcf.gz
     >>>
 
     output {
-        File annotations_tsv = "~{prefix}.~{mode}_annotations.tsv"
-        File header_file = "~{prefix}.~{mode}_header.txt"
+        File annotated_vcf = "~{prefix}.~{mode}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.~{mode}.vcf.gz.tbi"
     }
 
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task MergeHeaderFiles {
-    input {
-        Array[File] header_files
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        cat ~{sep=' ' header_files} \
-            | tr '\t' '\n' \
-            | awk '!seen[$0]++' \
-            | tr '\n' '\t' \
-            | sed 's/\t$/\n/' \
-        > ~{prefix}.svan_header.txt
-    >>>
-
-    output {
-        File merged_header = "~{prefix}.svan_header.txt"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

@@ -80,38 +80,35 @@ workflow AnnotateSVAnnotate {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_postprocess
         }
+
+        call Helpers.ExtractVcfAnnotations as ExtractAnnotations {
+            input:
+                vcf = PostprocessVcf.reverted_vcf,
+                original_vcf = SubsetVcfAnnotated.subset_vcf,
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker
+        }
     }
 
-    call Helpers.ConcatVcfs as ConcatAnnotated {
+    call Helpers.ConcatTsvs as MergeTsvs {
         input:
-            vcfs = PostprocessVcf.reverted_vcf,
-            vcfs_idx = PostprocessVcf.reverted_vcf_idx,
-            prefix = "~{prefix}.annotated.concat",
+            tsvs = ExtractAnnotations.annotations_tsv,
+            prefix = prefix + ".svannotate_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_annotated
     }
 
-    call Helpers.ConcatVcfs as ConcatUnannotated {
+    call Helpers.MergeHeaderLines as MergeHeaders {
         input:
-            vcfs = SubsetVcfUnannotated.subset_vcf,
-            vcfs_idx = SubsetVcfUnannotated.subset_vcf_idx,
-            prefix = "~{prefix}.unannotated.concat",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_unannotated
-    }
-
-    call Helpers.ConcatVcfs as MergeVcf {
-        input:
-            vcfs = [ConcatAnnotated.concat_vcf, ConcatUnannotated.concat_vcf],
-            vcfs_idx = [ConcatAnnotated.concat_vcf_idx, ConcatUnannotated.concat_vcf_idx],
-            prefix = "~{prefix}.merged",
+            header_files = ExtractAnnotations.annotations_header,
+            prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
     output {
-        File sv_annotated_vcf =  MergeVcf.concat_vcf
-        File sv_annotated_vcf_idx = MergeVcf.concat_vcf_idx
+        File annotations_tsv_svannotate = MergeTsvs.concatenated_tsv
+        File annotations_header_svannotate = MergeHeaders.merged_header
     }
 }
 
