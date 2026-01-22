@@ -346,9 +346,9 @@ task RunSvanAnnotation {
             svan_annotated \
             -o work_dir
 
-        bgzip -c work_dir/svan_annotated.vcf > ~{prefix}.{mode}.vcf.gz
-
-        tabix -p vcf ~{prefix}.{mode}.vcf.gz
+        bcftools sort work_dir/svan_annotated.vcf -Oz -o ~{prefix}.~{mode}.vcf.gz
+        
+        tabix -p vcf ~{prefix}.~{mode}.vcf.gz
     >>>
 
     output {
