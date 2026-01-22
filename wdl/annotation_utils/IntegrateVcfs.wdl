@@ -214,9 +214,10 @@ import pysam
 
 def parse_id(id_str):
     parts = id_str.split('_')
-    pos = int(parts[-3])
-    ref = parts[-2]
     alt = parts[-1]
+    ref = parts[-2]
+    pos = int(parts[-3])
+    chrom = "_".join(parts[:-3])
     
     if len(ref) == 1 and len(alt) == 1:
         vtype = 'SNV'
@@ -227,7 +228,7 @@ def parse_id(id_str):
     else:
         vtype = 'COMPLEX'
         
-    return pos, ref, alt, vtype
+    return chrom, pos, ref, alt, vtype
 
 vcf_in = pysam.VariantFile("~{vcf}")
 vcf_out = pysam.VariantFile("temp_unsorted.vcf", "w", header=vcf_in.header)
@@ -239,32 +240,36 @@ for rec in vcf_in:
         continue
 
     ref_len = len(rec.ref)
-    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or all(len(a) > ref_len for a in alts) or all(len(a) < ref_len for a in alts):
-        if ';' in rec.id:
+    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or \
+       all(len(a) > ref_len for a in alts) or \
+       all(len(a) < ref_len for a in alts):
+        if ';' in rec.id: 
             rec.id = rec.id.replace(';', '-')
         vcf_out.write(rec)
         continue
 
     ids = rec.id.split(';')
     groups = {}
-    for i, (alt, id_str) in enumerate(zip(alts, ids)):
-        pos, ref, _, vtype = parse_id(id_str)
-        key = (pos, ref, vtype)
+
+    for i, id_str in enumerate(ids):
+        chrom, pos, ref, alt, vtype = parse_id(id_str)
+        key = (chrom, pos, ref, vtype)
         if key not in groups: 
             groups[key] = []
         groups[key].append((i, alt, id_str))
 
-    for key in sorted(groups.keys(), key=lambda k: k[0]):
-        pos, ref, _ = key
+    for key in sorted(groups.keys(), key=lambda k: k[1]):
+        chrom, pos, ref, _ = key
         items = groups[key]
         
         new_rec = rec.copy()
+        new_rec.chrom = chrom
         new_rec.pos = pos
         new_rec.ref = ref
         new_rec.alts = tuple(x[1] for x in items)
         new_rec.id = "-".join(x[2] for x in items)
-        
         idx_map = {x[0]+1: new_i+1 for new_i, x in enumerate(items)}
+
         for sample in new_rec.samples:
             old_gt = new_rec.samples[sample]['GT']
             new_gt = []
@@ -286,6 +291,7 @@ vcf_in.close()
 CODE
 
         bcftools sort temp_unsorted.vcf -Oz -o ~{prefix}.vcf.gz
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
