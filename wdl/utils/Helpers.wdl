@@ -221,9 +221,10 @@ vcf = pysam.VariantFile("~{vcf}")
 orig = pysam.VariantFile("~{original_vcf}")
 
 new_keys = sorted(list(set(vcf.header.info.keys()) - set(orig.header.info.keys())))
+
 with open("~{prefix}.header.txt", "w") as out:
     for k in new_keys:
-        out.write(str(vcf.header.info[k]) + "\n")
+        out.write(k + "\n")
 
 with open("~{prefix}.annotations.tsv", "w") as out:
     for record in vcf:
@@ -235,7 +236,7 @@ with open("~{prefix}.annotations.tsv", "w") as out:
             if k in record.info:
                 val = record.info[k]
                 if isinstance(val, bool):
-                    row.append("TRUE" if val else "FALSE")
+                    row.append("1" if val else "0")
                 elif isinstance(val, (list, tuple)):
                     row.append(",".join(map(str, val)))
                 else:
