@@ -25,7 +25,7 @@ workflow AnnotateSVAN {
 
         String annotate_svan_docker
 
-        RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_separate
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del
@@ -45,7 +45,7 @@ workflow AnnotateSVAN {
                 contig = contig,
                 drop_genotypes = true,
                 prefix = prefix,
-                docker = utils_docker,
+                docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
