@@ -6,8 +6,8 @@ workflow TRGT {
     input {
         File bam
         File bai
-
         String prefix
+        
         String sample_id
         String sex
 

@@ -7,9 +7,9 @@ workflow ScatterVCF {
     input {
         File file
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
-        String cohort_prefix
-        String genome_build='GRCh38'
+        String prefix
 
+        String genome_build='GRCh38'
         Boolean localize_vcf
         Boolean get_chromosome_sizes
         Boolean split_by_chromosome

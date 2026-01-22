@@ -13,8 +13,9 @@ workflow BenchmarkAnnotations {
         File vcf_truth_idx
         File vcf_sv_truth
         File vcf_sv_truth_idx
-
+        Array[String] contigs
         String prefix
+        
         Int variants_per_shard
         Int truvari_match_min_length = 10
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
@@ -31,7 +32,6 @@ workflow BenchmarkAnnotations {
 
         File ref_fa
         File ref_fai
-        Array[String] contigs
         
         String benchmark_annotations_docker
         String utils_docker

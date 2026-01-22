@@ -157,23 +157,17 @@ Inputs:
 
 
 
-## Downstream Annotation Workflows
+## Supplementary Annotation Workflows
 ### [AnnotateVcf](wdl/annotation_utils/AnnotateVcf.wdl)
 TODO
-
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
 
 
 ### [IntegrateVcfs](wdl/annotation_utils/IntegrateVcfs.wdl)
 TODO
 
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
-
 
 ### [MergeVEPAF](wdl/annotation_utils/MergeVEPAF.wdl)
 TODO
-
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
 
 
 

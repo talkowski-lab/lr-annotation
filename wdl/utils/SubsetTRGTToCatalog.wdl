@@ -8,9 +8,8 @@ workflow SubsetTRGTToCatalog {
         File trgt_merged_vcf
         File trgt_merged_vcf_idx
         File trgt_catalog_bed_gz
-        
-        String prefix
         Array[String] contigs
+        String prefix
         
         String utils_docker
         

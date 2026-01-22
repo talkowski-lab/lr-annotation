@@ -8,8 +8,8 @@ workflow AnnotateVEPHail {
     input {
         File vcf
         File vcf_idx
-
-        String cohort_prefix
+        String prefix
+        
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail.py"
         String genome_build = "GRCh38"
@@ -39,7 +39,7 @@ workflow AnnotateVEPHail {
         input:
             file=vcf,
             split_vcf_hail_script=split_vcf_hail_script,
-            cohort_prefix=cohort_prefix,
+            prefix=prefix,
             genome_build=genome_build,
             localize_vcf=localize_vcf,
             get_chromosome_sizes=get_chromosome_sizes,
@@ -70,7 +70,7 @@ workflow AnnotateVEPHail {
     call Helpers.ConcatTsvs {
         input:
             tsvs=VepAnnotate.vep_tsv_file,
-            prefix=cohort_prefix + ".vep_annotations",
+            prefix=prefix + ".vep_annotations",
             docker=sv_base_mini_docker,
             runtime_attr_override=runtime_attr_combine_vcfs
     }

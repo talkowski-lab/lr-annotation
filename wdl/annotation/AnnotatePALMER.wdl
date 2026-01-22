@@ -8,8 +8,8 @@ workflow AnnotatePALMER {
         File vcf
         File vcf_idx
         Array[String] contigs
-
         String prefix
+        
         Array[String] mei_types
         File PALMER_vcf
         File PALMER_vcf_idx

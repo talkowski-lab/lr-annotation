@@ -7,11 +7,10 @@ workflow AnnotateSVAnnotate {
     input {
         File vcf
         File vcf_idx
-
-        String prefix
-        Int min_svlen
         Array[String] contigs
+        String prefix
 
+        Int min_svlen
         File coding_gtf
         File noncoding_bed
 

@@ -9,13 +9,13 @@ workflow AnnotateVcf {
         File vcf_idx
         Array[File] annotations_tsvs
         Array[String] contigs
+        String prefix
 
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
         Array[Array[String]] info_types
         Array[Array[String]] info_numbers
 
-        String prefix
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf

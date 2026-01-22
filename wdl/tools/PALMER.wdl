@@ -6,19 +6,18 @@ workflow PALMER {
 	input {
 		File? bam_pat
 		File? bai_pat
-		Array[File]? override_palmer_calls_pat
-		Array[File]? override_palmer_tsd_files_pat
-
 		File? bam_mat
 		File? bai_mat
+		Array[File]? override_palmer_calls_pat
+		Array[File]? override_palmer_tsd_files_pat
 		Array[File]? override_palmer_calls_mat
 		Array[File]? override_palmer_tsd_files_mat
-
+		Array[String] contigs
 		String prefix
+
 		String sample
 		String mode
 		Array[String] mei_types
-		Array[String] contigs
 
 		File ref_fa
 		File ref_fai

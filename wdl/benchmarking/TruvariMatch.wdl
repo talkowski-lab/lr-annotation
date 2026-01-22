@@ -9,10 +9,13 @@ workflow TruvariMatch {
         File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
+        String prefix
+
+        Int min_sv_length
+
         File ref_fa
         File ref_fai
-        String prefix
-        Int min_sv_length
+
         String utils_docker
         
         RuntimeAttr? runtime_attr_filter_eval_vcf

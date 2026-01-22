@@ -7,10 +7,9 @@ workflow TRGTMerge {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-
-        String prefix
         Array[String] contigs
-
+        String prefix
+        
         File ref_fa
         File ref_fai
 

@@ -9,10 +9,10 @@ workflow MergeVEPAF {
         File af_annotation_vcf_idx
         File vep_annotation_vcf
         File vep_annotation_vcf_idx
+        Array[String] contigs
+        String prefix
         
         String vep_info_field_name
-        String cohort_prefix
-        Array[String] contigs
         
         String utils_docker
         
@@ -28,7 +28,7 @@ workflow MergeVEPAF {
                 vcf = af_annotation_vcf,
                 vcf_idx = af_annotation_vcf_idx,
                 contig = contig,
-                prefix = "~{cohort_prefix}.~{contig}.af",
+                prefix = "~{prefix}.~{contig}.af",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_af
         }
@@ -38,7 +38,7 @@ workflow MergeVEPAF {
                 vcf = vep_annotation_vcf,
                 vcf_idx = vep_annotation_vcf_idx,
                 contig = contig,
-                prefix = "~{cohort_prefix}.~{contig}.vep",
+                prefix = "~{prefix}.~{contig}.vep",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vep
         }
@@ -50,7 +50,7 @@ workflow MergeVEPAF {
                 vep_vcf = SubsetVEP.subset_vcf,
                 vep_vcf_idx = SubsetVEP.subset_vcf_idx,
                 vep_info_field_name = vep_info_field_name,
-                prefix = "~{cohort_prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_annotations
         }
@@ -60,7 +60,7 @@ workflow MergeVEPAF {
         input:
             vcfs = MergeVEPAnnotation.merged_vcf,
             vcfs_idx = MergeVEPAnnotation.merged_vcf_idx,
-            prefix = cohort_prefix,
+            prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }

@@ -6,8 +6,8 @@ workflow MinimapAlignment {
     input {
         File assembly_mat
         File assembly_pat
-
         String prefix
+        
         String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
         Int minimap_threads = 32

@@ -9,11 +9,12 @@ workflow IntegrateVcfs {
         File snv_indel_vcf_idx
         File sv_vcf
         File sv_vcf_idx
-
         Array[String] contigs
+        String prefix
+
         Array[String] sample_ids
         Int min_size_sv = 50
-        String prefix
+        
         String utils_docker
 
         RuntimeAttr? runtime_attr_check_samples
@@ -45,10 +46,19 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_filter_snv_indel
         }
 
-        call AnnotateSvlenSvtype as AnnotateSnvIndel {
+        call SplitMultiallelics {
             input:
                 vcf = SubsetSnvIndel.subset_vcf,
                 vcf_idx = SubsetSnvIndel.subset_vcf_idx,
+                prefix = "~{prefix}.~{contig}.snv_indel.split",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_filter_snv_indel
+        }
+
+        call AnnotateSvlenSvtype as AnnotateSnvIndel {
+            input:
+                vcf = SplitMultiallelics.split_vcf,
+                vcf_idx = SplitMultiallelics.split_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_svlen_svtype
@@ -171,6 +181,132 @@ task CheckSampleConsistency {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size([snv_indel_vcf, sv_vcf], "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SplitMultiallelics {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+def classify_and_trim(pos, ref, alt):
+    p_len = 0
+    while p_len < len(ref) and p_len < len(alt) and ref[p_len] == alt[p_len]:
+        p_len += 1
+    
+    if p_len > 0:
+        pad = p_len - 1
+        new_ref = ref[pad:]
+        new_alt = alt[pad:]
+        new_pos = pos + pad
+    else:
+        new_ref = ref
+        new_alt = alt
+        new_pos = pos
+    
+    t_ref, t_alt = new_ref, new_alt
+    s_len = 0
+    min_len = min(len(t_ref), len(t_alt))
+    
+    while s_len < min_len and t_ref[-(s_len+1)] == t_alt[-(s_len+1)]:
+        s_len += 1
+        
+    if s_len > 0:
+        t_ref = t_ref[:len(t_ref)-s_len]
+        t_alt = t_alt[:len(t_alt)-s_len]
+
+    if len(t_ref) == 1 and len(t_alt) == 1:
+        v_type = 'SNV'
+    elif len(t_ref) < len(t_alt):
+        v_type = 'INS'
+    elif len(t_ref) > len(t_alt):
+        v_type = 'DEL'
+    else:
+        v_type = 'SNV'
+
+    return new_pos, new_ref, new_alt, v_type
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+
+for rec in vcf_in:
+    if len(rec.alts) < 2:
+        vcf_out.write(rec)
+        continue
+
+    groups = {} 
+    
+    for i, alt in enumerate(rec.alts):
+        p, r, a, t = classify_and_trim(rec.pos, rec.ref, alt)
+        
+        key = (p, r, t)
+        if key not in groups: 
+            groups[key] = []
+        groups[key].append((i + 1, a))
+
+    for key, alts_info in groups.items():
+        new_rec = rec.copy()
+        new_rec.pos = key[0]
+        new_rec.ref = key[1]
+        new_rec.alts = [x[1] for x in alts_info]
+        
+        idx_map = {old_idx: new_idx+1 for new_idx, (old_idx, _) in enumerate(alts_info)}
+        
+        for sample in new_rec.samples:
+            old_gt = new_rec.samples[sample]['GT']
+            new_gt = []
+            for allele in old_gt:
+                if allele is None:
+                    new_gt.append(None)
+                elif allele == 0:
+                    new_gt.append(0)
+                elif allele in idx_map:
+                    new_gt.append(idx_map[allele])
+                else:
+                    new_gt.append(0)
+            new_rec.samples[sample]['GT'] = tuple(new_gt)
+            
+        vcf_out.write(new_rec)
+
+vcf_out.close()
+vcf_in.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File split_vcf = "~{prefix}.vcf.gz"
+        File split_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0

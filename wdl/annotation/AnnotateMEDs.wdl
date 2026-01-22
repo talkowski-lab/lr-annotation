@@ -7,16 +7,16 @@ workflow AnnotateMEDs {
     input {
         File vcf
         File vcf_idx
-        File med_catalog
         Array[String] contigs
-
         String prefix
-        String utils_docker
 
+        File med_catalog
         Float size_similarity = 0.9
         Float reciprocal_overlap = 0.9
         Int breakpoint_window = 500
         Float sequence_similarity = 0.9
+
+        String utils_docker
 
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_bedtools

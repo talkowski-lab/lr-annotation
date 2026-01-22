@@ -8,10 +8,8 @@ workflow AnnotateSVAN {
         File vcf
         File vcf_idx
         Array[String] contigs
-
         String prefix
-        Int min_svlen
-
+        
         File vntr_bed
         File exons_bed
         File repeats_bed
@@ -40,7 +38,7 @@ workflow AnnotateSVAN {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfBySize {
+        call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
@@ -49,6 +47,16 @@ workflow AnnotateSVAN {
                 prefix = "~{prefix}.filtered",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_subset
+        }
+
+        call Helpers.SubsetVcfToContig as SubsetVcf {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                contig = contig,
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_vcf
         }
 
         call SeparateInsertionsDeletions {

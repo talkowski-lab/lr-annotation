@@ -9,12 +9,12 @@ workflow AnnotateTRs {
         File vcf_idx
         File tr_vcf
         File tr_vcf_idx
-
+        Array[String] contigs
         String prefix
+
         String tr_info
         String tr_filter
         String? tr_rename_ids_string
-        Array[String] contigs
 
         String utils_docker
 

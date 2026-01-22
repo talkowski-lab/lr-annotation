@@ -6,7 +6,6 @@ workflow RepeatMasker {
     input {
         File vcf
         File vcf_idx
-
         String prefix
 
         String utils_docker

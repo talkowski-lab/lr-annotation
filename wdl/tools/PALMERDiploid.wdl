@@ -8,12 +8,12 @@ workflow PALMERDiploid {
 		File? bai
 		Array[File]? override_palmer_calls
 		Array[File]? override_palmer_tsd_files
-
+		Array[String] contigs
 		String prefix
+
 		String sample
 		String mode
 		Array[String] mei_types
-		Array[String] contigs
 
 		File ref_fa
 		File ref_fai

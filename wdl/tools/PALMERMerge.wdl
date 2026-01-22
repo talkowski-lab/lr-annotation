@@ -6,7 +6,6 @@ workflow PALMERMerge {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-
         String prefix
 
         String utils_docker

@@ -10,6 +10,7 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth
         File vcf_sv_truth_idx
         String prefix
+        
         String bedtools_closest_docker
         
         RuntimeAttr? runtime_attr_convert_to_symbolic

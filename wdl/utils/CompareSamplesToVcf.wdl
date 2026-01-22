@@ -6,8 +6,9 @@ workflow ExtractSamplesFromVcf {
     input {
         File vcf
         File vcf_idx
-        Array[String] sample_ids
         String prefix
+
+        Array[String] sample_ids
 
         String utils_docker
 

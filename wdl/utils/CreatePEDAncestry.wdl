@@ -7,6 +7,7 @@ workflow CreatePEDAncestry {
         Array[String] sample_ids
         Array[String] sexes
         String prefix = "cohort"
+        
         String utils_docker
 
         RuntimeAttr? runtime_attr_override
