@@ -213,6 +213,7 @@ task SplitMultiallelics {
 import pysam
 
 def classify_and_trim(pos, ref, alt):
+    # 1. Trim Common Prefix (adjusts POS and REF/ALT start)
     p_len = 0
     while p_len < len(ref) and p_len < len(alt) and ref[p_len] == alt[p_len]:
         p_len += 1
@@ -226,7 +227,8 @@ def classify_and_trim(pos, ref, alt):
         new_ref = ref
         new_alt = alt
         new_pos = pos
-    
+
+    # 2. Classify based on trimmed length
     t_ref, t_alt = new_ref, new_alt
     s_len = 0
     min_len = min(len(t_ref), len(t_alt))
@@ -250,7 +252,8 @@ def classify_and_trim(pos, ref, alt):
     return new_pos, new_ref, new_alt, v_type
 
 vcf_in = pysam.VariantFile("~{vcf}")
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+# Write to uncompressed temp file
+vcf_out = pysam.VariantFile("temp_unsorted.vcf", "w", header=vcf_in.header)
 
 for rec in vcf_in:
     if len(rec.alts) < 2:
@@ -261,13 +264,16 @@ for rec in vcf_in:
     
     for i, alt in enumerate(rec.alts):
         p, r, a, t = classify_and_trim(rec.pos, rec.ref, alt)
-        
         key = (p, r, t)
         if key not in groups: 
             groups[key] = []
         groups[key].append((i + 1, a))
 
-    for key, alts_info in groups.items():
+    # Sort groups by position to ensure local order is correct
+    sorted_keys = sorted(groups.keys(), key=lambda k: k[0])
+
+    for key in sorted_keys:
+        alts_info = groups[key]
         new_rec = rec.copy()
         new_rec.pos = key[0]
         new_rec.ref = key[1]
@@ -295,6 +301,7 @@ vcf_out.close()
 vcf_in.close()
 CODE
 
+        bcftools sort temp_unsorted.vcf -Oz -o ~{prefix}.vcf.gz
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
