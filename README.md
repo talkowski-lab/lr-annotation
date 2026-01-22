@@ -116,8 +116,6 @@ Inputs:
 ### [AnnotateSVAnnotate](wdl/annotation/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SV through this workflow, ignoring all SNVs and InDels.
 
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
-
 Inputs:
 - `coding_gtf`.
 - `contigs`.
@@ -130,6 +128,8 @@ TODO
 
 ### [AnnotateTRs](wdl/annotation/AnnotateTRs.wdl)
 TODO
+
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
 
 
 ### [AnnotateVEPHail](wdl/annotation/AnnotateVEPHail.wdl)
@@ -161,13 +161,19 @@ Inputs:
 ### [AnnotateVcf](wdl/annotation_utils/AnnotateVcf.wdl)
 TODO
 
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
+
 
 ### [IntegrateVcfs](wdl/annotation_utils/IntegrateVcfs.wdl)
 TODO
 
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
+
 
 ### [MergeVEPAF](wdl/annotation_utils/MergeVEPAF.wdl)
 TODO
+
+Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
 
 
 

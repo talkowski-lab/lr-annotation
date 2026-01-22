@@ -39,17 +39,6 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.SubsetVcfBySize as SubsetVcfUnannotated {
-            input:
-                vcf = vcf,
-                vcf_index = vcf_idx,
-                locus = contig,
-                max_size = min_svlen - 1,
-                prefix = "~{prefix}.~{contig}.unannotate",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
-        }
-
         call Helpers.ConvertToSymbolic as PreprocessVcf {
             input:
                 vcf = SubsetVcfAnnotated.subset_vcf,
@@ -84,7 +73,9 @@ workflow AnnotateSVAnnotate {
         call Helpers.ExtractVcfAnnotations as ExtractAnnotations {
             input:
                 vcf = PostprocessVcf.reverted_vcf,
+                vcf_idx = PostprocessVcf.reverted_vcf_idx,
                 original_vcf = SubsetVcfAnnotated.subset_vcf,
+                original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker
         }

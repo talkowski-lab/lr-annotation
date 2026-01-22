@@ -747,6 +747,7 @@ task SubsetVcfBySize {
         set -euo pipefail
 
         bcftools view ~{vcf} --regions "~{locus}" --include "~{size_filter}" | bgzip > "~{prefix}.vcf.gz"
+        
         tabix -p vcf "~{prefix}.vcf.gz"
     >>>
 
