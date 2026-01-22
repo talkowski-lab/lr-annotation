@@ -38,7 +38,7 @@ workflow AnnotateSVAN {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetVcf {
+        call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,

@@ -9,7 +9,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- 65 total samples.
 		- 32x aligned reads, produced after downsampling by Fabio.
 		- High coverage assemblies, derived directly from HGSVC.
-		- [VCF](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/).
 		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
 	- Notes:
 		- Metadata file has 67 samples, though it misses NA24385 (HG002 in Terra) from its VCF, renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
