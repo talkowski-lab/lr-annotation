@@ -212,86 +212,72 @@ task SplitMultiallelics {
         python3 <<CODE
 import pysam
 
-def classify_and_trim(pos, ref, alt):
-    # 1. Trim Common Prefix (adjusts POS and REF/ALT start)
-    p_len = 0
-    while p_len < len(ref) and p_len < len(alt) and ref[p_len] == alt[p_len]:
-        p_len += 1
+def parse_id(id_str):
+    parts = id_str.split('_')
+    pos = int(parts[-3])
+    ref = parts[-2]
+    alt = parts[-1]
     
-    if p_len > 0:
-        pad = p_len - 1
-        new_ref = ref[pad:]
-        new_alt = alt[pad:]
-        new_pos = pos + pad
+    if len(ref) == 1 and len(alt) == 1:
+        vtype = 'SNV'
+    elif len(alt) > len(ref):
+        vtype = 'INS'
+    elif len(ref) > len(alt):
+        vtype = 'DEL'
     else:
-        new_ref = ref
-        new_alt = alt
-        new_pos = pos
-
-    # 2. Classify based on trimmed length
-    t_ref, t_alt = new_ref, new_alt
-    s_len = 0
-    min_len = min(len(t_ref), len(t_alt))
-    
-    while s_len < min_len and t_ref[-(s_len+1)] == t_alt[-(s_len+1)]:
-        s_len += 1
+        vtype = 'COMPLEX'
         
-    if s_len > 0:
-        t_ref = t_ref[:len(t_ref)-s_len]
-        t_alt = t_alt[:len(t_alt)-s_len]
-
-    if len(t_ref) == 1 and len(t_alt) == 1:
-        v_type = 'SNV'
-    elif len(t_ref) < len(t_alt):
-        v_type = 'INS'
-    elif len(t_ref) > len(t_alt):
-        v_type = 'DEL'
-    else:
-        v_type = 'SNV'
-
-    return new_pos, new_ref, new_alt, v_type
+    return pos, ref, alt, vtype
 
 vcf_in = pysam.VariantFile("~{vcf}")
-# Write to uncompressed temp file
 vcf_out = pysam.VariantFile("temp_unsorted.vcf", "w", header=vcf_in.header)
 
 for rec in vcf_in:
-    if len(rec.alts) < 2:
+    alts = rec.alts
+    if len(alts) < 2:
         vcf_out.write(rec)
         continue
 
-    groups = {} 
-    
-    for i, alt in enumerate(rec.alts):
-        p, r, a, t = classify_and_trim(rec.pos, rec.ref, alt)
-        key = (p, r, t)
+    ref_len = len(rec.ref)
+    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or \
+        all(len(a) > ref_len for a in alts) or \
+        all(len(a) < ref_len for a in alts):
+            if ';' in rec.id: 
+                rec.id = rec.id.replace(';', '-')
+        vcf_out.write(rec)
+        continue
+
+    ids = rec.id.split(';')
+    groups = {}
+    for i, (alt, id_str) in enumerate(zip(alts, ids)):
+        pos, ref, _, vtype = parse_id(id_str)
+        key = (pos, ref, vtype)
         if key not in groups: 
             groups[key] = []
-        groups[key].append((i + 1, a))
+        groups[key].append((i, alt, id_str))
 
-    # Sort groups by position to ensure local order is correct
-    sorted_keys = sorted(groups.keys(), key=lambda k: k[0])
-
-    for key in sorted_keys:
-        alts_info = groups[key]
+    for key in sorted(groups.keys(), key=lambda k: k[0]):
+        pos, ref, _ = key
+        items = groups[key]
+        
         new_rec = rec.copy()
-        new_rec.pos = key[0]
-        new_rec.ref = key[1]
-        new_rec.alts = [x[1] for x in alts_info]
+        new_rec.pos = pos
+        new_rec.ref = ref
+        new_rec.alts = tuple(x[1] for x in items)
+        new_rec.id = "-".join(x[2] for x in items)
         
-        idx_map = {old_idx: new_idx+1 for new_idx, (old_idx, _) in enumerate(alts_info)}
-        
+        idx_map = {x[0]+1: new_i+1 for new_i, x in enumerate(items)}
         for sample in new_rec.samples:
             old_gt = new_rec.samples[sample]['GT']
             new_gt = []
             for allele in old_gt:
-                if allele is None:
+                if allele is None: 
                     new_gt.append(None)
-                elif allele == 0:
+                elif allele == 0: 
                     new_gt.append(0)
-                elif allele in idx_map:
+                elif allele in idx_map: 
                     new_gt.append(idx_map[allele])
-                else:
+                else: 
                     new_gt.append(0)
             new_rec.samples[sample]['GT'] = tuple(new_gt)
             
