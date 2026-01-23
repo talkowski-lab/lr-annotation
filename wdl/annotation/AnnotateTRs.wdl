@@ -258,8 +258,8 @@ HEADER_EOF
             cp ~{vcf_idx} vcf_with_filters.vcf.gz.tbi
         fi
 
-        bcftools view -h ~{tr_vcf} | grep "##INFO=<ID=AL," > al_header_def.txt
-        bcftools view -h vcf_with_filters.vcf.gz | grep -v "##INFO=<ID=AL," > vcf_header_stripped.txt
+        bcftools view -h ~{tr_vcf} | grep "ID=AL," > al_header_def.txt
+        bcftools view -h vcf_with_filters.vcf.gz | grep -v "ID=AL," > vcf_header_stripped.txt
         cat vcf_header_stripped.txt al_header_def.txt > vcf_header_unified.txt
 
         bcftools reheader \
