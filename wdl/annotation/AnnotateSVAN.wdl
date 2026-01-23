@@ -49,10 +49,19 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call SeparateInsertionsDeletions {
+        call Helpers.ResetVcfFilters {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                prefix = "~{prefix}.~{contig}.reset_filters",
+                docker = annotate_svan_docker,
+                runtime_attr_override = runtime_attr_subset_vcf
+        }
+
+        call SeparateInsertionsDeletions {
+            input:
+                vcf = ResetVcfFilters.reset_vcf,
+                vcf_idx = ResetVcfFilters.reset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_separate
