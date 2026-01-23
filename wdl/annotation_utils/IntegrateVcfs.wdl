@@ -255,12 +255,48 @@ task SplitMultiallelics {
     command <<<
         set -euo pipefail
 
-        bcftools norm \
-            -m \
-            -any \
-            --do-not-normalize \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+        python3 <<CODE
+import pysam
+import sys
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("temp.vcf", "w", header=vcf_in.header)
+
+for record in vcf_in:
+    if len(record.alts) <= 1:
+        vcf_out.write(record)
+        continue
+    
+    ids = record.id.split(';')
+    for i, alt_seq in enumerate(record.alts):
+        parts = current_id.split('_')        
+        new_rec = record.copy()
+        new_rec.chrom = parts[0]
+        new_rec.pos = int(parts[1])
+        new_rec.ref = parts[2]
+        new_rec.alts = (parts[3],)
+        new_rec.id = ids[i]
+        target_allele_idx = i + 1
+        
+        for sample in record.samples:
+            old_gt = record.samples[sample]['GT']
+            new_gt = []
+            for allele in old_gt:
+                if allele is None:
+                    new_gt.append(None)
+                elif allele == target_allele_idx:
+                    new_gt.append(1)
+                else:
+                    new_gt.append(0)
+            new_rec.samples[sample]['GT'] = tuple(new_gt)
+        
+        vcf_out.write(new_rec)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        bcftools sort temp.vcf -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
