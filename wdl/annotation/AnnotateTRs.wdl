@@ -12,8 +12,7 @@ workflow AnnotateTRs {
         Array[String] contigs
         String prefix
 
-        String tr_info
-        String tr_filter
+        String tr_caller
         String? tr_rename_ids_string
 
         String utils_docker
@@ -73,8 +72,7 @@ workflow AnnotateTRs {
                 vcf_idx = SubsetVcf.subset_vcf_idx,
                 tr_vcf = select_first([RenameVariantIds.renamed_vcf, SubsetTrVcf.subset_vcf]),
                 tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SubsetTrVcf.subset_vcf_idx]),
-                tr_info = tr_info,
-                tr_filter = tr_filter,
+                tr_caller = tr_caller,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 check_passed = CheckSamplesMatch.check_passed,
@@ -155,8 +153,7 @@ task AnnotateTRVariants {
         File vcf_idx
         File tr_vcf
         File tr_vcf_idx
-        String tr_info
-        String tr_filter
+        String tr_caller
         String prefix
         String docker
         Boolean check_passed
@@ -166,120 +163,78 @@ task AnnotateTRVariants {
     command <<<
         set -euo pipefail
 
-        bcftools query -l ~{vcf} > sample_order.txt
-
-        bcftools view -S sample_order.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
+        bcftools query -l ~{vcf} > samples.txt
+        bcftools view -S samples.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
         tabix -p vcf tr_reordered.vcf.gz
 
-        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller with variants that envelope this site">' > tr_caller_header.txt
-        
-        bcftools annotate \
-            -h tr_caller_header.txt \
-            -Oz -o tr_with_header.vcf.gz \
-            tr_reordered.vcf.gz
-        tabix -p vcf tr_with_header.vcf.gz
+        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Source of tandem repeat">' > tr_header.txt
+        bcftools annotate -h tr_header.txt tr_reordered.vcf.gz -Oz -o tr_header_added.vcf.gz
 
-        bcftools view -h tr_with_header.vcf.gz > tr_tagged_header.txt
-        bcftools view -H tr_with_header.vcf.gz | \
-            awk -v tr_info="~{tr_info}" 'BEGIN{FS=OFS="\t"} {
-                if ($8 == "." || $8 == "") {
-                    $8 = "TR_CALLER=" tr_info
-                } else {
-                    $8 = $8 ";TR_CALLER=" tr_info
-                }
+        bcftools view tr_header_added.vcf.gz \
+            | awk -v info="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
+                $8 = $8 ";TR_CALLER=" info
                 print
-            }' | \
-            cat tr_tagged_header.txt - | \
-            bgzip -c > tr_tagged.vcf.gz
+            }' | bgzip -c > tr_tagged.vcf.gz
+
         tabix -p vcf tr_tagged.vcf.gz
 
-        cat > header_additions.txt <<'HEADER_EOF'
-##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Tandem repeat caller with variants that envelope this site">
-##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="IDs of the tandem repeat variants that envelope this site">
-##FILTER=<ID=~{tr_filter},Description="Variant is enveloped by a tandem repeat region">
-HEADER_EOF
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/VARTYPE\t%INFO/VARLEN\n' ~{vcf} \
+            | awk '$7 != "SNV" && $7 != "."' > vcf.bed
 
-        bcftools view -h ~{tr_vcf} | \
-            grep -E "^##(INFO|FORMAT|FILTER)=" | \
-            grep -v "^##INFO=<ID=TR_CALLER," | \
-            grep -v "^##FILTER=<ID=~{tr_filter}," | \
-            grep -v "ID=AL," \
-            >> header_additions.txt || true
-        
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr_regions.bed
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%TYPE\t%INFO/SVLEN\n' ~{vcf} > vcf_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr.bed
 
         bedtools intersect \
-            -a vcf_regions.bed \
-            -b tr_regions.bed \
             -f 1.0 \
             -wa \
-            -wb > enveloped_variants.bed
-        
-        if [ -s enveloped_variants.bed ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {
-            # File A (VCF) Cols 1-8: CHROM, POS, END, ID, REF, ALT, TYPE, SVLEN
-            # File B (TR)  Cols 9-15: CHROM, POS, END, ID, REF, ALT, MOTIFS
+            -wb \
+            -a vcf.bed \
+            -b tr.bed \
+            > overlaps.bed
 
-            if ($7 == "SNV") next
-
+        awk -v filter="~{tr_caller}_OVERLAPPED" -v source="~{tr_caller}" 'BEGIN{OFS="\t"} {
             split($15, motifs, ",")
-            min_motif_len = 1000000
+            min_motif = 1000000
             for (i in motifs) {
-                mlen = length(motifs[i])
-                if (mlen < min_motif_len) min_motif_len = mlen
+                len = length(motifs[i])
+                if (len < min_motif) min_motif = len
             }
 
-            var_len = $8
-            if (var_len < 0) var_len = -var_len
-            if (var_len < min_motif_len) next
+            var_len = ($8 < 0) ? -$8 : $8
+            if (var_len < min_motif) next
 
-            print $1, $2, $5, $6, filter, $12
-        }' enveloped_variants.bed > filter_annotations.txt
-        else
-            touch filter_annotations.txt
-        fi
+            print $1, $2, $5, $6, filter, $12, source
+        }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
 
-        if [ -s filter_annotations.txt ]; then
-            bgzip filter_annotations.txt
-            
-            tabix -s 1 -b 2 -e 2 filter_annotations.txt.gz
-            
-            bcftools annotate \
-                -a filter_annotations.txt.gz \
-                -c CHROM,POS,REF,ALT,FILTER,INFO/TR_CALLER_ID \
-                -h header_additions.txt \
-                -Oz -o vcf_with_filters.vcf.gz \
-                ~{vcf}
-            
-            tabix -p vcf vcf_with_filters.vcf.gz
-        else
-            cp ~{vcf} vcf_with_filters.vcf.gz
-            cp ~{vcf_idx} vcf_with_filters.vcf.gz.tbi
-        fi
+        tabix -s 1 -b 2 -e 2 annotations.tsv.gz
 
-        bcftools view -h ~{tr_vcf} | grep "ID=AL," > al_header_def.txt
-        bcftools view -h vcf_with_filters.vcf.gz | grep -v "ID=AL," > vcf_header_stripped.txt
-        cat vcf_header_stripped.txt al_header_def.txt > vcf_header_unified.txt
+        bcftools view -h ~{vcf} | grep -v 'ID=AL,' > vcf_no_al_header.txt
+        bcftools reheader -h vcf_no_al_header.txt ~{vcf} > vcf_stripped.vcf.gz
+        bcftools view -h ~{tr_vcf} | grep 'ID=AL,' > al_header.txt || true
 
-        bcftools reheader \
-            -h vcf_header_unified.txt \
-            -o vcf_unified.vcf.gz \
-            vcf_with_filters.vcf.gz
-        tabix -p vcf vcf_unified.vcf.gz
+        cat <<EOF > new_header.txt
+##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Source of tandem repeat">
+##INFO=<ID=TR_CALLER_SOURCE,Number=1,Type=String,Description="Source of overlapping tandem repeat">
+##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
+##FILTER=<ID=~{tr_caller}_OVERLAPPED,Description="Variant enveloped by ~{tr_caller}">
+EOF
+        
+        cat new_header.txt al_header.txt > merged_headers.txt
 
         bcftools annotate \
-            -h header_additions.txt \
-            -Oz -o tr_with_headers.vcf.gz \
-            tr_tagged.vcf.gz
-        tabix -p vcf tr_with_headers.vcf.gz
+            -a annotations.tsv.gz \
+            -c CHROM,POS,REF,ALT,FILTER,INFO/TR_CALLER_ID,INFO/TR_CALLER_SOURCE \
+            -h merged_headers.txt \
+            -Oz -o vcf_annotated.vcf.gz \
+            vcf_stripped.vcf.gz
+
+        tabix -p vcf vcf_annotated.vcf.gz
 
         bcftools concat \
             --allow-overlaps \
-            vcf_unified.vcf.gz \
-            tr_with_headers.vcf.gz \
+            vcf_annotated.vcf.gz \
+            tr_tagged.vcf.gz \
             -Oz -o ~{prefix}.annotated.vcf.gz
-                
+
         tabix -p vcf ~{prefix}.annotated.vcf.gz
     >>>
 
