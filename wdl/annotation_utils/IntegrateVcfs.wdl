@@ -358,35 +358,29 @@ task AnnotateVariantAttributes {
             -Oz -o temp.vcf.gz
         tabix -p vcf temp.vcf.gz
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/VARLEN\t%INFO/VARTYPE\t%INFO/SVLEN\t%INFO/SVTYPE\n' temp.vcf.gz | \
-        awk -F'\t' '{
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/VARLEN\t%INFO/VARTYPE\t%INFO/SVLEN\t%INFO/SVTYPE\n' \
+            temp.vcf.gz \
+        | awk -F'\t' '{
             split($4, alleles, ",")
-            ref_len = length($3)
-            best_type = "SNV"
-            max_diff = 0
-            
+            ref_len = length($3)            
             alt_len = length($4)
-            diff = (alt_len > ref_len) ? (alt_len - ref_len) : (ref_len - alt_len)
-            max_diff = diff
+
+            calc_len = alt_len - ref_len
+            calc_type = "SNV"
             if (alt_len > ref_len) {
-                best_type = "INS"
+                calc_type = "INS"
             } else if (alt_len < ref_len) {
-                best_type = "DEL"
-            } else {
-                best_type = "SNV"
+                calc_type = "DEL"
             }
 
-            var_len = max_diff
-            var_type = best_type
-
-            if (var_type == "INS" || var_type == "DEL") {
-                sv_len = var_len
-                sv_type = var_type
-            } else {
-                var_len = ($5 != ".") ? $5 : "."
-                var_type = ($6 != ".") ? $6 : "."
-                sv_len = ($7 != ".") ? $7 : "."
-                sv_type = ($8 != ".") ? $8 : "."
+            var_len = ($5 == ".") ? calc_len : "."
+            var_type = ($6 == ".") ? calc_type : "."
+            sv_len = "."
+            sv_type = "."
+            if (calc_type == "INS" || calc_type == "DEL") {
+                sv_len = ($7 == ".") ? calc_len : "."
+                sv_type = ($8 == ".") ? calc_type : "."
             }
 
             print $1"\t"$2"\t"$3"\t"$4"\t"var_len"\t"var_type"\t"sv_len"\t"sv_type
