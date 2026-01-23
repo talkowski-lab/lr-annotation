@@ -202,7 +202,7 @@ HEADER_EOF
         bcftools view -h ~{tr_vcf} | \
             grep -E "^##(INFO|FORMAT|FILTER)=" | \
             grep -v "^##INFO=<ID=TR_CALLER," | \
-            grep -v "^##FILTER=<ID=~{tr_filter}," \
+            grep -v "^##FILTER=<ID=~{tr_filter}," | \
             grep -v "ID=AL," \
             >> header_additions.txt || true
         
