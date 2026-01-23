@@ -228,7 +228,7 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
                     ref, var_id = vcf_lookup[key]
                     f_out.write(f"{chrom}\t{pos}\t{ref}\t{sequence}\t{var_id}\t{me_type}\n")
                 else:
-                    sys.stderr.write(f"Warning: No matching VCF record for {chrom}:{pos} with alt={sequence[:50]}...\n")
+                    sys.stderr.write(f"Warning: No matching VCF record for {chrom}:{pos}...\n")
 EOF
     >>>
 

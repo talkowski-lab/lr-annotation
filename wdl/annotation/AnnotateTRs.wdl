@@ -205,8 +205,8 @@ HEADER_EOF
             grep -v "^##FILTER=<ID=~{tr_filter}," \
             >> header_additions.txt || true
         
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' tr_tagged.vcf.gz > tr_regions.bed
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' ~{vcf} > vcf_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%TYPE\t%LEN\n' ~{vcf} > vcf_regions.bed
 
         bedtools intersect \
             -a vcf_regions.bed \
@@ -216,8 +216,25 @@ HEADER_EOF
             -wb > enveloped_variants.bed
         
         if [ -s enveloped_variants.bed ]; then
-            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {print $1, $2, $5, $6, filter, $10}' \
-                enveloped_variants.bed > filter_annotations.txt
+            awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {
+            # File A (VCF) Cols 1-8: CHROM, POS, END, ID, REF, ALT, TYPE, LEN
+            # File B (TR)  Cols 9-15: CHROM, POS, END, ID, REF, ALT, MOTIFS
+
+            if ($7 == "SNV") next
+
+            split($15, motifs, ",")
+            min_motif_len = 1000000
+            for (i in motifs) {
+                mlen = length(motifs[i])
+                if (mlen < min_motif_len) min_motif_len = mlen
+            }
+
+            var_len = $8
+            if (var_len < 0) var_len = -var_len
+            if (var_len < min_motif_len) next
+
+            print $1, $2, $5, $6, filter, $12
+        }' enveloped_variants.bed > filter_annotations.txt
         else
             touch filter_annotations.txt
         fi
