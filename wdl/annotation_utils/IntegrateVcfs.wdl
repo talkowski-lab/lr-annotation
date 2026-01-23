@@ -269,7 +269,7 @@ for record in vcf_in:
     
     ids = record.id.split(';')
     for i, alt_seq in enumerate(record.alts):
-        parts = current_id.split('_')        
+        parts = ids[i].split('_')        
         new_rec = record.copy()
         new_rec.chrom = parts[0]
         new_rec.pos = int(parts[1])
