@@ -240,9 +240,7 @@ for rec in vcf_in:
         continue
 
     ref_len = len(rec.ref)
-    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or \
-       all(len(a) > ref_len for a in alts) or \
-       all(len(a) < ref_len for a in alts):
+    if (ref_len == 1 and all(len(a) == 1 for a in alts)) or all(len(a) > ref_len for a in alts) or all(len(a) < ref_len for a in alts):
         if ';' in rec.id: 
             rec.id = rec.id.replace(';', '-')
         vcf_out.write(rec)
@@ -266,8 +264,8 @@ for rec in vcf_in:
         new_rec.chrom = chrom
         new_rec.pos = pos
         new_rec.ref = ref
-        new_rec.alts = tuple(x[1] for x in items)
         new_rec.id = "-".join(x[2] for x in items)
+        new_rec.alts = tuple(x[1] for x in items)
         idx_map = {x[0]+1: new_i+1 for new_i, x in enumerate(items)}
         
         for sample in rec.samples:
