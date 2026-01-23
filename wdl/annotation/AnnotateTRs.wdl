@@ -203,6 +203,7 @@ HEADER_EOF
             grep -E "^##(INFO|FORMAT|FILTER)=" | \
             grep -v "^##INFO=<ID=TR_CALLER," | \
             grep -v "^##FILTER=<ID=~{tr_filter}," \
+            grep -v "ID=AL," \
             >> header_additions.txt || true
         
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr_regions.bed
@@ -257,6 +258,16 @@ HEADER_EOF
             cp ~{vcf_idx} vcf_with_filters.vcf.gz.tbi
         fi
 
+        bcftools view -h ~{tr_vcf} | grep "##INFO=<ID=AL," > al_header_def.txt
+        bcftools view -h vcf_with_filters.vcf.gz | grep -v "##INFO=<ID=AL," > vcf_header_stripped.txt
+        cat vcf_header_stripped.txt al_header_def.txt > vcf_header_unified.txt
+
+        bcftools reheader \
+            -h vcf_header_unified.txt \
+            -o vcf_unified.vcf.gz \
+            vcf_with_filters.vcf.gz
+        tabix -p vcf vcf_unified.vcf.gz
+
         bcftools annotate \
             -h header_additions.txt \
             -Oz -o tr_with_headers.vcf.gz \
@@ -265,7 +276,7 @@ HEADER_EOF
 
         bcftools concat \
             --allow-overlaps \
-            vcf_with_filters.vcf.gz \
+            vcf_unified.vcf.gz \
             tr_with_headers.vcf.gz \
             -Oz -o ~{prefix}.annotated.vcf.gz
                 
