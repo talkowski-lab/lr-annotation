@@ -115,6 +115,7 @@ workflow AnnotateSVAN {
                 vcf_idx = AnnotateInsertions.annotated_vcf_idx,
                 original_vcf = SeparateInsertionsDeletions.ins_vcf,
                 original_vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
+                add_header_row = true,
                 prefix = "~{prefix}.~{contig}.ins",
                 docker = annotate_svan_docker
         }
@@ -147,12 +148,13 @@ workflow AnnotateSVAN {
                 vcf_idx = AnnotateDeletions.annotated_vcf_idx,
                 original_vcf = SeparateInsertionsDeletions.del_vcf,
                 original_vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
+                add_header_row = true,
                 prefix = "~{prefix}.~{contig}.del",
                 docker = annotate_svan_docker
         }
     }
     
-    call Helpers.ConcatTsvs as MergeTsvs {
+    call Helpers.ConcatAlignedTsvs {
         input:
             tsvs = flatten([ExtractIns.annotations_tsv, ExtractDel.annotations_tsv]),
             prefix = prefix + ".svan_annotations",
@@ -160,17 +162,9 @@ workflow AnnotateSVAN {
             runtime_attr_override = runtime_attr_concat_final
     }
 
-    call Helpers.MergeHeaderLines as MergeHeaders {
-        input:
-            header_files = flatten([ExtractIns.annotations_header, ExtractDel.annotations_header]),
-            prefix = prefix,
-            docker = annotate_svan_docker,
-            runtime_attr_override = runtime_attr_merge_headers
-    }
-
     output {
-        File annotations_tsv_svan = MergeTsvs.concatenated_tsv
-        File annotations_header_svan = MergeHeaders.merged_header
+        File annotations_tsv_svan = ConcatAlignedTsvs.merged_tsv
+        File annotations_header_svan = ConcatAlignedTsvs.merged_header
     }
 }
 

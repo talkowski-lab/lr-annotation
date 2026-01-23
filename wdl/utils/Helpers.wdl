@@ -161,6 +161,101 @@ task BedtoolsClosest {
     }
 }
 
+task ConcatAlignedTsvs {
+    input {
+        Array[File] tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import sys
+import csv
+
+input_files = "~{sep=',' tsvs}".split(',')
+output_filename = "aligned_unsorted.tsv"
+header_filename = "~{prefix}.header.txt"
+fixed_cols = ["#CHROM", "POS", "REF", "ALT", "ID"]
+
+all_keys = set()
+for f in input_files:
+    with open(f, 'r') as fh:
+        line = fh.readline().strip()
+        if not line: continue
+        parts = line.split('\t')
+        if len(parts) > 5:
+            keys = parts[5:]
+            all_keys.update(keys)
+
+sorted_keys = sorted(list(all_keys))
+master_header = fixed_cols + sorted_keys
+
+with open(header_filename, 'w') as hout:
+    for k in sorted_keys:
+        hout.write(k + "\n")
+
+with open(output_filename, 'w') as out:
+    out.write("\t".join(master_header) + "\n")
+    
+    for f in input_files:
+        with open(f, 'r') as fh:
+            header_line = fh.readline().strip()
+            if not header_line: 
+                continue
+            
+            file_cols = header_line.split('\t')
+            col_map = {name: i for i, name in enumerate(file_cols)}
+            
+            for line in fh:
+                parts = line.strip().split('\t')
+                if not parts: continue
+                
+                out_row = []
+                for target_col in master_header:
+                    if target_col in col_map:
+                        try:
+                            val = parts[col_map[target_col]]
+                            out_row.append(val)
+                        except IndexError:
+                            out_row.append(".")
+                    else:
+                        out_row.append(".")
+                
+                out.write("\t".join(out_row) + "\n")
+CODE
+    
+        tail -n +2 aligned_unsorted.tsv | sort -k1,1 -k2,2n > ~{prefix}.tsv
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+        File merged_header = "~{prefix}.header.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task ConcatTsvs {
     input {
         Array[File] tsvs
@@ -326,6 +421,7 @@ task ExtractVcfAnnotations {
         File original_vcf_idx
         String prefix
         String docker
+        Boolean add_header_row = false
         RuntimeAttr? runtime_attr_override
     }
 
@@ -346,6 +442,12 @@ with open("~{prefix}.header.txt", "w") as out:
         out.write(k + "\n")
 
 with open("~{prefix}.annotations.tsv", "w") as out:
+    
+    if "~{add_header_row}" == "true":
+        fixed_cols = ["#CHROM", "POS", "REF", "ALT", "ID"]
+        full_header = fixed_cols + new_keys
+        out.write("\t".join(full_header) + "\n")
+
     for record in vcf:
         alts = ",".join(record.alts) if record.alts else "."
         rid = record.id if record.id else "."
@@ -371,7 +473,7 @@ CODE
         File annotations_tsv = "~{prefix}.annotations.tsv"
         File annotations_header = "~{prefix}.header.txt"
     }
-
+    
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
