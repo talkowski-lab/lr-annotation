@@ -17,11 +17,26 @@ task AddFilter {
     command <<<
         set -euo pipefail
 
-        bcftools view -h ~{vcf} > header.txt
+        bcftools view \
+            -h \
+            ~{vcf} \
+        | grep "^##" > header.txt
+        
         echo '##FILTER=<ID=~{filter_name},Description="~{filter_description}">' >> header.txt
         
-        bcftools reheader -h header.txt ~{vcf} | \
-        bcftools filter --mode + -s ~{filter_name} -e '~{filter_expression}' -Oz -o ~{prefix}.vcf.gz
+        bcftools view \
+            -h \
+            ~{vcf} \
+        | grep "^#CHROM" >> header.txt
+        
+        bcftools reheader \
+            -h header.txt \
+            ~{vcf} \
+        | bcftools filter \
+            --mode + \
+            -s ~{filter_name} \
+            -e '~{filter_expression}' \
+            -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
