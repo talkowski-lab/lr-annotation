@@ -206,7 +206,7 @@ HEADER_EOF
             >> header_additions.txt || true
         
         bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr_regions.bed
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%TYPE\t%LEN\n' ~{vcf} > vcf_regions.bed
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%TYPE\t%INFO/SVLEN\n' ~{vcf} > vcf_regions.bed
 
         bedtools intersect \
             -a vcf_regions.bed \
@@ -217,7 +217,7 @@ HEADER_EOF
         
         if [ -s enveloped_variants.bed ]; then
             awk -v filter="~{tr_filter}" 'BEGIN{OFS="\t"} {
-            # File A (VCF) Cols 1-8: CHROM, POS, END, ID, REF, ALT, TYPE, LEN
+            # File A (VCF) Cols 1-8: CHROM, POS, END, ID, REF, ALT, TYPE, SVLEN
             # File B (TR)  Cols 9-15: CHROM, POS, END, ID, REF, ALT, MOTIFS
 
             if ($7 == "SNV") next
