@@ -269,9 +269,9 @@ for rec in vcf_in:
         new_rec.alts = tuple(x[1] for x in items)
         new_rec.id = "-".join(x[2] for x in items)
         idx_map = {x[0]+1: new_i+1 for new_i, x in enumerate(items)}
-
-        for sample in new_rec.samples:
-            old_gt = new_rec.samples[sample]['GT']
+        
+        for sample in rec.samples:
+            old_gt = rec.samples[sample]['GT']
             new_gt = []
             for allele in old_gt:
                 if allele is None: 
