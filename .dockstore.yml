@@ -28,6 +28,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateMEIs
+    primaryDescriptorPath: /wdl/annotation/AnnotateMEIs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotatePALMER
     primaryDescriptorPath: /wdl/annotation/AnnotatePALMER.wdl
     filters:

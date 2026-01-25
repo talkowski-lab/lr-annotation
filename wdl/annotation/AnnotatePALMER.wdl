@@ -55,6 +55,7 @@ workflow AnnotatePALMER {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
+                args_string = "-i abs(INFO/SVLEN) != '.",
                 contig = contig,
                 prefix = prefix,
                 docker = annotate_palmer_docker,

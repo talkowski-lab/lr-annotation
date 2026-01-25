@@ -89,6 +89,10 @@ TODO
 TODO
 
 
+### [AnnotateMEIs](wdl/annotation/AnnotateMEIs.wdl)
+TODO
+
+
 ### [AnnotatePALMER](wdl/annotation/AnnotatePALMER.wdl)
 This workflow leverages [PALMER](https://github.com/WeichenZhou/PALMER) in order to annotate MEI calls for a cohort in a given cohort VCF. It retains the genotypes present in the VCF, simply adding an INFO field `ME_TYPE` to insertions whose characteristics match those of the PALMER calls.
 
@@ -119,10 +123,6 @@ Inputs:
 - `coding_gtf`.
 - `contigs`.
 - `noncoding_bed`.
-
-
-### [AnnotateMEDs](wdl/annotation/AnnotateMEDs.wdl)
-TODO
 
 
 ### [AnnotateTRs](wdl/annotation/AnnotateTRs.wdl)
