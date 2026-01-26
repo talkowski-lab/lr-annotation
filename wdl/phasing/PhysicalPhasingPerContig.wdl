@@ -30,8 +30,7 @@ workflow PhysicalPhasingPerContig {
         input:
             vcf = sv_vcf,
             vcf_idx = sv_vcf_idx,
-            prefix = sample_id + ".preprocessed",
-            locus = region
+            prefix = sample_id + ".preprocessed"
     }
 
     call SubsetVCF as SubsetVcfSv {
@@ -132,7 +131,6 @@ task PreProcessVCF {
         File vcf
         File vcf_idx
         String prefix
-        String locus
         RuntimeAttr? runtime_attr_override
     }
     String docker_dir = "/truvari_intrasample"
