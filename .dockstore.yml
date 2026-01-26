@@ -181,6 +181,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PhysicalPhasing
+    primaryDescriptorPath: /wdl/phasing/PhysicalPhasing.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: RepeatMasker
     primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
     filters:
