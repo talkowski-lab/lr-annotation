@@ -8,14 +8,17 @@ workflow PhysicalPhasing {
     input {
         File all_chr_bam
         File all_chr_bai
-        File reference_fasta
-        File reference_fasta_fai
+
         File small_vcf
         File small_vcf_idx
         File sv_vcf
         File sv_vcf_idx
         File? trgt_vcf
         File? trgt_vcf_idx
+
+        File ref_fa
+        File ref_fai
+
         Int hiphase_memory
         String hiphase_extra_args
         String sample_id
@@ -26,12 +29,12 @@ workflow PhysicalPhasing {
     }
 
     scatter (region in region_list) {
-        call PhysicalPhasingPerContig.PhysicalPhasingPerContig{
+        call PhysicalPhasingPerContig.PhysicalPhasingPerContig {
             input:
                 all_chr_bam = all_chr_bam,
                 all_chr_bai = all_chr_bai,
-                reference_fasta = reference_fasta,
-                reference_fasta_fai = reference_fasta_fai,
+                reference_fasta = ref_fa,
+                reference_fasta_fai = ref_fai,
                 small_vcf = small_vcf,
                 small_vcf_idx = small_vcf_idx,
                 sv_vcf = sv_vcf,
@@ -44,12 +47,12 @@ workflow PhysicalPhasing {
                 region = region,
                 sv_base_mini_docker = sv_base_mini_docker,
                 sv_pipeline_base_docker = sv_pipeline_base_docker      
-            }
         }
+    }
 
    call LongReadGenotypeTasks.ConcatVcfs as concat_hiphase_vcf {
       input:
-        vcfs     = PhysicalPhasingPerContig.hiphase_vcf,
+        vcfs = PhysicalPhasingPerContig.hiphase_vcf,
         vcfs_idx = PhysicalPhasingPerContig.hiphase_idx,
         outfile_prefix = "~{sample_id}.phased",
         sv_base_mini_docker = sv_base_mini_docker
@@ -57,7 +60,7 @@ workflow PhysicalPhasing {
 
     output {
         File hiphase_vcf = concat_hiphase_vcf.concat_vcf
-        File hiphase_idx = concat_hiphase_vcf.concat_vcf_idx
+        File hiphase_vcf_idx = concat_hiphase_vcf.concat_vcf_idx
     }
 }
 
