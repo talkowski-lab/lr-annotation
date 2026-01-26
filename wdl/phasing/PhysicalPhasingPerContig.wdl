@@ -40,6 +40,16 @@ workflow PhysicalPhasingPerContig {
             docker_image = sv_pipeline_base_docker
     }
 
+    call SyncContigs {
+        input:
+            sv_vcf = SubsetVcfSv.subset_vcf,
+            sv_vcf_idx = SubsetVcfSv.subset_idx,
+            small_vcf = SubsetVcfShort.subset_vcf,
+            small_vcf_idx = SubsetVcfShort.subset_idx,
+            prefix = sample_id + ".synced",
+            docker_image = sv_pipeline_base_docker
+    }
+
     if (defined(trgt_vcf) && defined(trgt_vcf_idx)) {
         call SubsetVCF as SubsetVcfTRGT { 
             input:
@@ -53,8 +63,8 @@ workflow PhysicalPhasingPerContig {
             input:
                 bam = all_chr_bam,
                 bai = all_chr_bai,
-                unphased_sv_vcf = SubsetVcfSv.subset_vcf,
-                unphased_sv_idx = SubsetVcfSv.subset_idx,
+                unphased_sv_vcf = SyncContigs.synced_vcf,
+                unphased_sv_idx = SyncContigs.synced_idx,
                 unphased_snp_vcf = SubsetVcfShort.subset_vcf,
                 unphased_snp_idx = SubsetVcfShort.subset_idx,
                 unphased_trgt_vcf = SubsetVcfTRGT.subset_vcf,
@@ -81,8 +91,8 @@ workflow PhysicalPhasingPerContig {
             input:
                 bam = all_chr_bam,
                 bai = all_chr_bai,
-                unphased_sv_vcf = SubsetVcfSv.subset_vcf,
-                unphased_sv_idx = SubsetVcfSv.subset_idx,
+                unphased_sv_vcf = SyncContigs.synced_vcf,
+                unphased_sv_idx = SyncContigs.synced_idx,
                 unphased_snp_vcf = SubsetVcfShort.subset_vcf,
                 unphased_snp_idx = SubsetVcfShort.subset_idx,
                 ref_fasta = reference_fasta,
@@ -107,42 +117,13 @@ workflow PhysicalPhasingPerContig {
     }
 }
 
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-    String? docker
-}
-
-struct DataTypeParameters {
-    Int num_shards
-    String map_preset
-}
-
 task SubsetVCF {
-
-    meta {
-        description: "Subset a VCF file to a given locus"
-    }
-
-    parameter_meta {
-        vcf_gz: "VCF file to be subsetted"
-        vcf_idx: "Tabix index for the VCF file"
-        locus: "Locus to be subsetted"
-        prefix: "Prefix for the output file"
-        runtime_attr_override: "Override default runtime attributes"
-    }
-
     input {
         File vcf_gz
         File? vcf_idx
         String locus
         String prefix = "subset"
         String docker_image
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -181,6 +162,57 @@ task SubsetVCF {
         preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+    }
+}
+
+task SyncContigs {
+    input {
+        File sv_vcf
+        File sv_vcf_idx
+        File small_vcf
+        File small_vcf_idx
+        String prefix
+        String docker_image
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+
+        bcftools view --header-only ~{sv_vcf} | grep -v "^##contig" > sv_header_no_contigs.txt
+        bcftools view --header-only ~{small_vcf} | grep "^##contig" > small_vcf_contigs.txt
+
+        grep "^##fileformat" sv_header_no_contigs.txt > new_header.txt
+        cat small_vcf_contigs.txt >> new_header.txt
+        grep -v "^##fileformat" sv_header_no_contigs.txt >> new_header.txt
+
+        bcftools reheader --header new_header.txt --output ~{prefix}.vcf.gz ~{sv_vcf}
+        bcftools index -t ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File synced_vcf = "~{prefix}.vcf.gz"
+        File synced_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1,
+        docker: docker_image
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
