@@ -7,27 +7,37 @@ workflow PhysicalPhasingPerContig {
     input {
         File all_chr_bam
         File all_chr_bai
-        File reference_fasta
-        File reference_fasta_fai
         File small_vcf
         File small_vcf_idx
         File sv_vcf
         File sv_vcf_idx
         File? trgt_vcf
         File? trgt_vcf_idx
+
         Int hiphase_memory
         String hiphase_extra_args
         String sample_id
         String region
 
+        File reference_fasta
+        File reference_fasta_fai
+
         String sv_base_mini_docker
         String sv_pipeline_base_docker
     }
 
-    call SubsetVCF as SubsetVcfSv{
+    call PreProcessVCF as PreProcessSVVCF { 
         input:
-            vcf_gz = sv_vcf,
+            vcf = sv_vcf,
             vcf_idx = sv_vcf_idx,
+            prefix = sample_id + ".preprocessed",
+            locus = region
+    }
+
+    call SubsetVCF as SubsetVcfSv {
+        input:
+            vcf_gz = PreProcessSVVCF.preprocessed_vcf,
+            vcf_idx = PreProcessSVVCF.preprocessed_vcf_idx,
             locus = region,
             docker_image = sv_pipeline_base_docker
     }
@@ -117,6 +127,59 @@ workflow PhysicalPhasingPerContig {
     }
 }
 
+task PreProcessVCF {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String locus
+        RuntimeAttr? runtime_attr_override
+    }
+    String docker_dir = "/truvari_intrasample"
+
+    command <<<
+        set -euxo pipefail
+
+        # convert lower case alleles to upper case
+        cp ~{docker_dir}/convert_lower_case.py .
+
+        python convert_lower_case.py -i ~{vcf} -o ~{prefix}.uppercase.vcf
+        bgzip ~{prefix}.uppercase.vcf ~{prefix}.uppercase.vcf.gz
+        tabix -p vcf ~{prefix}.uppercase.vcf.gz
+
+        # unphase genotypes
+        bcftools +setGT ~{prefix}.uppercase.vcf.gz --no-version -Oz -o ~{prefix}.vcf.gz -- --target-gt a --new-gt u
+        bcftools index -t ~{prefix}.vcf.gz
+
+        ls -l
+    >>>
+
+    output {
+        File preprocessed_vcf = "~{prefix}.vcf.gz"
+        File preprocessed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1,
+        docker: "hangsuunc/cleanvcf:v1"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
+    }
+}
+
 task SubsetVCF {
     input {
         File vcf_gz
@@ -145,23 +208,23 @@ task SubsetVCF {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          1,
-        mem_gb:             4,
-        disk_gb:            100,
-        boot_disk_gb:       10,
-        preemptible_tries:  2,
-        max_retries:        1,
-        docker:             docker_image
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 100,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1,
+        docker: docker_image
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker,  default_attr.docker])
     }
 }
 
@@ -276,24 +339,24 @@ task HiPhase {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          thread_num,
-        mem_gb:             memory,
-        disk_gb:            disk_size,
-        boot_disk_gb:       100,
-        preemptible_tries:  1,
-        max_retries:        0,
-        docker:             "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+        cpu_cores: thread_num,
+        mem_gb: memory,
+        disk_gb: disk_size,
+        boot_disk_gb: 100,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " SSD"
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         zones: zones
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -363,23 +426,23 @@ task HiPhaseTRGT {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores:          thread_num,
-        mem_gb:             memory,
-        disk_gb:            disk_size,
-        boot_disk_gb:       100,
-        preemptible_tries:  1,
-        max_retries:        0,
-        docker:             "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+        cpu_cores: thread_num,
+        mem_gb: memory,
+        disk_gb: disk_size,
+        boot_disk_gb: 100,
+        preemptible_tries: 1,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu:                    select_first([runtime_attr.cpu_cores,         default_attr.cpu_cores])
-        memory:                 select_first([runtime_attr.mem_gb,            default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb,           default_attr.disk_gb]) + " SSD"
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         zones: zones
-        bootDiskSizeGb:         select_first([runtime_attr.boot_disk_gb,      default_attr.boot_disk_gb])
-        preemptible:            select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries:             select_first([runtime_attr.max_retries,       default_attr.max_retries])
-        docker:                 select_first([runtime_attr.docker,            default_attr.docker])
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }

@@ -5,7 +5,14 @@ data/*
 .DS_Store
 
 *.pyc
+
 *.tsv
+*.csv
+*.txt
+
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
 
 *.bed
 *.bed.gz
@@ -22,7 +29,3 @@ data/*
 *.fasta
 *.fasta.fai
 *.fasta.fai.gz
-
-*.vcf
-*.vcf.gz
-*.vcf.gz.tbi
