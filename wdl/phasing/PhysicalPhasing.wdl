@@ -63,10 +63,3 @@ workflow PhysicalPhasing {
         File hiphase_vcf_idx = concat_hiphase_vcf.concat_vcf_idx
     }
 }
-
-
-
-
-
-
-
