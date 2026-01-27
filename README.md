@@ -15,10 +15,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 - HPRC2.
 	- Data:
 		- 232 total samples.
-		- High coverage aligned reads, produced directly by Fabio.
+		- High coverage aligned reads, produced by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-		- Base VCFs: From Jiadong & HPRC teams.
-		- VCF: Produced from base VCFs using _IntegrateVcfs_.
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Notes: 
 		- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
@@ -27,7 +25,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 - Additional Notes:
 	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
 	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.
-	- The pedigrees in the Terra workspace were made to match the callset VCFs.
 
 
 
