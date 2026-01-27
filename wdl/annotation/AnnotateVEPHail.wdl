@@ -79,7 +79,7 @@ workflow AnnotateVEPHail {
             tsvs=VepAnnotate.vep_tsv_file,
             prefix=prefix + ".vep_annotations",
             docker=sv_base_mini_docker,
-            runtime_attr_override=runtime_attr_combine_vcfs
+            runtime_attr_override=runtime_attr_concat
     }
 
     output {
