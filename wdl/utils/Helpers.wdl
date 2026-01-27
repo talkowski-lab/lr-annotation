@@ -995,11 +995,58 @@ task SubsetTsvToContig {
     }
 }
 
+task SubsetVcfByArgs {
+    input {
+        File vcf
+        File vcf_idx
+        String? include_args
+        String? exclude_args
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view ~{vcf} \
+            ~{if defined(include_args) then "-i ~{include_args}" else ""} \
+            ~{if defined(exclude_args) then "-e ~{exclude_args}" else ""} \
+            -Oz -o ~{prefix}.vcf.gz
+                
+        tabix -p vcf "~{prefix}.vcf.gz"
+    >>>
+
+    output {
+        File subset_vcf = "~{prefix}.vcf.gz"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task SubsetVcfBySize {
     input {
         File vcf
         File vcf_idx
-        String locus
+        String? locus
         Int? min_size
         Int? max_size
         String prefix
@@ -1012,8 +1059,11 @@ task SubsetVcfBySize {
     command <<<
         set -euo pipefail
 
-        bcftools view ~{vcf} --regions "~{locus}" --include "~{size_filter}" | bgzip > "~{prefix}.vcf.gz"
-        
+        bcftools view ~{vcf} \
+            --include "~{size_filter}" \
+            ~{if defined(locus) then "--regions ~{locus}" else ""} \
+            -Oz -o ~{prefix}.vcf.gz
+                
         tabix -p vcf "~{prefix}.vcf.gz"
     >>>
 

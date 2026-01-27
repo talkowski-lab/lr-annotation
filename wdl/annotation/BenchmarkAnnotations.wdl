@@ -7,8 +7,8 @@ import "../benchmarking/TruvariMatch.wdl"
 
 workflow BenchmarkAnnotations {
     input {
-        File vcf
-        File vcf_idx
+        File vcf_eval
+        File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
         File vcf_sv_truth
@@ -17,7 +17,8 @@ workflow BenchmarkAnnotations {
         String prefix
         
         Int variants_per_shard
-        Int min_svlen
+        Int min_svlen_eval
+        Int min_svlen_truth
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
         
         String? args_string_vcf
@@ -48,8 +49,8 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_merge_benchmark_summaries
         RuntimeAttr? runtime_attr_merge_plot_tarballs
 
-        RuntimeAttr? runtime_attr_truvari_filter_eval_vcf
-        RuntimeAttr? runtime_attr_truvari_filter_truth_vcf
+        RuntimeAttr? runtime_attr_truvari_subset_eval
+        RuntimeAttr? runtime_attr_truvari_subset_truth
         RuntimeAttr? runtime_attr_truvari_run_truvari_09
         RuntimeAttr? runtime_attr_truvari_annotate_matched_09
         RuntimeAttr? runtime_attr_truvari_run_truvari_07
@@ -88,8 +89,8 @@ workflow BenchmarkAnnotations {
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetEval {
             input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
+                vcf = vcf_eval,
+                vcf_idx = vcf_eval_idx,
                 contig = contig,
                 args_string = args_string_vcf,
                 drop_genotypes = true,
@@ -206,10 +207,11 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
-                min_svlen = min_svlen,
+                min_svlen_eval = min_svlen_eval,
+                min_svlen_truth = min_svlen_truth,
                 utils_docker = utils_docker,
-                runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
-                runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
+                runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
+                runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
                 runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
                 runtime_attr_annotate_matched_09 = runtime_attr_truvari_annotate_matched_09,
                 runtime_attr_run_truvari_07 = runtime_attr_truvari_run_truvari_07,

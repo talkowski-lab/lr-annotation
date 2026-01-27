@@ -11,15 +11,16 @@ workflow TruvariMatch {
         File vcf_truth_idx
         String prefix
 
-        Int min_svlen
+        Int min_svlen_eval
+        Int min_svlen_truth
 
         File ref_fa
         File ref_fai
 
         String utils_docker
         
-        RuntimeAttr? runtime_attr_filter_eval_vcf
-        RuntimeAttr? runtime_attr_filter_truth_vcf
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_run_truvari_09
         RuntimeAttr? runtime_attr_annotate_matched_09
         RuntimeAttr? runtime_attr_run_truvari_07
@@ -29,31 +30,33 @@ workflow TruvariMatch {
         RuntimeAttr? runtime_attr_concat_matched
     }
 
-    call FilterEvalVcf {
+    call Helpers.SubsetVcfBySize as SubsetEval {
         input:
-            vcf_eval = vcf_eval,
-            vcf_eval_idx = vcf_eval_idx,
-            min_svlen = min_svlen,
-            prefix = "~{prefix}.filtered_eval",
+            vcf = vcf_eval,
+            vcf_idx = vcf_eval_idx,
+            min_size = min_svlen_eval,
+            prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_filter_eval_vcf
+            runtime_attr_override = runtime_attr_subset_eval
     }
 
-    call FilterTruthVcf {
+    call Helpers.SubsetVcfByArgs as SubsetTruth {
         input:
-            vcf_truth = vcf_truth,
-            vcf_truth_idx = vcf_truth_idx,
-            prefix = "~{prefix}.filtered_truth",
+            vcf = vcf_truth,
+            vcf_idx = vcf_truth_idx,
+            include_args = "abs(ILEN) >= ~{min_svlen_truth}",
+            exclude_args = "INFO/variant_type='snv'",
+            prefix = "~{prefix}.subset_truth",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_filter_truth_vcf
+            runtime_attr_override = runtime_attr_subset_truth
     }
 
     call RunTruvari as RunTruvari_09 {
         input:
-            vcf_eval = FilterEvalVcf.retained_vcf,
-            vcf_eval_idx = FilterEvalVcf.retained_vcf_idx,
-            vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
+            vcf_eval = SubsetEval.subset_vcf,
+            vcf_eval_idx = SubsetEval.subset_vcf_idx,
+            vcf_truth = SubsetTruth.subset_vcf,
+            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.9,
@@ -69,8 +72,8 @@ workflow TruvariMatch {
         input:
             vcf_eval = RunTruvari_09.unmatched_vcf,
             vcf_eval_idx = RunTruvari_09.unmatched_vcf_idx,
-            vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
+            vcf_truth = SubsetTruth.subset_vcf,
+            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.7,
@@ -86,8 +89,8 @@ workflow TruvariMatch {
         input:
             vcf_eval = RunTruvari_07.unmatched_vcf,
             vcf_eval_idx = RunTruvari_07.unmatched_vcf_idx,
-            vcf_truth_filtered = FilterTruthVcf.retained_vcf,
-            vcf_truth_filtered_idx = FilterTruthVcf.retained_vcf_idx,
+            vcf_truth = SubsetTruth.subset_vcf,
+            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.5,
@@ -112,97 +115,6 @@ workflow TruvariMatch {
         File annotation_tsv = ConcatAnnotationTsvs.concatenated_tsv
         File unmatched_vcf = RunTruvari_05.unmatched_vcf
         File unmatched_vcf_idx = RunTruvari_05.unmatched_vcf_idx
-        File dropped_vcf = FilterEvalVcf.dropped_vcf
-        File dropped_vcf_idx = FilterEvalVcf.dropped_vcf_idx
-    }
-}
-
-task FilterEvalVcf {
-    input {
-        File vcf_eval
-        File vcf_eval_idx
-        Int min_svlen
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        bcftools view -i "ABS(INFO/SVLEN)>=~{min_svlen}" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
-        tabix -p vcf -f ~{prefix}.retained.vcf.gz
-
-        bcftools view -e 'ABS(INFO/SVLEN)>=~{min_svlen}' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
-        tabix -p vcf -f ~{prefix}.dropped.vcf.gz
-    >>>
-
-    output {
-        File retained_vcf = "~{prefix}.retained.vcf.gz"
-        File retained_vcf_idx = "~{prefix}.retained.vcf.gz.tbi"
-        File dropped_vcf = "~{prefix}.dropped.vcf.gz"
-        File dropped_vcf_idx = "~{prefix}.dropped.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf_eval, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task FilterTruthVcf {
-    input {
-        File vcf_truth
-        File vcf_truth_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools view -e 'INFO/variant_type="snv"' ~{vcf_truth} \
-            | bcftools view -i 'ABS(ILEN)>=5' -Oz -o ~{prefix}.vcf.gz
-        tabix -p vcf -f ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File retained_vcf = "~{prefix}.vcf.gz"
-        File retained_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf_truth, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -210,8 +122,8 @@ task RunTruvari {
     input {
         File vcf_eval
         File vcf_eval_idx
-        File vcf_truth_filtered
-        File vcf_truth_filtered_idx
+        File vcf_truth
+        File vcf_truth_idx
         File ref_fa
         File ref_fai
         Float pctseq
@@ -231,7 +143,7 @@ task RunTruvari {
         fi
         
         truvari bench \
-            -b ~{vcf_truth_filtered} \
+            -b ~{vcf_truth} \
             -c ~{vcf_eval} \
             -o "~{prefix}_truvari" \
             --reference ~{ref_fa} \
@@ -261,7 +173,7 @@ task RunTruvari {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth_filtered, "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
