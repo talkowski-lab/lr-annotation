@@ -50,16 +50,20 @@ workflow PhysicalPhasing {
         }
     }
 
-   call LongReadGenotypeTasks.ConcatVcfs as concat_hiphase_vcf {
-      input:
-        vcfs = PhysicalPhasingPerContig.hiphase_vcf,
-        vcfs_idx = PhysicalPhasingPerContig.hiphase_idx,
-        outfile_prefix = "~{sample_id}.phased",
-        sv_base_mini_docker = sv_base_mini_docker
+    call LongReadGenotypeTasks.ConcatVcfs as concat_hiphase_vcf {
+        input:
+            vcfs = PhysicalPhasingPerContig.hiphase_vcf,
+            vcfs_idx = PhysicalPhasingPerContig.hiphase_vcf_idx,
+            outfile_prefix = "~{sample_id}.phased",
+            sv_base_mini_docker = sv_base_mini_docker
     }
 
     output {
         File hiphase_vcf = concat_hiphase_vcf.concat_vcf
         File hiphase_vcf_idx = concat_hiphase_vcf.concat_vcf_idx
+        Array[File] haplotag_files = PhysicalPhasingPerContig.hiphase_haplotag_file
+        Array[File] hiphase_stats = PhysicalPhasingPerContig.hiphase_stats
+        Array[File] hiphase_blocks = PhysicalPhasingPerContig.hiphase_blocks
+        Array[File] hiphase_summary = PhysicalPhasingPerContig.hiphase_summary
     }
 }

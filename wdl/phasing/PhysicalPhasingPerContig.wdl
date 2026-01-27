@@ -26,7 +26,7 @@ workflow PhysicalPhasingPerContig {
         String sv_pipeline_base_docker
     }
 
-    call PreProcessVCF as PreProcessSVVCF { 
+    call PreprocessVCF as PreProcessSVVCF { 
         input:
             vcf = sv_vcf,
             vcf_idx = sv_vcf_idx,
@@ -68,7 +68,7 @@ workflow PhysicalPhasingPerContig {
                 docker_image = sv_pipeline_base_docker
         }
 
-        call HiPhaseTRGT as HiphaseTrgt { 
+        call HiPhaseTRGT { 
             input:
                 bam = all_chr_bam,
                 bai = all_chr_bai,
@@ -85,10 +85,10 @@ workflow PhysicalPhasingPerContig {
                 extra_args = hiphase_extra_args
         }
 
-        call LongReadGenotypeTasks.ConcatVcfs as Concat_vcfs_with_trgt{
+        call LongReadGenotypeTasks.ConcatVcfs as ConcatWithTRGT {
             input:
-                vcfs = [HiphaseTrgt.phased_snp_vcf, HiphaseTrgt.phased_sv_vcf, HiphaseTrgt.phased_trgt_vcf],
-                vcfs_idx = [HiphaseTrgt.phased_snp_vcf_idx, HiphaseTrgt.phased_sv_vcf_idx, HiphaseTrgt.phased_trgt_vcf_idx],
+                vcfs = [HiPhaseTRGT.phased_snp_vcf, HiPhaseTRGT.phased_sv_vcf, HiPhaseTRGT.phased_trgt_vcf],
+                vcfs_idx = [HiPhaseTRGT.phased_snp_vcf_idx, HiPhaseTRGT.phased_sv_vcf_idx, HiPhaseTRGT.phased_trgt_vcf_idx],
                 outfile_prefix = "~{sample_id}.~{region}.hiphased",
                 sv_base_mini_docker = sv_base_mini_docker
 
@@ -110,23 +110,27 @@ workflow PhysicalPhasingPerContig {
                 memory = hiphase_memory,
                 extra_args = hiphase_extra_args
         }
-        call LongReadGenotypeTasks.ConcatVcfs as Concat_vcfs_wo_trgt{
+
+        call LongReadGenotypeTasks.ConcatVcfs as ConcatWithoutTRGT {
             input:
-                vcfs     = [HiPhase.phased_snp_vcf, HiPhase.phased_sv_vcf],
+                vcfs = [HiPhase.phased_snp_vcf, HiPhase.phased_sv_vcf],
                 vcfs_idx = [HiPhase.phased_snp_vcf_idx, HiPhase.phased_sv_vcf_idx],
                 outfile_prefix = "~{sample_id}.~{region}.hiphased",
                 sv_base_mini_docker = sv_base_mini_docker
-
         }
     }
 
     output {
-        File hiphase_vcf = select_first([Concat_vcfs_with_trgt.concat_vcf, Concat_vcfs_wo_trgt.concat_vcf])
-        File hiphase_idx = select_first([Concat_vcfs_with_trgt.concat_vcf_idx, Concat_vcfs_wo_trgt.concat_vcf_idx])
+        File hiphase_vcf = select_first([ConcatWithTRGT.concat_vcf, ConcatWithoutTRGT.concat_vcf])
+        File hiphase_vcf_idx = select_first([ConcatWithTRGT.concat_vcf_idx, ConcatWithoutTRGT.concat_vcf_idx])
+        File hiphase_haplotag_file = select_first([HiPhaseTRGT.haplotag_file, HiPhase.haplotag_file])
+        File hiphase_stats = select_first([HiPhaseTRGT.hiphase_stats, HiPhase.hiphase_stats])
+        File hiphase_blocks = select_first([HiPhaseTRGT.hiphase_blocks, HiPhase.hiphase_blocks])
+        File hiphase_summary = select_first([HiPhaseTRGT.hiphase_summary, HiPhase.hiphase_summary])
     }
 }
 
-task PreProcessVCF {
+task PreprocessVCF {
     input {
         File vcf
         File vcf_idx
