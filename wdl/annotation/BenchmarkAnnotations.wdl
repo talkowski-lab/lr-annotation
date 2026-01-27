@@ -19,8 +19,8 @@ workflow BenchmarkAnnotations {
         Int variants_per_shard
         Int min_svlen_eval
         Int min_svlen_truth
-        String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
-        
+
+        String? skip_vep_categories
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
