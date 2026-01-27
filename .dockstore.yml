@@ -64,15 +64,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateTRGT
-    primaryDescriptorPath: /wdl/annotation/AnnotateTRGT.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateTRs
     primaryDescriptorPath: /wdl/annotation/AnnotateTRs.wdl
     filters:
@@ -138,15 +129,6 @@ workflows:
   - subclass: WDL
     name: IntegrateHPRC
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateHPRC.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: MergeVEPAF
-    primaryDescriptorPath: /wdl/annotation_utils/MergeVEPAF.wdl
     filters:
       branches:
         - main

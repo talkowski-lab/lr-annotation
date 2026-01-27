@@ -157,7 +157,11 @@ Inputs:
 TODO
 
 
-### [IntegrateVcfs](wdl/annotation_utils/IntegrateVcfs.wdl)
+### [IntegrateHGSVC](wdl/annotation_utils/IntegrateHGSVC.wdl)
+TODO
+
+
+### [IntegrateHPRC](wdl/annotation_utils/IntegrateHPRC.wdl)
 TODO
 
 
@@ -280,6 +284,12 @@ TODO
 - All code written should use 2-space tabs for indentation.
 
 
-### Workspace Setup
+### Codebase
+- All workflows in `wdl/annotation/` should begin with _Annotate_.
+- All workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have corresponding documentation in this file.
+- All workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
+
+
+### Workspace
 - All references should be passed in via workspace data.
 - All dockers should be passed in via workspace data.
