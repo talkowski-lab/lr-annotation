@@ -160,10 +160,6 @@ TODO
 TODO
 
 
-### [MergeVEPAF](wdl/annotation_utils/MergeVEPAF.wdl)
-TODO
-
-
 
 ## Additional Tools
 ### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)
@@ -175,6 +171,7 @@ Inputs:
 - `minimap_flags`: Parameters to use when running Minimap2.
 - `ref_fa`.
 - `ref_fai`.
+
 
 ### [PALMER](wdl/tools/PALMER.wdl)
 This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
@@ -222,6 +219,10 @@ Inputs:
 
 
 ### [TRGTMerge](wdl/tools/TRGTMerge.wdl)
+TODO
+
+
+### [VcfDist](wdl/tools/VcfDist.wdl)
 TODO
 
 

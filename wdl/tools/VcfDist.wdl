@@ -5,9 +5,9 @@ import "../utils/Structs.wdl"
 workflow VcfDist {
     input {
         File vcf_eval
-        File vcf_eval_idx
+        File? vcf_eval_idx
         File vcf_truth
-        File vcf_truth_idx
+        File? vcf_truth_idx
         String prefix
 
         File ref_fa
@@ -55,9 +55,9 @@ workflow VcfDist {
 task RunVcfDist {
     input {
         File vcf_eval
-        File vcf_eval_idx
+        File? vcf_eval_idx
         File vcf_truth
-        File vcf_truth_idx
+        File? vcf_truth_idx
         String prefix
         File ref_fa
         File? bed_regions
@@ -70,6 +70,14 @@ task RunVcfDist {
 
     command <<<
         set -euo pipefail
+
+        if ~{!defined(vcf_eval_idx)}; then
+            tabix -p vcf ~{vcf_eval}
+        fi
+
+        if ~{!defined(vcf_truth_idx)}; then
+            tabix -p vcf ~{vcf_truth}
+        fi
         
         mkdir -p results
         
