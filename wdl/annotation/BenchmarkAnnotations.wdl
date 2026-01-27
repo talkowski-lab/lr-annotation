@@ -206,7 +206,7 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
-                min_sv_length = min_svlen,
+                min_svlen = min_svlen,
                 utils_docker = utils_docker,
                 runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
                 runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
