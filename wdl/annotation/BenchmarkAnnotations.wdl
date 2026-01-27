@@ -505,11 +505,11 @@ task ExtractVepHeader {
 
     command <<<
         set -euo pipefail
-        
+            
         bcftools view \
             -h \
             ~{vcf} \
-        | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print; exit}' > ~{prefix}_vep_header.txt
+        | awk 'BEGIN{IGNORECASE=1} /^##INFO=<ID=(vep|csq),/ {print}' > ~{prefix}_vep_header.txt
     >>>
 
     output {

@@ -111,7 +111,7 @@ task RunVcfDist {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(ref_fa, "GB") + size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
-        boot_disk_gb: 10,
+        boot_disk_gb: 50,
         preemptible_tries: 1,
         max_retries: 0
     }
