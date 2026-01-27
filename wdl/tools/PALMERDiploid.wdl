@@ -219,7 +219,7 @@ task RunPALMERShard {
 		cpu_cores: 1,
 		mem_gb: 4,
 		disk_gb: 4,
-		boot_disk_gb: 5,
+		boot_disk_gb: 10,
 		preemptible_tries: 1,
 		max_retries: 0
 	}
@@ -266,7 +266,7 @@ task MergePALMEROutputs {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
-		mem_gb: 2,
+		mem_gb: 4,
 		disk_gb: 2 * ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
@@ -360,7 +360,7 @@ task AddMeiTypeColumn {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
-		mem_gb: 2,
+		mem_gb: 4,
 		disk_gb: 2 * ceil(size(input_file, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
@@ -401,7 +401,7 @@ task ConcatSortVcfs {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
-		mem_gb: 2,
+		mem_gb: 4,
 		disk_gb: 3 * ceil(size(vcfs, "GB")) + 5,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
