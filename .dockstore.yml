@@ -251,3 +251,12 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: VcfDist
+    primaryDescriptorPath: /wdl/tools/VcfDist.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
