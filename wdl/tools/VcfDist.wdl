@@ -82,7 +82,7 @@ task RunVcfDist {
             ~{if defined(mode) then "-m " + mode else ""} \
             ~{if defined(threshold) then "-t " + threshold else ""} \
             ~{if defined(vcfdist_args) then vcfdist_args else ""}
-    <<<
+    >>>
 
     output {
         File summary_vcf = "results/~{prefix}.summary.vcf"
