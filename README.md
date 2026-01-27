@@ -125,8 +125,6 @@ Inputs:
 ### [AnnotateTRs](wdl/annotation/AnnotateTRs.wdl)
 TODO
 
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
-
 
 ### [AnnotateVEPHail](wdl/annotation/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
@@ -207,6 +205,8 @@ TODO
 
 ### [RepeatMasker](wdl/tools/RepeatMasker.wdl)
 This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/RepeatMasker) in order to annotate repeated regions in an input VCF.
+
+TODO
 
 
 ### [TRGT](wdl/tools/TRGT.wdl)

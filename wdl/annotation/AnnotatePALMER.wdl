@@ -14,8 +14,9 @@ workflow AnnotatePALMER {
         File PALMER_vcf
         File PALMER_vcf_idx
 
+        Int min_svlen
         File rm_out
-        Int rm_buffer = 50
+        Int rm_buffer
         File ref_fai
 
         Float reciprocal_overlap_ALU = 0.9
@@ -51,20 +52,21 @@ workflow AnnotatePALMER {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
+        call Helpers.SubsetVcfBySize {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                locus = contig,
+                min_size = min_svlen,
+                prefix = "~{prefix}.~{contig}.filtered",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_subset
         }
 
         call FilterPALMER {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = SubsetVcfBySize.subset_vcf,
+                vcf_idx = SubsetVcfBySize.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.filtered",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,
