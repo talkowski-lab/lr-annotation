@@ -11,7 +11,7 @@ workflow TruvariMatch {
         File vcf_truth_idx
         String prefix
 
-        Int min_sv_length
+        Int min_svlen
 
         File ref_fa
         File ref_fai
@@ -33,7 +33,7 @@ workflow TruvariMatch {
         input:
             vcf_eval = vcf_eval,
             vcf_eval_idx = vcf_eval_idx,
-            min_sv_length = min_sv_length,
+            min_svlen = min_svlen,
             prefix = "~{prefix}.filtered_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_filter_eval_vcf
@@ -121,7 +121,7 @@ task FilterEvalVcf {
     input {
         File vcf_eval
         File vcf_eval_idx
-        Int min_sv_length
+        Int min_svlen
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -130,10 +130,10 @@ task FilterEvalVcf {
     command <<<
         set -euo pipefail
         
-        bcftools view -i "ABS(INFO/SVLEN)>=~{min_sv_length}" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
+        bcftools view -i "ABS(INFO/SVLEN)>=~{min_svlen}" ~{vcf_eval} -Oz -o ~{prefix}.retained.vcf.gz
         tabix -p vcf -f ~{prefix}.retained.vcf.gz
 
-        bcftools view -e 'ABS(INFO/SVLEN)>=~{min_sv_length}' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
+        bcftools view -e 'ABS(INFO/SVLEN)>=~{min_svlen}' ~{vcf_eval} -Oz -o ~{prefix}.dropped.vcf.gz
         tabix -p vcf -f ~{prefix}.dropped.vcf.gz
     >>>
 

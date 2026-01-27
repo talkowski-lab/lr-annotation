@@ -17,7 +17,7 @@ workflow BenchmarkAnnotations {
         String prefix
         
         Int variants_per_shard
-        Int truvari_match_min_length = 10
+        Int min_svlen
         String? skip_vep_categories = "hgvsc,cdna_position,distance,hgvsp,domains,ensp"
         
         String? args_string_vcf
@@ -206,7 +206,7 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
-                min_sv_length = truvari_match_min_length,
+                min_sv_length = min_svlen,
                 utils_docker = utils_docker,
                 runtime_attr_filter_eval_vcf = runtime_attr_truvari_filter_eval_vcf,
                 runtime_attr_filter_truth_vcf = runtime_attr_truvari_filter_truth_vcf,
