@@ -33,7 +33,7 @@ workflow IntegrateHPRC {
         RuntimeAttr? runtime_attr_annotate_svlen_svtype
     }
 
-    call CheckSampleConsistency {
+    call Helpers.CheckSampleConsistency {
         input:
             snv_indel_vcf = snv_indel_vcf,
             sv_vcf = sv_vcf,
@@ -174,72 +174,6 @@ workflow IntegrateHPRC {
     output {
         File integrated_vcf = ConcatVcfs.concat_vcf
         File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
-    }
-}
-
-task CheckSampleConsistency {
-    input {
-        File snv_indel_vcf
-        File sv_vcf
-        Array[String] sample_ids
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        printf '%s\n' ~{sep=' ' sample_ids} > requested_samples.txt
-
-        bcftools query -l ~{snv_indel_vcf} | sort > snv_indel_samples.txt
-        bcftools query -l ~{sv_vcf} | sort > sv_samples.txt
-
-        missing_in_snv=""
-        missing_in_sv=""
-        
-        while read sample; do
-            if ! grep -q "^${sample}$" snv_indel_samples.txt; then
-                missing_in_snv="${missing_in_snv} ${sample}"
-            fi
-            if ! grep -q "^${sample}$" sv_samples.txt; then
-                missing_in_sv="${missing_in_sv} ${sample}"
-            fi
-        done < requested_samples.txt
-
-        if [ -n "${missing_in_snv}" ]; then
-            echo "ERROR: The following samples are missing from SNV/indel VCF:${missing_in_snv}"
-            exit 1
-        fi
-
-        if [ -n "${missing_in_sv}" ]; then
-            echo "ERROR: The following samples are missing from SV VCF:${missing_in_sv}"
-            exit 1
-        fi
-
-        echo "All requested samples are present in both VCFs"
-    >>>
-
-    output {
-        String status = "success"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size([snv_indel_vcf, sv_vcf], "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
