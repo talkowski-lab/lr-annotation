@@ -133,7 +133,13 @@ workflow ScatterVCF {
     }    
 
     output {
-        Array[File] vcf_shards = select_first([ExecuteScattering.shards, ScatterVCFRemote.shards, chromosome_shards, splitChromosomeShards, [file]])
+        Array[File] vcf_shards = select_first([
+            ExecuteScattering.shards, 
+            ScatterVCFRemote.shards, 
+            chromosome_shards, 
+            splitChromosomeShards, 
+            [file]
+        ])
     }
 }   
 
