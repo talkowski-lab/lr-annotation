@@ -57,7 +57,7 @@ workflow AnnotatePALMER {
                 vcf_idx = vcf_idx,
                 args_string = "-i 'abs(INFO/SVLEN) > 0'",
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_subset
         }
@@ -66,7 +66,7 @@ workflow AnnotatePALMER {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.filtered",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,
                 mei_types = mei_types,

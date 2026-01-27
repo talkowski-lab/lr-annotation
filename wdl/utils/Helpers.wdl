@@ -826,9 +826,13 @@ task SplitQueryVcf {
 
         svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
         cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
+
         set +o pipefail
+
         head -1 ~{prefix}.bed > header
+
         set -o pipefail
+        
         cat header <(awk '{if ($5=="DEL") print}' ~{prefix}.bed )> ~{prefix}.DEL.bed
         cat header <(awk '{if ($5=="DUP") print}' ~{prefix}.bed )> ~{prefix}.DUP.bed
         cat header <(awk '{if ($5=="INS" || $5=="INS:ME" || $5=="INS:ME:ALU" || $5=="INS:ME:LINE1" || $5=="INS:ME:SVA" || $5=="ALU" || $5=="LINE1" || $5=="SVA" || $5=="HERVK" ) print}' ~{prefix}.bed )> ~{prefix}.INS.bed

@@ -8,6 +8,8 @@ workflow RepeatMasker {
         File vcf_idx
         String prefix
 
+        Int min_svlen
+
         String utils_docker
         String repeatmasker_docker
 
@@ -40,6 +42,7 @@ workflow RepeatMasker {
 task INSToFa {
     input {
         File vcf
+        Int min_svlen
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -48,9 +51,17 @@ task INSToFa {
     command <<<
         set -euo pipefail
 
-        bcftools view -i 'INFO/SVLEN>=50 && INFO/SVTYPE=="INS"' ~{vcf} | bcftools view -e 'ALT ~ "<"' > ~{prefix}.INS.vcf
+        bcftools view \
+            -i 'abs(INFO/SVLEN) >= ~{min_svlen} && INFO/SVTYPE == "INS"' \
+            ~{vcf} \
+        | bcftools view \
+            -e 'ALT ~ "<"' \
+            > ~{prefix}.INS.vcf
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\n' ~{prefix}.INS.vcf | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}'> ~{prefix}_INS.tmp.fa
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\n' \
+            ~{prefix}.INS.vcf \
+        | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}_INS.tmp.fa
         
         seqkit rename -N1 ~{prefix}_INS.tmp.fa > ~{prefix}_INS.fa
     >>>
