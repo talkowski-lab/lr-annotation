@@ -20,6 +20,7 @@ workflow RepeatMasker {
     call INSToFa {
         input:
             vcf = vcf,
+            min_svlen = min_svlen,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_ins_to_fa
