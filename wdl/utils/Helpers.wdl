@@ -121,6 +121,102 @@ task AddInfo {
     }
 }
 
+task AnnotateVariantAttributes {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        touch new_headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=VARLEN'; then
+            echo '##INFO=<ID=VARLEN,Number=1,Type=Integer,Description="Variant length">' >> new_headers.txt
+        fi
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=VARTYPE'; then
+            echo '##INFO=<ID=VARTYPE,Number=1,Type=String,Description="Variant type">' >> new_headers.txt
+        fi
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="SV length">' >> new_headers.txt
+        fi
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">' >> new_headers.txt
+        fi
+
+        bcftools annotate \
+            -h new_headers.txt \
+            ~{vcf} \
+            -Oz -o temp.vcf.gz
+        tabix -p vcf temp.vcf.gz
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/VARLEN\t%INFO/VARTYPE\t%INFO/SVLEN\t%INFO/SVTYPE\n' \
+            temp.vcf.gz \
+        | awk -F'\t' '{
+            split($4, alleles, ",")
+            ref_len = length($3)            
+            alt_len = length($4)
+
+            calc_len = alt_len - ref_len
+            calc_type = "SNV"
+            if (alt_len > ref_len) {
+                calc_type = "INS"
+            } else if (alt_len < ref_len) {
+                calc_type = "DEL"
+            }
+
+            var_len = ($5 == ".") ? calc_len : "."
+            var_type = ($6 == ".") ? calc_type : "."
+            sv_len = "."
+            sv_type = "."
+            if (calc_type == "INS" || calc_type == "DEL") {
+                sv_len = ($7 == ".") ? calc_len : "."
+                sv_type = ($8 == ".") ? calc_type : "."
+            }
+
+            print $1"\t"$2"\t"$3"\t"$4"\t"var_len"\t"var_type"\t"sv_len"\t"sv_type
+        }' \
+            | bgzip -c > annot.txt.gz
+        
+        tabix -s1 -b2 -e2 annot.txt.gz
+
+        bcftools annotate -a annot.txt.gz \
+            -c CHROM,POS,REF,ALT,INFO/VARLEN,INFO/VARTYPE,INFO/SVLEN,INFO/SVTYPE \
+            temp.vcf.gz \
+            -Oz -o ~{prefix}.vcf.gz
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task BedtoolsClosest {
     input {
         File bed_a

@@ -25,6 +25,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - Additional Notes:
 	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
 	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.
+	- HG03492 is additional samples in the data table that are not attributed to either cohort.
 
 
 

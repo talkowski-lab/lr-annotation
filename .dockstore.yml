@@ -127,8 +127,17 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: IntegrateVcfs
-    primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
+    name: IntegrateHGSVC
+    primaryDescriptorPath: /wdl/annotation_utils/IntegrateHGSVC.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: IntegrateHPRC
+    primaryDescriptorPath: /wdl/annotation_utils/IntegrateHPRC.wdl
     filters:
       branches:
         - main
