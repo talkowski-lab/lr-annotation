@@ -21,12 +21,7 @@ workflow TruvariMatch {
         
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
-        RuntimeAttr? runtime_attr_run_truvari_09
-        RuntimeAttr? runtime_attr_annotate_matched_09
-        RuntimeAttr? runtime_attr_run_truvari_07
-        RuntimeAttr? runtime_attr_annotate_matched_07
-        RuntimeAttr? runtime_attr_run_truvari_05
-        RuntimeAttr? runtime_attr_annotate_matched_05
+        RuntimeAttr? runtime_attr_run_truvari
         RuntimeAttr? runtime_attr_concat_matched
     }
 
@@ -65,7 +60,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.9",
             prefix = "~{prefix}.0.9",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari_09
+            runtime_attr_override = runtime_attr_run_truvari
     }
 
     call RunTruvari as RunTruvari_07 {
@@ -82,7 +77,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari_07
+            runtime_attr_override = runtime_attr_run_truvari
     }
 
     call RunTruvari as RunTruvari_05 {
@@ -99,7 +94,7 @@ workflow TruvariMatch {
             tag_value = "TRUVARI_0.5",
             prefix = "~{prefix}.0.5",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari_05
+            runtime_attr_override = runtime_attr_run_truvari
     }
 
     call Helpers.ConcatTsvs as ConcatAnnotationTsvs {

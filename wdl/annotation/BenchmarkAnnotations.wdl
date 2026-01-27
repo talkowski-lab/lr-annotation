@@ -44,37 +44,20 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
         RuntimeAttr? runtime_attr_exact_match
-        RuntimeAttr? runtime_attr_annotate_benchmark
-        RuntimeAttr? runtime_attr_merge_vcfs
-        RuntimeAttr? runtime_attr_merge_benchmark_summaries
-        RuntimeAttr? runtime_attr_merge_plot_tarballs
 
         RuntimeAttr? runtime_attr_truvari_subset_eval
         RuntimeAttr? runtime_attr_truvari_subset_truth
-        RuntimeAttr? runtime_attr_truvari_run_truvari_09
-        RuntimeAttr? runtime_attr_truvari_annotate_matched_09
-        RuntimeAttr? runtime_attr_truvari_run_truvari_07
-        RuntimeAttr? runtime_attr_truvari_annotate_matched_07
-        RuntimeAttr? runtime_attr_truvari_run_truvari_05
-        RuntimeAttr? runtime_attr_truvari_annotate_matched_05
+        RuntimeAttr? runtime_attr_truvari_run_truvari
         RuntimeAttr? runtime_attr_truvari_concat_matched
 
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
         RuntimeAttr? runtime_attr_bedtools_split_eval
         RuntimeAttr? runtime_attr_bedtools_split_truth
-        RuntimeAttr? runtime_attr_bedtools_compare_del
-        RuntimeAttr? runtime_attr_bedtools_calcu_del
-        RuntimeAttr? runtime_attr_bedtools_compare_dup
-        RuntimeAttr? runtime_attr_bedtools_calcu_dup
-        RuntimeAttr? runtime_attr_bedtools_compare_ins
-        RuntimeAttr? runtime_attr_bedtools_calcu_ins
-        RuntimeAttr? runtime_attr_bedtools_compare_inv
-        RuntimeAttr? runtime_attr_bedtools_calcu_inv
-        RuntimeAttr? runtime_attr_bedtools_compare_bnd
-        RuntimeAttr? runtime_attr_bedtools_calcu_bnd
+        RuntimeAttr? runtime_attr_bedtools_compare
+        RuntimeAttr? runtime_attr_bedtools_calculate
         RuntimeAttr? runtime_attr_bedtools_merge_comparisons
 
-        RuntimeAttr? runtime_attr_bedtools_annotate_unmatched
+        RuntimeAttr? runtime_attr_build_annotation_tsv
         RuntimeAttr? runtime_attr_collect_matched_ids
         RuntimeAttr? runtime_attr_extract_eval_vep_header
         RuntimeAttr? runtime_attr_extract_truth_vep_header
@@ -82,7 +65,9 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_compute_shard_benchmarks
         RuntimeAttr? runtime_attr_merge_shard_benchmarks
         RuntimeAttr? runtime_attr_compute_summary_for_contig
+        RuntimeAttr? runtime_attr_merge_annotation_tsvs
         RuntimeAttr? runtime_attr_merge_benchmark_summaries
+        RuntimeAttr? runtime_attr_merge_summary_stats
         RuntimeAttr? runtime_attr_merge_plot_tarballs
     }
 
@@ -212,12 +197,7 @@ workflow BenchmarkAnnotations {
                 utils_docker = utils_docker,
                 runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
                 runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
-                runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
-                runtime_attr_annotate_matched_09 = runtime_attr_truvari_annotate_matched_09,
-                runtime_attr_run_truvari_07 = runtime_attr_truvari_run_truvari_07,
-                runtime_attr_annotate_matched_07 = runtime_attr_truvari_annotate_matched_07,
-                runtime_attr_run_truvari_05 = runtime_attr_truvari_run_truvari_05,
-                runtime_attr_annotate_matched_05 = runtime_attr_truvari_annotate_matched_05,
+                runtime_attr_run_truvari = runtime_attr_truvari_run_truvari,
                 runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
@@ -232,16 +212,8 @@ workflow BenchmarkAnnotations {
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
                 runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
                 runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
-                runtime_attr_compare_del = runtime_attr_bedtools_compare_del,
-                runtime_attr_calcu_del = runtime_attr_bedtools_calcu_del,
-                runtime_attr_compare_dup = runtime_attr_bedtools_compare_dup,
-                runtime_attr_calcu_dup = runtime_attr_bedtools_calcu_dup,
-                runtime_attr_compare_ins = runtime_attr_bedtools_compare_ins,
-                runtime_attr_calcu_ins = runtime_attr_bedtools_calcu_ins,
-                runtime_attr_compare_inv = runtime_attr_bedtools_compare_inv,
-                runtime_attr_calcu_inv = runtime_attr_bedtools_calcu_inv,
-                runtime_attr_compare_bnd = runtime_attr_bedtools_compare_bnd,
-                runtime_attr_calcu_bnd = runtime_attr_bedtools_calcu_bnd,
+                runtime_attr_compare = runtime_attr_bedtools_compare,
+                runtime_attr_calculate = runtime_attr_bedtools_calculate,
                 runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
         }
 
@@ -249,7 +221,8 @@ workflow BenchmarkAnnotations {
             input:
                 tsvs = [ExactMatch.annotation_tsv, TruvariMatch.annotation_tsv, BedtoolsClosestSV.annotation_tsv],
                 prefix = "~{prefix}.~{contig}.annotations",
-                docker = benchmark_annotations_docker
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_build_annotation_tsv
         }
 
         call CollectMatchedIDsAndINFO {
@@ -322,7 +295,7 @@ workflow BenchmarkAnnotations {
             tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
             prefix = "~{prefix}.annotations",
             docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_merge_benchmark_summaries
+            runtime_attr_override = runtime_attr_merge_annotation_tsvs
     }
 
     call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
@@ -340,7 +313,7 @@ workflow BenchmarkAnnotations {
             prefix = "~{prefix}.summary_stats",
             preserve_header = true,
             docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_merge_benchmark_summaries
+            runtime_attr_override = runtime_attr_merge_summary_stats
     }
 
     call MergePlotTarballs {

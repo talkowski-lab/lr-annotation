@@ -16,16 +16,8 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
         RuntimeAttr? runtime_attr_split_truth
-        RuntimeAttr? runtime_attr_compare_del
-        RuntimeAttr? runtime_attr_calcu_del
-        RuntimeAttr? runtime_attr_compare_dup
-        RuntimeAttr? runtime_attr_calcu_dup
-        RuntimeAttr? runtime_attr_compare_ins
-        RuntimeAttr? runtime_attr_calcu_ins
-        RuntimeAttr? runtime_attr_compare_inv
-        RuntimeAttr? runtime_attr_calcu_inv
-        RuntimeAttr? runtime_attr_compare_bnd
-        RuntimeAttr? runtime_attr_calcu_bnd
+        RuntimeAttr? runtime_attr_compare
+        RuntimeAttr? runtime_attr_calculate
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
@@ -62,7 +54,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.del_bed,
             svtype = "DEL",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_compare_del
+            runtime_attr_override = runtime_attr_compare
     }
     
     call SelectMatchedSVs as CalcuDEL {
@@ -70,7 +62,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareDEL.output_bed,
             svtype = "DEL",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calcu_del
+            runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.BedtoolsClosest as CompareDUP {
@@ -79,7 +71,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.dup_bed,
             svtype = "DUP",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_compare_dup
+            runtime_attr_override = runtime_attr_compare
     }
     
     call SelectMatchedSVs as CalcuDUP {
@@ -87,7 +79,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareDUP.output_bed,
             svtype = "DUP",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calcu_dup
+            runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.BedtoolsClosest as CompareINS {
@@ -96,7 +88,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.ins_bed,
             svtype = "INS",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_compare_ins
+            runtime_attr_override = runtime_attr_compare
     }
     
     call SelectMatchedINSs as CalcuINS {
@@ -104,7 +96,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareINS.output_bed,
             svtype = "INS",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calcu_ins
+            runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.BedtoolsClosest as CompareINV {
@@ -113,7 +105,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.inv_bed,
             svtype = "INV",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_compare_inv
+            runtime_attr_override = runtime_attr_compare
     }
     
     call SelectMatchedSVs as CalcuINV {
@@ -121,7 +113,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareINV.output_bed,
             svtype = "INV",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calcu_inv
+            runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.BedtoolsClosest as CompareBND {
@@ -130,7 +122,7 @@ workflow BedtoolsClosestSV {
             bed_b = SplitTruth.bnd_bed,
             svtype = "BND",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_compare_bnd
+            runtime_attr_override = runtime_attr_compare
     }
     
     call SelectMatchedINSs as CalcuBND {
@@ -138,7 +130,7 @@ workflow BedtoolsClosestSV {
             input_bed = CompareBND.output_bed,
             svtype = "BND",
             docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calcu_bnd
+            runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.ConcatTsvs {
