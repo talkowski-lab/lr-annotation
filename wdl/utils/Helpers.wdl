@@ -1059,7 +1059,7 @@ task SubsetVcfToCalled {
         fi
 
         bcftools view \
-            -i "ALT != ''.'" \
+            -i "ALT != '.'" \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
 
