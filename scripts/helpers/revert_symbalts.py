@@ -1,42 +1,44 @@
 #!/usr/bin/env python3
 
-
-import sys
+import argparse
 from pysam import VariantFile
 
 
 def main():
-    if len(sys.argv) != 3:
-        sys.stderr.write("Usage: program.py <annotated_vcf> <original_vcf>\n")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="Revert symbolic alleles to their original representation.")
+    parser.add_argument("--input", required=True, help="Path to the annotated VCF (symbolic)")
+    parser.add_argument("--output", required=True, help="Path to output VCF (default: stdout)")
+    parser.add_argument("--original", required=True, help="Path to the original VCF (non-symbolic)")
+    args = parser.parse_args()
 
-    annotated_vcf_path = sys.argv[1]
-    original_vcf_path = sys.argv[2]
+    original_data = {}
 
-    with VariantFile(annotated_vcf_path) as annotated_vcf, VariantFile(
-        original_vcf_path
-    ) as original_vcf:
-        original_data = {}
-        for record in original_vcf.fetch():
-            original_data[record.id] = (record.ref, record.alts, record.info.get("SVLEN"))
+    with VariantFile(args.original) as original_vcf:
+        for record in original_vcf:
+            svlen = record.info.get("SVLEN")
+            if svlen and isinstance(svlen, (list, tuple)):
+                svlen = svlen[0]
+            original_data[record.id] = (record.ref, record.alts, svlen)
 
-        vcf_out = VariantFile("-", "w", header=annotated_vcf.header)
-        for annotated_record in annotated_vcf.fetch():
-            if annotated_record.id in original_data:
-                ref, alts, svlen = original_data[annotated_record.id]
+    vcf_in = VariantFile(args.annotated)
+    vcf_out = VariantFile(args.output, 'w', header=vcf_in.header)
 
-                new_record = annotated_record.copy()
-                new_record.ref = ref
-                new_record.alts = alts
-                if svlen is not None:
-                    new_record.info["SVLEN"] = svlen
+    for record in vcf_in:
+        if record.id in original_data:
+            ref, alts, svlen = original_data[record.id]
 
-                if "BND_ALT" in new_record.info:
-                    del new_record.info["BND_ALT"]
+            record.ref = ref
+            record.alts = alts
+            if svlen is not None:
+                record.info["SVLEN"] = svlen
+            
+            if "BND_ALT" in record.info:
+                del record.info["BND_ALT"]
 
-                vcf_out.write(new_record)
-            else:
-                vcf_out.write(annotated_record)
+        vcf_out.write(record)
+
+    vcf_in.close()
+    vcf_out.close()
 
 
 if __name__ == "__main__":

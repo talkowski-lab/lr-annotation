@@ -7,24 +7,14 @@ import re
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(
-        description="Convert PALMER MEI calls to VCF format."
-    )
+    parser = argparse.ArgumentParser(description="Convert PALMER MEI calls to VCF format.")
     parser.add_argument("--palmer_calls", required=True, help="PALMER calls file")
-    parser.add_argument(
-        "--palmer_tsd_reads", required=True, help="PALMER TSD reads file"
-    )
-    parser.add_argument(
-        "--mei_type", required=True, help="Mobile element type (e.g., ALU, LINE1, SVA)"
-    )
+    parser.add_argument("--palmer_tsd_reads", required=True, help="PALMER TSD reads file")
+    parser.add_argument("--mei_type", required=True, help="Mobile element type (e.g., ALU, LINE1, SVA)")
     parser.add_argument("--sample", required=True, help="Sample name")
     parser.add_argument("--ref_fa", required=True, help="Reference genome FASTA file")
-    parser.add_argument(
-        "--ref_fai", required=True, help="Reference genome FAI index file"
-    )
-    parser.add_argument(
-        "--haplotype", required=True, help="Haplotype genotype (e.g., 1|0 or 0|1)"
-    )
+    parser.add_argument("--ref_fai", required=True, help="Reference genome FAI index file")
+    parser.add_argument("--haplotype", required=True, help="Haplotype genotype (e.g., 1|0 or 0|1)")
     return parser.parse_args()
 
 

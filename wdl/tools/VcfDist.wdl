@@ -70,6 +70,7 @@ workflow VcfDist {
         Array[File] vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
         Array[File] vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
         Array[File] vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
+        Array[File] vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
         Array[File] vcf_dist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
         Array[File] vcf_dist_switchflips_tsv = RunVcfDist.switchflips_tsv
         Array[File] vcf_dist_distance_summary = RunVcfDist.distance_summary

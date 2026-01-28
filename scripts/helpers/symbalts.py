@@ -1,52 +1,44 @@
 #!/usr/bin/env python3
 
-
-import sys
+import argparse
 from pysam import VariantFile
-
 
 NULL_GT = [(0, 0), (None, None), (0, ), (None, ), (None, 0)]
 
-
 def main():
-    if len(sys.argv) != 3:
-        sys.stderr.write("Usage: program.py vcf svtypes_file\n")
-        sys.exit(1)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--svtypes", required=True)
+    args = parser.parse_args()
 
-    vcf_path = sys.argv[1]
-    svtypes_file = sys.argv[2]
-
-    with open(svtypes_file) as f:
+    with open(args.svtypes) as f:
         present_svtypes = set(line.strip() for line in f if line.strip())
 
-    vcf_in = VariantFile(vcf_path)
+    vcf_in = VariantFile(args.input)
     header = vcf_in.header
 
-    if len(present_svtypes) > 0:
+    if 'END' not in vcf_in.header.info:
+        header.add_line('##INFO=<ID=END,Number=.,Type=Integer,Description="End position of the variant">')
+
+    if present_svtypes:
         header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 
     if "BND" in present_svtypes:
-        header.add_line(
-            '##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">'
-        )
+        header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
 
-    alt_definitions = {
-        "DEL": '##ALT=<ID=DEL,Description="Deletion">',
-        "INS": '##ALT=<ID=INS,Description="Insertion">',
-        "DUP": '##ALT=<ID=DUP,Description="Duplication">',
-        "INV": '##ALT=<ID=INV,Description="Inversion">'
-    }
+    for svtype in present_svtypes:
+        alt_id = svtype
+        if alt_id not in header.alts:
+            header.add_line(f'##ALT=<ID={alt_id},Description="{alt_id} variant">')
 
-    for alt_id, alt_line in alt_definitions.items():
-        if alt_id in present_svtypes and alt_id not in header.alts:
-            header.add_line(alt_line)
+    vcf_out = VariantFile(args.output, 'w', header=header)
 
-    vcf_out = VariantFile("-", "w", header=header)
-
-    for rec in vcf_in.fetch():
-        for sample in rec.samples.values():
+    for record in vcf_in:
+        for sample in record.samples.values():
             if sample['GT'] in NULL_GT:
                 continue
+            
             new_gt = []
             for allele in sample['GT']:
                 if allele is None:
@@ -57,24 +49,31 @@ def main():
                     new_gt.append(0)
             sample['GT'] = tuple(new_gt)
 
-        if rec.info["SVTYPE"] == "BND":
-            rec.info["BND_ALT"] = rec.alts[0]
+        if "SVTYPE" in record.info:
+            svtype = record.info["SVTYPE"]
+            if isinstance(svtype, (list, tuple)):
+                svtype = svtype[0]
+            
+            if svtype == "BND":
+                record.info["BND_ALT"] = record.alts[0]
 
-        rec.ref = "N"
-        rec.alts = (f"<{rec.info['SVTYPE']}>", )
+            record.ref = "N"
+            record.alts = (f"<{svtype}>", )
 
-        if "SVLEN" in rec.info:
-            if isinstance(rec.info["SVLEN"], tuple):
-                svlen = abs(rec.info["SVLEN"][0])
+        if "SVLEN" in record.info:
+            svlen = record.info["SVLEN"]
+            if isinstance(svlen, (list, tuple)):
+                svlen = abs(svlen[0])
             else:
-                svlen = abs(rec.info["SVLEN"])
+                svlen = abs(svlen)
 
-            rec.info["SVLEN"] = svlen
-            if rec.info["SVTYPE"] in ["DEL", "DUP", "INV"]:
-                rec.stop = rec.pos + svlen
+            record.info["SVLEN"] = svlen
+            record.stop = record.pos + svlen
 
-        vcf_out.write(rec)
+        vcf_out.write(record)
 
+    vcf_in.close()
+    vcf_out.close()
 
 if __name__ == "__main__":
     main()

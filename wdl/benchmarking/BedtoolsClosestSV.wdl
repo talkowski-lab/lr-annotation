@@ -32,7 +32,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
-    call Helpers.SplitQueryVcf as SplitEval {
+    call SplitQueryVcf as SplitEval {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             prefix = "~{prefix}.eval",
@@ -40,7 +40,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_split_eval
     }
 
-    call Helpers.SplitQueryVcf as SplitTruth {
+    call SplitQueryVcf as SplitTruth {
         input:
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
@@ -157,7 +157,65 @@ workflow BedtoolsClosestSV {
         File closest_bed = ConcatTsvs.concatenated_tsv
         File annotation_tsv = CreateBedtoolsAnnotationTsv.annotation_tsv
     }
-} 
+}
+
+task SplitQueryVcf {
+    input {
+        File vcf
+        File? vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
+        cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
+
+        set +o pipefail
+
+        head -1 ~{prefix}.bed > header
+
+        set -o pipefail
+        
+        cat header <(awk '{if ($5=="DEL") print}' ~{prefix}.bed )> ~{prefix}.DEL.bed
+        cat header <(awk '{if ($5=="DUP") print}' ~{prefix}.bed )> ~{prefix}.DUP.bed
+        cat header <(awk '{if ($5=="INS" || $5=="INS:ME" || $5=="INS:ME:ALU" || $5=="INS:ME:LINE1" || $5=="INS:ME:SVA" || $5=="ALU" || $5=="LINE1" || $5=="SVA" || $5=="HERVK" ) print}' ~{prefix}.bed )> ~{prefix}.INS.bed
+        cat header <(awk '{if ($5=="INV" || $5=="CPX") print}' ~{prefix}.bed )> ~{prefix}.INV_CPX.bed
+        cat header <(awk '{if ($5=="BND" || $5=="CTX") print}' ~{prefix}.bed )> ~{prefix}.BND_CTX.bed
+    >>>
+
+    output {
+        File bed = "~{prefix}.bed"
+        File del_bed = "~{prefix}.DEL.bed"
+        File dup_bed = "~{prefix}.DUP.bed"
+        File ins_bed = "~{prefix}.INS.bed"
+        File inv_bed = "~{prefix}.INV_CPX.bed"
+        File bnd_bed = "~{prefix}.BND_CTX.bed"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
+    }
+}
 
 task SelectMatchedSVs {
     input {
