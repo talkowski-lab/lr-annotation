@@ -15,6 +15,7 @@ workflow IntegrateHGSVC {
         String prefix
 
         Array[String] sample_ids
+        File? sample_swap_list
         String snv_source_tag
         String snv_source_tag_description
         String indel_source_tag
@@ -24,6 +25,7 @@ workflow IntegrateHGSVC {
         
         String utils_docker
 
+        RuntimeAttr? runtime_attr_swap
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_annotate
@@ -32,10 +34,47 @@ workflow IntegrateHGSVC {
         RuntimeAttr? runtime_attr_concat
     }
 
+    if (defined(sample_swap_list)) {
+        call Helpers.SwapSampleIds as SwapSnv {
+            input:
+                vcf = snv_vcf,
+                vcf_idx = snv_vcf_idx,
+                sample_swap_list = select_first([sample_swap_list]),
+                prefix = "~{prefix}.snv.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap
+        }
+        call Helpers.SwapSampleIds as SwapIndel {
+            input:
+                vcf = indel_vcf,
+                vcf_idx = indel_vcf_idx,
+                sample_swap_list = select_first([sample_swap_list]),
+                prefix = "~{prefix}.indel.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap
+        }
+        call Helpers.SwapSampleIds as SwapSv {
+            input:
+                vcf = sv_vcf,
+                vcf_idx = sv_vcf_idx,
+                sample_swap_list = select_first([sample_swap_list]),
+                prefix = "~{prefix}.sv.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap
+        }
+    }
+
+    File snv_vcf_final = select_first([SwapSnv.swapped_vcf, snv_vcf])
+    File snv_vcf_idx_final = select_first([SwapSnv.swapped_vcf_idx, snv_vcf_idx])
+    File indel_vcf_final = select_first([SwapIndel.swapped_vcf, indel_vcf])
+    File indel_vcf_idx_final = select_first([SwapIndel.swapped_vcf_idx, indel_vcf_idx])
+    File sv_vcf_final = select_first([SwapSv.swapped_vcf, sv_vcf])
+    File sv_vcf_idx_final = select_first([SwapSv.swapped_vcf_idx, sv_vcf_idx])
+
     call Helpers.CheckSampleConsistency {
         input:
-            vcfs = [snv_vcf, indel_vcf, sv_vcf],
-            vcfs_idx = [snv_vcf_idx, indel_vcf_idx, sv_vcf_idx],
+            vcfs = [snv_vcf_final, indel_vcf_final, sv_vcf_final],
+            vcfs_idx = [snv_vcf_idx_final, indel_vcf_idx_final, sv_vcf_idx_final],
             sample_ids = sample_ids,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_check_samples
@@ -45,8 +84,8 @@ workflow IntegrateHGSVC {
         # SNV VCF Processing
         call Helpers.SubsetVcfToSampleList as SubsetSnv {
             input:
-                vcf = snv_vcf,
-                vcf_idx = snv_vcf_idx,
+                vcf = snv_vcf_final,
+                vcf_idx = snv_vcf_idx_final,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.snv.subset",
@@ -78,8 +117,8 @@ workflow IntegrateHGSVC {
         # Indel VCF Processing
         call Helpers.SubsetVcfToSampleList as SubsetIndel {
             input:
-                vcf = indel_vcf,
-                vcf_idx = indel_vcf_idx,
+                vcf = indel_vcf_final,
+                vcf_idx = indel_vcf_idx_final,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.indel.subset",
@@ -111,8 +150,8 @@ workflow IntegrateHGSVC {
         # SV VCF Processing
         call Helpers.SubsetVcfToSampleList as SubsetSv {
             input:
-                vcf = sv_vcf,
-                vcf_idx = sv_vcf_idx,
+                vcf = sv_vcf_final,
+                vcf_idx = sv_vcf_idx_final,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.sv.subset",
