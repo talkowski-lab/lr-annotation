@@ -40,7 +40,7 @@ workflow TruvariMatch {
             vcf = vcf_truth,
             vcf_idx = vcf_truth_idx,
             include_args = "abs(ILEN) >= ~{min_svlen_truth}",
-            exclude_args = 'INFO/variant_type="snv"',
+            exclude_args = "INFO/variant_type='snv'",
             prefix = "~{prefix}.subset_truth",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_truth
