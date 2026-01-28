@@ -1,7 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
-import "../utils/Helpers.wdl" as Helpers
+import "../utils/Helpers.wdl"
 import "../benchmarking/BedtoolsClosestSV.wdl"
 import "../benchmarking/TruvariMatch.wdl"
 

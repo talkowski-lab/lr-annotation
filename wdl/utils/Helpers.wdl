@@ -1310,7 +1310,7 @@ task SubsetVcfToCalled {
 task SubsetVcfToContig {
     input {
         File vcf
-        File vcf_idx
+        File? vcf_idx
         String contig
         String? args_string
         Boolean drop_genotypes = false
@@ -1321,6 +1321,10 @@ task SubsetVcfToContig {
 
     command <<<
         set -euo pipefail
+        
+        if ~{!defined(vcf_idx)}; then
+            tabix -p vcf ~{vcf}
+        fi
 
         bcftools view \
             -r ~{contig} \

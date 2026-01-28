@@ -1,6 +1,6 @@
 version 1.0
 
-import "../utils/Helpers.wdl" as Helpers
+import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow IntegrateHPRC {

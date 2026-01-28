@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl"
 
 workflow VcfDist {
     input {
@@ -9,6 +10,7 @@ workflow VcfDist {
         File vcf_truth
         File? vcf_truth_idx
         String prefix
+        Array[String] contigs
 
         File ref_fa
         File? bed_regions
@@ -16,39 +18,64 @@ workflow VcfDist {
         Float? threshold
         String? vcfdist_args
         
+        String utils_docker
         String vcfdist_docker
 
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_vcfdist
     }
 
-    call RunVcfDist {
-        input:
-            vcf_eval = vcf_eval,
-            vcf_eval_idx = vcf_eval_idx,
-            vcf_truth = vcf_truth,
-            vcf_truth_idx = vcf_truth_idx,
-            prefix = prefix,
-            ref_fa = ref_fa,
-            bed_regions = bed_regions,
-            mode = mode,
-            threshold = threshold,
-            docker = vcfdist_docker,
-            runtime_attr_override = runtime_attr_vcfdist,
+    scatter (contig in contigs) {
+        call Helpers.SubsetVcfToContig as SubsetVcfEval {
+            input:
+                vcf = vcf_eval,
+                vcf_idx = vcf_eval_idx,
+                contig = contig,
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_eval
+        }
+
+        call Helpers.SubsetVcfToContig as SubsetVcfTruth {
+            input:
+                vcf = vcf_truth,
+                vcf_idx = vcf_truth_idx,
+                contig = contig,
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_truth
+        }
+
+        call RunVcfDist {
+            input:
+                vcf_eval = SubsetVcfEval.subset_vcf,
+                vcf_eval_idx = SubsetVcfEval.subset_vcf_idx,
+                vcf_truth = SubsetVcfTruth.subset_vcf,
+                vcf_truth_idx = SubsetVcfTruth.subset_vcf_idx,
+                prefix = prefix,
+                ref_fa = ref_fa,
+                bed_regions = bed_regions,
+                mode = mode,
+                threshold = threshold,
+                docker = vcfdist_docker,
+                runtime_attr_override = runtime_attr_vcfdist,
+        }
     }
 
     output {
-        File vcf_dist_summary_vcf = RunVcfDist.summary_vcf
-        File vcf_dist_query_tsv = RunVcfDist.query_tsv
-        File vcf_dist_truth_tsv = RunVcfDist.truth_tsv
-        File vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
-        File vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
-        File vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
-        File vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
-        File vcf_dist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
-        File vcf_dist_switchflips_tsv = RunVcfDist.switchflips_tsv
-        File vcf_dist_distance_summary = RunVcfDist.distance_summary
-        File vcf_dist_distance_tsv = RunVcfDist.distance_tsv
-        File vcf_dist_edits_tsv = RunVcfDist.edits_tsv
+        Array[File] vcf_dist_summary_vcf = RunVcfDist.summary_vcf
+        Array[File] vcf_dist_query_tsv = RunVcfDist.query_tsv
+        Array[File] vcf_dist_truth_tsv = RunVcfDist.truth_tsv
+        Array[File] vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
+        Array[File] vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
+        Array[File] vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
+        Array[File] vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
+        Array[File] vcf_dist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
+        Array[File] vcf_dist_switchflips_tsv = RunVcfDist.switchflips_tsv
+        Array[File] vcf_dist_distance_summary = RunVcfDist.distance_summary
+        Array[File] vcf_dist_distance_tsv = RunVcfDist.distance_tsv
+        Array[File] vcf_dist_edits_tsv = RunVcfDist.edits_tsv
     }
 }
 
@@ -109,9 +136,9 @@ task RunVcfDist {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 4,
+        mem_gb: 8,
         disk_gb: 2 * ceil(size(ref_fa, "GB") + size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
-        boot_disk_gb: 50,
+        boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
     }
