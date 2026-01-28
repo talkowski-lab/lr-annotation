@@ -4,32 +4,33 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 ## Cohort
-- HGSVC3.
+- HGSVC.
 	- Data:
 		- 65 total samples.
 		- 32x aligned reads, produced after downsampling by Fabio.
 		- High coverage assemblies, derived directly from HGSVC.
-		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
 	- Notes:
-		- Metadata file has 67 samples:
+		- The [metadata file](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) has 67 samples:
 			- Misses NA24385 (HG002 in Terra).
 			- Renames NA21487 to GM21487.
 			- Additionally includes GM19320, GM20355 & GM19129.
 		- The base VCFs have 65 samples, renaming HG002 from Terra to NA24385.
-- HPRC2.
+- HPRC.
 	- Data:
 		- 232 total samples.
 		- High coverage aligned reads, produced by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Notes: 
-		- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
+		- The [metadata file](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv) has 234 samples, as it also includes GRC38 and CHM13.
 		- The DeepVariant base VCF has 233 samples, including an additional sample HG03492.
 		- The Jiadong base VCF has 1218 samples, including many additional samples.
-- Additional Notes:
-	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
-	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.
-	- HG03492 is additional samples in the data table that are not attributed to either cohort.
+- Overlapping Samples: 5.
+	- HG002 (NA24385 in HGSVC).
+	- HG00733.
+	- HG02818.
+	- NA19036.
+	- NA19240.
+- HG03492 is an additional sample in the data table that is not attributed to either cohort.
 
 
 
