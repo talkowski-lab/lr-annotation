@@ -1173,10 +1173,10 @@ task SubsetVcfByArgs {
         set -euo pipefail
 
         bcftools view ~{vcf} \
-            ~{if defined(include_args) then "-i ~{include_args}" else ""} \
-            ~{if defined(exclude_args) then "-e ~{exclude_args}" else ""} \
+            ~{if defined(include_args) then '-i ~{include_args}' else ""} \
+            ~{if defined(exclude_args) then '-e ~{exclude_args}' else ""} \
             -Oz -o ~{prefix}.vcf.gz
-                
+        
         tabix -p vcf "~{prefix}.vcf.gz"
     >>>
 
@@ -1218,7 +1218,7 @@ task SubsetVcfBySize {
         RuntimeAttr? runtime_attr_override
     }
 
-    String size_filter = if defined(min_size) && defined(max_size) then "abs(INFO/SVLEN)>=~{min_size} && abs(INFO/SVLEN)<=~{max_size}" else if defined(min_size) then "abs(INFO/SVLEN)>=~{min_size}" else if defined(max_size) then "abs(INFO/SVLEN)<=~{max_size}" else "1==1"
+    String size_filter = if defined(min_size) && defined(max_size) then 'abs(INFO/SVLEN)>=~{min_size} && abs(INFO/SVLEN)<=~{max_size}' else if defined(min_size) then 'abs(INFO/SVLEN)>=~{min_size}' else if defined(max_size) then 'abs(INFO/SVLEN)<=~{max_size}' else '1==1'
 
     command <<<
         set -euo pipefail
