@@ -1174,7 +1174,7 @@ task SubsetVcfByArgs {
 
         bcftools view ~{vcf} \
             ~{if defined(include_args) then "-i '~{include_args}'" else ""} \
-            ~{if defined(exclude_args) then "-e '~{exclude_args}'" else ""} \
+            ~{if defined(exclude_args) && !defined(exclude_args) then "-e '~{exclude_args}'" else ""} \
             -Oz -o ~{prefix}.vcf.gz
         
         tabix -p vcf "~{prefix}.vcf.gz"
