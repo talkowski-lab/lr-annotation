@@ -35,8 +35,8 @@ workflow IntegrateHPRC {
 
     call Helpers.CheckSampleConsistency {
         input:
-            snv_indel_vcf = snv_indel_vcf,
-            sv_vcf = sv_vcf,
+            vcfs = [snv_indel_vcf, sv_vcf],
+            vcfs_idx = [snv_indel_vcf_idx, sv_vcf_idx],
             sample_ids = sample_ids,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_check_samples

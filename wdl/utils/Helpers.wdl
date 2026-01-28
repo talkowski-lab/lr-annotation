@@ -169,13 +169,13 @@ task AnnotateVariantAttributes {
                 calc_type = "DEL"
             }
 
-            var_len = ($5 == ".") ? calc_len : "."
-            var_type = ($6 == ".") ? calc_type : "."
-            sv_len = "."
-            sv_type = "."
+            var_len = ($5 == ".") ? calc_len : $5
+            var_type = ($6 == ".") ? calc_type : $6
+            sv_len = $7
+            sv_type = $8
             if (calc_type == "INS" || calc_type == "DEL") {
-                sv_len = ($7 == ".") ? calc_len : "."
-                sv_type = ($8 == ".") ? calc_type : "."
+                sv_len = ($7 == ".") ? calc_len : $7
+                sv_type = ($8 == ".") ? calc_type : $8
             }
 
             print $1"\t"$2"\t"$3"\t"$4"\t"var_len"\t"var_type"\t"sv_len"\t"sv_type
@@ -354,8 +354,8 @@ CODE
 
 task CheckSampleConsistency {
     input {
-        File snv_indel_vcf
-        File sv_vcf
+        Array[File] vcfs
+        Array[File] vcfs_idx
         Array[String] sample_ids
         String docker
         RuntimeAttr? runtime_attr_override
@@ -364,34 +364,21 @@ task CheckSampleConsistency {
     command <<<
         set -euo pipefail
 
-        printf '%s\n' ~{sep=' ' sample_ids} > requested_samples.txt
+        printf '%s\n' ~{sep=' ' sample_ids} | sort > requested_samples.txt
 
-        bcftools query -l ~{snv_indel_vcf} | sort > snv_indel_samples.txt
-        bcftools query -l ~{sv_vcf} | sort > sv_samples.txt
-
-        missing_in_snv=""
-        missing_in_sv=""
+        vcfs_array=(~{sep=' ' vcfs})
         
-        while read sample; do
-            if ! grep -q "^${sample}$" snv_indel_samples.txt; then
-                missing_in_snv="${missing_in_snv} ${sample}"
+        for vcf in "${vcfs_array[@]}"; do            
+            bcftools query -l "$vcf" | sort > vcf_samples.txt
+            
+            comm -23 requested_samples.txt vcf_samples.txt > missing.txt
+            
+            if [ -s missing.txt ]; then
+                echo "ERROR: The following samples are missing from $vcf:"
+                cat missing.txt
+                exit 1
             fi
-            if ! grep -q "^${sample}$" sv_samples.txt; then
-                missing_in_sv="${missing_in_sv} ${sample}"
-            fi
-        done < requested_samples.txt
-
-        if [ -n "${missing_in_snv}" ]; then
-            echo "ERROR: The following samples are missing from SNV/indel VCF:${missing_in_snv}"
-            exit 1
-        fi
-
-        if [ -n "${missing_in_sv}" ]; then
-            echo "ERROR: The following samples are missing from SV VCF:${missing_in_sv}"
-            exit 1
-        fi
-
-        echo "All requested samples are present in both VCFs"
+        done
     >>>
 
     output {
@@ -401,7 +388,7 @@ task CheckSampleConsistency {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size([snv_indel_vcf, sv_vcf], "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
