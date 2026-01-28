@@ -234,8 +234,15 @@ task BedtoolsClosest {
     command <<<
         set -euo pipefail
         
-        paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) | sed -e "s/#//g" > ~{svtype}.bed
-        bedtools closest -wo -a <(sort -k1,1 -k2,2n ~{bed_a}) -b <(sort -k1,1 -k2,2n ~{bed_b}) >> ~{svtype}.bed
+        paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) \
+            | sed -e "s/#//g" 
+            > ~{svtype}.bed
+
+        bedtools closest \
+            -wo \
+            -a <(sort -k1,1 -k2,2n ~{bed_a}) \
+            -b <(sort -k1,1 -k2,2n ~{bed_b}) \
+            >> ~{svtype}.bed
     >>>
 
     output {

@@ -80,7 +80,7 @@ workflow BenchmarkAnnotations {
                 args_string = args_string_vcf,
                 drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.eval",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_eval
         }
 
@@ -92,7 +92,7 @@ workflow BenchmarkAnnotations {
                 args_string = args_string_vcf_truth,
                 drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.truth",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_truth
         }
 
@@ -104,7 +104,7 @@ workflow BenchmarkAnnotations {
                 args_string = args_string_vcf_sv_truth,
                 drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.sv_truth",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
         }
 
@@ -116,7 +116,7 @@ workflow BenchmarkAnnotations {
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     prefix = "~{prefix}.~{contig}.eval.renamed",
-                    docker = benchmark_annotations_docker,
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_eval
             }
         }
@@ -129,7 +129,7 @@ workflow BenchmarkAnnotations {
                     id_format = select_first([rename_id_string_vcf_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_truth, false]),
                     prefix = "~{prefix}.~{contig}.truth.renamed",
-                    docker = benchmark_annotations_docker,
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_truth
             }
         }
@@ -142,7 +142,7 @@ workflow BenchmarkAnnotations {
                     id_format = select_first([rename_id_string_vcf_sv_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_sv_truth, false]),
                     prefix = "~{prefix}.~{contig}.sv_truth.renamed",
-                    docker = benchmark_annotations_docker,
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_sv_truth
             }
         }
@@ -159,7 +159,7 @@ workflow BenchmarkAnnotations {
                 vcf = truth_vcf_final,
                 vcf_idx = truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}.truth",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_truth_vep_header
         }
 
@@ -168,7 +168,7 @@ workflow BenchmarkAnnotations {
                 vcf = eval_vcf_final,
                 vcf_idx = eval_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}.eval",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_eval_vep_header
         }
 
@@ -179,7 +179,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth = truth_vcf_final,
                 vcf_truth_idx = truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_exact_match
         }
 
@@ -209,6 +209,7 @@ workflow BenchmarkAnnotations {
                 vcf_sv_truth_idx = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
                 bedtools_closest_docker = benchmark_annotations_docker,
+                utils_docker = utils_docker,
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
                 runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
                 runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
@@ -221,7 +222,7 @@ workflow BenchmarkAnnotations {
             input:
                 tsvs = [ExactMatch.annotation_tsv, TruvariMatch.annotation_tsv, BedtoolsClosestSV.annotation_tsv],
                 prefix = "~{prefix}.~{contig}.annotations",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_build_annotation_tsv
         }
 
@@ -235,7 +236,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth_sv = sv_truth_vcf_final,
                 vcf_truth_sv_idx = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_collect_matched_ids
         }
 
@@ -244,7 +245,7 @@ workflow BenchmarkAnnotations {
                 matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                 variants_per_shard = variants_per_shard,
                 prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_shard_matched_eval
         }
 
@@ -294,7 +295,7 @@ workflow BenchmarkAnnotations {
         input:
             tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
             prefix = "~{prefix}.annotations",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_annotation_tsvs
     }
 
@@ -303,7 +304,7 @@ workflow BenchmarkAnnotations {
             tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
             prefix = "~{prefix}.benchmark_summary",
             preserve_header = true,
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_benchmark_summaries
     }
 
@@ -312,7 +313,7 @@ workflow BenchmarkAnnotations {
             tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
             prefix = "~{prefix}.summary_stats",
             preserve_header = true,
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_summary_stats
     }
 
@@ -320,7 +321,7 @@ workflow BenchmarkAnnotations {
         input:
             tarballs = select_all(MergeShardBenchmarks.plot_tarball),
             prefix = prefix,
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
     }
 

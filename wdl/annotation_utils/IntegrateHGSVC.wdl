@@ -44,6 +44,7 @@ workflow IntegrateHGSVC {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_swap
         }
+
         call Helpers.SwapSampleIds as SwapIndel {
             input:
                 vcf = indel_vcf,
@@ -53,6 +54,7 @@ workflow IntegrateHGSVC {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_swap
         }
+        
         call Helpers.SwapSampleIds as SwapSv {
             input:
                 vcf = sv_vcf,

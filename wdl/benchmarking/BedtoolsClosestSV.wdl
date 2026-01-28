@@ -12,6 +12,7 @@ workflow BedtoolsClosestSV {
         String prefix
         
         String bedtools_closest_docker
+        String utils_docker
         
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
@@ -27,7 +28,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = vcf_eval_idx,
             prefix = "~{prefix}.eval.symbolic",
             drop_genotypes = true,
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
@@ -53,7 +54,7 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.del_bed,
             bed_b = SplitTruth.del_bed,
             svtype = "DEL",
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
     
@@ -70,7 +71,7 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.dup_bed,
             bed_b = SplitTruth.dup_bed,
             svtype = "DUP",
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
     
@@ -87,7 +88,7 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.ins_bed,
             bed_b = SplitTruth.ins_bed,
             svtype = "INS",
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
     
@@ -104,7 +105,7 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.inv_bed,
             bed_b = SplitTruth.inv_bed,
             svtype = "INV",
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
     
@@ -121,7 +122,7 @@ workflow BedtoolsClosestSV {
             bed_a = SplitEval.bnd_bed,
             bed_b = SplitTruth.bnd_bed,
             svtype = "BND",
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
     
@@ -138,7 +139,7 @@ workflow BedtoolsClosestSV {
             tsvs = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             prefix = "~{prefix}.comparison",
             skip_sort = true,
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
@@ -148,7 +149,7 @@ workflow BedtoolsClosestSV {
             truvari_unmatched_vcf_idx = vcf_eval_idx,
             closest_bed = ConcatTsvs.concatenated_tsv,
             prefix = prefix,
-            docker = bedtools_closest_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
@@ -170,6 +171,7 @@ task SelectMatchedSVs {
 
     command <<<
         set -euo pipefail
+
         Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
@@ -211,6 +213,8 @@ task SelectMatchedINSs {
     String prefix = basename(input_bed, ".bed")
 
     command <<<
+        set -euo pipefail
+        
         Rscript /opt/gnomad-lr/scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
@@ -255,7 +259,8 @@ task CreateBedtoolsAnnotationTsv {
         set -euo pipefail
 
         awk -F'\t' 'NR>1 && $NF!="NA" {print $1"\t"$2"\t"$3"\t"$4"\t"$5"\tBEDTOOLS_CLOSEST\t"$NF"\tSV"}' \
-            ~{closest_bed} > ~{prefix}.bedtools_matched.tsv
+            ~{closest_bed} \
+            > ~{prefix}.bedtools_matched.tsv
     >>>
 
     output {
