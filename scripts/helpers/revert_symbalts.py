@@ -31,7 +31,7 @@ def main():
             record.alts = alts
             if svlen is not None:
                 record.info["SVLEN"] = svlen
-            
+
             if "BND_ALT" in record.info:
                 del record.info["BND_ALT"]
 

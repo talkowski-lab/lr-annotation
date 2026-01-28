@@ -5,6 +5,7 @@ from pysam import VariantFile
 
 NULL_GT = [(0, 0), (None, None), (0, ), (None, ), (None, 0)]
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
@@ -38,7 +39,7 @@ def main():
         for sample in record.samples.values():
             if sample['GT'] in NULL_GT:
                 continue
-            
+
             new_gt = []
             for allele in sample['GT']:
                 if allele is None:
@@ -53,7 +54,7 @@ def main():
             svtype = record.info["SVTYPE"]
             if isinstance(svtype, (list, tuple)):
                 svtype = svtype[0]
-            
+
             if svtype == "BND":
                 record.info["BND_ALT"] = record.alts[0]
 
@@ -74,6 +75,7 @@ def main():
 
     vcf_in.close()
     vcf_out.close()
+
 
 if __name__ == "__main__":
     main()

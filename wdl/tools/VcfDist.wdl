@@ -126,6 +126,7 @@ task RunVcfDist {
         File superclusters_tsv = "results/~{prefix}.superclusters.tsv"
         File precision_recall_summary_tsv = "results/~{prefix}.precision-recall-summary.tsv"
         File precision_recall_tsv = "results/~{prefix}.precision-recall.tsv"
+        File phase_blocks_tsv = "results/~{prefix}.phase-blocks.tsv"
         File phasing_summary_tsv = "results/~{prefix}.phasing-summary.tsv"
         File switchflips_tsv = "results/~{prefix}.switchflips.tsv"
         File distance_summary = "results/~{prefix}.distance-summary.tsv"
