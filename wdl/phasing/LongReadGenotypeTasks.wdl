@@ -766,6 +766,7 @@ task ConcatVcfs {
     maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
     docker: sv_base_mini_docker
     bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+    zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
   }
 
   command <<<

@@ -227,6 +227,7 @@ task SubsetVCF {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
         docker: select_first([runtime_attr.docker,  default_attr.docker])
+        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -278,6 +279,7 @@ task SyncContigs {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
         docker: select_first([runtime_attr.docker, default_attr.docker])
+        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -359,6 +361,7 @@ task HiPhase {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
         docker: select_first([runtime_attr.docker, default_attr.docker])
+        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -446,5 +449,6 @@ task HiPhaseTRGT {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
         docker: select_first([runtime_attr.docker, default_attr.docker])
+        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }

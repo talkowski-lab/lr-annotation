@@ -50,7 +50,7 @@ workflow PhysicalPhasing {
         }
     }
 
-    call LongReadGenotypeTasks.ConcatVcfs as concat_hiphase_vcf {
+    call LongReadGenotypeTasks.ConcatVcfs {
         input:
             vcfs = PhysicalPhasingPerContig.hiphase_vcf,
             vcfs_idx = PhysicalPhasingPerContig.hiphase_vcf_idx,
@@ -59,8 +59,8 @@ workflow PhysicalPhasing {
     }
 
     output {
-        File hiphase_vcf = concat_hiphase_vcf.concat_vcf
-        File hiphase_vcf_idx = concat_hiphase_vcf.concat_vcf_idx
+        File hiphase_vcf = ConcatVcfs.concat_vcf
+        File hiphase_vcf_idx = ConcatVcfs.concat_vcf_idx
         Array[File] haplotag_files = PhysicalPhasingPerContig.hiphase_haplotag_file
         Array[File] hiphase_stats = PhysicalPhasingPerContig.hiphase_stats
         Array[File] hiphase_blocks = PhysicalPhasingPerContig.hiphase_blocks
