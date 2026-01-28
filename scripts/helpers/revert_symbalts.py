@@ -6,9 +6,9 @@ from pysam import VariantFile
 
 def main():
     parser = argparse.ArgumentParser(description="Revert symbolic alleles to their original representation.")
-    parser.add_argument("--input", required=True, help="Path to the annotated VCF (symbolic)")
-    parser.add_argument("--output", required=True, help="Path to output VCF (default: stdout)")
+    parser.add_argument("--annotated", required=True, help="Path to the annotated VCF (symbolic)")
     parser.add_argument("--original", required=True, help="Path to the original VCF (non-symbolic)")
+    parser.add_argument("--output", required=True, help="Path to output VCF (non-symbolic)")
     args = parser.parse_args()
 
     original_data = {}

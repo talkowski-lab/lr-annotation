@@ -18,12 +18,12 @@ workflow AnnotateSVAnnotate {
         String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_preprocess
+        RuntimeAttr? runtime_attr_convert_symbolic
         RuntimeAttr? runtime_attr_annotate_func
         RuntimeAttr? runtime_attr_concat_unannotated
         RuntimeAttr? runtime_attr_concat_annotated
         RuntimeAttr? runtime_attr_merge
-        RuntimeAttr? runtime_attr_postprocess
+        RuntimeAttr? runtime_attr_revert_symbolic
     }
 
     scatter (contig in contigs) {
@@ -33,24 +33,24 @@ workflow AnnotateSVAnnotate {
                 vcf_idx = vcf_idx,
                 locus = contig,
                 min_size = min_svlen,
-                prefix = "~{prefix}.~{contig}.annotate",
+                prefix = "~{prefix}.~{contig}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.ConvertToSymbolic as PreprocessVcf {
+        call Helpers.ConvertToSymbolic {
             input:
                 vcf = SubsetVcfAnnotated.subset_vcf,
                 vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.preprocessed",
+                prefix = "~{prefix}.~{contig}.converted",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_preprocess
+                runtime_attr_override = runtime_attr_convert_symbolic
         }
 
         call AnnotateFunctionalConsequences {
             input:
-                vcf = PreprocessVcf.processed_vcf,
-                vcf_idx = PreprocessVcf.processed_vcf_idx,
+                vcf = ConvertToSymbolic.processed_vcf,
+                vcf_idx = ConvertToSymbolic.processed_vcf_idx,
                 noncoding_bed = noncoding_bed,
                 coding_gtf = coding_gtf,
                 prefix = "~{prefix}.~{contig}.functionally_annotated",
@@ -58,21 +58,21 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_annotate_func
         }
 
-        call Helpers.RevertSymbolicAlleles as PostprocessVcf {
+        call Helpers.RevertSymbolicAlleles {
             input:
                 annotated_vcf = AnnotateFunctionalConsequences.anno_vcf,
                 annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
                 original_vcf = SubsetVcfAnnotated.subset_vcf,
                 original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.postprocessed",
+                prefix = "~{prefix}.~{contig}.reverted",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_postprocess
+                runtime_attr_override = runtime_attr_revert_symbolic
         }
 
         call Helpers.ExtractVcfAnnotations as ExtractAnnotations {
             input:
-                vcf = PostprocessVcf.reverted_vcf,
-                vcf_idx = PostprocessVcf.reverted_vcf_idx,
+                vcf = RevertSymbolicAlleles.reverted_vcf,
+                vcf_idx = RevertSymbolicAlleles.reverted_vcf_idx,
                 original_vcf = SubsetVcfAnnotated.subset_vcf,
                 original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",

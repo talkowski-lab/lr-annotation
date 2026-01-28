@@ -945,9 +945,9 @@ task RevertSymbolicAlleles {
         set -euo pipefail
 
         python3 /opt/gnomad-lr/scripts/helpers/revert_symbalts.py \
-            --input ~{annotated_vcf} \
-            --output ~{prefix}.vcf.gz \
-            --original ~{original_vcf}
+            --annotated ~{annotated_vcf} \
+            --original ~{original_vcf} \
+            --output ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
