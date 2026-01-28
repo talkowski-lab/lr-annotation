@@ -64,18 +64,15 @@ workflow VcfDist {
     }
 
     output {
-        Array[File] vcf_dist_summary_vcf = RunVcfDist.summary_vcf
-        Array[File] vcf_dist_query_tsv = RunVcfDist.query_tsv
-        Array[File] vcf_dist_truth_tsv = RunVcfDist.truth_tsv
-        Array[File] vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
-        Array[File] vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
-        Array[File] vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
-        Array[File] vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
         Array[File] vcf_dist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
         Array[File] vcf_dist_switchflips_tsv = RunVcfDist.switchflips_tsv
-        Array[File] vcf_dist_distance_summary = RunVcfDist.distance_summary
-        Array[File] vcf_dist_distance_tsv = RunVcfDist.distance_tsv
-        Array[File] vcf_dist_edits_tsv = RunVcfDist.edits_tsv
+        Array[File] vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
+        Array[File] vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
+        Array[File] vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
+        Array[File] vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
+        Array[File] vcf_dist_query_tsv = RunVcfDist.query_tsv
+        Array[File] vcf_dist_truth_tsv = RunVcfDist.truth_tsv
+        Array[File] vcf_dist_summary_vcf = RunVcfDist.summary_vcf
     }
 }
 
@@ -120,18 +117,15 @@ task RunVcfDist {
     >>>
 
     output {
-        File summary_vcf = "results/~{prefix}.summary.vcf"
-        File query_tsv = "results/~{prefix}.query.tsv"
-        File truth_tsv = "results/~{prefix}.truth.tsv"
-        File superclusters_tsv = "results/~{prefix}.superclusters.tsv"
-        File precision_recall_summary_tsv = "results/~{prefix}.precision-recall-summary.tsv"
-        File precision_recall_tsv = "results/~{prefix}.precision-recall.tsv"
-        File phase_blocks_tsv = "results/~{prefix}.phase-blocks.tsv"
         File phasing_summary_tsv = "results/~{prefix}.phasing-summary.tsv"
         File switchflips_tsv = "results/~{prefix}.switchflips.tsv"
-        File distance_summary = "results/~{prefix}.distance-summary.tsv"
-        File distance_tsv = "results/~{prefix}.distance.tsv"
-        File edits_tsv = "results/~{prefix}.edits.tsv"
+        File precision_recall_tsv = "results/~{prefix}.precision-recall.tsv"
+        File precision_recall_summary_tsv = "results/~{prefix}.precision-recall-summary.tsv"
+        File phase_blocks_tsv = "results/~{prefix}.phase-blocks.tsv"
+        File superclusters_tsv = "results/~{prefix}.superclusters.tsv"
+        File query_tsv = "results/~{prefix}.query.tsv"
+        File truth_tsv = "results/~{prefix}.truth.tsv"
+        File summary_vcf = "results/~{prefix}.summary.vcf"
     }
 
     RuntimeAttr default_attr = object {
