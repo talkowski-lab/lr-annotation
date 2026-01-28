@@ -1427,11 +1427,16 @@ task SwapSampleIds {
     command <<<
         set -euo pipefail
 
+        bcftools query -l ~{vcf} > current_samples.txt
+
+        awk 'FNR==NR {swap[$1]=$2; next} {if ($1 in swap) print swap[$1]; else print $1}' \
+            ~{sample_swap_list} current_samples.txt > new_samples.txt
+
         bcftools reheader \
-            --samples-file ~{sample_swap_list} \
+            --samples new_samples.txt \
             -Oz -o ~{prefix}.vcf.gz \
             ~{vcf}
-                
+        
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
