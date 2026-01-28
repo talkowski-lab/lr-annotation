@@ -207,9 +207,18 @@ task AnnotateTRVariants {
 
         tabix -s 1 -b 2 -e 2 annotations.tsv.gz
 
-        bcftools view -h ~{vcf} | grep -v 'ID=AL,' > vcf_no_al_header.txt
-        bcftools reheader -h vcf_no_al_header.txt ~{vcf} > vcf_stripped.vcf.gz
-        bcftools view -h ~{tr_vcf} | grep 'ID=AL,' > al_header.txt || true
+        bcftools view \
+            -h ~{vcf} \
+        | grep -v 'ID=AL,' > vcf_no_al_header.txt
+
+        bcftools view \
+            -h ~{tr_vcf} \
+        | grep 'ID=AL,' > al_header.txt || true
+
+        bcftools reheader \
+            -h vcf_no_al_header.txt \
+            ~{vcf} \
+        > vcf_stripped.vcf.gz
 
         cat <<EOF > new_header.txt
 ##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Source of tandem repeat">

@@ -11,7 +11,11 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- High coverage assemblies, derived directly from HGSVC.
 		- [Samples](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
 	- Notes:
-		- Metadata file has 67 samples, though it misses NA24385 (HG002 in Terra) from its VCF, renames NA21487 from its VCF to GM21487 and additionally includes GM19320, GM20355 & GM19129.
+		- Metadata file has 67 samples:
+			- Misses NA24385 (HG002 in Terra).
+			- Renames NA21487 to GM21487.
+			- Additionally includes GM19320, GM20355 & GM19129.
+		- The base VCFs have 65 samples, renaming HG002 from Terra to NA24385.
 - HPRC2.
 	- Data:
 		- 232 total samples.
@@ -20,8 +24,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- [Samples](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 	- Notes: 
 		- Metadata file has 234 samples, as it also includes GRC38 and CHM13.
-		- HPRC's base VCF has 233 samples, including an additional sample HG03492.
-		- Jiadong's base VCF has 1218 samples, including many additional samples.
+		- The DeepVariant base VCF has 233 samples, including an additional sample HG03492.
+		- The Jiadong base VCF has 1218 samples, including many additional samples.
 - Additional Notes:
 	- Overlapping Samples: 5 (HG002, HG00733, HG02818, NA19036, NA19240).
 	- Mismatched Samples: NA24385 in HGSVC3 is named HG002 in HPRC.

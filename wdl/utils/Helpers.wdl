@@ -84,8 +84,10 @@ task AddInfo {
 
         echo '##INFO=<ID=~{tag_id},Number=1,Type=String,Description="~{tag_description}">' > header.lines
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' ~{vcf} | \
-        bgzip -c > annotations.txt.gz
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' \
+            ~{vcf} \
+        | bgzip -c > annotations.txt.gz
         
         tabix -s1 -b2 -e2 annotations.txt.gz
 
@@ -1434,8 +1436,8 @@ task SwapSampleIds {
 
         bcftools reheader \
             --samples new_samples.txt \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{vcf}
+            ~{vcf} \
+        > ~{prefix}.vcf.gz
         
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
