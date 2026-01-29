@@ -121,7 +121,7 @@ task ProcessWithTRGT {
         mem_gb: 6,
         disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB") + size(repeat_catalog_trgt, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

@@ -220,7 +220,7 @@ task SplitBam {
 		mem_gb: 4,
 		disk_gb: 3 * ceil(size(bam, "GB")) + 10,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -284,7 +284,7 @@ task RunPALMERShard {
 		mem_gb: 4,
 		disk_gb: 4,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -333,7 +333,7 @@ task MergePALMEROutputs {
 		mem_gb: 4,
 		disk_gb: 2 * ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) + 10,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -388,7 +388,7 @@ task ConvertPALMERToVcf {
 		mem_gb: 4,
 		disk_gb: 5 * ceil(size(palmer_calls, "GB") + size(palmer_tsd_reads, "GB") + size(ref_fa, "GB")) + 10,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -455,7 +455,7 @@ task TruvariCollapse {
 		mem_gb: 4,
 		disk_gb: 3 * ceil(size(vcf_pat, "GB") + size(vcf_mat, "GB")) + 10,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -496,7 +496,7 @@ task ConcatSortVcfs {
 		mem_gb: 4,
 		disk_gb: 3 * ceil(size(vcfs, "GB")) + 5,
 		boot_disk_gb: 10,
-		preemptible_tries: 1,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

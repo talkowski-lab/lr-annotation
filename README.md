@@ -297,7 +297,7 @@ TODO
 - Every command block within a task should begin with `set -euo pipefail` followed by a blank line.
 - The default `disk_size` for a task should be calculated dynamically based on the largest sized input file - or multiple if there are several large inputs, like multiple reference fastas or input catalogs. It should be defined in-line in the default runtime attributes section, unless it is a complicated function in which it can have a dedicated variable `disk_size`.
 - The default `mem_gb`, `boot_disk_gb` and `compute_cores` for a task should be explicitly defined rather than based on an input file - it should be set based on the intensity of compute needed by that task.
-- The default `preemptible_tries` for a task should always be 1.
+- The default `preemptible_tries` for a task should always be 2.
 - The default `max_retries` for a task should always be 0.
 - The names of workflows and tasks should never include a `_` character within them - rather, they should always be in Pascal case.
 - The names of inputs, variables and outputs should include a `_` to separate words, and be entirely lowercase unless they refer to a noun that is capitalized (e.g. PALMER or L1MEAID) - i.e. they should always be in snake case.

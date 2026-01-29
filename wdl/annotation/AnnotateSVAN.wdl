@@ -211,7 +211,7 @@ task SeparateInsertionsDeletions {
         mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) * 2 + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -269,7 +269,7 @@ task GenerateTRF {
         mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) * 3 + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -311,7 +311,7 @@ task RunSvanAnnotation {
         mem_gb: 16,
         disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_fa_amb, "GB") + size(mei_fa_ann, "GB") + size(mei_fa_bwt, "GB") + size(mei_fa_pac, "GB") + size(mei_fa_sa, "GB") + size(mei_fa_mmi, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

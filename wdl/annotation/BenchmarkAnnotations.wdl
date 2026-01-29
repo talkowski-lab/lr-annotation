@@ -78,6 +78,7 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_eval_idx,
                 contig = contig,
                 args_string = args_string_vcf,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_eval
@@ -89,6 +90,7 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_truth,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_truth
@@ -100,6 +102,7 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_sv_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_sv_truth,
+                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
@@ -386,7 +389,7 @@ task ExactMatch {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -478,7 +481,7 @@ EOF
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -521,7 +524,7 @@ task ExtractVepHeader {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -568,7 +571,7 @@ task ShardedMatchedVariants {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(matched_with_info_tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -626,7 +629,7 @@ task ComputeShardBenchmarks {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(matched_shard_tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -675,7 +678,7 @@ task MergeShardBenchmarks {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(af_pair_tsvs[0], "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -728,7 +731,7 @@ task ComputeSummaryForContig {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(eval_vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -774,7 +777,7 @@ task MergePlotTarballs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tarballs, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
