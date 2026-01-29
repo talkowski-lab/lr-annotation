@@ -269,9 +269,27 @@ task CreateBedtoolsAnnotationTsv {
     command <<<
         set -euo pipefail
 
-        awk -F'\t' 'NR>1 && $NF!="NA" {print $1"\t"$2"\t"$3"\t"$4"\t"$5"\tBEDTOOLS_CLOSEST\t"$NF"\tSV"}' \
-            ~{closest_bed} \
-            > ~{prefix}.bedtools_matched.tsv
+        export LC_ALL=C
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{truvari_unmatched_vcf} \
+        | sort -k5,5 > vcf_info.tsv
+
+        grep -v "query_svid" ~{closest_bed} \
+            | awk -F'\t' '$1 != "" {print $1"\t"$2}' \
+            | sort -k1,1 > matched_ids.tsv
+        
+        join \
+            -1 5 \
+            -2 1 \
+            -t $'\t' \
+            vcf_info.tsv \
+            matched_ids.tsv \
+            > joined.tsv
+
+        awk -F'\t' 'BEGIN{OFS="\t"} {
+            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV"
+        }' joined.tsv > ~{prefix}.bedtools_matched.tsv
     >>>
 
     output {
@@ -281,7 +299,7 @@ task CreateBedtoolsAnnotationTsv {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 10,
+        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(closest_bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 0
