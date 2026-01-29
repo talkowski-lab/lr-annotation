@@ -15,19 +15,20 @@ workflow MergePhysicallyPhasedVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
+
         Array[String] regions
         Int batch_size
-        String output_prefix
+        String prefix
         String extra_merge_args = "--threads $(nproc) --force-single --merge none"
         String extra_concat_args = "--threads $(nproc) --naive"
         Boolean use_ivcfmerge
         Array[String]? sample_names
 
-        RuntimeAttributes merge_runtime_attributes = {}
-        RuntimeAttributes concat_runtime_attributes = {}
-
         String docker
         File? monitoring_script
+
+        RuntimeAttributes merge_runtime_attributes = {}
+        RuntimeAttributes concat_runtime_attributes = {}
     }
 
     call CreateBatches {
@@ -45,7 +46,7 @@ workflow MergePhysicallyPhasedVcfs {
                     input:
                         vcfs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
                         vcf_idxs = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
-                        output_prefix = output_prefix + ".batch-" + i + ".region-" + i,
+                        prefix = prefix + ".batch-" + i + ".region-" + i,
                         sample_names = select_first([sample_names]),
                         region_args = "-r " + regions[j],
                         docker = docker,
@@ -62,7 +63,7 @@ workflow MergePhysicallyPhasedVcfs {
                     input:
                         vcfs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
                         vcf_idxs = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
-                        output_prefix = output_prefix + ".batch-" + i + ".region-" + i,
+                        prefix = prefix + ".batch-" + i + ".region-" + i,
                         extra_args = "-r " + regions[j] + " " + extra_merge_args,
                         docker = docker,
                         monitoring_script = monitoring_script,
@@ -81,7 +82,7 @@ workflow MergePhysicallyPhasedVcfs {
                 input:
                     vcfs = region_by_batch_vcfs[j],
                     vcf_idxs = region_by_batch_vcf_idxs[j],
-                    output_prefix = output_prefix + ".region-" + j,
+                    prefix = prefix + ".region-" + j,
                     sample_names = select_first([sample_names]),
                     docker = docker,
                     monitoring_script = monitoring_script,
@@ -95,7 +96,7 @@ workflow MergePhysicallyPhasedVcfs {
                 input:
                     vcfs = region_by_batch_vcfs[j],
                     vcf_idxs = region_by_batch_vcf_idxs[j],
-                    output_prefix = output_prefix + ".region-" + j,
+                    prefix = prefix + ".region-" + j,
                     extra_args = extra_merge_args,
                     docker = docker,
                     monitoring_script = monitoring_script,
@@ -108,7 +109,7 @@ workflow MergePhysicallyPhasedVcfs {
         input:
             vcfs = select_first([IvcfmergeSingleRegion.merged_vcf_gz, MergeVcfsSingleRegion.merged_vcf_gz]),
             vcf_idxs = select_first([IvcfmergeSingleRegion.merged_vcf_gz_tbi, MergeVcfsSingleRegion.merged_vcf_gz_tbi]),
-            output_prefix = output_prefix,
+            prefix = prefix,
             extra_args = extra_concat_args,
             docker = docker,
             monitoring_script = monitoring_script,
@@ -158,7 +159,7 @@ task MergeVcfs {
     input{
         Array[File] vcfs
         Array[File] vcf_idxs
-        String output_prefix
+        String prefix
         String? extra_args
 
         String docker
@@ -179,14 +180,14 @@ task MergeVcfs {
         bcftools merge \
             -l ~{write_lines(vcfs)} \
             ~{extra_args} \
-            -Oz -o ~{output_prefix}.vcf.gz
-        bcftools index -t ~{output_prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
+        bcftools index -t ~{prefix}.vcf.gz
     }
 
     output {
         File monitoring_log = "monitoring.log"
-        File merged_vcf_gz = "~{output_prefix}.vcf.gz"
-        File merged_vcf_gz_tbi = "~{output_prefix}.vcf.gz.tbi"
+        File merged_vcf_gz = "~{prefix}.vcf.gz"
+        File merged_vcf_gz_tbi = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {
@@ -207,7 +208,7 @@ task Ivcfmerge {
         Array[File] vcfs
         Array[File] vcf_idxs
         Array[String] sample_names
-        String output_prefix
+        String prefix
         String? region_args
 
         String docker
@@ -234,21 +235,21 @@ task Ivcfmerge {
 
         if [ $(ls compressed/*.vcf.gz | wc -l) == 1 ]
         then
-            cp $(ls compressed/*.vcf.gz) ~{output_prefix}.vcf.gz
-            cp $(ls compressed/*.vcf.gz.tbi) ~{output_prefix}.vcf.gz.tbi
+            cp $(ls compressed/*.vcf.gz) ~{prefix}.vcf.gz
+            cp $(ls compressed/*.vcf.gz.tbi) ~{prefix}.vcf.gz.tbi
         else
             mkdir decompressed
             ls compressed/*.vcf.gz | xargs -I % sh -c 'bcftools annotate --no-version ~{region_args} -x INFO % --threads 2 -Ov -o decompressed/$(basename % .gz)'
-            time python ivcfmerge-1.0.0/ivcfmerge.py <(ls decompressed/*.vcf) ~{output_prefix}.vcf
-            bcftools annotate --no-version -S ~{write_lines(sample_names)} -x FORMAT/FT ~{output_prefix}.vcf --threads 2 -Oz -o ~{output_prefix}.vcf.gz
-            bcftools index -t ~{output_prefix}.vcf.gz
+            time python ivcfmerge-1.0.0/ivcfmerge.py <(ls decompressed/*.vcf) ~{prefix}.vcf
+            bcftools annotate --no-version -S ~{write_lines(sample_names)} -x FORMAT/FT ~{prefix}.vcf --threads 2 -Oz -o ~{prefix}.vcf.gz
+            bcftools index -t ~{prefix}.vcf.gz
         fi
     }
 
     output {
         File monitoring_log = "monitoring.log"
-        File merged_vcf_gz = "~{output_prefix}.vcf.gz"
-        File merged_vcf_gz_tbi = "~{output_prefix}.vcf.gz.tbi"
+        File merged_vcf_gz = "~{prefix}.vcf.gz"
+        File merged_vcf_gz_tbi = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {
@@ -266,7 +267,7 @@ task ConcatVcfs {
     input{
         Array[File] vcfs
         Array[File] vcf_idxs
-        String output_prefix
+        String prefix
         String? extra_args
 
         String docker
@@ -287,14 +288,14 @@ task ConcatVcfs {
         bcftools concat \
             -f ~{write_lines(vcfs)} \
             ~{extra_args} \
-            -Oz -o ~{output_prefix}.vcf.gz
-        bcftools index -t --threads $(nproc) ~{output_prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
+        bcftools index -t --threads $(nproc) ~{prefix}.vcf.gz
     }
 
     output {
         File monitoring_log = "monitoring.log"
-        File concatenated_vcf_gz = "~{output_prefix}.vcf.gz"
-        File concatenated_vcf_gz_tbi = "~{output_prefix}.vcf.gz.tbi"
+        File concatenated_vcf_gz = "~{prefix}.vcf.gz"
+        File concatenated_vcf_gz_tbi = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {

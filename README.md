@@ -279,11 +279,11 @@ TODO
 	3. Command.
 	4. Outputs.
 	5. Runtime settings - which should first be its default runtime settings, followed by a select first with the runtime override, then the actual runtime block.
-- Workflow inputs should be structured in the following order, with each of the below separated by a blank lines:
-	1. Core input files that will be run through the workflow - e.g. VCFs being annotated, BAMs being analyzed etc (as well as their indexes if applicable).
+- Inputs should be structured in the following order, with each of the below separated by a blank lines:
+	1. Core input files that will be run through the workflow - e.g. VCFs being annotated, BAMs being analyzed etc (as well as their indexes if applicable). Also the contigs to be run on as well as the prefix.
 	2. Parameters that govern how the file will be processed - e.g. prefixes, modes, input arguments to tools being called, PEDs, metadata files etc.
-	3. References - e.g. reference fasta, their indexes, catalogs used for annotations, etc.
-	4. Runtime information that are not of type RuntimeAttr - e.g. docker paths, cores if applicable, sharding information if applicable.
+	3. Reference files - e.g. reference fasta, their indexes, catalogs used for annotations, etc.
+	4. Runtime-related information that are not of type RuntimeAttr - e.g. docker paths, cores if applicable, sharding information if applicable.
 	5. All RuntimeAttr? inputs - there should be one per task called, with its name reflective of the task's function.
 - Workflows should take in an input `prefix` that is passed to every task that creates output files, which should be used in conjunction with a descriptive suffix when creating outputs.
 - Workflow imports should not be renamed using the `as` operator.

@@ -18,6 +18,7 @@ workflow TRGT {
 
         String gcs_out_dir
         String trgt_docker
+        
         RuntimeAttr? runtime_attr_process_with_trgt
         RuntimeAttr? runtime_attr_finalize_to_file
     }

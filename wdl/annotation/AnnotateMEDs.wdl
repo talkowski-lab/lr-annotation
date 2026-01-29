@@ -10,11 +10,12 @@ workflow AnnotateMEDs {
         Array[String] contigs
         String prefix
 
-        File med_catalog
         Float size_similarity = 0.9
         Float reciprocal_overlap = 0.9
         Int breakpoint_window = 500
         Float sequence_similarity = 0.9
+
+        File med_catalog
 
         String utils_docker
 

@@ -7,13 +7,12 @@ workflow AnnotatePALMER {
     input {
         File vcf
         File vcf_idx
+        File PALMER_vcf
+        File PALMER_vcf_idx
         Array[String] contigs
         String prefix
         
         Array[String] mei_types
-        File PALMER_vcf
-        File PALMER_vcf_idx
-
         Int min_svlen
         File rm_out
         Int rm_buffer

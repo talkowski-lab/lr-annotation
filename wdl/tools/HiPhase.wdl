@@ -8,7 +8,6 @@ workflow PhysicalPhasing {
     input {
         File all_chr_bam
         File all_chr_bai
-
         File small_vcf
         File small_vcf_idx
         File sv_vcf
@@ -16,13 +15,13 @@ workflow PhysicalPhasing {
         File? trgt_vcf
         File? trgt_vcf_idx
 
-        File ref_fa
-        File ref_fai
-
         Int hiphase_memory
         String hiphase_extra_args
         String sample_id
         Array[String] region_list
+
+        File ref_fa
+        File ref_fai
 
         String sv_base_mini_docker
         String sv_pipeline_base_docker

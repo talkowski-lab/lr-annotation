@@ -12,11 +12,12 @@ workflow VcfDist {
         String prefix
         Array[String] contigs
 
-        File ref_fa
         File? bed_regions
         String? mode
         Float? threshold
         String? vcfdist_args
+
+        File ref_fa
         
         String utils_docker
         String vcfdist_docker

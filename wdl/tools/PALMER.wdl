@@ -18,11 +18,10 @@ workflow PALMER {
 		String sample
 		String mode
 		Array[String] mei_types
+		Array[String]? truvari_collapse_params
 
 		File ref_fa
 		File ref_fai
-
-		Array[String]? truvari_collapse_params
 
 		String utils_docker
 		String palmer_docker

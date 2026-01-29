@@ -11,6 +11,8 @@ workflow AnnotateSVAnnotate {
         String prefix
 
         Int min_svlen
+        String? vcf_drop_fields
+        
         File coding_gtf
         File noncoding_bed
 
@@ -18,6 +20,7 @@ workflow AnnotateSVAnnotate {
         String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_convert_symbolic
         RuntimeAttr? runtime_attr_annotate_func
         RuntimeAttr? runtime_attr_concat_unannotated
@@ -38,10 +41,22 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
+        if (defined(vcf_drop_fields)) {
+            call Helpers.DropVcfFields {
+                input:
+                    vcf = SubsetVcfAnnotated.subset_vcf,
+                    vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
+                    drop_fields = select_first([vcf_drop_fields]),
+                    prefix = "~{prefix}.~{contig}.dropped",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_fields
+            }
+        }
+
         call Helpers.ConvertToSymbolic {
             input:
-                vcf = SubsetVcfAnnotated.subset_vcf,
-                vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
+                vcf = select_first([DropVcfFields.dropped_vcf, SubsetVcfAnnotated.subset_vcf]),
+                vcf_idx = select_first([DropVcfFields.dropped_vcf_idx, SubsetVcfAnnotated.subset_vcf_idx]),
                 prefix = "~{prefix}.~{contig}.converted",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_convert_symbolic
