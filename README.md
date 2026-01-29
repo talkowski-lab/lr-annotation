@@ -174,10 +174,6 @@ TODO
 TODO
 
 
-### [MergePhysicallyPhasedVcfs](wdl/annotation_utils/MergePhysicallyPhasedVcfs.wdl)
-TODO
-
-
 ### [SubsetTRGTToCatalog](wdl/annotation_utils/SubsetTRGTToCatalog.wdl)
 TODO
 
@@ -234,7 +230,11 @@ TODO
 TODO
 
 
-### [PhysicalPhasing](wdl/tools/PhysicalPhasing.wdl)
+### [HiPhase](wdl/tools/HiPhase.wdl)
+TODO
+
+
+### [HiPhaseMerge](wdl/tools/HiPhaseMerge.wdl)
 TODO
 
 
@@ -319,10 +319,9 @@ TODO
 
 ### Codebase
 - Workflows in `wdl/annotation/` should begin with _Annotate_.
-- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have corresponding documentation in this file.
-- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
 - Workflows directly run in the pipeline should be in either `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
-
+- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
+- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should be documented.
 
 
 ### Workspace

@@ -124,15 +124,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: MergePhysicallyPhasedVcfs
-    primaryDescriptorPath: /wdl/phasannotation_utilsing/MergePhysicallyPhasedVcfs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: SubsetTRGTToCatalog
     primaryDescriptorPath: /wdl/annotation_utils/SubsetTRGTToCatalog.wdl
     filters:
@@ -172,6 +163,24 @@ workflows:
   # Tools
   # -----
   - subclass: WDL
+    name: HiPhase
+    primaryDescriptorPath: /wdl/tools/HiPhase.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: HiPhaseMerge
+    primaryDescriptorPath: /wdl/tools/HiPhaseMerge.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+  
+  - subclass: WDL
     name: MinimapAlignment
     primaryDescriptorPath: /wdl/tools/MinimapAlignment.wdl
     filters:
@@ -201,15 +210,6 @@ workflows:
   - subclass: WDL
     name: PALMERMerge
     primaryDescriptorPath: /wdl/tools/PALMERMerge.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: PhysicalPhasing
-    primaryDescriptorPath: /wdl/tools/PhysicalPhasing.wdl
     filters:
       branches:
         - main
