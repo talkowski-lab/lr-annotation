@@ -32,8 +32,8 @@ workflow MergePhysicallyPhasedVcfs {
 
     call CreateBatches {
         input:
-            vcf_gzs = vcf_gzs,
-            vcf_gz_tbis = vcf_gz_tbis,
+            vcfs = vcfs,
+            vcf_idxs = vcf_idxs,
             batch_size = batch_size,
             docker = docker
     }
@@ -43,8 +43,8 @@ workflow MergePhysicallyPhasedVcfs {
             scatter (j in range(length(regions))) {
                 call Ivcfmerge as IvcfmergeSingleBatchRegion {
                     input:
-                        vcf_gzs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
-                        vcf_gz_tbis = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
+                        vcfs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
+                        vcf_idxs = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
                         output_prefix = output_prefix + ".batch-" + i + ".region-" + i,
                         sample_names = select_first([sample_names]),
                         region_args = "-r " + regions[j],
@@ -60,8 +60,8 @@ workflow MergePhysicallyPhasedVcfs {
             scatter (j in range(length(regions))) {
                 call MergeVcfs as MergeVcfsSingleBatchRegion {
                     input:
-                        vcf_gzs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
-                        vcf_gz_tbis = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
+                        vcfs = read_lines(CreateBatches.vcf_gz_batch_fofns[i]),
+                        vcf_idxs = read_lines(CreateBatches.vcf_gz_tbi_batch_fofns[i]),
                         output_prefix = output_prefix + ".batch-" + i + ".region-" + i,
                         extra_args = "-r " + regions[j] + " " + extra_merge_args,
                         docker = docker,
@@ -72,15 +72,15 @@ workflow MergePhysicallyPhasedVcfs {
         }
     }
 
-    Array[Array[File]] region_by_batch_vcf_gzs = transpose(select_first([IvcfmergeSingleBatchRegion.merged_vcf_gz, MergeVcfsSingleBatchRegion.merged_vcf_gz]))
-    Array[Array[File]] region_by_batch_vcf_gz_tbis = transpose(select_first([IvcfmergeSingleBatchRegion.merged_vcf_gz_tbi, MergeVcfsSingleBatchRegion.merged_vcf_gz_tbi]))
+    Array[Array[File]] region_by_batch_vcfs = transpose(select_first([IvcfmergeSingleBatchRegion.merged_vcf_gz, MergeVcfsSingleBatchRegion.merged_vcf_gz]))
+    Array[Array[File]] region_by_batch_vcf_idxs = transpose(select_first([IvcfmergeSingleBatchRegion.merged_vcf_gz_tbi, MergeVcfsSingleBatchRegion.merged_vcf_gz_tbi]))
 
     if (use_ivcfmerge) {
         scatter (j in range(length(regions))) {
             call Ivcfmerge as IvcfmergeSingleRegion {
                 input:
-                    vcf_gzs = region_by_batch_vcf_gzs[j],
-                    vcf_gz_tbis = region_by_batch_vcf_gz_tbis[j],
+                    vcfs = region_by_batch_vcfs[j],
+                    vcf_idxs = region_by_batch_vcf_idxs[j],
                     output_prefix = output_prefix + ".region-" + j,
                     sample_names = select_first([sample_names]),
                     docker = docker,
@@ -93,8 +93,8 @@ workflow MergePhysicallyPhasedVcfs {
         scatter (j in range(length(regions))) {
             call MergeVcfs as MergeVcfsSingleRegion {
                 input:
-                    vcf_gzs = region_by_batch_vcf_gzs[j],
-                    vcf_gz_tbis = region_by_batch_vcf_gz_tbis[j],
+                    vcfs = region_by_batch_vcfs[j],
+                    vcf_idxs = region_by_batch_vcf_idxs[j],
                     output_prefix = output_prefix + ".region-" + j,
                     extra_args = extra_merge_args,
                     docker = docker,
@@ -106,8 +106,8 @@ workflow MergePhysicallyPhasedVcfs {
 
     call ConcatVcfs {
         input:
-            vcf_gzs = select_first([IvcfmergeSingleRegion.merged_vcf_gz, MergeVcfsSingleRegion.merged_vcf_gz]),
-            vcf_gz_tbis = select_first([IvcfmergeSingleRegion.merged_vcf_gz_tbi, MergeVcfsSingleRegion.merged_vcf_gz_tbi]),
+            vcfs = select_first([IvcfmergeSingleRegion.merged_vcf_gz, MergeVcfsSingleRegion.merged_vcf_gz]),
+            vcf_idxs = select_first([IvcfmergeSingleRegion.merged_vcf_gz_tbi, MergeVcfsSingleRegion.merged_vcf_gz_tbi]),
             output_prefix = output_prefix,
             extra_args = extra_concat_args,
             docker = docker,
@@ -123,8 +123,8 @@ workflow MergePhysicallyPhasedVcfs {
 
 task CreateBatches {
     input {
-        Array[String] vcf_gzs
-        Array[String] vcf_gz_tbis
+        Array[String] vcfs
+        Array[String] vcf_idxs
         Int batch_size
 
         String docker
@@ -134,8 +134,8 @@ task CreateBatches {
     command {
         set -euox pipefail
 
-        cat ~{write_lines(vcf_gzs)} | split -l ~{batch_size} - vcf_gz_batch_
-        cat ~{write_lines(vcf_gz_tbis)} | split -l ~{batch_size} - vcf_gz_tbi_batch_
+        cat ~{write_lines(vcfs)} | split -l ~{batch_size} - vcf_gz_batch_
+        cat ~{write_lines(vcf_idxs)} | split -l ~{batch_size} - vcf_gz_tbi_batch_
     }
 
     output {
@@ -156,8 +156,8 @@ task CreateBatches {
 
 task MergeVcfs {
     input{
-        Array[File] vcf_gzs
-        Array[File] vcf_gz_tbis
+        Array[File] vcfs
+        Array[File] vcf_idxs
         String output_prefix
         String? extra_args
 
@@ -177,7 +177,7 @@ task MergeVcfs {
         fi
 
         bcftools merge \
-            -l ~{write_lines(vcf_gzs)} \
+            -l ~{write_lines(vcfs)} \
             ~{extra_args} \
             -Oz -o ~{output_prefix}.vcf.gz
         bcftools index -t ~{output_prefix}.vcf.gz
@@ -204,8 +204,8 @@ task MergeVcfs {
 # TODO make this work for identical filenames
 task Ivcfmerge {
     input{
-        Array[File] vcf_gzs
-        Array[File] vcf_gz_tbis
+        Array[File] vcfs
+        Array[File] vcf_idxs
         Array[String] sample_names
         String output_prefix
         String? region_args
@@ -229,8 +229,8 @@ task Ivcfmerge {
         tar -xvf v1.0.0.tar.gz
 
         mkdir compressed
-        mv ~{sep=' ' vcf_gzs} compressed
-        mv ~{sep=' ' vcf_gz_tbis} compressed
+        mv ~{sep=' ' vcfs} compressed
+        mv ~{sep=' ' vcf_idxs} compressed
 
         if [ $(ls compressed/*.vcf.gz | wc -l) == 1 ]
         then
@@ -264,8 +264,8 @@ task Ivcfmerge {
 
 task ConcatVcfs {
     input{
-        Array[File] vcf_gzs
-        Array[File] vcf_gz_tbis
+        Array[File] vcfs
+        Array[File] vcf_idxs
         String output_prefix
         String? extra_args
 
@@ -285,7 +285,7 @@ task ConcatVcfs {
         fi
 
         bcftools concat \
-            -f ~{write_lines(vcf_gzs)} \
+            -f ~{write_lines(vcfs)} \
             ~{extra_args} \
             -Oz -o ~{output_prefix}.vcf.gz
         bcftools index -t --threads $(nproc) ~{output_prefix}.vcf.gz
