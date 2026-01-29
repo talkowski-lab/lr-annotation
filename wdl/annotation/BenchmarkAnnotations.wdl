@@ -237,6 +237,20 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_collect_matched_ids
         }
 
+        call ComputeSummaryForContig {
+            input:
+                eval_vcf = eval_vcf_final,
+                eval_vcf_idx = eval_vcf_final_idx,
+                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
+                eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
+                truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
+                contig = contig,
+                prefix = "~{prefix}.~{contig}",
+                docker = benchmark_annotations_docker,
+                runtime_attr_override = runtime_attr_compute_summary_for_contig
+        }
+
         call ShardedMatchedVariants {
             input:
                 matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
@@ -271,20 +285,6 @@ workflow BenchmarkAnnotations {
                 skip_vep_categories = skip_vep_categories,
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_merge_shard_benchmarks
-        }
-
-        call ComputeSummaryForContig {
-            input:
-                eval_vcf = eval_vcf_final,
-                eval_vcf_idx = eval_vcf_final_idx,
-                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
-                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
-                eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
-                truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_compute_summary_for_contig
         }
     }
 
