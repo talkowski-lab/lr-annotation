@@ -136,6 +136,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergePhysicallyPhasedVcfs
+    primaryDescriptorPath: /wdl/phasing/MergePhysicallyPhasedVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: MinimapAlignment
     primaryDescriptorPath: /wdl/tools/MinimapAlignment.wdl
     filters:
