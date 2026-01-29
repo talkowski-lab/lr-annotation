@@ -116,8 +116,8 @@ workflow MergePhysicallyPhasedVcfs {
     }
 
     output {
-        File merged_vcf_gz = ConcatVcfs.concatenated_vcf_gz
-        File merged_vcf_gz_tbi = ConcatVcfs.concatenated_vcf_gz_tbi
+        File hiphase_merged_vcf = ConcatVcfs.concatenated_vcf_gz
+        File hiphase_merged_vcf_idx = ConcatVcfs.concatenated_vcf_gz_tbi
     }
 }
 
