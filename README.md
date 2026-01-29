@@ -162,6 +162,10 @@ Inputs:
 TODO
 
 
+### [CreatePEDAncestry](wdl/annotation_utils/CreatePEDAncestry.wdl)
+TODO
+
+
 ### [IntegrateHGSVC](wdl/annotation_utils/IntegrateHGSVC.wdl)
 TODO
 
@@ -170,8 +174,28 @@ TODO
 TODO
 
 
+### [MergePhysicallyPhasedVcfs](wdl/annotation_utils/MergePhysicallyPhasedVcfs.wdl)
+TODO
 
-## Additional Tools
+
+### [SubsetTRGTToCatalog](wdl/annotation_utils/SubsetTRGTToCatalog.wdl)
+TODO
+
+
+### [SubsetTsvToColumns](wdl/annotation_utils/SubsetTsvToColumns.wdl)
+TODO
+
+
+### [SubsetVcfToContigs](wdl/annotation_utils/SubsetVcfToContigs.wdl)
+TODO
+
+
+### [SubsetVcfToSamples](wdl/annotation_utils/SubsetVcfToSamples.wdl)
+TODO
+
+
+
+## Tools
 ### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)
 This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
 
@@ -207,6 +231,10 @@ TODO
 
 
 ### [PALMERMerge](wdl/tools/PALMERMerge.wdl)
+TODO
+
+
+### [PhysicalPhasing](wdl/tools/PhysicalPhasing.wdl)
 TODO
 
 
@@ -290,9 +318,11 @@ TODO
 
 
 ### Codebase
-- All workflows in `wdl/annotation/` should begin with _Annotate_.
-- All workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have corresponding documentation in this file.
-- All workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
+- Workflows in `wdl/annotation/` should begin with _Annotate_.
+- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have corresponding documentation in this file.
+- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
+- Workflows directly run in the pipeline should be in either `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
+
 
 
 ### Workspace

@@ -1,14 +1,8 @@
 version: 1.2
 workflows:
-  - subclass: WDL
-    name: AnnotateVcf
-    primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcf.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
+  # ----------------------------
+  # Primary Annotation Workflows
+  # ----------------------------
   - subclass: WDL
     name: AnnotateL1MEAID
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
@@ -91,26 +85,20 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: BenchmarkSTRs
-    primaryDescriptorPath: /wdl/benchmarking/BenchmarkSTRs.wdl
+    name: AnnotateVcf
+    primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcf.wdl
     filters:
       branches:
         - main
       tags:
         - /.*/
 
+  # ----------------------------------
+  # Supplementary Annotation Workflows
+  # ----------------------------------
   - subclass: WDL
     name: CreatePEDAncestry
-    primaryDescriptorPath: /wdl/utils/CreatePEDAncestry.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CompareSamplesToVcf
-    primaryDescriptorPath: /wdl/utils/CompareSamplesToVcf.wdl
+    primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
     filters:
       branches:
         - main
@@ -137,13 +125,52 @@ workflows:
 
   - subclass: WDL
     name: MergePhysicallyPhasedVcfs
-    primaryDescriptorPath: /wdl/phasing/MergePhysicallyPhasedVcfs.wdl
+    primaryDescriptorPath: /wdl/phasannotation_utilsing/MergePhysicallyPhasedVcfs.wdl
     filters:
       branches:
         - main
       tags:
         - /.*/
 
+  - subclass: WDL
+    name: SubsetTRGTToCatalog
+    primaryDescriptorPath: /wdl/annotation_utils/SubsetTRGTToCatalog.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: SubsetTsvToColumns
+    primaryDescriptorPath: /wdl/annotation_utils/SubsetTsvToColumns.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: SubsetVcfToContigs
+    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToContigs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: SubsetVcfToSamples
+    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToSamples.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  # -----
+  # Tools
+  # -----
   - subclass: WDL
     name: MinimapAlignment
     primaryDescriptorPath: /wdl/tools/MinimapAlignment.wdl
@@ -182,7 +209,7 @@ workflows:
 
   - subclass: WDL
     name: PhysicalPhasing
-    primaryDescriptorPath: /wdl/phasing/PhysicalPhasing.wdl
+    primaryDescriptorPath: /wdl/tools/PhysicalPhasing.wdl
     filters:
       branches:
         - main
@@ -192,42 +219,6 @@ workflows:
   - subclass: WDL
     name: RepeatMasker
     primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetTRGTToCatalog
-    primaryDescriptorPath: /wdl/utils/SubsetTRGTToCatalog.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetTsvToColumns
-    primaryDescriptorPath: /wdl/utils/SubsetTsvToColumns.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetVcfToContigs
-    primaryDescriptorPath: /wdl/utils/SubsetVcfToContigs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetVcfToSamples
-    primaryDescriptorPath: /wdl/utils/SubsetVcfToSamples.wdl
     filters:
       branches:
         - main
