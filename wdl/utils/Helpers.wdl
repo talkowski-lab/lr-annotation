@@ -235,7 +235,7 @@ task BedtoolsClosest {
         set -euo pipefail
         
         paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) \
-            | sed -e "s/#//g" 
+            | sed -e "s/#//g" \
             > ~{svtype}.bed
 
         bedtools closest \
