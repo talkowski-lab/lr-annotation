@@ -78,7 +78,6 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_eval_idx,
                 contig = contig,
                 args_string = args_string_vcf,
-                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_eval
@@ -90,7 +89,6 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_truth,
-                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_truth
@@ -102,7 +100,6 @@ workflow BenchmarkAnnotations {
                 vcf_idx = vcf_sv_truth_idx,
                 contig = contig,
                 args_string = args_string_vcf_sv_truth,
-                drop_genotypes = true,
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth
@@ -208,7 +205,7 @@ workflow BenchmarkAnnotations {
                 vcf_sv_truth = sv_truth_vcf_final,
                 vcf_sv_truth_idx = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}",
-                bedtools_closest_docker = benchmark_annotations_docker,
+                benchmark_annotations_docker = benchmark_annotations_docker,
                 utils_docker = utils_docker,
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
                 runtime_attr_split_eval = runtime_attr_bedtools_split_eval,

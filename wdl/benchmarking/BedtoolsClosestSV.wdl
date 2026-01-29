@@ -11,7 +11,7 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth_idx
         String prefix
         
-        String bedtools_closest_docker
+        String benchmark_annotations_docker
         String utils_docker
         
         RuntimeAttr? runtime_attr_convert_to_symbolic
@@ -27,7 +27,6 @@ workflow BedtoolsClosestSV {
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
             prefix = "~{prefix}.eval.symbolic",
-            drop_genotypes = true,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
@@ -36,7 +35,7 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             prefix = "~{prefix}.eval",
-            docker = bedtools_closest_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
     }
 
@@ -45,7 +44,7 @@ workflow BedtoolsClosestSV {
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
             prefix = "~{prefix}.truth",
-            docker = bedtools_closest_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_truth
     }
 
@@ -62,24 +61,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareDEL.output_bed,
             svtype = "DEL",
-            docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareDUP {
-        input:
-            bed_a = SplitEval.dup_bed,
-            bed_b = SplitTruth.dup_bed,
-            svtype = "DUP",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedSVs as CalcuDUP {
-        input:
-            input_bed = CompareDUP.output_bed,
-            svtype = "DUP",
-            docker = bedtools_closest_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -96,47 +78,13 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareINS.output_bed,
             svtype = "INS",
-            docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareINV {
-        input:
-            bed_a = SplitEval.inv_bed,
-            bed_b = SplitTruth.inv_bed,
-            svtype = "INV",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedSVs as CalcuINV {
-        input:
-            input_bed = CompareINV.output_bed,
-            svtype = "INV",
-            docker = bedtools_closest_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareBND {
-        input:
-            bed_a = SplitEval.bnd_bed,
-            bed_b = SplitTruth.bnd_bed,
-            svtype = "BND",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedINSs as CalcuBND {
-        input:
-            input_bed = CompareBND.output_bed,
-            svtype = "BND",
-            docker = bedtools_closest_docker,
+            docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.ConcatTsvs {
         input:
-            tsvs = [CalcuDEL.output_comp, CalcuDUP.output_comp, CalcuINS.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
+            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp],
             prefix = "~{prefix}.comparison",
             skip_sort = true,
             docker = utils_docker,
@@ -171,7 +119,12 @@ task SplitQueryVcf {
     command <<<
         set -euo pipefail
 
-        svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
+        svtk vcf2bed \
+            -i SVTYPE \
+            -i SVLEN \
+            ~{vcf} \
+            tmp.bed
+        
         cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
 
         set +o pipefail
