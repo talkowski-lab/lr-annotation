@@ -13,8 +13,8 @@ struct RuntimeAttributes {
 
 workflow MergePhysicallyPhasedVcfs {
     input {
-        Array[File] vcf_gzs
-        Array[File] vcf_gz_tbis
+        Array[File] vcfs
+        Array[File] vcf_idxs
         Array[String] regions
         Int batch_size
         String output_prefix
