@@ -758,7 +758,6 @@ for record in phased_in:
                     is_target = True
             if is_target:
                 record.samples[sample]['GT'] = (0, 0)
-                record.samples[sample].phased = True
     
     out.write(record)
 
