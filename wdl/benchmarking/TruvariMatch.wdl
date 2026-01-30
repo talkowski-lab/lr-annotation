@@ -181,7 +181,6 @@ task RunTruvari {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 

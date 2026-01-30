@@ -55,7 +55,7 @@ workflow IntegrateHPRC {
                 runtime_attr_override = runtime_attr_filter_snv_indel
         }
 
-        call SplitMultiallelics {
+        call Helpers.SplitMultiallelics as SplitSnvIndel {
             input:
                 vcf = SubsetSnvIndel.subset_vcf,
                 vcf_idx = SubsetSnvIndel.subset_vcf_idx,
@@ -66,8 +66,8 @@ workflow IntegrateHPRC {
 
         call Helpers.AnnotateVariantAttributes as AnnotateSnvIndel {
             input:
-                vcf = SplitMultiallelics.split_vcf,
-                vcf_idx = SplitMultiallelics.split_vcf_idx,
+                vcf = SplitSnvIndel.split_vcf,
+                vcf_idx = SplitSnvIndel.split_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_svlen_svtype
@@ -174,89 +174,5 @@ workflow IntegrateHPRC {
     output {
         File integrated_vcf = ConcatVcfs.concat_vcf
         File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
-    }
-}
-
-task SplitMultiallelics {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-import pysam
-import sys
-
-vcf_in = pysam.VariantFile("~{vcf}")
-vcf_out = pysam.VariantFile("temp.vcf", "w", header=vcf_in.header)
-
-for record in vcf_in:
-    if len(record.alts) <= 1:
-        vcf_out.write(record)
-        continue
-    
-    ids = record.id.split(';')
-    for i, alt_seq in enumerate(record.alts):
-        parts = ids[i].split('_')        
-        new_rec = record.copy()
-        new_rec.chrom = parts[0]
-        new_rec.pos = int(parts[1])
-        new_rec.ref = parts[2]
-        new_rec.alts = (parts[3],)
-        new_rec.id = ids[i]
-        target_allele_idx = i + 1
-        
-        for sample in record.samples:
-            old_gt = record.samples[sample]['GT']
-            new_gt = []
-            for allele in old_gt:
-                if allele is None:
-                    new_gt.append(None)
-                elif allele == target_allele_idx:
-                    new_gt.append(1)
-                else:
-                    new_gt.append(0)
-            new_rec.samples[sample]['GT'] = tuple(new_gt)
-        
-        vcf_out.write(new_rec)
-
-vcf_in.close()
-vcf_out.close()
-CODE
-
-        bcftools sort temp.vcf -Oz -o ~{prefix}.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File split_vcf = "~{prefix}.vcf.gz"
-        File split_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 50 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }

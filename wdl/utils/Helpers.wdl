@@ -63,7 +63,6 @@ task AddFilter {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -121,7 +120,6 @@ task AddInfo {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -218,7 +216,6 @@ task AnnotateVariantAttributes {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -266,7 +263,6 @@ task BedtoolsClosest {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -415,7 +411,6 @@ task CheckSampleConsistency {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -463,7 +458,6 @@ task ConcatTsvs {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -514,7 +508,6 @@ task ConcatVcfs {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -573,7 +566,6 @@ task ConvertToSymbolic {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
   }
 }
 
@@ -620,7 +612,6 @@ task DropVcfFields {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -689,6 +680,103 @@ CODE
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(original_vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task FillGenotypesFromUnphased {
+    input {
+        File phased_vcf
+        File phased_vcf_idx
+        File unphased_vcf
+        File unphased_vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+import sys
+
+phased_in = pysam.VariantFile("~{phased_vcf}")
+unphased_in = pysam.VariantFile("~{unphased_vcf}")
+
+if 'SOURCE' in unphased_in.header.info and 'SOURCE' not in phased_in.header.info:
+    phased_in.header.info.add('SOURCE', number=unphased_in.header.info['SOURCE'].number, type=unphased_in.header.info['SOURCE'].type, description=unphased_in.header.info['SOURCE'].description)
+
+for f in unphased_in.header.filters:
+    if f not in phased_in.header.filters:
+        phased_in.header.filters.add(f, unphased_in.header.filters[f].description)
+
+out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
+
+for record in phased_in:
+    match = None
+    for cand in unphased_in.fetch(record.chrom, record.start, record.stop):
+        if cand.id == record.id:
+            match = cand
+            break
+    
+    if match is None:
+        sys.stderr.write(f"Mismatch: Variant {record.chrom}:{record.pos}-{record.ref}-{record.alts} not found in unphased VCF.\n")
+        out.write(record)
+        continue
+
+    if 'SOURCE' in match.info:
+        record.info['SOURCE'] = match.info['SOURCE']
+
+    if list(match.filter):
+        record.filter.clear()
+        for f in match.filter:
+            record.filter.add(f)
+    
+    for sample in record.samples:
+        u_gt = match.samples[sample]['GT']
+        p_gt = record.samples[sample]['GT']
+        if u_gt == (0, 0):
+            is_target = False
+            if p_gt == (None, None):
+                is_target = True
+            elif len(p_gt) == 2:
+                if (p_gt[0] is None and p_gt[1] == 0) or (p_gt[0] == 0 and p_gt[1] is None):
+                    is_target = True
+            if is_target:
+                record.samples[sample]['GT'] = (0, 0)
+                record.samples[sample].phased = True
+    
+    out.write(record)
+
+out.close()
+CODE
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File filled_vcf = "~{prefix}.vcf.gz"
+        File filled_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(phased_vcf, "GB") + size(unphased_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -929,7 +1017,6 @@ task RenameVariantIds {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -1008,6 +1095,89 @@ task RevertSymbolicAlleles {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SplitMultiallelics {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+import sys
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("temp.vcf", "w", header=vcf_in.header)
+
+for record in vcf_in:
+    if len(record.alts) <= 1:
+        vcf_out.write(record)
+        continue
+    
+    ids = record.id.split(';')
+    for i, alt_seq in enumerate(record.alts):
+        parts = ids[i].split('_')        
+        new_rec = record.copy()
+        new_rec.chrom = parts[0]
+        new_rec.pos = int(parts[1])
+        new_rec.ref = parts[2]
+        new_rec.alts = (parts[3],)
+        new_rec.id = ids[i]
+        target_allele_idx = i + 1
+        
+        for sample in record.samples:
+            old_gt = record.samples[sample]['GT']
+            new_gt = []
+            for allele in old_gt:
+                if allele is None:
+                    new_gt.append(None)
+                elif allele == target_allele_idx:
+                    new_gt.append(1)
+                else:
+                    new_gt.append(0)
+            new_rec.samples[sample]['GT'] = tuple(new_gt)
+        
+        vcf_out.write(new_rec)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        bcftools sort temp.vcf -Oz -o ~{prefix}.vcf.gz
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File split_vcf = "~{prefix}.vcf.gz"
+        File split_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 50 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -1198,7 +1368,6 @@ task SubsetVcfByArgs {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -1249,7 +1418,6 @@ task SubsetVcfBySize {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -1352,7 +1520,6 @@ task SubsetVcfToContig {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -1406,7 +1573,6 @@ EOF
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 

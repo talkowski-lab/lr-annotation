@@ -69,7 +69,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 
-## Primary Annotation Workflows
+## Annotation Workflows
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
 This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
 
@@ -157,12 +157,16 @@ Inputs:
 
 
 
-## Supplementary Annotation Workflows
+## Annotation Utilities
 ### [AnnotateVcf](wdl/annotation_utils/AnnotateVcf.wdl)
 TODO
 
 
 ### [CreatePEDAncestry](wdl/annotation_utils/CreatePEDAncestry.wdl)
+TODO
+
+
+### [FillPhasedGenotypes](wdl/annotation_utils/FillPhasedGenotypes.wdl)
 TODO
 
 

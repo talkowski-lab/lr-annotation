@@ -1,8 +1,8 @@
 version: 1.2
 workflows:
-  # ----------------------------
-  # Primary Annotation Workflows
-  # ----------------------------
+  # --------------------
+  # Annotation Workflows
+  # --------------------
   - subclass: WDL
     name: AnnotateL1MEAID
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
@@ -93,12 +93,21 @@ workflows:
       tags:
         - /.*/
 
-  # ----------------------------------
-  # Supplementary Annotation Workflows
-  # ----------------------------------
+  # --------------------
+  # Annotation Utilities
+  # --------------------
   - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: FillPhasedGenotypes
+    primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
     filters:
       branches:
         - main
