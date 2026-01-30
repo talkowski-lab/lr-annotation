@@ -109,7 +109,7 @@ workflow IntegrateHPRC {
                 runtime_attr_override = runtime_attr_filter_sv
         }
 
-        call SplitMultiallelics as SplitSv {
+        call Helpers.SplitMultiallelics as SplitSv {
             input:
                 vcf = SubsetSv.subset_vcf,
                 vcf_idx = SubsetSv.subset_vcf_idx,
