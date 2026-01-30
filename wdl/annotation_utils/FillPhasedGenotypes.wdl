@@ -40,7 +40,7 @@ workflow FillPhasedGenotypes {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call Helpers.SplitMultiallelics as SplitPhased {
+        call Helpers.SplitMultiallelics {
             input:
                 vcf = SubsetPhased.subset_vcf,
                 vcf_idx = SubsetPhased.subset_vcf_idx,
@@ -51,8 +51,8 @@ workflow FillPhasedGenotypes {
 
         call Helpers.FillGenotypesFromUnphased {
             input:
-                phased_vcf = SplitPhased.split_vcf,
-                phased_vcf_idx = SplitPhased.split_vcf_idx,
+                phased_vcf = SplitMultiallelics.split_vcf,
+                phased_vcf_idx = SplitMultiallelics.split_vcf_idx,
                 unphased_vcf = SubsetUnphased.subset_vcf,
                 unphased_vcf_idx = SubsetUnphased.subset_vcf_idx,
                 prefix = prefix + "." + contig + ".filled",
