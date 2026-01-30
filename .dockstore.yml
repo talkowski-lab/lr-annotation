@@ -84,6 +84,9 @@ workflows:
       tags:
         - /.*/
 
+  # --------------------
+  # Annotation Utilities
+  # --------------------
   - subclass: WDL
     name: AnnotateVcf
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcf.wdl
@@ -93,9 +96,6 @@ workflows:
       tags:
         - /.*/
 
-  # --------------------
-  # Annotation Utilities
-  # --------------------
   - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
@@ -106,8 +106,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: FillPhasedGenotypes
-    primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
+    name: ExtractSampleVcfs
+    primaryDescriptorPath: /wdl/annotation_utils/ExtractSampleVcfs.wdl
     filters:
       branches:
         - main
@@ -115,8 +115,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: IntegrateHGSVCReference
-    primaryDescriptorPath: /wdl/annotation_utils/IntegrateHGSVCReference.wdl
+    name: FillPhasedGenotypes
+    primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
     filters:
       branches:
         - main

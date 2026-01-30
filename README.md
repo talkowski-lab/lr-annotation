@@ -9,23 +9,18 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- 65 total samples.
 		- 32x aligned reads, produced after downsampling by Fabio.
 		- High coverage assemblies, derived directly from HGSVC.
-	- Notes:
-		- The [metadata file](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) has 67 samples:
-			- Misses NA24385 (HG002 in Terra).
-			- Renames NA21487 to GM21487.
-			- Additionally includes GM19320, GM20355 & GM19129.
-		- The base VCFs have 65 samples, renaming HG002 from Terra to NA24385.
+	- The [metadata file](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) has 67 samples:
+		- Misses NA24385 (HG002 in Terra).
+		- Renames NA21487 to GM21487.
+		- Additionally includes GM19320, GM20355 & GM19129.
 - HPRC.
 	- Data:
 		- 232 total samples.
 		- High coverage aligned reads, produced by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-	- Notes: 
-		- The [metadata file](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv) has 234 samples, as it also includes GRC38 and CHM13.
-		- The DeepVariant base VCF has 233 samples, including an additional sample HG03492.
-		- The Jiadong base VCF has 1218 samples, including many additional samples.
+	- The [metadata file](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv) has 234 samples, as it also includes GRC38 and CHM13.
 - Overlapping Samples: 5.
-	- HG002 (NA24385 in HGSVC).
+	- HG002.
 	- HG00733.
 	- HG02818.
 	- NA19036.
@@ -166,11 +161,11 @@ TODO
 TODO
 
 
-### [FillPhasedGenotypes](wdl/annotation_utils/FillPhasedGenotypes.wdl)
+### [ExtractSampleVcfs](wdl/annotation_utils/ExtractSampleVcfs.wdl)
 TODO
 
 
-### [IntegrateHGSVCReference](wdl/annotation_utils/IntegrateHPRC.wdl)
+### [FillPhasedGenotypes](wdl/annotation_utils/FillPhasedGenotypes.wdl)
 TODO
 
 
