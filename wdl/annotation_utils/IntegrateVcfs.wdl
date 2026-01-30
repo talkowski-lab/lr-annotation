@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow IntegrateHPRC {
+workflow IntegrateVcfs {
     input {
         File snv_indel_vcf
         File snv_indel_vcf_idx

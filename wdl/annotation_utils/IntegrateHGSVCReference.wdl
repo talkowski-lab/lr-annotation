@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow IntegrateHGSVC {
+workflow IntegrateHGSVCReference {
     input {
         File snv_vcf
         File snv_vcf_idx
