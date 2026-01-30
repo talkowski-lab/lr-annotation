@@ -36,7 +36,7 @@ workflow SubsetVcfToSamples {
             vcfs = SubsetVcfToSampleList.subset_vcf,
             vcfs_idx = SubsetVcfToSampleList.subset_vcf_idx,
             merge_sort = true,
-            prefix = prefix,
+            prefix = "~{prefix}.subset_samples",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcfs
     }

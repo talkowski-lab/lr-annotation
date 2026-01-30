@@ -294,7 +294,7 @@ workflow BenchmarkAnnotations {
     call Helpers.ConcatTsvs as MergeAnnotationTsvs {
         input:
             tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
-            prefix = "~{prefix}.annotations",
+            prefix = "~{prefix}.benchmark_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_annotation_tsvs
     }

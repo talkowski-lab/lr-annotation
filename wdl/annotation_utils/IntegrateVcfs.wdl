@@ -166,7 +166,7 @@ workflow IntegrateVcfs {
         input:
             vcfs = MergeContigVcfs.concat_vcf,
             vcfs_idx = MergeContigVcfs.concat_vcf_idx,
-            prefix = prefix,
+            prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
