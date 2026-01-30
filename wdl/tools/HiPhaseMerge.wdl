@@ -9,7 +9,7 @@ workflow HiPhaseMerge {
         Array[File] phased_vcf_idxs
         Array[String] contigs
         String prefix
-        
+
         String merge_args = "--merge none"
 
         String utils_docker
@@ -41,7 +41,7 @@ workflow HiPhaseMerge {
     }
 
     output {
-        File merged_vcf = ConcatVcfs.concat_vcf
-        File merged_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File hiphase_merged_vcf = ConcatVcfs.concat_vcf
+        File hiphase_merged_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }

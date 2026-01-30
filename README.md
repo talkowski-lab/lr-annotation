@@ -170,11 +170,11 @@ TODO
 TODO
 
 
-### [IntegrateHGSVC](wdl/annotation_utils/IntegrateHGSVC.wdl)
+### [IntegrateHGSVCReference](wdl/annotation_utils/IntegrateHPRC.wdl)
 TODO
 
 
-### [IntegrateHPRC](wdl/annotation_utils/IntegrateHPRC.wdl)
+### [IntegrateVcfs](wdl/annotation_utils/IntegrateHGSVC.wdl)
 TODO
 
 
