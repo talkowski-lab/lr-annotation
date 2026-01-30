@@ -22,9 +22,14 @@ workflow IntegrateVcfs {
         String sv_vcf_source_tag_description
         String sv_vcf_size_flag
         String sv_vcf_size_flag_description
+        File? swap_samples_snv_indel
+        File? swap_samples_sv
         
         String utils_docker
 
+
+        RuntimeAttr? runtime_attr_swap_samples_snv_indel
+        RuntimeAttr? runtime_attr_swap_samples_sv
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_filter_snv_indel
         RuntimeAttr? runtime_attr_filter_sv
@@ -33,10 +38,39 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_annotate_svlen_svtype
     }
 
+    if (defined(swap_samples_snv_indel)) {
+        call Helpers.SwapSampleIds as SwapSnvIndel {
+            input:
+                vcf = snv_indel_vcf,
+                vcf_idx = snv_indel_vcf_idx,
+                sample_swap_list = select_first([swap_samples_snv_indel]),
+                prefix = prefix + ".snv_indel.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap_samples_snv_indel
+        }
+    }
+
+    if (defined(swap_samples_sv)) {
+        call Helpers.SwapSampleIds as SwapSv {
+            input:
+                vcf = sv_vcf,
+                vcf_idx = sv_vcf_idx,
+                sample_swap_list = select_first([swap_samples_sv]),
+                prefix = prefix + ".sv.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap_samples_sv
+        }
+    }
+    
+    File final_snv_indel_vcf = select_first([SwapSnvIndel.swapped_vcf, snv_indel_vcf])
+    File final_snv_indel_vcf_idx = select_first([SwapSnvIndel.swapped_vcf_idx, snv_indel_vcf_idx])
+    File final_sv_vcf = select_first([SwapSv.swapped_vcf, sv_vcf])
+    File final_sv_vcf_idx = select_first([SwapSv.swapped_vcf_idx, sv_vcf_idx])
+
     call Helpers.CheckSampleConsistency {
         input:
-            vcfs = [snv_indel_vcf, sv_vcf],
-            vcfs_idx = [snv_indel_vcf_idx, sv_vcf_idx],
+            vcfs = [final_snv_indel_vcf, final_sv_vcf],
+            vcfs_idx = [final_snv_indel_vcf, final_sv_vcf],
             sample_ids = sample_ids,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_check_samples
@@ -46,8 +80,8 @@ workflow IntegrateVcfs {
         # SNV Indel VCF Processing
         call Helpers.SubsetVcfToSampleList as SubsetSnvIndel {
             input:
-                vcf = snv_indel_vcf,
-                vcf_idx = snv_indel_vcf_idx,
+                vcf = final_snv_indel_vcf,
+                vcf_idx = final_snv_indel_vcf_idx,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.snv_indel.subset",
@@ -100,8 +134,8 @@ workflow IntegrateVcfs {
         # SV VCF Processing
         call Helpers.SubsetVcfToSampleList as SubsetSv {
             input:
-                vcf = sv_vcf,
-                vcf_idx = sv_vcf_idx,
+                vcf = final_sv_vcf,
+                vcf_idx = final_sv_vcf_idx,
                 samples = sample_ids,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.sv.subset",
