@@ -203,7 +203,7 @@ workflow IntegrateHGSVCReference {
     }
 
     output {
-        File integrated_vcf = ConcatVcfs.concat_vcf
-        File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File integrated_reference_vcf = ConcatVcfs.concat_vcf
+        File integrated_reference_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
