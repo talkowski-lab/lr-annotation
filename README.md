@@ -9,24 +9,27 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- 65 total samples.
 		- 32x aligned reads, produced after downsampling by Fabio.
 		- High coverage assemblies, derived directly from HGSVC.
-	- The [metadata file](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3) has 67 samples:
-		- Misses NA24385 (HG002 in Terra).
+	- [Metadata](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
+		- 67 total samples.
 		- Renames NA21487 to GM21487.
-		- Additionally includes GM19320, GM20355 & GM19129.
+		- Duplicates NA19129 (also includes GM19129) and NA20355 (also includes GM20355).
+		- Additionally includes GM19320.
+		- Misses NA24385 (HG002 in Terra).
 - HPRC.
 	- Data:
 		- 232 total samples.
 		- High coverage aligned reads, produced by Fabio.
 		- High coverage assemblies, derived directly from HPRC.
-	- The [metadata file](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv) has 234 samples, as it also includes GRC38 and CHM13.
+	- [Metadata](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
+		- 234 total samples.
+		- Additionally includes GRC38 and CHM13.
+		- Fabio's table, the DeepVariant callset and the Terra data table all also include HG03492.
 - Overlapping Samples: 5.
 	- HG002.
 	- HG00733.
 	- HG02818.
 	- NA19036.
 	- NA19240.
-- HG03492 is an additional sample in the data table that is not attributed to either cohort.
-
 
 
 ## References

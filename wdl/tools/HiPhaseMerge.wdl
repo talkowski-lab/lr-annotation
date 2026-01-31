@@ -35,7 +35,7 @@ workflow HiPhaseMerge {
         input:
             vcfs = MergeVcfs.merged_vcf,
             vcfs_idx = MergeVcfs.merged_vcf_idx,
-            prefix = prefix,
+            prefix = "~{prefix}.hiphase_merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

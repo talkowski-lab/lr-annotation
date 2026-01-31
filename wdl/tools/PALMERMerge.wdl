@@ -1,30 +1,45 @@
 version 1.0
 
 import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl"
 
 workflow PALMERMerge {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
+        Array[String] contigs
         String prefix
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_override_merge_vcfs
+        RuntimeAttr? runtime_attr_merge_vcfs
+        RuntimeAttr? runtime_attr_concat
     }
 
-    call MergeVCFs {
+    scatter (contig in contigs) {
+        call MergeVCFs {
+            input:
+                vcfs = vcfs,
+                vcf_idxs = vcf_idxs,
+                contig = contig,
+                prefix = "~{prefix}.{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_vcfs
+        }
+    }
+
+    call Helpers.ConcatVcfs {
         input:
-            vcfs = vcfs,
-            vcf_idxs = vcf_idxs,
-            prefix = prefix,
+            vcfs = MergeVCFs.merged_vcf,
+            vcfs_idx = MergeVCFs.merged_vcf_idx,
+            prefix = "~{prefix}.palmer_merged",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_override_merge_vcfs
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File palmer_merged_vcf = MergeVCFs.merged_vcf
-        File palmer_merged_vcf_idx = MergeVCFs.merged_vcf_idx
+        File palmer_merged_vcf = ConcatVcfs.concat_vcf
+        File palmer_merged_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
@@ -32,6 +47,7 @@ task MergeVCFs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
+        String contig
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -51,21 +67,23 @@ task MergeVCFs {
         done
 
         bcftools merge \
+            -r ~{contig} \
             --missing-to-ref \
             -Oz -o tmp.merged.vcf.gz \
             inputs/*.vcf.gz
 
         bcftools annotate \
+            -r ~{contig} \
             --set-id '%INFO/ME_TYPE\_%CHROM\_%POS\_%INFO/SVLEN' \
-            -Oz -o ~{prefix}.merged.vcf.gz \
+            -Oz -o ~{prefix}.vcf.gz \
             tmp.merged.vcf.gz
 
-        tabix ~{prefix}.merged.vcf.gz
+        tabix ~{prefix}.vcf.gz
     >>>
 
     output {
-        File merged_vcf = "~{prefix}.merged.vcf.gz"
-        File merged_vcf_idx = "~{prefix}.merged.vcf.gz.tbi"
+        File merged_vcf = "~{prefix}.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

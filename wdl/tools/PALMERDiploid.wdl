@@ -110,7 +110,7 @@ workflow PALMERDiploid {
 		input:
 			vcfs = ConvertPALMERToVcf.vcf,
 			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
-			prefix = prefix,
+			prefix = "~{prefix}.truvari",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat_sort_vcfs
 	}
