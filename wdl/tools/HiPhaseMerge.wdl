@@ -10,7 +10,7 @@ workflow HiPhaseMerge {
         Array[String] contigs
         String prefix
 
-        String merge_args = "--merge none"
+        String merge_args = "--merge id"
 
         String utils_docker
 
