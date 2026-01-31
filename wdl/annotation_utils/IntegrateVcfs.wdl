@@ -13,7 +13,7 @@ workflow IntegrateVcfs {
         String prefix
 
         Array[String] sample_ids
-        Int min_size_sv = 50
+        Int min_sv_length = 50
         String snv_indel_vcf_source_tag
         String snv_indel_vcf_source_tag_description
         String snv_indel_vcf_size_flag
@@ -125,7 +125,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSnvIndel.annotated_vcf_idx,
                 filter_name = snv_indel_vcf_size_flag,
                 filter_description = snv_indel_vcf_size_flag_description,
-                filter_expression = "abs(INFO/VARLEN) >= ~{min_size_sv}",
+                filter_expression = "abs(INFO/VARLEN) >= ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.snv_indel.flagged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
@@ -179,7 +179,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSv.annotated_vcf_idx,
                 filter_name = sv_vcf_size_flag,
                 filter_description = sv_vcf_size_flag_description,
-                filter_expression = "abs(INFO/VARLEN) < ~{min_size_sv}",
+                filter_expression = "abs(INFO/VARLEN) < ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.sv.flagged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv

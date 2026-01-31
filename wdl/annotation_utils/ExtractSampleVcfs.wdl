@@ -36,7 +36,7 @@ workflow ExtractSampleVcfs {
             input:
                 vcf = ExtractSample.subset_vcf,
                 vcf_idx = ExtractSample.subset_vcf_idx,
-                max_size = min_sv_length - 1,
+                max_length = min_sv_length - 1,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_snv
