@@ -32,7 +32,7 @@ def write_vcf_header(ref_fai_path, sample):
     print('##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">')
     print('##INFO=<ID=POLYA_LEN,Number=.,Type=Integer,Description="Length of polyA tail">')
     print('##INFO=<ID=TSD_5PRIME_LEN,Number=.,Type=Integer,Description="Length of 5prime TSD">')
-    print('##INFO=<ID=TSD_3PRIME_LEN,Number=.,Type=Integer,Description="Length of 3prime TSD">' )
+    print('##INFO=<ID=TSD_3PRIME_LEN,Number=.,Type=Integer,Description="Length of 3prime TSD">')
     print('##INFO=<ID=TRANSD_LEN,Number=.,Type=Integer,Description="Length of transduction">')
     print('##INFO=<ID=INVERSION_5PRIME,Number=0,Type=Flag,Description="Whether the MEI has a 5 prime inversion">')
     print('##INFO=<ID=allele_type,Number=.,Type=String,Description="Type of allele">')
