@@ -25,34 +25,18 @@ def write_vcf_header(ref_fai_path, sample):
             contig, length = line.strip().split("\t")[:2]
             print(f"##contig=<ID={contig},length={length}>")
 
-    print(
-        '##ALT=<ID=INS,Description="Insertion of novel sequence relative to the reference">'
-    )
+    print('##ALT=<ID=INS,Description="Insertion of novel sequence relative to the reference">')
     print('##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">')
-    print(
-        '##INFO=<ID=CONF_READS,Number=.,Type=Integer,Description="Number of confident supporting reads">'
-    )
+    print('##INFO=<ID=CONF_READS,Number=.,Type=Integer,Description="Number of confident supporting reads">')
     print('##INFO=<ID=ORI,Number=.,Type=String,Description="Orientation of insertion">')
-    print(
-        '##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">'
-    )
-    print('##INFO=<ID=SVTYPE,Number=.,Type=String,Description="Type of SV">')
-    print('##INFO=<ID=SVLEN,Number=.,Type=Integer,Description="Length of SV">')
-    print(
-        '##INFO=<ID=POLYA_LEN,Number=.,Type=Integer,Description="Length of polyA tail">'
-    )
-    print(
-        '##INFO=<ID=TSD_5PRIME_LEN,Number=.,Type=Integer,Description="Length of 5prime TSD">'
-    )
-    print(
-        '##INFO=<ID=TSD_3PRIME_LEN,Number=.,Type=Integer,Description="Length of 3prime TSD">'
-    )
-    print(
-        '##INFO=<ID=TRANSD_LEN,Number=.,Type=Integer,Description="Length of transduction">'
-    )
-    print(
-        '##INFO=<ID=INVERSION_5PRIME,Number=0,Type=Flag,Description="Whether the MEI has a 5 prime inversion">'
-    )
+    print('##INFO=<ID=ME_TYPE,Number=.,Type=String,Description="Type of mobile element">')
+    print('##INFO=<ID=POLYA_LEN,Number=.,Type=Integer,Description="Length of polyA tail">')
+    print('##INFO=<ID=TSD_5PRIME_LEN,Number=.,Type=Integer,Description="Length of 5prime TSD">')
+    print('##INFO=<ID=TSD_3PRIME_LEN,Number=.,Type=Integer,Description="Length of 3prime TSD">' )
+    print('##INFO=<ID=TRANSD_LEN,Number=.,Type=Integer,Description="Length of transduction">')
+    print('##INFO=<ID=INVERSION_5PRIME,Number=0,Type=Flag,Description="Whether the MEI has a 5 prime inversion">')
+    print('##INFO=<ID=allele_type,Number=.,Type=String,Description="Type of allele">')
+    print('##INFO=<ID=allele_length,Number=.,Type=Integer,Description="Length of allele">')
     print(f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{sample}")
 
 
@@ -148,7 +132,7 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
 def write_vcf_records(calls, mei_type, haplotype):
     for cid, call in calls.items():
         info_fields = (
-            f"SVTYPE=INS;ME_TYPE={mei_type};SVLEN={call['length']};"
+            f"allele_length={call['length']};allele_type=INS;ME_TYPE={mei_type};"
             f"CONF_READS={call['conf']};ORI={call['ori']};POLYA_LEN={call['polyAlen']};"
             f"TSD_5PRIME_LEN={call['5TSDlen']};TSD_3PRIME_LEN={call['3TSDlen']};"
             f"TRANSD_LEN={call['transDlen']}"

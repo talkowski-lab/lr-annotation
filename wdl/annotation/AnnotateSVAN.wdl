@@ -67,6 +67,7 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_separate
         }
 
+        # Insertions
         call GenerateTRF as GenerateTRFForInsertions {
             input:
                 vcf = SeparateInsertionsDeletions.ins_vcf,
@@ -75,16 +76,6 @@ workflow AnnotateSVAN {
                 mode = "ins",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
-        }
-
-        call GenerateTRF as GenerateTRFForDeletions {
-            input:
-                vcf = SeparateInsertionsDeletions.del_vcf,
-                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
-                mode = "del",
-                docker = annotate_svan_docker,
-                runtime_attr_override = runtime_attr_generate_trf_del
         }
 
         call RunSvanAnnotation as AnnotateInsertions {
@@ -118,6 +109,17 @@ workflow AnnotateSVAN {
                 add_header_row = true,
                 prefix = "~{prefix}.~{contig}.ins",
                 docker = annotate_svan_docker
+        }
+
+        # Deletions
+        call GenerateTRF as GenerateTRFForDeletions {
+            input:
+                vcf = SeparateInsertionsDeletions.del_vcf,
+                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
+                prefix = "~{prefix}.~{contig}",
+                mode = "del",
+                docker = annotate_svan_docker,
+                runtime_attr_override = runtime_attr_generate_trf_del
         }
 
         call RunSvanAnnotation as AnnotateDeletions {
@@ -181,20 +183,15 @@ task SeparateInsertionsDeletions {
         set -euo pipefail
 
         bcftools view ~{vcf} \
-            --include 'INFO/SVTYPE="INS"' \
+            --include 'INFO/allele_type="INS"' \
             -Oz -o ~{prefix}.insertions.vcf.gz
         
         bcftools view ~{vcf} \
-            --include 'INFO/SVTYPE="DEL"' \
+            --include 'INFO/allele_type="DEL"' \
             -Oz -o ~{prefix}.deletions.vcf.gz
-        
-        bcftools view ~{vcf} \
-            --exclude '(INFO/SVTYPE="INS" || INFO/SVTYPE="DEL")' \
-            -Oz -o ~{prefix}.other_variants.vcf.gz
         
         tabix -p vcf ~{prefix}.insertions.vcf.gz
         tabix -p vcf ~{prefix}.deletions.vcf.gz
-        tabix -p vcf ~{prefix}.other_variants.vcf.gz
     >>>
 
     output {
@@ -202,8 +199,6 @@ task SeparateInsertionsDeletions {
         File ins_vcf_idx = "~{prefix}.insertions.vcf.gz.tbi"
         File del_vcf = "~{prefix}.deletions.vcf.gz"
         File del_vcf_idx = "~{prefix}.deletions.vcf.gz.tbi"
-        File other_vcf = "~{prefix}.other_variants.vcf.gz"
-        File other_vcf_idx = "~{prefix}.other_variants.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

@@ -74,7 +74,7 @@ task MergeVCFs {
 
         bcftools annotate \
             -r ~{contig} \
-            --set-id '%INFO/ME_TYPE\_%CHROM\_%POS\_%INFO/SVLEN' \
+            --set-id '%INFO/ME_TYPE\_%CHROM\_%POS\_%INFO/allele_length' \
             -Oz -o ~{prefix}.vcf.gz \
             tmp.merged.vcf.gz
 

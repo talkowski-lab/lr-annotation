@@ -1,7 +1,7 @@
 version 1.0
 
 import "../utils/Structs.wdl"
-import "LongReadGenotypeTasks.wdl" as LongReadGenotypeTasks
+import "LongReadGenotypeTasks.wdl"
 
 workflow PhysicalPhasingPerContig {
     input {

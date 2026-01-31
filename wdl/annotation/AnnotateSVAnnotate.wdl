@@ -10,7 +10,7 @@ workflow AnnotateSVAnnotate {
         Array[String] contigs
         String prefix
 
-        Int min_svlen
+        Int min_length
         String? vcf_drop_fields
         
         File coding_gtf
@@ -30,12 +30,12 @@ workflow AnnotateSVAnnotate {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfBySize as SubsetVcfAnnotated {
+        call Helpers.SubsetVcfByLength as SubsetVcfAnnotated {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 locus = contig,
-                min_size = min_svlen,
+                min_length = min_length,
                 prefix = "~{prefix}.~{contig}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf

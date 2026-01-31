@@ -74,15 +74,19 @@ def record_passes_filters(
     samples: list[str],
     args: argparse.Namespace,
 ) -> bool:
-    svlen_field = record.info.get("SVLEN")
-    svlen = abs(svlen_field[0]) if isinstance(svlen_field, tuple) else abs(svlen_field)
+    allele_length = record.info.get("allele_length")
+    if isinstance(allele_length, (list, tuple)):
+        allele_length = abs(allele_length[0])
+    else:
+        allele_length = abs(allele_length)
     target_length = abs(sv_length)
-    if svlen != target_length - 1:
+    if allele_length != target_length - 1:
         return False
 
-    svtype_field = record.info.get("SVTYPE")
-    svtype = svtype_field[0] if isinstance(svtype_field, tuple) else svtype_field
-    if svtype != "INS":
+    allele_type = record.info.get("allele_type")
+    if isinstance(allele_type, (list, tuple)):
+        allele_type = allele_type[0]
+    if allele_type != "INS":
         return False
 
     if record.ref != ref_allele:

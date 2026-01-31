@@ -142,12 +142,6 @@ task AnnotateVariantAttributes {
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=VARTYPE'; then
             echo '##INFO=<ID=VARTYPE,Number=1,Type=String,Description="Variant type">' >> new_headers.txt
         fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
-            echo '##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="SV length">' >> new_headers.txt
-        fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
-            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="SV type">' >> new_headers.txt
-        fi
 
         bcftools annotate \
             -h new_headers.txt \
@@ -156,14 +150,14 @@ task AnnotateVariantAttributes {
         tabix -p vcf temp.vcf.gz
 
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/VARLEN\t%INFO/VARTYPE\t%INFO/SVLEN\t%INFO/SVTYPE\n' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/allele_length\t%INFO/allele_type\n' \
             temp.vcf.gz \
         | awk -F'\t' '{
             split($4, alleles, ",")
-            ref_len = length($3)            
+            ref_length = length($3)            
             alt_len = length($4)
 
-            calc_len = alt_len - ref_len
+            calc_length = alt_len - ref_length
             calc_type = "SNV"
             if (alt_len > ref_len) {
                 calc_type = "INS"
@@ -171,23 +165,17 @@ task AnnotateVariantAttributes {
                 calc_type = "DEL"
             }
 
-            var_len = ($5 == ".") ? calc_len : $5
-            var_type = ($6 == ".") ? calc_type : $6
-            sv_len = $7
-            sv_type = $8
-            if (calc_type == "INS" || calc_type == "DEL") {
-                sv_len = ($7 == ".") ? calc_len : $7
-                sv_type = ($8 == ".") ? calc_type : $8
-            }
+            allele_length = ($5 == ".") ? calc_length : $5
+            allele_type = ($6 == ".") ? calc_type : $6
 
-            print $1"\t"$2"\t"$3"\t"$4"\t"var_len"\t"var_type"\t"sv_len"\t"sv_type
+            print $1"\t"$2"\t"$3"\t"$4"\t"allele_length"\t"allele_type"
         }' \
             | bgzip -c > annot.txt.gz
         
         tabix -s1 -b2 -e2 annot.txt.gz
 
         bcftools annotate -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO/VARLEN,INFO/VARTYPE,INFO/SVLEN,INFO/SVTYPE \
+            -c CHROM,POS,REF,ALT,INFO/allele_length,INFO/allele_type \
             temp.vcf.gz \
             -Oz -o ~{prefix}.vcf.gz
 
@@ -223,7 +211,7 @@ task BedtoolsClosest {
     input {
         File bed_a
         File bed_b
-        String svtype
+        String allele_type
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -233,23 +221,76 @@ task BedtoolsClosest {
         
         paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) \
             | sed -e "s/#//g" \
-            > ~{svtype}.bed
+            > ~{allele_type}.bed
 
         bedtools closest \
             -wo \
             -a <(sort -k1,1 -k2,2n ~{bed_a}) \
             -b <(sort -k1,1 -k2,2n ~{bed_b}) \
-            >> ~{svtype}.bed
+            >> ~{allele_type}.bed
     >>>
 
     output {
-        File output_bed = "~{svtype}.bed"
+        File output_bed = "~{allele_type}.bed"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(bed_a, "GB") + size(bed_b, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task CheckSampleConsistency {
+    input {
+        Array[File] vcfs
+        Array[File] vcfs_idx
+        Array[String] sample_ids
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        printf '%s\n' ~{sep=' ' sample_ids} | sort > requested_samples.txt
+
+        vcfs_array=(~{sep=' ' vcfs})
+        
+        for vcf in "${vcfs_array[@]}"; do            
+            bcftools query -l "$vcf" | sort > vcf_samples.txt
+            
+            comm -23 requested_samples.txt vcf_samples.txt > missing.txt
+            
+            if [ -s missing.txt ]; then
+                echo "ERROR: The following samples are missing from $vcf:"
+                cat missing.txt
+                exit 1
+            fi
+        done
+    >>>
+
+    output {
+        String status = "success"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -345,59 +386,6 @@ CODE
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CheckSampleConsistency {
-    input {
-        Array[File] vcfs
-        Array[File] vcfs_idx
-        Array[String] sample_ids
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        printf '%s\n' ~{sep=' ' sample_ids} | sort > requested_samples.txt
-
-        vcfs_array=(~{sep=' ' vcfs})
-        
-        for vcf in "${vcfs_array[@]}"; do            
-            bcftools query -l "$vcf" | sort > vcf_samples.txt
-            
-            comm -23 requested_samples.txt vcf_samples.txt > missing.txt
-            
-            if [ -s missing.txt ]; then
-                echo "ERROR: The following samples are missing from $vcf:"
-                cat missing.txt
-                exit 1
-            fi
-        done
-    >>>
-
-    output {
-        String status = "success"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -511,6 +499,76 @@ task ConcatVcfs {
     }
 }
 
+task ConcatVcfsLR {
+    input {
+        Array[File] vcfs
+        Array[File]? vcfs_idx
+        Boolean merge_sort = false
+        Boolean remove_dup = true
+        String? outfile_prefix
+        String sv_base_mini_docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    String merge_flag = if merge_sort then "--allow-overlaps" else ""
+    Float input_size = size(vcfs, "GB")
+    Float compression_factor = 10.0
+    Float base_disk_gb = 20.0
+    Float base_mem_gb = 10.0
+
+    RuntimeAttr runtime_default = object {
+        mem_gb: base_mem_gb + compression_factor * input_size,
+        disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
+        cpu_cores: 1,
+        preemptible_tries: 3,
+        max_retries: 1,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, runtime_default.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, runtime_default.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, runtime_default.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, runtime_default.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, runtime_default.max_retries])
+        docker: sv_base_mini_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, runtime_default.boot_disk_gb])
+    }
+
+    command <<<
+        set -euo pipefail
+
+        VCFS="~{write_lines(vcfs)}"
+        if ~{!defined(vcfs_idx)}; then
+            cat ${VCFS} | xargs -n1 tabix
+        fi
+
+        bcftools concat \
+            -a ~{merge_flag} \
+            --file-list ${VCFS} \
+            -Oz -o merged.tmp.vcf.gz
+
+        tabix -p vcf merged.tmp.vcf.gz
+
+        if [[ ~{remove_dup} == "true" ]]; then
+            bcftools norm \
+                -d exact \
+                -Oz -o ~{outfile_prefix}.vcf.gz \
+                merged.tmp.vcf.gz
+        else
+            mv merged.tmp.vcf.gz ~{outfile_prefix}.vcf.gz
+        fi
+
+        tabix -p vcf ~{outfile_prefix}.vcf.gz
+
+    >>>
+
+    output {
+        File concat_vcf = "~{outfile_prefix}.vcf.gz"
+        File concat_vcf_idx =  "~{outfile_prefix}.vcf.gz.tbi"
+    }
+}
+
 task ConvertToSymbolic {
     input {
         File vcf
@@ -524,7 +582,7 @@ task ConvertToSymbolic {
     command <<<
         set -euo pipefail
 
-        bcftools query -f '%INFO/SVTYPE\n' ~{vcf} | sort -u > svtypes.txt
+        bcftools query -f '%INFO/allele_type\n' ~{vcf} | sort -u > allele_types.txt
 
         if [ "~{drop_genotypes}" == "true" ]; then
             bcftools view \
@@ -533,12 +591,12 @@ task ConvertToSymbolic {
             | python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
                 --input - \
                 --output ~{prefix}.vcf.gz \
-                --svtypes svtypes.txt
+                --types allele_types.txt
         else
             python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
                 --input ~{vcf} \
                 --output ~{prefix}.vcf.gz \
-                --svtypes svtypes.txt
+                --types allele_types.txt
         fi
         
         tabix -p vcf ~{prefix}.vcf.gz
@@ -1473,19 +1531,20 @@ task SubsetVcfByArgs {
     }
 }
 
-task SubsetVcfBySize {
+task SubsetVcfByLength {
     input {
         File vcf
         File vcf_idx
+        String length_field = "allele_length"
         String? locus
-        Int? min_size
-        Int? max_size
+        Int? min_length
+        Int? max_length
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
-    String size_filter = if defined(min_size) && defined(max_size) then 'abs(INFO/SVLEN)>=~{min_size} && abs(INFO/SVLEN)<=~{max_size}' else if defined(min_size) then 'abs(INFO/SVLEN)>=~{min_size}' else if defined(max_size) then 'abs(INFO/SVLEN)<=~{max_size}' else '1==1'
+    String size_filter = if defined(min_length) && defined(max_size) then 'abs(INFO/~{length_field})>=~{min_length} && abs(INFO/~{length_field})<=~{max_size}' else if defined(min_length) then 'abs(INFO/~{length_field})>=~{min_length}' else if defined(max_size) then 'abs(INFO/~{length_field})<=~{max_size}' else '1==1'
 
     command <<<
         set -euo pipefail

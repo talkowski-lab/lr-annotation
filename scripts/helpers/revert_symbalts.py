@@ -15,22 +15,22 @@ def main():
 
     with VariantFile(args.original) as original_vcf:
         for record in original_vcf:
-            svlen = record.info.get("SVLEN")
-            if svlen and isinstance(svlen, (list, tuple)):
-                svlen = svlen[0]
-            original_data[record.id] = (record.ref, record.alts, svlen)
+            allele_length = record.info.get("allele_length")
+            if allele_length and isinstance(allele_length, (list, tuple)):
+                allele_length = allele_length[0]
+            original_data[record.id] = (record.ref, record.alts, allele_length)
 
     vcf_in = VariantFile(args.annotated)
     vcf_out = VariantFile(args.output, 'w', header=vcf_in.header)
 
     for record in vcf_in:
         if record.id in original_data:
-            ref, alts, svlen = original_data[record.id]
+            ref, alts, allele_length = original_data[record.id]
 
             record.ref = ref
             record.alts = alts
-            if svlen is not None:
-                record.info["SVLEN"] = svlen
+            if allele_length is not None:
+                record.info["allele_length"] = allele_length
 
             if "BND_ALT" in record.info:
                 del record.info["BND_ALT"]

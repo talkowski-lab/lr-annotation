@@ -35,7 +35,7 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_filter_sv
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_concat
-        RuntimeAttr? runtime_attr_annotate_svlen_svtype
+        RuntimeAttr? runtime_attr_annotate_attributes
     }
 
     if (defined(swap_samples_snv_indel)) {
@@ -104,7 +104,7 @@ workflow IntegrateVcfs {
                 vcf_idx = SplitSnvIndel.split_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_svlen_svtype
+                runtime_attr_override = runtime_attr_annotate_attributes
         }
 
         call Helpers.AddInfo as AddInfoSnvIndel {
@@ -158,7 +158,7 @@ workflow IntegrateVcfs {
                 vcf_idx = SplitSv.split_vcf_idx,
                 prefix = "~{prefix}.~{contig}.sv.annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_svlen_svtype
+                runtime_attr_override = runtime_attr_annotate_attributes
         }
 
         call Helpers.AddInfo as AddInfoSv {

@@ -11,8 +11,8 @@ workflow TruvariMatch {
         File vcf_truth_idx
         String prefix
 
-        Int min_svlen_eval
-        Int min_svlen_truth
+        Int min_sv_length_eval
+        Int min_sv_length_truth
 
         File ref_fa
         File ref_fai
@@ -25,11 +25,11 @@ workflow TruvariMatch {
         RuntimeAttr? runtime_attr_concat_matched
     }
 
-    call Helpers.SubsetVcfBySize as SubsetEval {
+    call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
-            min_size = min_svlen_eval,
+            min_length = min_sv_length_eval,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
@@ -39,7 +39,7 @@ workflow TruvariMatch {
         input:
             vcf = vcf_truth,
             vcf_idx = vcf_truth_idx,
-            include_args = 'abs(ILEN) >= ~{min_svlen_truth} && INFO/variant_type != "snv"',
+            include_args = 'abs(ILEN) >= ~{min_sv_length_truth}',
             prefix = "~{prefix}.subset_truth",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_truth

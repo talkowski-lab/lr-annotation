@@ -34,6 +34,9 @@ workflow BedtoolsClosestSV {
     call SplitQueryVcf as SplitEval {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
+            vcf_idx = ConvertToSymbolic.processed_vcf_idx,
+            type_field = "allele_type",
+            length_field = "allele_length",
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
@@ -43,6 +46,8 @@ workflow BedtoolsClosestSV {
         input:
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
+            type_field = "allele_type",
+            length_field = "SVLEN",
             prefix = "~{prefix}.truth",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_truth
@@ -52,7 +57,7 @@ workflow BedtoolsClosestSV {
         input:
             bed_a = SplitEval.del_bed,
             bed_b = SplitTruth.del_bed,
-            svtype = "DEL",
+            allele_type = "DEL",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
@@ -60,7 +65,7 @@ workflow BedtoolsClosestSV {
     call SelectMatchedSVs as CalcuDEL {
         input:
             input_bed = CompareDEL.output_bed,
-            svtype = "DEL",
+            allele_type = "DEL",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
@@ -69,7 +74,7 @@ workflow BedtoolsClosestSV {
         input:
             bed_a = SplitEval.ins_bed,
             bed_b = SplitTruth.ins_bed,
-            svtype = "INS",
+            allele_type = "INS",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
@@ -77,7 +82,7 @@ workflow BedtoolsClosestSV {
     call SelectMatchedINSs as CalcuINS {
         input:
             input_bed = CompareINS.output_bed,
-            svtype = "INS",
+            allele_type = "INS",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
@@ -110,7 +115,9 @@ workflow BedtoolsClosestSV {
 task SplitQueryVcf {
     input {
         File vcf
-        File? vcf_idx
+        File vcf_idx
+        String type_field
+        String length_field
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -120,8 +127,8 @@ task SplitQueryVcf {
         set -euo pipefail
 
         svtk vcf2bed \
-            -i SVTYPE \
-            -i SVLEN \
+            -i ~{type_field} \
+            -i ~{length_field} \
             ~{vcf} \
             tmp.bed
         
@@ -172,7 +179,7 @@ task SplitQueryVcf {
 task SelectMatchedSVs {
     input {
         File input_bed
-        String svtype
+        String allele_type
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -214,7 +221,6 @@ task SelectMatchedSVs {
 task SelectMatchedINSs {
     input {
         File input_bed
-        String svtype
         String docker
         RuntimeAttr? runtime_attr_override
     }

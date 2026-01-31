@@ -13,7 +13,7 @@ workflow AnnotatePALMER {
         String prefix
         
         Array[String] mei_types
-        Int min_svlen
+        Int min_length
         File rm_out
         Int rm_buffer
         File ref_fai
@@ -51,12 +51,12 @@ workflow AnnotatePALMER {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfBySize {
+        call Helpers.SubsetVcfByLength {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 locus = contig,
-                min_size = min_svlen,
+                min_length = min_length,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_subset
@@ -64,8 +64,8 @@ workflow AnnotatePALMER {
 
         call FilterPALMER {
             input:
-                vcf = SubsetVcfBySize.subset_vcf,
-                vcf_idx = SubsetVcfBySize.subset_vcf_idx,
+                vcf = SubsetVcfByLength.subset_vcf,
+                vcf_idx = SubsetVcfByLength.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.filtered",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,
@@ -210,7 +210,7 @@ task FilterPALMER {
                 bedtools slop -g genome_file -b ~{rm_buffer} | \
                 bedtools merge -c 4,5,6 -o collapse > RM_filtered.bed
 
-            bcftools query -f '%CHROM\t%POS\t%ID\t%SVLEN\t[%SAMPLE,]\t%REF\t%ALT\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
+            bcftools query -f '%CHROM\t%POS\t%ID\t%INFO/allele_length\t[%SAMPLE,]\t%REF\t%ALT\n' -i 'GT=="alt"' ${ME_type}_subset.vcf.gz \
                 | awk 'OFS="\t" {print $1,$2-1,$2,$3,$4,$5,$6,$7}' \
                 | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed

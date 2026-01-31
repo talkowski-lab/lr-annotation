@@ -17,8 +17,8 @@ workflow BenchmarkAnnotations {
         String prefix
         
         Int variants_per_shard
-        Int min_svlen_eval
-        Int min_svlen_truth
+        Int min_sv_length_eval
+        Int min_sv_length_truth
 
         String? skip_vep_categories
         String? args_string_vcf
@@ -192,8 +192,8 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}",
-                min_svlen_eval = min_svlen_eval,
-                min_svlen_truth = min_svlen_truth,
+                min_sv_length_eval = min_sv_length_eval,
+                min_sv_length_truth = min_sv_length_truth,
                 utils_docker = utils_docker,
                 runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
                 runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,

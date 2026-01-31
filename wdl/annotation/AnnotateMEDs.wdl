@@ -91,8 +91,9 @@ task ExtractDeletionsToBed {
     command <<<
         set -euo pipefail
 
-        bcftools view -i 'SVTYPE=="DEL"' ~{vcf} | \
-            bcftools query -f '%CHROM\t%POS\t%END\t%REF\t%ALT\t%ID\n' > ~{prefix}.del.bed
+        bcftools view -i 'INFO/allele_type=="DEL"' ~{vcf} \
+            | bcftools query -f '%CHROM\t%POS\t%END\t%REF\t%ALT\t%ID\n' \
+            > ~{prefix}.del.bed
     >>>
 
     output {

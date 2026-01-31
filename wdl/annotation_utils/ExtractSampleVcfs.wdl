@@ -10,7 +10,7 @@ workflow ExtractSampleVcfs {
         File cohort_vcf_idx
         String prefix
 
-        Int min_svlen
+        Int min_sv_length
         String? extra_args
 
         String utils_docker
@@ -32,21 +32,21 @@ workflow ExtractSampleVcfs {
                 runtime_attr_override = runtime_attr_extract_sample
         }
 
-        call Helpers.SubsetVcfBySize as SubsetSnv {
+        call Helpers.SubsetVcfByLength as SubsetSnv {
             input:
                 vcf = ExtractSample.subset_vcf,
                 vcf_idx = ExtractSample.subset_vcf_idx,
-                max_size = min_svlen - 1,
+                max_size = min_sv_length - 1,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_snv
         }
 
-        call Helpers.SubsetVcfBySize as SubsetSv {
+        call Helpers.SubsetVcfByLength as SubsetSv {
             input:
                 vcf = ExtractSample.subset_vcf,
                 vcf_idx = ExtractSample.subset_vcf_idx,
-                min_size = min_svlen,
+                min_length = min_sv_length,
                 prefix = "~{prefix}.~{sample_id}.sv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_sv
