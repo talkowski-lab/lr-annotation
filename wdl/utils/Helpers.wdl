@@ -502,10 +502,10 @@ task ConcatVcfs {
 task ConcatVcfsLR {
     input {
         Array[File] vcfs
-        Array[File]? vcfs_idx
+        Array[File] vcf_idxs
         Boolean merge_sort = false
         Boolean remove_dup = true
-        String? outfile_prefix
+        String prefix
         String sv_base_mini_docker
         RuntimeAttr? runtime_attr_override
     }
@@ -538,11 +538,6 @@ task ConcatVcfsLR {
     command <<<
         set -euo pipefail
 
-        VCFS="~{write_lines(vcfs)}"
-        if ~{!defined(vcfs_idx)}; then
-            cat ${VCFS} | xargs -n1 tabix
-        fi
-
         bcftools concat \
             -a ~{merge_flag} \
             --file-list ${VCFS} \
@@ -553,19 +548,19 @@ task ConcatVcfsLR {
         if [[ ~{remove_dup} == "true" ]]; then
             bcftools norm \
                 -d exact \
-                -Oz -o ~{outfile_prefix}.vcf.gz \
+                -Oz -o ~{prefix}.vcf.gz \
                 merged.tmp.vcf.gz
         else
-            mv merged.tmp.vcf.gz ~{outfile_prefix}.vcf.gz
+            mv merged.tmp.vcf.gz ~{prefix}.vcf.gz
         fi
 
-        tabix -p vcf ~{outfile_prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
 
     >>>
 
     output {
-        File concat_vcf = "~{outfile_prefix}.vcf.gz"
-        File concat_vcf_idx =  "~{outfile_prefix}.vcf.gz.tbi"
+        File concat_vcf = "~{prefix}.vcf.gz"
+        File concat_vcf_idx =  "~{prefix}.vcf.gz.tbi"
     }
 }
 
@@ -1544,7 +1539,7 @@ task SubsetVcfByLength {
         RuntimeAttr? runtime_attr_override
     }
 
-    String size_filter = if defined(min_length) && defined(max_size) then 'abs(INFO/~{length_field})>=~{min_length} && abs(INFO/~{length_field})<=~{max_size}' else if defined(min_length) then 'abs(INFO/~{length_field})>=~{min_length}' else if defined(max_size) then 'abs(INFO/~{length_field})<=~{max_size}' else '1==1'
+    String size_filter = if defined(min_length) && defined(max_length) then 'abs(INFO/~{length_field})>=~{min_length} && abs(INFO/~{length_field})<=~{max_length}' else if defined(min_length) then 'abs(INFO/~{length_field})>=~{min_length}' else if defined(max_length) then 'abs(INFO/~{length_field})<=~{max_length}' else '1==1'
 
     command <<<
         set -euo pipefail
