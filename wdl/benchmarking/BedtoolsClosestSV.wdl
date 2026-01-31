@@ -82,7 +82,6 @@ workflow BedtoolsClosestSV {
     call SelectMatchedINSs as CalcuINS {
         input:
             input_bed = CompareINS.output_bed,
-            allele_type = "INS",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
