@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
 
-workflow PhysicalPhasing {
+workflow HiPhase {
     input {
         File bam
         File bai
