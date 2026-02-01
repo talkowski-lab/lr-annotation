@@ -88,6 +88,15 @@ workflows:
   # Annotation Utilities
   # --------------------
   - subclass: WDL
+    name: AnnotateDuplications
+    primaryDescriptorPath: /wdl/annotation_utils/AnnotateDuplications.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateVcf
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcf.wdl
     filters:

@@ -156,6 +156,10 @@ Inputs:
 
 
 ## Annotation Utilities
+### [AnnotateDuplications](wdl/annotation_utils/AnnotateDuplications.wdl)
+TODO
+
+
 ### [AnnotateVcf](wdl/annotation_utils/AnnotateVcf.wdl)
 TODO
 
