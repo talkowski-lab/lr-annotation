@@ -168,7 +168,7 @@ task AnnotateVariantAttributes {
             allele_length = ($5 == ".") ? calc_length : $5
             allele_type = ($6 == ".") ? calc_type : $6
 
-            print $1"\t"$2"\t"$3"\t"$4"\t"allele_length"\t"allele_type"
+            print $1"\t"$2"\t"$3"\t"$4"\t"allele_length"\t"allele_type
         }' \
             | bgzip -c > annot.txt.gz
         
