@@ -137,10 +137,10 @@ task AnnotateVariantAttributes {
 
         touch new_headers.txt
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_length'; then
-            echo '##INFO=<ID=VARLEN,Number=1,Type=Integer,Description="Allele length">' >> new_headers.txt
+            echo '##INFO=<ID=allele_length,Number=1,Type=Integer,Description="Allele length">' >> new_headers.txt
         fi
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_type'; then
-            echo '##INFO=<ID=VARTYPE,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
+            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
         fi
 
         bcftools annotate \

@@ -26,8 +26,7 @@ workflow IntegrateVcfs {
         File? swap_samples_sv
         
         String utils_docker
-
-
+        
         RuntimeAttr? runtime_attr_swap_samples_snv_indel
         RuntimeAttr? runtime_attr_swap_samples_sv
         RuntimeAttr? runtime_attr_check_samples
