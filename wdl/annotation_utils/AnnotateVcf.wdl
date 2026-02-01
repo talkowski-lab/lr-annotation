@@ -114,7 +114,7 @@ for i, (names, descs, types, numbers) in enumerate(zip(info_names, info_descript
         for name, desc, type_val, number in zip(names, descs, types, numbers):
             f.write(f'##INFO=<ID={name},Number={number},Type={type_val},Description="{desc}">\n')
     
-    column_spec = ','.join(['CHROM', 'POS', 'REF', 'ALT', 'ID'] + [f'INFO/{name}' for name in names])
+    column_spec = ','.join(['CHROM', 'POS', 'REF', 'ALT', '~ID'] + [f'INFO/{name}' for name in names])
     with open(f"columns_{i}.txt", "w") as f:
         f.write(column_spec)
 
