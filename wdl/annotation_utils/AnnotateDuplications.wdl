@@ -25,7 +25,7 @@ workflow AnnotateDuplications {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -34,7 +34,7 @@ workflow AnnotateDuplications {
             input:
                 tsv = annotations_tsv,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}.tsv",
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_tsv
         }
@@ -44,7 +44,7 @@ workflow AnnotateDuplications {
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 annotations_tsv = SubsetTsvToContig.subset_tsv,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.dup_annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
@@ -54,7 +54,7 @@ workflow AnnotateDuplications {
         input:
             vcfs = UpdateAlleleType.annotated_vcf,
             vcfs_idx = UpdateAlleleType.annotated_vcf_idx,
-            prefix = prefix + ".annotated",
+            prefix = prefix + ".dup_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
