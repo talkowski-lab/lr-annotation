@@ -124,7 +124,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSnvIndel.annotated_vcf_idx,
                 filter_name = snv_indel_vcf_size_flag,
                 filter_description = snv_indel_vcf_size_flag_description,
-                filter_expression = "abs(INFO/VARLEN) >= ~{min_sv_length}",
+                filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.snv_indel.flagged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
@@ -178,7 +178,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSv.annotated_vcf_idx,
                 filter_name = sv_vcf_size_flag,
                 filter_description = sv_vcf_size_flag_description,
-                filter_expression = "abs(INFO/VARLEN) < ~{min_sv_length}",
+                filter_expression = "abs(INFO/allele_length) < ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.sv.flagged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv
