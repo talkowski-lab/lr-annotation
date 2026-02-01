@@ -83,7 +83,7 @@ task UpdateAlleleType {
         
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,ID,INFO/allele_type \
+            -c CHROM,POS,REF,ALT,ID,INFO/SVTYPE \
             -Oz -o ~{prefix}.annotated.vcf.gz \
             "~{vcf}"
 
