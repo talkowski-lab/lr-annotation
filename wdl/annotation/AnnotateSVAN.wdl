@@ -23,18 +23,20 @@ workflow AnnotateSVAN {
         File mei_fa_mmi
         File ref_fa
 
+        String utils_docker
         String annotate_svan_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_separate
+        RuntimeAttr? runtime_attr_reset_filters
+        RuntimeAttr? runtime_attr_subset_ins
+        RuntimeAttr? runtime_attr_subset_del
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
-        RuntimeAttr? runtime_attr_concat_ins
-        RuntimeAttr? runtime_attr_concat_del
+        RuntimeAttr? runtime_attr_extract_ins
+        RuntimeAttr? runtime_attr_extract_del
         RuntimeAttr? runtime_attr_concat_final
-        RuntimeAttr? runtime_attr_merge_headers
     }
 
     scatter (contig in contigs) {
@@ -45,7 +47,7 @@ workflow AnnotateSVAN {
                 contig = contig,
                 drop_genotypes = true,
                 prefix = prefix,
-                docker = annotate_svan_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
@@ -54,35 +56,36 @@ workflow AnnotateSVAN {
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.reset_filters",
-                docker = annotate_svan_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
-        }
-
-        call SeparateInsertionsDeletions {
-            input:
-                vcf = ResetVcfFilters.reset_vcf,
-                vcf_idx = ResetVcfFilters.reset_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
-                docker = annotate_svan_docker,
-                runtime_attr_override = runtime_attr_separate
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_reset_filters
         }
 
         # Insertions
-        call GenerateTRF as GenerateTRFForInsertions {
+        call Helpers.SubsetVcfByArgs as SubsetIns {
             input:
-                vcf = SeparateInsertionsDeletions.ins_vcf,
-                vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
+                vcf = ResetVcfFilters.reset_vcf,
+                vcf_idx = ResetVcfFilters.reset_vcf_idx,
+                include_args = "INFO/allele_type=INS",
+                prefix = "~{prefix}.~{contig}.ins_subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_ins
+        }
+
+        call GenerateTRF as GenerateTRFIns {
+            input:
+                vcf = SubsetIns.subset_vcf,
+                vcf_idx = SubsetIns.subset_vcf_idx,
+                prefix = "~{prefix}.~{contig}.trf",
                 mode = "ins",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
         }
 
-        call RunSvanAnnotation as AnnotateInsertions {
+        call RunSvanAnnotate as SvanAnnotateIns {
             input:
-                vcf = SeparateInsertionsDeletions.ins_vcf,
-                vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
-                trf_output = GenerateTRFForInsertions.trf_output,
+                vcf = SubsetIns.subset_vcf,
+                vcf_idx = SubsetIns.subset_vcf_idx,
+                trf_output = GenerateTRFIns.trf_output,
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
@@ -102,31 +105,42 @@ workflow AnnotateSVAN {
 
         call Helpers.ExtractVcfAnnotations as ExtractIns {
             input:
-                vcf = AnnotateInsertions.annotated_vcf,
-                vcf_idx = AnnotateInsertions.annotated_vcf_idx,
-                original_vcf = SeparateInsertionsDeletions.ins_vcf,
-                original_vcf_idx = SeparateInsertionsDeletions.ins_vcf_idx,
+                vcf = SvanAnnotateIns.annotated_vcf,
+                vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
+                original_vcf = SubsetIns.subset_vcf,
+                original_vcf_idx = SubsetIns.subset_vcf_idx,
                 add_header_row = true,
                 prefix = "~{prefix}.~{contig}.ins",
-                docker = annotate_svan_docker
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_ins
         }
 
         # Deletions
-        call GenerateTRF as GenerateTRFForDeletions {
+        call Helpers.SubsetVcfByArgs as SubsetDel {
             input:
-                vcf = SeparateInsertionsDeletions.del_vcf,
-                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
+                vcf = ResetVcfFilters.reset_vcf,
+                vcf_idx = ResetVcfFilters.reset_vcf_idx,
+                include_args = 'INFO/allele_type="DEL"',
+                prefix = "~{prefix}.~{contig}.del_subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_del
+        }
+
+        call GenerateTRF as GenerateTRFDel {
+            input:
+                vcf = SubsetDel.subset_vcf,
+                vcf_idx = SubsetDel.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 mode = "del",
                 docker = annotate_svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_del
         }
 
-        call RunSvanAnnotation as AnnotateDeletions {
+        call RunSvanAnnotate as SvanAnnotateDel {
             input:
-                vcf = SeparateInsertionsDeletions.del_vcf,
-                vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
-                trf_output = GenerateTRFForDeletions.trf_output,
+                vcf = SubsetDel.subset_vcf,
+                vcf_idx = SubsetDel.subset_vcf_idx,
+                trf_output = GenerateTRFDel.trf_output,
                 vntr_bed = vntr_bed,
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
@@ -146,13 +160,14 @@ workflow AnnotateSVAN {
 
         call Helpers.ExtractVcfAnnotations as ExtractDel {
             input:
-                vcf = AnnotateDeletions.annotated_vcf,
-                vcf_idx = AnnotateDeletions.annotated_vcf_idx,
-                original_vcf = SeparateInsertionsDeletions.del_vcf,
-                original_vcf_idx = SeparateInsertionsDeletions.del_vcf_idx,
+                vcf = SvanAnnotateDel.annotated_vcf,
+                vcf_idx = SvanAnnotateDel.annotated_vcf_idx,
+                original_vcf = SubsetDel.subset_vcf,
+                original_vcf_idx = SubsetDel.subset_vcf_idx,
                 add_header_row = true,
                 prefix = "~{prefix}.~{contig}.del",
-                docker = annotate_svan_docker
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_del
         }
     }
     
@@ -160,64 +175,13 @@ workflow AnnotateSVAN {
         input:
             tsvs = flatten([ExtractIns.annotations_tsv, ExtractDel.annotations_tsv]),
             prefix = prefix + ".svan_annotations",
-            docker = annotate_svan_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_final
     }
 
     output {
         File annotations_tsv_svan = ConcatAlignedTsvs.merged_tsv
         File annotations_header_svan = ConcatAlignedTsvs.merged_header
-    }
-}
-
-task SeparateInsertionsDeletions {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bcftools view ~{vcf} \
-            --include 'INFO/allele_type="INS"' \
-            -Oz -o ~{prefix}.insertions.vcf.gz
-        
-        bcftools view ~{vcf} \
-            --include 'INFO/allele_type="DEL"' \
-            -Oz -o ~{prefix}.deletions.vcf.gz
-        
-        tabix -p vcf ~{prefix}.insertions.vcf.gz
-        tabix -p vcf ~{prefix}.deletions.vcf.gz
-    >>>
-
-    output {
-        File ins_vcf = "~{prefix}.insertions.vcf.gz"
-        File ins_vcf_idx = "~{prefix}.insertions.vcf.gz.tbi"
-        File del_vcf = "~{prefix}.deletions.vcf.gz"
-        File del_vcf_idx = "~{prefix}.deletions.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) * 2 + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -249,9 +213,6 @@ task GenerateTRF {
         elif [[ "~{mode}" == "del" ]]; then
             python3 /app/SVAN/scripts/del2fasta.py "$vcf_input" work_dir
             trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.~{mode}_trf.out
-        else
-            echo "Invalid mode provided to GenerateTRF task: ~{mode}"
-            exit 1
         fi
     >>>
 
@@ -279,7 +240,7 @@ task GenerateTRF {
     }
 }
 
-task RunSvanAnnotation {
+task RunSvanAnnotate {
     input {
         File vcf
         File vcf_idx
