@@ -78,12 +78,12 @@ task UpdateAlleleType {
     command <<<
         set -euo pipefail
 
-        bgzip -c "~{annotations_tsv}" > annotations.tsv.gz
+        bgzip -c ~{annotations_tsv} > annotations.tsv.gz
         tabix -s1 -b2 -e2 annotations.tsv.gz
         
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,ID,INFO/SVTYPE \
+            -c CHROM,POS,REF,ALT,ID,INFO/allele_type \
             -Oz -o ~{prefix}.annotated.vcf.gz \
             "~{vcf}"
 
