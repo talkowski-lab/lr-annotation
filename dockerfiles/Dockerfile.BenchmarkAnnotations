@@ -8,5 +8,5 @@ COPY ./scripts/benchmark/compute_benchmarks_shard.py /opt/gnomad-lr/scripts/benc
 COPY ./scripts/benchmark/compute_summary_for_contig.py /opt/gnomad-lr/scripts/benchmark/
 COPY ./scripts/benchmark/merge_benchmarks_from_pairs.py /opt/gnomad-lr/scripts/benchmark/
 
-COPY ./scripts/benchmark/R_scripts/R1.bedtools_closest_CNV.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
-COPY ./scripts/benchmark/R_scripts/R2.bedtools_closest_INS.R /opt/gnomad-lr/scripts/benchmark/R_scripts/
+COPY ./scripts/benchmark/R1.bedtools_closest_CNV.R /opt/gnomad-lr/scripts/benchmark/
+COPY ./scripts/benchmark/R2.bedtools_closest_INS.R /opt/gnomad-lr/scripts/benchmark/

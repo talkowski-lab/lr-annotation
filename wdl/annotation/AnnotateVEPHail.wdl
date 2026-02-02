@@ -24,7 +24,7 @@ workflow AnnotateVEPHail {
         File top_level_fa
         File ref_vep_cache
 
-        String annotate_vep_hail_docker
+        String vep_hail_docker
         String hail_docker
         String sv_base_mini_docker
         
@@ -37,49 +37,49 @@ workflow AnnotateVEPHail {
 
     call ScatterVCF.ScatterVCF {
         input:
-            file=vcf,
-            split_vcf_hail_script=split_vcf_hail_script,
-            prefix=prefix,
-            genome_build=genome_build,
-            localize_vcf=localize_vcf,
-            get_chromosome_sizes=get_chromosome_sizes,
-            has_index=has_index,
-            split_by_chromosome=split_by_chromosome,
-            split_into_shards=split_into_shards,
-            hail_docker=hail_docker,
-            sv_base_mini_docker=sv_base_mini_docker,
-            runtime_attr_split_by_chr=runtime_attr_split_by_chr,
-            runtime_attr_split_into_shards=runtime_attr_split_into_shards
+            file = vcf,
+            split_vcf_hail_script = split_vcf_hail_script,
+            prefix = prefix,
+            genome_build = genome_build,
+            localize_vcf = localize_vcf,
+            get_chromosome_sizes = get_chromosome_sizes,
+            has_index = has_index,
+            split_by_chromosome = split_by_chromosome,
+            split_into_shards = split_into_shards,
+            hail_docker = hail_docker,
+            sv_base_mini_docker = sv_base_mini_docker,
+            runtime_attr_split_by_chr = runtime_attr_split_by_chr,
+            runtime_attr_split_into_shards = runtime_attr_split_into_shards
     }
 
     scatter (vcf_shard in ScatterVCF.vcf_shards) {
         call Helpers.SubsetVcfToCalled {
             input:
-                vcf=vcf_shard,
-                prefix="~{prefix}.called",
-                docker=sv_base_mini_docker,
-                runtime_attr_override=runtime_attr_subset_called
+                vcf = vcf_shard,
+                prefix = "~{prefix}.called",
+                docker = sv_base_mini_docker,
+                runtime_attr_override = runtime_attr_subset_called
         }
 
         call VepAnnotate {
             input:
-                vcf=SubsetVcfToCalled.subset_vcf,
-                vep_annotate_hail_python_script=vep_annotate_hail_python_script,
-                top_level_fa=top_level_fa,
-                ref_vep_cache=ref_vep_cache,
-                docker=annotate_vep_hail_docker,
-                genome_build=genome_build,
-                vep_json_schema=vep_json_schema,
-                runtime_attr_override=runtime_attr_vep_annotate
+                vcf = SubsetVcfToCalled.subset_vcf,
+                vep_annotate_hail_python_script = vep_annotate_hail_python_script,
+                top_level_fa = top_level_fa,
+                ref_vep_cache = ref_vep_cache,
+                docker = vep_hail_docker,
+                genome_build = genome_build,
+                vep_json_schema = vep_json_schema,
+                runtime_attr_override = runtime_attr_vep_annotate
         }
     }
     
     call Helpers.ConcatTsvs {
         input:
-            tsvs=VepAnnotate.vep_tsv_file,
-            prefix=prefix + ".vep_annotations",
-            docker=sv_base_mini_docker,
-            runtime_attr_override=runtime_attr_concat
+            tsvs = VepAnnotate.vep_tsv_file,
+            prefix = prefix + ".vep_annotations",
+            docker = sv_base_mini_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {

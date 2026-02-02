@@ -9,7 +9,7 @@ workflow ScatterVCF {
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
         String prefix
 
-        String genome_build='GRCh38'
+        String genome_build = 'GRCh38'
         Boolean localize_vcf
         Boolean get_chromosome_sizes
         Boolean split_by_chromosome
@@ -32,9 +32,9 @@ workflow ScatterVCF {
             if (get_chromosome_sizes) {
                 call GetChromosomeSizes {
                     input:
-                        vcf_file=vcf_uri,
-                        has_index=select_first([has_index]),
-                        sv_base_mini_docker=sv_base_mini_docker
+                        vcf_file = vcf_uri,
+                        has_index = select_first([has_index]),
+                        sv_base_mini_docker = sv_base_mini_docker
                 }
             }
         }
@@ -48,10 +48,10 @@ workflow ScatterVCF {
             if (localize_vcf) {
                 call SplitByChromosome {
                     input:
-                        vcf_file=file,
-                        chromosome=chromosome,
-                        sv_base_mini_docker=sv_base_mini_docker,
-                        runtime_attr_override=runtime_attr_split_by_chr
+                        vcf_file = file,
+                        chromosome = chromosome,
+                        sv_base_mini_docker = sv_base_mini_docker,
+                        runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
             if (!localize_vcf) {
@@ -62,12 +62,12 @@ workflow ScatterVCF {
                     else size(vcf_uri, 'GB')
                 call SplitByChromosomeRemote {
                     input:
-                        vcf_file=vcf_uri,
-                        chromosome=chromosome,
-                        input_size=input_size_,
-                        has_index=select_first([has_index]),
-                        sv_base_mini_docker=sv_base_mini_docker,
-                        runtime_attr_override=runtime_attr_split_by_chr
+                        vcf_file = vcf_uri,
+                        chromosome = chromosome,
+                        input_size = input_size_,
+                        has_index = select_first([has_index]),
+                        sv_base_mini_docker = sv_base_mini_docker,
+                        runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
             File splitChromosomeShards = select_first([SplitByChromosome.shards, SplitByChromosomeRemote.shards])
@@ -84,13 +84,13 @@ workflow ScatterVCF {
                 Int chrom_n_shards = ceil(chrom_n_records / select_first([records_per_shard, 0]))
                 call ExecuteScattering as scatterChromosomes {
                     input:
-                        vcf_file=chrom_shard,
-                        split_vcf_hail_script=split_vcf_hail_script,
-                        n_shards=chrom_n_shards,
-                        records_per_shard=0,
-                        hail_docker=hail_docker,
-                        genome_build=genome_build,
-                        runtime_attr_override=runtime_attr_split_into_shards
+                        vcf_file = chrom_shard,
+                        split_vcf_hail_script = split_vcf_hail_script,
+                        n_shards = chrom_n_shards,
+                        records_per_shard = 0,
+                        hail_docker = hail_docker,
+                        genome_build = genome_build,
+                        runtime_attr_override = runtime_attr_split_into_shards
                 }
             }
             Array[File] chromosome_shards = flatten(scatterChromosomes.shards)
@@ -100,33 +100,33 @@ workflow ScatterVCF {
             if (localize_vcf) {
                 call ExecuteScattering {
                     input:
-                        vcf_file=file,
-                        split_vcf_hail_script=split_vcf_hail_script,
-                        n_shards=select_first([n_shards]),
-                        records_per_shard=select_first([records_per_shard, 0]),
-                        hail_docker=hail_docker,
-                        genome_build=genome_build,
-                        runtime_attr_override=runtime_attr_split_into_shards
+                        vcf_file = file,
+                        split_vcf_hail_script = split_vcf_hail_script,
+                        n_shards = select_first([n_shards]),
+                        records_per_shard = select_first([records_per_shard, 0]),
+                        hail_docker = hail_docker,
+                        genome_build = genome_build,
+                        runtime_attr_override = runtime_attr_split_into_shards
                     }
             }
             if (!localize_vcf) {
                 String mt_uri = file
                 call Helpers.GetHailMTSize as getHailMTSize {
                     input:
-                        mt_uri=mt_uri,
-                        docker=hail_docker
+                        mt_uri = mt_uri,
+                        docker = hail_docker
                 }
                 
                 call ScatterVCFRemote {
                     input:
-                        vcf_file=mt_uri,
-                        input_size=getHailMTSize.mt_size,
-                        split_vcf_hail_script=split_vcf_hail_script,
-                        n_shards=select_first([n_shards]),
-                        records_per_shard=select_first([records_per_shard, 0]),
-                        genome_build=genome_build,
-                        hail_docker=hail_docker,
-                        runtime_attr_override=runtime_attr_split_into_shards
+                        vcf_file = mt_uri,
+                        input_size = getHailMTSize.mt_size,
+                        split_vcf_hail_script = split_vcf_hail_script,
+                        n_shards = select_first([n_shards]),
+                        records_per_shard = select_first([records_per_shard, 0]),
+                        genome_build = genome_build,
+                        hail_docker = hail_docker,
+                        runtime_attr_override = runtime_attr_split_into_shards
                 }
             }
         }

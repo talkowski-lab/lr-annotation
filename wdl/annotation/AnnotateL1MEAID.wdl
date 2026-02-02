@@ -13,8 +13,8 @@ workflow AnnotateL1MEAID {
 
         String utils_docker
         String repeatmasker_docker
-        String annotate_l1meaid_docker
-        String annotate_l1meaid_filter_docker
+        String l1meaid_docker
+        String intact_mei_docker
 
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_ins_to_fa
@@ -52,7 +52,7 @@ workflow AnnotateL1MEAID {
                 rm_fa = RepeatMasker.rm_fa,
                 rm_out = RepeatMasker.rm_out,
                 prefix = "~{prefix}.~{contig}",
-                docker = annotate_l1meaid_docker,
+                docker = l1meaid_docker,
                 runtime_attr_override = runtime_attr_limeaid
         }
 
@@ -60,7 +60,7 @@ workflow AnnotateL1MEAID {
             input:
                 limeaid_output = L1MEAID.limeaid_output,
                 prefix = "~{prefix}.~{contig}",
-                docker = annotate_l1meaid_filter_docker,
+                docker = intact_mei_docker,
                 runtime_attr_override = runtime_attr_filter
         }
 

@@ -24,7 +24,7 @@ workflow AnnotateSVAN {
         File ref_fa
 
         String utils_docker
-        String annotate_svan_docker
+        String svan_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_reset_filters
@@ -77,7 +77,7 @@ workflow AnnotateSVAN {
                 vcf_idx = SubsetIns.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.trf",
                 mode = "ins",
-                docker = annotate_svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
         }
 
@@ -99,7 +99,7 @@ workflow AnnotateSVAN {
                 ref_fa = ref_fa,
                 prefix = "~{prefix}.~{contig}",
                 mode = "ins",
-                docker = annotate_svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_ins
         }
 
@@ -132,7 +132,7 @@ workflow AnnotateSVAN {
                 vcf_idx = SubsetDel.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 mode = "del",
-                docker = annotate_svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_del
         }
 
@@ -154,7 +154,7 @@ workflow AnnotateSVAN {
                 ref_fa = ref_fa,
                 prefix = "~{prefix}.~{contig}",
                 mode = "del",
-                docker = annotate_svan_docker,
+                docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
         }
 
