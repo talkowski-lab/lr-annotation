@@ -167,21 +167,32 @@ task AnnotateTRVariants {
         bcftools view -S samples.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
         tabix -p vcf tr_reordered.vcf.gz
 
-        echo '##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Source of tandem repeat">' > tr_header.txt
-        bcftools annotate -h tr_header.txt tr_reordered.vcf.gz -Oz -o tr_header_added.vcf.gz
+        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call - DeepVariant or HPRC_SV_Integration">' \
+            > tr_header.txt
+        
+        bcftools annotate \
+            -h tr_header.txt \
+            -Oz -o tr_header_added.vcf.gz \
+            tr_reordered.vcf.gz
 
         bcftools view tr_header_added.vcf.gz \
             | awk -v info="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
-                $8 = $8 ";TR_CALLER=" info
+                $8 = $8 ";SOURCE=" info
                 print
             }' | bgzip -c > tr_tagged.vcf.gz
-
+        
         tabix -p vcf tr_tagged.vcf.gz
 
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/VARTYPE\t%INFO/VARLEN\n' ~{vcf} \
-            | awk '$7 != "SNV" && $7 != "."' > vcf.bed
+        bcftools query \
+            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/VARTYPE\t%INFO/VARLEN\n' \
+            ~{vcf} \
+            | awk '$7 != "SNV" && $7 != "."' \
+            > vcf.bed
 
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' tr_tagged.vcf.gz > tr.bed
+        bcftools query \
+            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' \
+            tr_tagged.vcf.gz \
+            > tr.bed
 
         bedtools intersect \
             -f 1.0 \
@@ -199,8 +210,8 @@ task AnnotateTRVariants {
                 if (len < min_motif) min_motif = len
             }
 
-            var_len = ($8 < 0) ? -$8 : $8
-            if (var_len < min_motif) next
+            allele_length = ($8 < 0) ? -$8 : $8
+            if (allele_length < min_motif) next
 
             print $1, $2, $5, $6, filter, $12, source
         }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
@@ -218,12 +229,10 @@ task AnnotateTRVariants {
         bcftools reheader \
             -h vcf_no_al_header.txt \
             ~{vcf} \
-        > vcf_stripped.vcf.gz
+            > vcf_stripped.vcf.gz
 
         cat <<EOF > new_header.txt
-##INFO=<ID=TR_CALLER,Number=1,Type=String,Description="Source of tandem repeat">
-##INFO=<ID=TR_CALLER_SOURCE,Number=1,Type=String,Description="Source of overlapping tandem repeat">
-##INFO=<ID=TR_CALLER_ID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
+##INFO=<ID=TRID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
 ##FILTER=<ID=~{tr_caller}_OVERLAPPED,Description="Variant enveloped by ~{tr_caller}">
 EOF
         
@@ -231,7 +240,7 @@ EOF
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,FILTER,INFO/TR_CALLER_ID,INFO/TR_CALLER_SOURCE \
+            -c CHROM,POS,REF,ALT,FILTER,INFO/TRID,INFO/SOURCE \
             -h merged_headers.txt \
             -Oz -o vcf_annotated.vcf.gz \
             vcf_stripped.vcf.gz
