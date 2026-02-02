@@ -15,11 +15,9 @@ workflow IntegrateVcfs {
         Array[String] sample_ids
         Int min_sv_length = 50
         String snv_indel_vcf_source_tag
-        String snv_indel_vcf_source_tag_description
         String snv_indel_vcf_size_flag
         String snv_indel_vcf_size_flag_description
         String sv_vcf_source_tag
-        String sv_vcf_source_tag_description
         String sv_vcf_size_flag
         String sv_vcf_size_flag_description
         File? swap_samples_snv_indel
@@ -112,7 +110,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AnnotateSnvIndel.annotated_vcf_idx,
                 tag_id = "SOURCE",
                 tag_value = snv_indel_vcf_source_tag,
-                tag_description = snv_indel_vcf_source_tag_description,
+                tag_description = "Source of variant call",
                 prefix = "~{prefix}.~{contig}.snv_indel.source",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
@@ -166,7 +164,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AnnotateSv.annotated_vcf_idx,
                 tag_id = "SOURCE",
                 tag_value = sv_vcf_source_tag,
-                tag_description = sv_vcf_source_tag_description,
+                tag_description = "Source of variant call",
                 prefix = "~{prefix}.~{contig}.sv.source",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv

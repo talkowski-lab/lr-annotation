@@ -167,7 +167,7 @@ task AnnotateTRVariants {
         bcftools view -S samples.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
         tabix -p vcf tr_reordered.vcf.gz
 
-        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call - DeepVariant or HPRC_SV_Integration">' \
+        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' \
             > tr_header.txt
         
         bcftools annotate \
