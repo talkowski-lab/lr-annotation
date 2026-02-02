@@ -7,10 +7,9 @@ workflow SubsetVcfToSamples {
     input {
         File vcf
         File vcf_idx
+        Array[String] samples
         Array[String] contigs
         String prefix
-
-        Array[String] samples
 
         String utils_docker
 

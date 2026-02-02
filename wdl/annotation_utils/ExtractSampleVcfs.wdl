@@ -24,7 +24,7 @@ workflow ExtractSampleVcfs {
 
     scatter (sample_id in sample_ids) {
         scatter (contig in contigs) {
-            call Helpers.ExtractSample as ExtractSampleByContig {
+            call Helpers.ExtractSample {
                 input:
                     vcf = cohort_vcf,
                     vcf_idx = cohort_vcf_idx,
@@ -37,19 +37,19 @@ workflow ExtractSampleVcfs {
 
             call Helpers.SubsetVcfByLength as SubsetSnvByContig {
                 input:
-                    vcf = ExtractSampleByContig.subset_vcf,
-                    vcf_idx = ExtractSampleByContig.subset_vcf_idx,
+                    vcf = ExtractSample.subset_vcf,
+                    vcf_idx = ExtractSample.subset_vcf_idx,
                     max_length = min_sv_length - 1,
                     prefix = "~{prefix}.~{sample_id}.~{contig}.snv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_snv
             }
 
-            call Helpers.SubsetVcfByLength as SubsetSvByContig {
+            call Helpers.SubsetVcfByArgs as SubsetSvByContig {
                 input:
-                    vcf = ExtractSampleByContig.subset_vcf,
-                    vcf_idx = ExtractSampleByContig.subset_vcf_idx,
-                    min_length = min_sv_length,
+                    vcf = ExtractSample.subset_vcf,
+                    vcf_idx = ExtractSample.subset_vcf_idx,
+                    include_args = '-i abs(INFO/allele_length) < ~{min_sv_length} AND INFO/SOURCE == "HPRC_SV_Integration"',
                     prefix = "~{prefix}.~{sample_id}.~{contig}.sv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv

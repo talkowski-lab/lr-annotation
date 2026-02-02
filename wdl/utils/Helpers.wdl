@@ -1537,6 +1537,7 @@ task SubsetVcfByLength {
         String? locus
         Int? min_length
         Int? max_length
+        String? extra_args
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1550,6 +1551,7 @@ task SubsetVcfByLength {
         bcftools view ~{vcf} \
             --include "~{size_filter}" \
             ~{if defined(locus) then "--regions ~{locus}" else ""} \
+            ~{if defined(extra_args) then extra_args else ""} \
             -Oz -o ~{prefix}.vcf.gz
                 
         tabix -p vcf "~{prefix}.vcf.gz"
@@ -1584,6 +1586,7 @@ task SubsetVcfToCalled {
     input {
         File vcf
         File? vcf_idx
+        String? extra_args
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1598,6 +1601,7 @@ task SubsetVcfToCalled {
 
         bcftools view \
             -i 'ALT != "."' \
+            ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
 
@@ -1634,7 +1638,7 @@ task SubsetVcfToContig {
         File vcf
         File? vcf_idx
         String contig
-        String? args_string
+        String? extra_args
         Boolean drop_genotypes = false
         String prefix
         String docker
@@ -1651,7 +1655,7 @@ task SubsetVcfToContig {
         bcftools view \
             -r ~{contig} \
             ~{if drop_genotypes then "-G" else ""} \
-            ~{if defined(args_string) then args_string else ""} \
+            ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.~{contig}.vcf.gz
         tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz

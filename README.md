@@ -156,7 +156,7 @@ Inputs:
 
 
 ## Annotation Utilities
-### [AnnotateDuplications](wdl/annotation_utils/AnnotateDuplications.wdl)
+### [AnnotateAlleleType](wdl/annotation_utils/AnnotateAlleleType.wdl)
 TODO
 
 

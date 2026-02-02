@@ -88,8 +88,8 @@ workflows:
   # Annotation Utilities
   # --------------------
   - subclass: WDL
-    name: AnnotateDuplications
-    primaryDescriptorPath: /wdl/annotation_utils/AnnotateDuplications.wdl
+    name: AnnotateAlleleType
+    primaryDescriptorPath: /wdl/annotation_utils/AnnotateAlleleType.wdl
     filters:
       branches:
         - main

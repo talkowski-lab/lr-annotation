@@ -11,7 +11,9 @@ workflow FillPhasedGenotypes {
         File unphased_vcf_idx
         Array[String] contigs
         String prefix
+
         String utils_docker
+        
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_fill

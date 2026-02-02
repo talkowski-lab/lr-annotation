@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
 
-workflow AnnotateDuplications {
+workflow AnnotateAlleleType {
     input {
         File vcf
         File vcf_idx
@@ -44,7 +44,7 @@ workflow AnnotateDuplications {
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 annotations_tsv = SubsetTsvToContig.subset_tsv,
-                prefix = "~{prefix}.~{contig}.dup_annotated",
+                prefix = "~{prefix}.~{contig}.updated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
@@ -54,14 +54,14 @@ workflow AnnotateDuplications {
         input:
             vcfs = UpdateAlleleType.annotated_vcf,
             vcfs_idx = UpdateAlleleType.annotated_vcf_idx,
-            prefix = prefix + ".dup_annotated",
+            prefix = prefix + ".updated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File dup_annotated_vcf = ConcatVcfs.concat_vcf
-        File dup_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File allele_type_annotated_vcf = ConcatVcfs.concat_vcf
+        File allele_type_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
