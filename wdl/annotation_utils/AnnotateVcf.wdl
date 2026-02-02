@@ -123,46 +123,26 @@ with open("num_tsvs.txt", "w") as f:
 EOF
 
         current_vcf="~{vcf}"
-        num_tsvs=$(cat num_tsvs.txt)
         
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
-            if [ -s "$tsv_file" ]; then
-                bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
-                tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
-                
-                COLUMN_SPEC=$(cat "columns_${i}.txt")
-                
-                if [ $i -eq $((num_tsvs - 1)) ]; then
-                    # Last iteration
-                    bcftools annotate \
-                        -a "annotations_${i}.tsv.gz" \
-                        -h "header_${i}.txt" \
-                        -c "$COLUMN_SPEC" \
-                        -Oz -o ~{prefix}.annotated.vcf.gz \
-                        "$current_vcf"
-                else
-                    # Intermediate iteration
-                    bcftools annotate \
-                        -a "annotations_${i}.tsv.gz" \
-                        -h "header_${i}.txt" \
-                        -c "$COLUMN_SPEC" \
-                        -Oz -o "temp_${i}.vcf.gz" \
-                        "$current_vcf"
-                    current_vcf="temp_${i}.vcf.gz"
-                fi
-            else
-                if [ $i -eq $((num_tsvs - 1)) ]; then
-                    cp "$current_vcf" ~{prefix}.annotated.vcf.gz
-                fi
-            fi
+            bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
+            tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
+            
+            COLUMN_SPEC=$(cat "columns_${i}.txt")
+            
+            bcftools annotate \
+                -a "annotations_${i}.tsv.gz" \
+                -h "header_${i}.txt" \
+                -c "$COLUMN_SPEC" \
+                -Oz -o "temp_${i}.vcf.gz" \
+                "$current_vcf"
+            current_vcf="temp_${i}.vcf.gz"
+            
             i=$((i + 1))
         done
         
-        if [ ! -f ~{prefix}.annotated.vcf.gz ]; then
-            cp ~{vcf} ~{prefix}.annotated.vcf.gz
-        fi
-
+        mv "$current_vcf" ~{prefix}.annotated.vcf.gz
         tabix -p vcf ~{prefix}.annotated.vcf.gz
     >>>
 

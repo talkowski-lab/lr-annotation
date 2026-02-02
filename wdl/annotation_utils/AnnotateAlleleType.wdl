@@ -7,9 +7,12 @@ workflow AnnotateAlleleType {
     input {
         File vcf
         File vcf_idx
-        File annotations_tsv
+        Array[File] annotations_tsvs
         Array[String] contigs
         String prefix
+
+        Array[String]? annotations_prefixes
+        Array[String]? annotations_suffixes
 
         String utils_docker
 
@@ -25,26 +28,30 @@ workflow AnnotateAlleleType {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.SubsetTsvToContig {
-            input:
-                tsv = annotations_tsv,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tsv
+        scatter (i in range(length(annotations_tsvs))) {
+            call Helpers.SubsetTsvToContig as SubsetTsvs {
+                input:
+                    tsv = annotations_tsvs[i],
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.tsv~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+            }
         }
 
         call UpdateAlleleType {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                annotations_tsv = SubsetTsvToContig.subset_tsv,
-                prefix = "~{prefix}.~{contig}.updated",
+                annotations_tsvs = SubsetTsvs.subset_tsv,
+                annotations_prefixes = annotations_prefixes,
+                annotations_suffixes = annotations_suffixes,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
@@ -69,7 +76,9 @@ task UpdateAlleleType {
     input {
         File vcf
         File vcf_idx
-        File annotations_tsv
+        Array[File] annotations_tsvs
+        Array[String]? annotations_prefixes
+        Array[String]? annotations_suffixes
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -78,15 +87,36 @@ task UpdateAlleleType {
     command <<<
         set -euo pipefail
 
-        bgzip -c ~{annotations_tsv} > annotations.tsv.gz
-        tabix -s1 -b2 -e2 annotations.tsv.gz
+        current_vcf="~{vcf}"
         
-        bcftools annotate \
-            -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,ID,INFO/allele_type \
-            -Oz -o ~{prefix}.annotated.vcf.gz \
-            "~{vcf}"
-
+        i=0
+        for tsv_file in ~{sep=' ' annotations_tsvs}; do
+            prefix_val="~{if defined(annotations_prefixes) then sep='\t' annotations_prefixes else ''}"
+            suffix_val="~{if defined(annotations_suffixes) then sep='\t' annotations_suffixes else ''}"
+            
+            IFS=$'\t' read -r -a prefix_array <<< "$prefix_val"
+            IFS=$'\t' read -r -a suffix_array <<< "$suffix_val"
+            
+            if [ -n "${prefix_array[i]:-}" ] || [ -n "${suffix_array[i]:-}" ]; then
+                awk -v pre="${prefix_array[i]:-}" -v suf="${suffix_array[i]:-}" 'BEGIN{FS=OFS="\t"} {$6=pre $6 suf; print}' "$tsv_file" > "modified_${i}.tsv"
+                bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
+            else
+                bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
+            fi
+            
+            tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
+            
+            bcftools annotate \
+                -a "annotations_${i}.tsv.gz" \
+                -c CHROM,POS,REF,ALT,~ID,INFO/allele_type \
+                -Oz -o "temp_${i}.vcf.gz" \
+                "$current_vcf"
+            current_vcf="temp_${i}.vcf.gz"
+            
+            i=$((i + 1))
+        done
+        
+        mv "$current_vcf" ~{prefix}.annotated.vcf.gz
         tabix -p vcf ~{prefix}.annotated.vcf.gz
     >>>
 
@@ -98,7 +128,7 @@ task UpdateAlleleType {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(annotations_tsv, "GB")) + 20,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(annotations_tsvs, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
