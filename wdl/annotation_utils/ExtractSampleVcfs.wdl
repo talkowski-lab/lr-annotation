@@ -49,7 +49,7 @@ workflow ExtractSampleVcfs {
                 input:
                     vcf = ExtractSample.subset_vcf,
                     vcf_idx = ExtractSample.subset_vcf_idx,
-                    include_args = '-i abs(INFO/allele_length) < ~{min_sv_length} AND INFO/SOURCE = "HPRC_SV_Integration"',
+                    include_args = '-i abs(INFO/allele_length) >= ~{min_sv_length} AND INFO/SOURCE = "HPRC_SV_Integration"',
                     prefix = "~{prefix}.~{sample_id}.~{contig}.sv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv
