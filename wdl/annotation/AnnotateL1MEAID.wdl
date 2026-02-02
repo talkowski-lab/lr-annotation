@@ -2,7 +2,7 @@ version 1.0
 
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
-import "../tools/RepeatMasker.wdl" as RM
+import "../tools/RepeatMasker.wdl"
 
 workflow AnnotateL1MEAID {
     input {
@@ -10,6 +10,8 @@ workflow AnnotateL1MEAID {
         File vcf_idx
         Array[String] contigs
         String prefix
+
+        Int min_length
 
         String utils_docker
         String repeatmasker_docker
@@ -36,10 +38,11 @@ workflow AnnotateL1MEAID {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call RM.RepeatMasker {
+        call RepeatMasker.RepeatMasker {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                min_length = min_length,
                 prefix = "~{prefix}.~{contig}",
                 utils_docker = utils_docker,
                 repeatmasker_docker = repeatmasker_docker,
