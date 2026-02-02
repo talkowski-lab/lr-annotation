@@ -91,8 +91,8 @@ task UpdateAlleleType {
         
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
-            prefix_val="~{if defined(annotations_prefixes) then sep='\t' annotations_prefixes else ''}"
-            suffix_val="~{if defined(annotations_suffixes) then sep='\t' annotations_suffixes else ''}"
+            prefix_val="~{if defined(annotations_prefixes) then sep('\t', select_first([annotations_prefixes])) else ''}"
+            suffix_val="~{if defined(annotations_suffixes) then sep('\t', select_first([annotations_suffixes])) else ''}"
             
             IFS=$'\t' read -r -a prefix_array <<< "$prefix_val"
             IFS=$'\t' read -r -a suffix_array <<< "$suffix_val"
