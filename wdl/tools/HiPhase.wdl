@@ -197,7 +197,7 @@ task SubsetVcf {
     input {
         File vcf
         File vcf_idx
-        String region
+        String contig
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -209,7 +209,7 @@ task SubsetVcf {
         bcftools view \
             --no-version \
             ~{vcf} \
-            --regions ~{region} \
+            --regions ~{contig} \
             -Oz -o ~{prefix}.vcf.gz
 
         bcftools index -t ~{prefix}.vcf.gz

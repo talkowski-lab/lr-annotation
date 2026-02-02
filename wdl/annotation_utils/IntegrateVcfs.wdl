@@ -80,7 +80,7 @@ workflow IntegrateVcfs {
                 vcf = final_snv_indel_vcf,
                 vcf_idx = final_snv_indel_vcf_idx,
                 samples = sample_ids,
-                contig = contig,
+                extra_args = "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.snv_indel.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
@@ -134,7 +134,7 @@ workflow IntegrateVcfs {
                 vcf = final_sv_vcf,
                 vcf_idx = final_sv_vcf_idx,
                 samples = sample_ids,
-                contig = contig,
+                extra_args = "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.sv.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv

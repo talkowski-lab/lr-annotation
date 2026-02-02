@@ -12,7 +12,6 @@ workflow ExtractSampleVcfs {
         String prefix
 
         Int min_sv_length
-        String? extra_args
 
         String utils_docker
 
@@ -29,7 +28,7 @@ workflow ExtractSampleVcfs {
                     vcf = cohort_vcf,
                     vcf_idx = cohort_vcf_idx,
                     sample = sample_id,
-                    extra_args = "--regions ~{contig} ~{default='' extra_args}",
+                    extra_args = "--regions ~{contig}",
                     prefix = "~{prefix}.~{sample_id}.~{contig}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_sample

@@ -40,12 +40,13 @@ workflow AnnotateSVAN {
     }
 
     scatter (contig in contigs) {
+        # Preprocessing
         call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                drop_genotypes = true,
+                extra_args = "-G",
                 prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -171,6 +172,7 @@ workflow AnnotateSVAN {
         }
     }
     
+    # Postprocessing
     call Helpers.ConcatAlignedTsvs {
         input:
             tsvs = flatten([ExtractIns.annotations_tsv, ExtractDel.annotations_tsv]),

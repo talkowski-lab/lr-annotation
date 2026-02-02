@@ -72,37 +72,34 @@ workflow BenchmarkAnnotations {
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetEval {
+        call Helpers.SubsetVcfByArgs as SubsetEval {
             input:
                 vcf = vcf_eval,
                 vcf_idx = vcf_eval_idx,
-                contig = contig,
-                args_string = args_string_vcf,
-                drop_genotypes = true,
+                include_args = args_string_vcf,
+                extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.eval",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_eval
         }
 
-        call Helpers.SubsetVcfToContig as SubsetTruth {
+        call Helpers.SubsetVcfByArgs as SubsetTruth {
             input:
                 vcf = vcf_truth,
                 vcf_idx = vcf_truth_idx,
-                contig = contig,
-                args_string = args_string_vcf_truth,
-                drop_genotypes = true,
+                include_args = args_string_vcf,
+                extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_truth
         }
 
-        call Helpers.SubsetVcfToContig as SubsetSVTruth {
+        call Helpers.SubsetVcfByArgs as SubsetSVTruth {
             input:
                 vcf = vcf_sv_truth,
                 vcf_idx = vcf_sv_truth_idx,
-                contig = contig,
-                args_string = args_string_vcf_sv_truth,
-                drop_genotypes = true,
+                include_args = args_string_vcf,
+                extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_sv_truth

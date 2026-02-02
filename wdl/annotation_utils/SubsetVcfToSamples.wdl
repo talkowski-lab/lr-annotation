@@ -23,7 +23,7 @@ workflow SubsetVcfToSamples {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 samples = samples,
-                contig = contig,
+                extra_args = "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf

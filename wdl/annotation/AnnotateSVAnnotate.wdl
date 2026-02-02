@@ -34,8 +34,8 @@ workflow AnnotateSVAnnotate {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                locus = contig,
                 min_length = min_length,
+                extra_args = "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf

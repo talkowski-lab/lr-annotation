@@ -569,7 +569,6 @@ task ConvertToSymbolic {
         File vcf
         File vcf_idx
         String prefix
-        Boolean drop_genotypes = false
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -581,21 +580,11 @@ task ConvertToSymbolic {
             -f '%INFO/allele_type\n' \
             ~{vcf} \
             | sort -u > allele_types.txt
-
-        if [ "~{drop_genotypes}" == "true" ]; then
-            bcftools view \
-                -G \
-                ~{vcf} \
-            | python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
-                --input - \
-                --output ~{prefix}.vcf.gz \
-                --types allele_types.txt
-        else
-            python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
-                --input ~{vcf} \
-                --output ~{prefix}.vcf.gz \
-                --types allele_types.txt
-        fi
+        
+        python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
+            --input ~{vcf} \
+            --output ~{prefix}.vcf.gz \
+            --types allele_types.txt
         
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -688,7 +677,7 @@ task ExtractSample {
         bcftools view \
             -s ~{sample} \
             --min-ac 1 \
-            ~{default="" extra_args} \
+            ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
 
@@ -1488,6 +1477,7 @@ task SubsetVcfByArgs {
         File vcf_idx
         String? include_args
         String? exclude_args
+        String? extra_args
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1499,6 +1489,7 @@ task SubsetVcfByArgs {
         bcftools view ~{vcf} \
             ~{if defined(include_args) then "-i '~{include_args}'" else ""} \
             ~{if defined(exclude_args) && !defined(exclude_args) then "-e '~{exclude_args}'" else ""} \
+            ~{if defined(extra_args) then extra_args else ""} \
             -Oz -o ~{prefix}.vcf.gz
         
         tabix -p vcf "~{prefix}.vcf.gz"
@@ -1534,7 +1525,6 @@ task SubsetVcfByLength {
         File vcf
         File vcf_idx
         String length_field = "allele_length"
-        String? locus
         Int? min_length
         Int? max_length
         String? extra_args
@@ -1550,7 +1540,6 @@ task SubsetVcfByLength {
 
         bcftools view ~{vcf} \
             --include "~{size_filter}" \
-            ~{if defined(locus) then "--regions ~{locus}" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
             -Oz -o ~{prefix}.vcf.gz
                 
@@ -1639,7 +1628,6 @@ task SubsetVcfToContig {
         File? vcf_idx
         String contig
         String? extra_args
-        Boolean drop_genotypes = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1654,7 +1642,6 @@ task SubsetVcfToContig {
 
         bcftools view \
             -r ~{contig} \
-            ~{if drop_genotypes then "-G" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.~{contig}.vcf.gz
@@ -1691,7 +1678,7 @@ task SubsetVcfToSampleList {
         File vcf
         File vcf_idx
         Array[String] samples
-        String contig
+        String? extra_args
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1707,7 +1694,7 @@ EOF
         bcftools view \
             --samples-file samples.txt \
             --min-ac 1 \
-            --regions ~{contig} \
+            ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
         
