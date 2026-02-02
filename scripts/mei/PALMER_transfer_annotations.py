@@ -86,7 +86,7 @@ def record_passes_filters(
     allele_type = record.info.get("allele_type")
     if isinstance(allele_type, (list, tuple)):
         allele_type = allele_type[0]
-    if allele_type != "INS":
+    if allele_type != "ins":
         return False
 
     if record.ref != ref_allele:

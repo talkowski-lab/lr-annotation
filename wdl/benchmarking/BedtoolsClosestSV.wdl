@@ -22,6 +22,7 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
+    # Preprocessing
     call Helpers.ConvertToSymbolic {
         input:
             vcf = vcf_eval,
@@ -46,18 +47,19 @@ workflow BedtoolsClosestSV {
         input:
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
-            type_field = "allele_type",
+            type_field = "SVTYPE",
             length_field = "SVLEN",
             prefix = "~{prefix}.truth",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_truth
     }
 
+    # Deletions
     call Helpers.BedtoolsClosest as CompareDEL {
         input:
             bed_a = SplitEval.del_bed,
             bed_b = SplitTruth.del_bed,
-            allele_type = "DEL",
+            prefix = "~{prefix}.DEL",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
@@ -65,16 +67,17 @@ workflow BedtoolsClosestSV {
     call SelectMatchedSVs as CalcuDEL {
         input:
             input_bed = CompareDEL.output_bed,
-            allele_type = "DEL",
+            prefix = "~{prefix}.DEL",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Insertions
     call Helpers.BedtoolsClosest as CompareINS {
         input:
             bed_a = SplitEval.ins_bed,
             bed_b = SplitTruth.ins_bed,
-            allele_type = "INS",
+            prefix = "~{prefix}.INS",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
@@ -82,10 +85,12 @@ workflow BedtoolsClosestSV {
     call SelectMatchedINSs as CalcuINS {
         input:
             input_bed = CompareINS.output_bed,
+            prefix = "~{prefix}.INS",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Postprocessing
     call Helpers.ConcatTsvs {
         input:
             tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp],
@@ -138,12 +143,12 @@ task SplitQueryVcf {
         head -1 ~{prefix}.bed > header
 
         set -o pipefail
-        
-        cat header <(awk '{if ($5=="DEL") print}' ~{prefix}.bed )> ~{prefix}.DEL.bed
-        cat header <(awk '{if ($5=="DUP") print}' ~{prefix}.bed )> ~{prefix}.DUP.bed
-        cat header <(awk '{if ($5=="INS" || $5=="INS:ME" || $5=="INS:ME:ALU" || $5=="INS:ME:LINE1" || $5=="INS:ME:SVA" || $5=="ALU" || $5=="LINE1" || $5=="SVA" || $5=="HERVK" ) print}' ~{prefix}.bed )> ~{prefix}.INS.bed
-        cat header <(awk '{if ($5=="INV" || $5=="CPX") print}' ~{prefix}.bed )> ~{prefix}.INV_CPX.bed
-        cat header <(awk '{if ($5=="BND" || $5=="CTX") print}' ~{prefix}.bed )> ~{prefix}.BND_CTX.bed
+
+        cat header <(awk 'toupper($5) == "DEL"' ~{prefix}.bed) > ~{prefix}.DEL.bed
+        cat header <(awk 'toupper($5) == "DUP"' ~{prefix}.bed) > ~{prefix}.DUP.bed
+        cat header <(awk 'toupper($5) ~ /^(INS|INS:ME|INS:ME:ALU|INS:ME:LINE1|INS:ME:SVA|ALU|LINE1|SVA|HERVK)$/' ~{prefix}.bed) > ~{prefix}.INS.bed
+        cat header <(awk 'toupper($5) == "INV" || toupper($5) == "CPX"' ~{prefix}.bed) > ~{prefix}.INV_CPX.bed
+        cat header <(awk 'toupper($5) == "BND" || toupper($5) == "CTX"' ~{prefix}.bed) > ~{prefix}.BND_CTX.bed
     >>>
 
     output {
@@ -178,12 +183,10 @@ task SplitQueryVcf {
 task SelectMatchedSVs {
     input {
         File input_bed
-        String allele_type
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    String prefix = basename(input_bed, ".bed")
 
     command <<<
         set -euo pipefail
@@ -220,11 +223,10 @@ task SelectMatchedSVs {
 task SelectMatchedINSs {
     input {
         File input_bed
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    String prefix = basename(input_bed, ".bed")
 
     command <<<
         set -euo pipefail

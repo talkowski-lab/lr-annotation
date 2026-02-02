@@ -132,7 +132,7 @@ def parse_palmer_calls(callfile_path, insertion_seqs, ref_fasta, min_conf=1):
 def write_vcf_records(calls, mei_type, haplotype):
     for cid, call in calls.items():
         info_fields = (
-            f"allele_length={call['length']};allele_type=INS;ME_TYPE={mei_type};"
+            f"allele_length={call['length']};allele_type=ins;ME_TYPE={mei_type};"
             f"CONF_READS={call['conf']};ORI={call['ori']};POLYA_LEN={call['polyAlen']};"
             f"TSD_5PRIME_LEN={call['5TSDlen']};TSD_3PRIME_LEN={call['3TSDlen']};"
             f"TRANSD_LEN={call['transDlen']}"

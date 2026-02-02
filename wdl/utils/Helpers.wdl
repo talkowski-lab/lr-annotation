@@ -158,11 +158,11 @@ task AnnotateVariantAttributes {
             alt_len = length($4)
 
             calc_length = alt_len - ref_length
-            calc_type = "SNV"
+            calc_type = "snv"
             if (alt_len > ref_len) {
-                calc_type = "INS"
+                calc_type = "ins"
             } else if (alt_len < ref_len) {
-                calc_type = "DEL"
+                calc_type = "del"
             }
 
             allele_length = ($5 == ".") ? calc_length : $5
@@ -211,7 +211,7 @@ task BedtoolsClosest {
     input {
         File bed_a
         File bed_b
-        String allele_type
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -221,17 +221,17 @@ task BedtoolsClosest {
         
         paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) \
             | sed -e "s/#//g" \
-            > ~{allele_type}.bed
+            > ~{prefix}.bed
 
         bedtools closest \
             -wo \
             -a <(sort -k1,1 -k2,2n ~{bed_a}) \
             -b <(sort -k1,1 -k2,2n ~{bed_b}) \
-            >> ~{allele_type}.bed
+            >> ~{prefix}.bed
     >>>
 
     output {
-        File output_bed = "~{allele_type}.bed"
+        File output_bed = "~{prefix}.bed"
     }
 
     RuntimeAttr default_attr = object {
@@ -577,7 +577,10 @@ task ConvertToSymbolic {
     command <<<
         set -euo pipefail
 
-        bcftools query -f '%INFO/allele_type\n' ~{vcf} | sort -u > allele_types.txt
+        bcftools query \
+            -f '%INFO/allele_type\n' \
+            ~{vcf} \
+            | sort -u > allele_types.txt
 
         if [ "~{drop_genotypes}" == "true" ]; then
             bcftools view \

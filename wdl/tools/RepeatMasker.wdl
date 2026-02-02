@@ -53,7 +53,7 @@ task INSToFa {
         set -euo pipefail
 
         bcftools view \
-            -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "INS"' \
+            -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "ins"' \
             ~{vcf} \
         | bcftools view \
             -e 'ALT ~ "<"' \

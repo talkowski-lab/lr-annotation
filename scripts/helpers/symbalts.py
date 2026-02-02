@@ -14,7 +14,7 @@ def main():
     args = parser.parse_args()
 
     with open(args.types) as f:
-        present_types = set(line.strip() for line in f if line.strip())
+        present_types = set(line.strip().upper() for line in f if line.strip())
 
     vcf_in = VariantFile(args.input)
     header = vcf_in.header
