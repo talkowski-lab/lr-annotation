@@ -87,23 +87,22 @@ task UpdateAlleleType {
     command <<<
         set -euo pipefail
 
+        cat > prefixes.txt <<EOF
+~{write_lines(select_first([annotations_prefixes, []]))}
+EOF
+
+        cat > suffixes.txt <<EOF
+~{write_lines(select_first([annotations_suffixes, []]))}
+EOF
+
         current_vcf="~{vcf}"
-        
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
-            prefix_val="~{if defined(annotations_prefixes) then sep('\t', select_first([annotations_prefixes])) else ''}"
-            suffix_val="~{if defined(annotations_suffixes) then sep('\t', select_first([annotations_suffixes])) else ''}"
+            prefix_val=$(sed -n "$((i + 1))p" prefixes.txt || echo "")
+            suffix_val=$(sed -n "$((i + 1))p" suffixes.txt || echo "")
             
-            IFS=$'\t' read -r -a prefix_array <<< "$prefix_val"
-            IFS=$'\t' read -r -a suffix_array <<< "$suffix_val"
-            
-            if [ -n "${prefix_array[i]:-}" ] || [ -n "${suffix_array[i]:-}" ]; then
-                awk -v pre="${prefix_array[i]:-}" -v suf="${suffix_array[i]:-}" 'BEGIN{FS=OFS="\t"} {$6=pre $6 suf; print}' "$tsv_file" > "modified_${i}.tsv"
-                bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
-            else
-                bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
-            fi
-            
+            awk -v pre="$prefix_val" -v suf="$suffix_val" 'BEGIN{FS=OFS="\t"} {$6=pre $6 suf; print}' "$tsv_file" > "modified_${i}.tsv"
+            bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
             tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
             
             bcftools annotate \
@@ -112,7 +111,7 @@ task UpdateAlleleType {
                 -Oz -o "temp_${i}.vcf.gz" \
                 "$current_vcf"
             current_vcf="temp_${i}.vcf.gz"
-            
+
             i=$((i + 1))
         done
         
