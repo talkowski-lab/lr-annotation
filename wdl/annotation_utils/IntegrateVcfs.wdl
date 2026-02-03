@@ -28,11 +28,20 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_swap_samples_snv_indel
         RuntimeAttr? runtime_attr_swap_samples_sv
         RuntimeAttr? runtime_attr_check_samples
-        RuntimeAttr? runtime_attr_filter_snv_indel
-        RuntimeAttr? runtime_attr_filter_sv
+        RuntimeAttr? runtime_attr_subset_contig_snv_indel
+        RuntimeAttr? runtime_attr_split_snv_indel
+        RuntimeAttr? runtime_attr_subset_samples_snv_indel
+        RuntimeAttr? runtime_attr_annotate_attributes_snv_indel
+        RuntimeAttr? runtime_attr_add_info_snv_indel
+        RuntimeAttr? runtime_attr_add_filter_snv_indel
+        RuntimeAttr? runtime_attr_subset_contig_sv
+        RuntimeAttr? runtime_attr_split_sv
+        RuntimeAttr? runtime_attr_subset_samples_sv
+        RuntimeAttr? runtime_attr_annotate_attributes_sv
+        RuntimeAttr? runtime_attr_add_info_sv
+        RuntimeAttr? runtime_attr_add_filter_sv
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_concat
-        RuntimeAttr? runtime_attr_annotate_attributes
     }
 
     if (defined(swap_samples_snv_indel)) {
@@ -74,34 +83,43 @@ workflow IntegrateVcfs {
     }
 
     scatter (contig in contigs) {
-        # SNV Indel VCF Processing
-        call Helpers.SubsetVcfToSampleList as SubsetSnvIndel {
+        # SNV Indel Processing
+        call Helpers.SubsetVcfToContig as SubsetContigSnvIndel {
             input:
                 vcf = final_snv_indel_vcf,
                 vcf_idx = final_snv_indel_vcf_idx,
-                samples = sample_ids,
-                extra_args = "--regions ~{contig}",
-                prefix = "~{prefix}.~{contig}.snv_indel.subset",
+                contig = contig,
+                prefix = "~{prefix}.~{contig}.snv_indel",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_snv_indel
+                runtime_attr_override = runtime_attr_subset_contig_snv_indel
         }
 
         call Helpers.SplitMultiallelics as SplitSnvIndel {
             input:
-                vcf = SubsetSnvIndel.subset_vcf,
-                vcf_idx = SubsetSnvIndel.subset_vcf_idx,
+                vcf = SubsetContigSnvIndel.subset_vcf,
+                vcf_idx = SubsetContigSnvIndel.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.split",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_snv_indel
+                runtime_attr_override = runtime_attr_split_snv_indel
+        }
+
+        call Helpers.SubsetVcfToSampleList as SubsetSamplesSnvIndel {
+            input:
+                vcf = SplitSnvIndel.split_vcf,
+                vcf_idx = SplitSnvIndel.split_vcf_idx,
+                samples = sample_ids,
+                prefix = "~{prefix}.~{contig}.snv_indel.subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_samples_snv_indel
         }
 
         call Helpers.AnnotateVariantAttributes as AnnotateSnvIndel {
             input:
-                vcf = SplitSnvIndel.split_vcf,
-                vcf_idx = SplitSnvIndel.split_vcf_idx,
+                vcf = SubsetSamplesSnvIndel.subset_vcf,
+                vcf_idx = SubsetSamplesSnvIndel.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.snv_indel.annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_attributes
+                runtime_attr_override = runtime_attr_annotate_attributes_snv_indel
         }
 
         call Helpers.AddInfo as AddInfoSnvIndel {
@@ -113,7 +131,7 @@ workflow IntegrateVcfs {
                 tag_description = "Source of variant call",
                 prefix = "~{prefix}.~{contig}.snv_indel.add_info",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_snv_indel
+                runtime_attr_override = runtime_attr_add_info_snv_indel
         }
 
         call Helpers.AddFilter as AddFilterSnvIndel {
@@ -125,37 +143,46 @@ workflow IntegrateVcfs {
                 filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.snv_indel.add_filter",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_snv_indel
+                runtime_attr_override = runtime_attr_add_filter_snv_indel
         }
 
-        # SV VCF Processing
-        call Helpers.SubsetVcfToSampleList as SubsetSv {
+        # SV Processing
+        call Helpers.SubsetVcfToContig as SubsetContigSv {
             input:
                 vcf = final_sv_vcf,
                 vcf_idx = final_sv_vcf_idx,
-                samples = sample_ids,
-                extra_args = "--regions ~{contig}",
-                prefix = "~{prefix}.~{contig}.sv.subset",
+                contig = contig,
+                prefix = "~{prefix}.~{contig}.sv",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_sv
+                runtime_attr_override = runtime_attr_subset_contig_sv
         }
 
         call Helpers.SplitMultiallelics as SplitSv {
             input:
-                vcf = SubsetSv.subset_vcf,
-                vcf_idx = SubsetSv.subset_vcf_idx,
+                vcf = SubsetContigSv.subset_vcf,
+                vcf_idx = SubsetContigSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.sv.split",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_sv
+                runtime_attr_override = runtime_attr_split_sv
+        }
+
+        call Helpers.SubsetVcfToSampleList as SubsetSamplesSv {
+            input:
+                vcf = SplitSv.split_vcf,
+                vcf_idx = SplitSv.split_vcf_idx,
+                samples = sample_ids,
+                prefix = "~{prefix}.~{contig}.sv.subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_samples_sv
         }
 
         call Helpers.AnnotateVariantAttributes as AnnotateSv {
             input:
-                vcf = SplitSv.split_vcf,
-                vcf_idx = SplitSv.split_vcf_idx,
+                vcf = SubsetSamplesSv.subset_vcf,
+                vcf_idx = SubsetSamplesSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.sv.annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_attributes
+                runtime_attr_override = runtime_attr_annotate_attributes_sv
         }
 
         call Helpers.AddInfo as AddInfoSv {
@@ -167,7 +194,7 @@ workflow IntegrateVcfs {
                 tag_description = "Source of variant call",
                 prefix = "~{prefix}.~{contig}.sv.add_info",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_sv
+                runtime_attr_override = runtime_attr_add_info_sv
         }
 
         call Helpers.AddFilter as AddFilterSv {
@@ -176,10 +203,10 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSv.annotated_vcf_idx,
                 filter_name = sv_vcf_size_flag,
                 filter_description = sv_vcf_size_flag_description,
-                filter_expression = "abs(INFO/allele_length) < ~{min_sv_length}",
+                filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.sv.add_filter",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_filter_sv
+                runtime_attr_override = runtime_attr_add_filter_sv
         }
 
         # Merging
