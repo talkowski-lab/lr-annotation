@@ -44,7 +44,7 @@ workflow AnnotateAlleleType {
             }
         }
 
-        call UpdateAlleleType {
+        call AnnotateSequentially {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
@@ -59,8 +59,8 @@ workflow AnnotateAlleleType {
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = UpdateAlleleType.annotated_vcf,
-            vcfs_idx = UpdateAlleleType.annotated_vcf_idx,
+            vcfs = AnnotateSequentially.annotated_vcf,
+            vcfs_idx = AnnotateSequentially.annotated_vcf_idx,
             prefix = prefix + ".updated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -72,7 +72,7 @@ workflow AnnotateAlleleType {
     }
 }
 
-task UpdateAlleleType {
+task AnnotateSequentially {
     input {
         File vcf
         File vcf_idx

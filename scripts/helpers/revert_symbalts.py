@@ -22,7 +22,6 @@ def main():
 
     vcf_in = VariantFile(args.annotated)
     vcf_out = VariantFile(args.output, 'w', header=vcf_in.header)
-
     for record in vcf_in:
         if record.id in original_data:
             ref, alts, allele_length = original_data[record.id]
