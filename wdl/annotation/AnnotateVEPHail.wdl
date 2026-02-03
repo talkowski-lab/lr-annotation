@@ -30,7 +30,6 @@ workflow AnnotateVEPHail {
         
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
-        RuntimeAttr? runtime_attr_subset_called
         RuntimeAttr? runtime_attr_vep_annotate
         RuntimeAttr? runtime_attr_concat
     }
@@ -53,17 +52,9 @@ workflow AnnotateVEPHail {
     }
 
     scatter (vcf_shard in ScatterVCF.vcf_shards) {
-        call Helpers.SubsetVcfToCalled {
-            input:
-                vcf = vcf_shard,
-                prefix = "~{prefix}.called",
-                docker = sv_base_mini_docker,
-                runtime_attr_override = runtime_attr_subset_called
-        }
-
         call VepAnnotate {
             input:
-                vcf = SubsetVcfToCalled.subset_vcf,
+                vcf = vcf_shard,
                 vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 top_level_fa = top_level_fa,
                 ref_vep_cache = ref_vep_cache,
