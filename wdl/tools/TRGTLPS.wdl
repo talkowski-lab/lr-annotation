@@ -9,8 +9,7 @@ workflow TRGTLPS {
         File vcf_idx
         Array[String] contigs
         String prefix
-        String gcs_out_dir
-
+        
         String trgt_lps_docker
         String utils_docker
 

@@ -7,7 +7,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install trgt-lps (v0.10.0)
-RUN wget https://github.com/PacificBiosciences/trgt-lps/releases/download/v0.10.0/trgt-lps-v0.10.0-linux-x86_64 -O /usr/bin/trgt-lps && \
+RUN wget https://github.com/PacificBiosciences/trgt-lps/releases/download/0.10.0/trgt-lps-v0.10.0.gz -O /usr/bin/trgt-lps.gz && \
+    gunzip /usr/bin/trgt-lps.gz && \
     chmod +x /usr/bin/trgt-lps
 
 # Verify installation
