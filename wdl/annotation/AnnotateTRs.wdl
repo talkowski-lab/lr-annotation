@@ -185,9 +185,9 @@ task AnnotateTRVariants {
         tabix -p vcf tr_tagged.vcf.gz
 
         bcftools query \
-            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/SVTYPE\t%INFO/SVLEN\n' \
+            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/VARTYPE\t%INFO/VARLEN\n' \
             ~{vcf} \
-        | awk '$7 != "SNV" && $7 != "."' \
+            | awk '$7 != "SNV" && $7 != "."' \
             > vcf.bed
 
         bcftools query \
