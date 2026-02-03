@@ -253,6 +253,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: TRGTLPS
+    primaryDescriptorPath: /wdl/tools/TRGTLPS.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: TRGTMerge
     primaryDescriptorPath: /wdl/tools/TRGTMerge.wdl
     filters:

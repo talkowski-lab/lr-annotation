@@ -1,0 +1,14 @@
+FROM us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0
+
+# Install dependencies
+RUN apt-get update && \
+    apt-get install -y wget && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install trgt-lps (v0.10.0)
+RUN wget https://github.com/PacificBiosciences/trgt-lps/releases/download/v0.10.0/trgt-lps-v0.10.0-linux-x86_64 -O /usr/bin/trgt-lps && \
+    chmod +x /usr/bin/trgt-lps
+
+# Verify installation
+RUN trgt-lps --help || true

@@ -262,6 +262,10 @@ Inputs:
 - `repeat_catalog_trgt`.
 
 
+### [TRGTLPS](wdl/tools/TRGTLPS.wdl)
+TODO
+
+
 ### [TRGTMerge](wdl/tools/TRGTMerge.wdl)
 TODO
 

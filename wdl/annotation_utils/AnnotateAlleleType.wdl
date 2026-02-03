@@ -107,7 +107,7 @@ EOF
             
             bcftools annotate \
                 -a "annotations_${i}.tsv.gz" \
-                -c CHROM,POS,REF,ALT,~ID,INFO/SVTYPE \
+                -c CHROM,POS,REF,ALT,~ID,INFO/allele_type \
                 -Oz -o "temp_${i}.vcf.gz" \
                 "$current_vcf"
             current_vcf="temp_${i}.vcf.gz"
