@@ -24,7 +24,7 @@ def main():
 
     if present_types:
         header.add_line('##ALT=<ID=N,Description="Baseline reference">')
-    
+
     for allele_type in present_types:
         if allele_type not in header.alts:
             header.add_line(f'##ALT=<ID={allele_type},Description="{allele_type} variant">')
