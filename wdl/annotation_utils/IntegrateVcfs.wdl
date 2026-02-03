@@ -111,7 +111,7 @@ workflow IntegrateVcfs {
                 tag_id = "SOURCE",
                 tag_value = snv_indel_vcf_source_tag,
                 tag_description = "Source of variant call",
-                prefix = "~{prefix}.~{contig}.snv_indel.source",
+                prefix = "~{prefix}.~{contig}.snv_indel.add_info",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
         }
@@ -123,7 +123,7 @@ workflow IntegrateVcfs {
                 filter_name = snv_indel_vcf_size_flag,
                 filter_description = snv_indel_vcf_size_flag_description,
                 filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
-                prefix = "~{prefix}.~{contig}.snv_indel.flagged",
+                prefix = "~{prefix}.~{contig}.snv_indel.add_filter",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_snv_indel
         }
@@ -165,7 +165,7 @@ workflow IntegrateVcfs {
                 tag_id = "SOURCE",
                 tag_value = sv_vcf_source_tag,
                 tag_description = "Source of variant call",
-                prefix = "~{prefix}.~{contig}.sv.source",
+                prefix = "~{prefix}.~{contig}.sv.add_info",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv
         }
@@ -177,7 +177,7 @@ workflow IntegrateVcfs {
                 filter_name = sv_vcf_size_flag,
                 filter_description = sv_vcf_size_flag_description,
                 filter_expression = "abs(INFO/allele_length) < ~{min_sv_length}",
-                prefix = "~{prefix}.~{contig}.sv.flagged",
+                prefix = "~{prefix}.~{contig}.sv.add_filter",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_sv
         }
