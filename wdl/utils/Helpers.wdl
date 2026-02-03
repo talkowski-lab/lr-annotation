@@ -153,15 +153,14 @@ task AnnotateVariantAttributes {
             -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/allele_length\t%INFO/allele_type\n' \
             temp.vcf.gz \
         | awk -F'\t' '{
-            split($4, alleles, ",")
             ref_length = length($3)            
             alt_len = length($4)
-
             calc_length = alt_len - ref_length
             calc_type = "snv"
-            if (alt_len > ref_len) {
+
+            if (alt_len > ref_length) {
                 calc_type = "ins"
-            } else if (alt_len < ref_len) {
+            } else if (alt_len < ref_length) {
                 calc_type = "del"
             }
 
@@ -1555,57 +1554,6 @@ task SubsetVcfByLength {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SubsetVcfToCalled {
-    input {
-        File vcf
-        File? vcf_idx
-        String? extra_args
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        if ~{!defined(vcf_idx)}; then
-            tabix -p vcf ~{vcf}
-        fi
-
-        bcftools view \
-            -i 'ALT != "."' \
-            ~{if defined(extra_args) then extra_args else ""} \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File subset_vcf = "~{prefix}.vcf.gz"
-        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
