@@ -49,6 +49,7 @@ workflow AnnotateTRs {
                 vcf = tr_vcf,
                 vcf_idx = tr_vcf_idx,
                 contig = contig,
+                extra_args = "--min-ac 1",
                 prefix = "~{prefix}.tr",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_tr_vcf
