@@ -1639,11 +1639,13 @@ task SubsetVcfToSampleList {
 ~{sep='\n' samples}
 EOF
 
-        bcftools view \
+        bcftools annotate \
+            -x INFO/AC,INFO/AN,INFO/AF \
+            ~{vcf} \
+        | bcftools view \
             --samples-file samples.txt \
             --min-ac 1 \
             ~{if defined(extra_args) then extra_args else ""} \
-            ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
         
         tabix -p vcf ~{prefix}.vcf.gz
