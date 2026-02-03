@@ -87,19 +87,15 @@ task AnnotateSequentially {
     command <<<
         set -euo pipefail
 
-        cat > prefixes.txt <<EOF
-~{write_lines(select_first([annotations_prefixes, []]))}
-EOF
-
-        cat > suffixes.txt <<EOF
-~{write_lines(select_first([annotations_suffixes, []]))}
-EOF
-
         current_vcf="~{vcf}"
-        i=0
-        for tsv_file in ~{sep=' ' annotations_tsvs}; do
-            prefix_val=$(sed -n "$((i + 1))p" prefixes.txt || echo "")
-            suffix_val=$(sed -n "$((i + 1))p" suffixes.txt || echo "")
+        annotations_tsvs_array=(~{sep=' ' annotations_tsvs})
+        prefixes_array=(~{sep=' ' select_first([annotations_prefixes, []])})
+        suffixes_array=(~{sep=' ' select_first([annotations_suffixes, []])})
+
+        for i in "${!annotations_tsvs_array[@]}"; do
+            tsv_file="${annotations_tsvs_array[$i]}"
+            prefix_val="${prefixes_array[$i]:-}"
+            suffix_val="${suffixes_array[$i]:-}"
             
             awk -v pre="$prefix_val" -v suf="$suffix_val" 'BEGIN{FS=OFS="\t"} {$6=pre $6 suf; print}' "$tsv_file" > "modified_${i}.tsv"
             bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
@@ -111,8 +107,6 @@ EOF
                 -Oz -o "temp_${i}.vcf.gz" \
                 "$current_vcf"
             current_vcf="temp_${i}.vcf.gz"
-
-            i=$((i + 1))
         done
         
         mv "$current_vcf" ~{prefix}.vcf.gz
