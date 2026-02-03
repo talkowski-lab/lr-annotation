@@ -31,7 +31,7 @@ workflow AnnotateMEDs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }

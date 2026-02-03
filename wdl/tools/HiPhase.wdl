@@ -34,20 +34,20 @@ workflow HiPhase {
                 prefix = "~{prefix}.~{contig}.preprocessed"
         }
 
-        call SubsetVcf as SubsetVcfShort { 
+        call Helpers.SubsetVcfToContig as SubsetVcfShort { 
             input:
                 vcf = small_vcf,
                 vcf_idx = small_vcf_idx,
-                region = contig,
+                contig = contig,
                 prefix = "~{prefix}.~{contig}.short",
                 docker = sv_pipeline_base_docker
         }
 
-        call SubsetVcf as SubsetVcfSv {
+        call Helpers.SubsetVcfToContig as SubsetVcfSv {
             input:
                 vcf = PreprocessVCF.preprocessed_vcf,
                 vcf_idx = PreprocessVCF.preprocessed_vcf_idx,
-                region = contig,
+                contig = contig,
                 prefix = "~{prefix}.~{contig}.sv",
                 docker = sv_pipeline_base_docker
         }
@@ -55,19 +55,19 @@ workflow HiPhase {
         call SyncContigs {
             input:
                 small_vcf = SubsetVcfShort.subset_vcf,
-                small_vcf_idx = SubsetVcfShort.subset_idx,
+                small_vcf_idx = SubsetVcfShort.subset_vcf_idx,
                 sv_vcf = SubsetVcfSv.subset_vcf,
-                sv_vcf_idx = SubsetVcfSv.subset_idx,
+                sv_vcf_idx = SubsetVcfSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.synced",
                 docker = sv_pipeline_base_docker
         }
 
         if (defined(trgt_vcf) && defined(trgt_vcf_idx)) {
-            call SubsetVcf as SubsetVcfTRGT { 
+            call Helpers.SubsetVcfToContig as SubsetVcfTRGT { 
                 input:
                     vcf = select_first([trgt_vcf]),
                     vcf_idx = select_first([trgt_vcf_idx]),
-                    region = contig,
+                    contig = contig,
                     prefix = "~{prefix}.~{contig}.trgt",
                     docker = sv_pipeline_base_docker
             }
@@ -79,9 +79,9 @@ workflow HiPhase {
                     unphased_sv_vcf = SyncContigs.synced_vcf,
                     unphased_sv_idx = SyncContigs.synced_idx,
                     unphased_snp_vcf = SubsetVcfShort.subset_vcf,
-                    unphased_snp_idx = SubsetVcfShort.subset_idx,
+                    unphased_snp_idx = SubsetVcfShort.subset_vcf_idx,
                     unphased_trgt_vcf = SubsetVcfTRGT.subset_vcf,
-                    unphased_trgt_idx = SubsetVcfTRGT.subset_idx,
+                    unphased_trgt_idx = SubsetVcfTRGT.subset_vcf_idx,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,
@@ -106,7 +106,7 @@ workflow HiPhase {
                     unphased_sv_vcf = SyncContigs.synced_vcf,
                     unphased_sv_idx = SyncContigs.synced_idx,
                     unphased_snp_vcf = SubsetVcfShort.subset_vcf,
-                    unphased_snp_idx = SubsetVcfShort.subset_idx,
+                    unphased_snp_idx = SubsetVcfShort.subset_vcf_idx,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,

@@ -30,7 +30,7 @@ workflow AnnotateVcf {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -55,7 +55,7 @@ workflow AnnotateVcf {
                 info_descriptions = info_descriptions,
                 info_types = info_types,
                 info_numbers = info_numbers,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
@@ -142,13 +142,13 @@ EOF
             i=$((i + 1))
         done
         
-        mv "$current_vcf" ~{prefix}.annotated.vcf.gz
-        tabix -p vcf ~{prefix}.annotated.vcf.gz
+        mv "$current_vcf" ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.annotated.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.annotated.vcf.gz.tbi"
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

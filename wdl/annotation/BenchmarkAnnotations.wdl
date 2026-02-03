@@ -175,7 +175,7 @@ workflow BenchmarkAnnotations {
                 vcf_eval_idx = eval_vcf_final_idx,
                 vcf_truth = truth_vcf_final,
                 vcf_truth_idx = truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.exact",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_exact_match
         }
@@ -188,7 +188,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth_idx = truth_vcf_final_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.truvari",
                 min_sv_length_eval = min_sv_length_eval,
                 min_sv_length_truth = min_sv_length_truth,
                 utils_docker = utils_docker,
@@ -204,7 +204,7 @@ workflow BenchmarkAnnotations {
                 vcf_eval_idx = TruvariMatch.unmatched_vcf_idx,
                 vcf_sv_truth = sv_truth_vcf_final,
                 vcf_sv_truth_idx = sv_truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.bedtools_closest",
                 benchmark_annotations_docker = benchmark_annotations_docker,
                 utils_docker = utils_docker,
                 runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
@@ -232,7 +232,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth_snv_idx = truth_vcf_final_idx,
                 vcf_truth_sv = sv_truth_vcf_final,
                 vcf_truth_sv_idx = sv_truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.collected",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_collect_matched_ids
         }
@@ -246,7 +246,7 @@ workflow BenchmarkAnnotations {
                 eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.summary",
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_compute_summary_for_contig
         }
@@ -255,7 +255,7 @@ workflow BenchmarkAnnotations {
             input:
                 matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                 variants_per_shard = variants_per_shard,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.sharded",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_shard_matched_eval
         }
@@ -268,7 +268,7 @@ workflow BenchmarkAnnotations {
                     truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                     contig = contig,
                     shard_label = "~{shard_idx}",
-                    prefix = "~{prefix}.~{contig}",
+                    prefix = "~{prefix}.~{contig}.shard~{shard_idx}",
                     skip_vep_categories = skip_vep_categories,
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_compute_shard_benchmarks
@@ -281,7 +281,7 @@ workflow BenchmarkAnnotations {
                 vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
                 truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.merged",
                 skip_vep_categories = skip_vep_categories,
                 docker = benchmark_annotations_docker,
                 runtime_attr_override = runtime_attr_merge_shard_benchmarks
@@ -361,7 +361,7 @@ task ExactMatch {
         
         paste eval_matched.tsv truth_matched.tsv \
             | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \
-            > ~{prefix}.exact_matched.tsv
+            > ~{prefix}.tsv
         
         bcftools isec \
             -C \
@@ -370,15 +370,15 @@ task ExactMatch {
             ~{vcf_eval} \
             ~{vcf_truth}
         
-        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.unmatched.vcf.gz
+        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.vcf.gz
         
-        tabix -p vcf ~{prefix}.unmatched.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotation_tsv = "~{prefix}.exact_matched.tsv"
-        File unmatched_vcf = "~{prefix}.unmatched.vcf.gz"
-        File unmatched_vcf_idx = "~{prefix}.unmatched.vcf.gz.tbi"
+        File annotation_tsv = "~{prefix}.tsv"
+        File unmatched_vcf = "~{prefix}.vcf.gz"
+        File unmatched_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
     
     RuntimeAttr default_attr = object {

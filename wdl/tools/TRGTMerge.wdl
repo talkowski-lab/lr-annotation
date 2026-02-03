@@ -25,7 +25,7 @@ workflow TRGTMerge {
             input:
                 vcfs = vcfs,
                 vcf_idxs = vcf_idxs,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}.merged",
                 contig = contig,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
@@ -81,14 +81,14 @@ task MergeVCFsByContig {
             --contig ~{contig} \
             --genome ~{ref_fa} \
             --output-type z \
-            --output ~{prefix}.~{contig}.merged.trgt.vcf.gz
+            --output ~{prefix}.vcf.gz
 
-        tabix -p vcf ~{prefix}.~{contig}.merged.trgt.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File merged_vcf = "~{prefix}.~{contig}.merged.trgt.vcf.gz"
-        File merged_vcf_idx = "~{prefix}.~{contig}.merged.trgt.vcf.gz.tbi"
+        File merged_vcf = "~{prefix}.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {

@@ -27,7 +27,7 @@ workflow FillPhasedGenotypes {
                 vcf = phased_vcf,
                 vcf_idx = phased_vcf_idx,
                 contig = contig,
-                prefix = prefix + ".phased",
+                prefix = "~{prefix}.~{contig}.phased",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }
@@ -37,7 +37,7 @@ workflow FillPhasedGenotypes {
                 vcf = unphased_vcf,
                 vcf_idx = unphased_vcf_idx,
                 contig = contig,
-                prefix = prefix + ".unphased",
+                prefix = "~{prefix}.~{contig}.unphased",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }

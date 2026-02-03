@@ -33,7 +33,7 @@ workflow SubsetTRGTToCatalog {
                 vcf = trgt_merged_vcf,
                 vcf_idx = trgt_merged_vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -43,7 +43,7 @@ workflow SubsetTRGTToCatalog {
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
                 catalog_ids = ExtractCatalogIDs.catalog_ids,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_to_catalog
         }
@@ -164,14 +164,14 @@ EOF
         bcftools view -H ~{vcf} | \
             awk -f filter_script.awk | \
             cat header.vcf - | \
-            bgzip -c > ~{prefix}.filtered.vcf.gz
+            bgzip -c > ~{prefix}.vcf.gz
         
-        tabix -p vcf ~{prefix}.filtered.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
     
     output {
-        File filtered_vcf = "~{prefix}.filtered.vcf.gz"
-        File filtered_vcf_idx = "~{prefix}.filtered.vcf.gz.tbi"
+        File filtered_vcf = "~{prefix}.vcf.gz"
+        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
     
     RuntimeAttr default_attr = object {

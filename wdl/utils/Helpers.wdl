@@ -1644,13 +1644,13 @@ task SubsetVcfToContig {
             -r ~{contig} \
             ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
-            -Oz -o ~{prefix}.~{contig}.vcf.gz
-        tabix -p vcf -f ~{prefix}.~{contig}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File subset_vcf = "~{prefix}.~{contig}.vcf.gz"
-        File subset_vcf_idx = "~{prefix}.~{contig}.vcf.gz.tbi"
+        File subset_vcf = "~{prefix}.vcf.gz"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

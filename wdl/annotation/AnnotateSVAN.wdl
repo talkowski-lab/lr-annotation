@@ -47,7 +47,7 @@ workflow AnnotateSVAN {
                 vcf_idx = vcf_idx,
                 contig = contig,
                 extra_args = "-G",
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -98,7 +98,7 @@ workflow AnnotateSVAN {
                 mei_fa_sa = mei_fa_sa,
                 mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.ins",
                 mode = "ins",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_ins
@@ -153,7 +153,7 @@ workflow AnnotateSVAN {
                 mei_fa_sa = mei_fa_sa,
                 mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.del",
                 mode = "del",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
@@ -307,14 +307,14 @@ task RunSvanAnnotate {
             svan_annotated \
             -o work_dir
 
-        bcftools sort work_dir/svan_annotated.vcf -Oz -o ~{prefix}.~{mode}.vcf.gz
+        bcftools sort work_dir/svan_annotated.vcf -Oz -o ~{prefix}.vcf.gz
         
-        tabix -p vcf ~{prefix}.~{mode}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.~{mode}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.~{mode}.vcf.gz.tbi"
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     runtime {

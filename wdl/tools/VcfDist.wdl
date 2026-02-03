@@ -33,7 +33,7 @@ workflow VcfDist {
                 vcf = vcf_eval,
                 vcf_idx = vcf_eval_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_eval
         }
@@ -43,7 +43,7 @@ workflow VcfDist {
                 vcf = vcf_truth,
                 vcf_idx = vcf_truth_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_truth
         }

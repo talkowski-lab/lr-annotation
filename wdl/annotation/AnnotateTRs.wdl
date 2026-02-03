@@ -39,7 +39,7 @@ workflow AnnotateTRs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -50,7 +50,7 @@ workflow AnnotateTRs {
                 vcf_idx = tr_vcf_idx,
                 contig = contig,
                 extra_args = "--min-ac 1",
-                prefix = "~{prefix}.tr",
+                prefix = "~{prefix}.~{contig}.tr",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_tr_vcf
         }
@@ -74,7 +74,7 @@ workflow AnnotateTRs {
                 tr_vcf = select_first([RenameVariantIds.renamed_vcf, SubsetTrVcf.subset_vcf]),
                 tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SubsetTrVcf.subset_vcf_idx]),
                 tr_caller = tr_caller,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 check_passed = CheckSamplesMatch.check_passed,
                 runtime_attr_override = runtime_attr_annotate_trs
@@ -252,14 +252,14 @@ EOF
             --allow-overlaps \
             vcf_annotated.vcf.gz \
             tr_tagged.vcf.gz \
-            -Oz -o ~{prefix}.annotated.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
 
-        tabix -p vcf ~{prefix}.annotated.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.annotated.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.annotated.vcf.gz.tbi"
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {

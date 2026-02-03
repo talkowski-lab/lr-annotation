@@ -28,7 +28,7 @@ workflow AnnotateAlleleType {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
@@ -51,7 +51,7 @@ workflow AnnotateAlleleType {
                 annotations_tsvs = SubsetTsvs.subset_tsv,
                 annotations_prefixes = annotations_prefixes,
                 annotations_suffixes = annotations_suffixes,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
@@ -61,7 +61,7 @@ workflow AnnotateAlleleType {
         input:
             vcfs = AnnotateSequentially.annotated_vcf,
             vcfs_idx = AnnotateSequentially.annotated_vcf_idx,
-            prefix = prefix + ".updated",
+            prefix = prefix + ".allele_type_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
@@ -115,13 +115,13 @@ EOF
             i=$((i + 1))
         done
         
-        mv "$current_vcf" ~{prefix}.annotated.vcf.gz
-        tabix -p vcf ~{prefix}.annotated.vcf.gz
+        mv "$current_vcf" ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.annotated.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.annotated.vcf.gz.tbi"
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
