@@ -1,5 +1,6 @@
 version 1.0
 
+import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow PALMERDiploid {
@@ -26,7 +27,7 @@ workflow PALMERDiploid {
 		RuntimeAttr? runtime_attr_run_palmer
 		RuntimeAttr? runtime_attr_merge_palmer_outputs
 		RuntimeAttr? runtime_attr_palmer_to_vcf
-		RuntimeAttr? runtime_attr_concat_sort_vcfs
+		RuntimeAttr? runtime_attr_concat
 	}
 
 	scatter (idx in range(length(mei_types))) {
@@ -109,7 +110,7 @@ workflow PALMERDiploid {
 	call Helpers.ConcatVcfs {
 		input:
 			vcfs = ConvertPALMERToVcf.vcf,
-			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
+			vcfs_idx = ConvertPALMERToVcf.vcf_idx,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat

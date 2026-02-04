@@ -166,7 +166,7 @@ workflow PALMER {
 	call Helpers.ConcatVcfs {
 		input:
 			vcfs = TruvariCollapse.diploid_vcf,
-			vcf_idxs = TruvariCollapse.diploid_vcf_idx,
+			vcfs_idx = TruvariCollapse.diploid_vcf_idx,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat
