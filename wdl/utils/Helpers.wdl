@@ -1640,7 +1640,7 @@ task SubsetVcfToSampleList {
 EOF
 
         bcftools annotate \
-            -x INFO/AC,INFO/AN,INFO/AF \
+            -x INFO/AC,INFO/AN,INFO/AF,INFO/AQ,FORMAT/AD,FORMAT/PL \
             ~{vcf} \
         | bcftools view \
             --samples-file samples.txt \
