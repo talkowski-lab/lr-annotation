@@ -192,10 +192,6 @@ TODO
 TODO
 
 
-### [SubsetVcfToSamples](wdl/annotation_utils/SubsetVcfToSamples.wdl)
-TODO
-
-
 
 ## Tools
 ### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)

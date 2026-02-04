@@ -168,15 +168,6 @@ workflows:
       tags:
         - /.*/
 
-  - subclass: WDL
-    name: SubsetVcfToSamples
-    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToSamples.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
   # -----
   # Tools
   # -----

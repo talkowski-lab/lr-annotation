@@ -92,8 +92,8 @@ workflow AnnotateTRs {
     }
 
     output {
-        File tr_annotated_vcf = ConcatVcfs.concat_vcf
-        File tr_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File vcf = ConcatVcfs.concat_vcf
+        File vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
