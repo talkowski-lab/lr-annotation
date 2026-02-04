@@ -69,16 +69,16 @@ task MergeVCFs {
         bcftools merge \
             -r ~{contig} \
             --missing-to-ref \
-            -Oz -o tmp.merged.vcf.gz \
+            -Oz -o ~{prefix}.merged.vcf.gz \
             inputs/*.vcf.gz
 
-        tabix tmp.merged.vcf.gz
+        tabix ~{prefix}.merged.vcf.gz
 
         bcftools annotate \
             -r ~{contig} \
             --set-id '%INFO/ME_TYPE\_%CHROM\_%POS\_%INFO/allele_length' \
             -Oz -o ~{prefix}.vcf.gz \
-            tmp.merged.vcf.gz
+            ~{prefix}.merged.vcf.gz
 
         tabix ~{prefix}.vcf.gz
     >>>
