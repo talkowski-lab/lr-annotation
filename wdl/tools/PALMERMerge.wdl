@@ -72,6 +72,8 @@ task MergeVCFs {
             -Oz -o tmp.merged.vcf.gz \
             inputs/*.vcf.gz
 
+        tabix tmp.merged.vcf.gz
+
         bcftools annotate \
             -r ~{contig} \
             --set-id '%INFO/ME_TYPE\_%CHROM\_%POS\_%INFO/allele_length' \
