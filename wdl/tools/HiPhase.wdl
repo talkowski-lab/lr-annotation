@@ -135,7 +135,7 @@ workflow HiPhase {
     output {
         File hiphase_vcf = ConcatVcfsLR.concat_vcf
         File hiphase_vcf_idx = ConcatVcfsLR.concat_vcf_idx
-        Array[File] haplotag_files = select_all(flatten([HiPhaseTRGT.haplotag_file, HiPhase.haplotag_file]))
+        Array[File] hiphase_haplotag_files = select_all(flatten([HiPhaseTRGT.haplotag_file, HiPhase.haplotag_file]))
         Array[File] hiphase_stats = select_all(flatten([HiPhaseTRGT.hiphase_stats, HiPhase.hiphase_stats]))
         Array[File] hiphase_blocks = select_all(flatten([HiPhaseTRGT.hiphase_blocks, HiPhase.hiphase_blocks]))
         Array[File] hiphase_summary = select_all(flatten([HiPhaseTRGT.hiphase_summary, HiPhase.hiphase_summary]))
