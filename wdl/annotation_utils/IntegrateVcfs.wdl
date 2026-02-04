@@ -76,7 +76,7 @@ workflow IntegrateVcfs {
     call Helpers.CheckSampleConsistency {
         input:
             vcfs = [final_snv_indel_vcf, final_sv_vcf],
-            vcfs_idx = [final_snv_indel_vcf, final_sv_vcf],
+            vcf_idxs = [final_snv_indel_vcf, final_sv_vcf],
             sample_ids = sample_ids,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_check_samples
@@ -213,7 +213,7 @@ workflow IntegrateVcfs {
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
                 vcfs = [AddFilterSnvIndel.flagged_vcf, AddFilterSv.flagged_vcf],
-                vcfs_idx = [AddFilterSnvIndel.flagged_vcf_idx, AddFilterSv.flagged_vcf_idx],
+                vcf_idxs = [AddFilterSnvIndel.flagged_vcf_idx, AddFilterSv.flagged_vcf_idx],
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
@@ -223,7 +223,7 @@ workflow IntegrateVcfs {
     call Helpers.ConcatVcfs {
         input:
             vcfs = MergeContigVcfs.concat_vcf,
-            vcfs_idx = MergeContigVcfs.concat_vcf_idx,
+            vcf_idxs = MergeContigVcfs.concat_vcf_idx,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

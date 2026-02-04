@@ -256,7 +256,7 @@ task BedtoolsClosest {
 task CheckSampleConsistency {
     input {
         Array[File] vcfs
-        Array[File] vcfs_idx
+        Array[File] vcf_idxs
         Array[String] sample_ids
         String docker
         RuntimeAttr? runtime_attr_override
@@ -451,7 +451,7 @@ task ConcatTsvs {
 task ConcatVcfs {
     input {
         Array[File] vcfs
-        Array[File] vcfs_idx
+        Array[File] vcf_idxs
         Boolean merge_sort = true
         String prefix = "concat"
         String docker

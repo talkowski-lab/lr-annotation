@@ -110,7 +110,7 @@ workflow PALMERDiploid {
 	call Helpers.ConcatVcfs {
 		input:
 			vcfs = ConvertPALMERToVcf.vcf,
-			vcfs_idx = ConvertPALMERToVcf.vcf_idx,
+			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat
@@ -120,7 +120,7 @@ workflow PALMERDiploid {
 		Array[File] palmer_calls = calls_file
 		Array[File] palmer_tsd_reads = tsd_file
 		Array[File] palmer_diploid_vcfs = ConvertPALMERToVcf.vcf
-		Array[File] palmer_diploid_vcfs_idxs = ConvertPALMERToVcf.vcf_idx
+		Array[File] palmer_diploid_vcf_idxs = ConvertPALMERToVcf.vcf_idx
 
 		File palmer_combined_vcf = ConcatVcfs.concat_vcf
 		File palmer_combined_vcf_idx = ConcatVcfs.concat_vcf_idx

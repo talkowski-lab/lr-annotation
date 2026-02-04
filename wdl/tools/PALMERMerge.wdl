@@ -31,7 +31,7 @@ workflow PALMERMerge {
     call Helpers.ConcatVcfs {
         input:
             vcfs = MergeVCFs.merged_vcf,
-            vcfs_idx = MergeVCFs.merged_vcf_idx,
+            vcf_idxs = MergeVCFs.merged_vcf_idx,
             prefix = "~{prefix}.palmer_merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

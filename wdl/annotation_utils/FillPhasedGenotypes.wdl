@@ -75,7 +75,7 @@ workflow FillPhasedGenotypes {
     call Helpers.ConcatVcfs {
         input:
             vcfs = AnnotateVariantAttributes.annotated_vcf,
-            vcfs_idx = AnnotateVariantAttributes.annotated_vcf_idx,
+            vcf_idxs = AnnotateVariantAttributes.annotated_vcf_idx,
             prefix = prefix + ".filled",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

@@ -166,7 +166,7 @@ workflow PALMER {
 	call Helpers.ConcatVcfs {
 		input:
 			vcfs = TruvariCollapse.diploid_vcf,
-			vcfs_idx = TruvariCollapse.diploid_vcf_idx,
+			vcf_idxs = TruvariCollapse.diploid_vcf_idx,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat
@@ -176,15 +176,15 @@ workflow PALMER {
 		Array[File] palmer_pat_calls = calls_file_pat
 		Array[File] palmer_pat_tsd_reads = tsd_file_pat
 		Array[File] palmer_pat_vcfs = ConvertPALMERToVcfPat.vcf
-		Array[File] palmer_pat_vcfs_idxs = ConvertPALMERToVcfPat.vcf_idx
+		Array[File] palmer_pat_vcf_idxs = ConvertPALMERToVcfPat.vcf_idx
 
 		Array[File] palmer_mat_calls = calls_file_mat
 		Array[File] palmer_mat_tsd_reads = tsd_file_mat
 		Array[File] palmer_mat_vcfs = ConvertPALMERToVcfMat.vcf
-		Array[File] palmer_mat_vcfs_idxs = ConvertPALMERToVcfMat.vcf_idx
+		Array[File] palmer_mat_vcf_idxs = ConvertPALMERToVcfMat.vcf_idx
 
 		Array[File] palmer_diploid_vcfs = TruvariCollapse.diploid_vcf
-		Array[File] palmer_diploid_vcfs_idxs = TruvariCollapse.diploid_vcf_idx
+		Array[File] palmer_diploid_vcf_idxs = TruvariCollapse.diploid_vcf_idx
 
 		File palmer_combined_vcf = ConcatVcfs.concat_vcf
 		File palmer_combined_vcf_idx = ConcatVcfs.concat_vcf_idx

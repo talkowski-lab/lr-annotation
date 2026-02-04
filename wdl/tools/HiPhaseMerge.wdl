@@ -34,7 +34,7 @@ workflow HiPhaseMerge {
     call Helpers.ConcatVcfs {
         input:
             vcfs = MergeVcfs.merged_vcf,
-            vcfs_idx = MergeVcfs.merged_vcf_idx,
+            vcf_idxs = MergeVcfs.merged_vcf_idx,
             prefix = "~{prefix}.hiphase_merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

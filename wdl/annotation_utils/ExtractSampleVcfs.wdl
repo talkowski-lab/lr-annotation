@@ -58,7 +58,7 @@ workflow ExtractSampleVcfs {
         call Helpers.ConcatVcfs as ConcatSnvIndels {
             input:
                 vcfs = SubsetSnvIndelByContig.subset_vcf,
-                vcfs_idx = SubsetSnvIndelByContig.subset_vcf_idx,
+                vcf_idxs = SubsetSnvIndelByContig.subset_vcf_idx,
                 merge_sort = true,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
@@ -68,7 +68,7 @@ workflow ExtractSampleVcfs {
         call Helpers.ConcatVcfs as ConcatSvs {
             input:
                 vcfs = SubsetSvByContig.subset_vcf,
-                vcfs_idx = SubsetSvByContig.subset_vcf_idx,
+                vcf_idxs = SubsetSvByContig.subset_vcf_idx,
                 merge_sort = true,
                 prefix = "~{prefix}.~{sample_id}.sv",
                 docker = utils_docker,

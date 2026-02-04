@@ -84,7 +84,7 @@ workflow AnnotateTRs {
     call Helpers.ConcatVcfs {
         input:
             vcfs = AnnotateTRVariants.annotated_vcf,
-            vcfs_idx = AnnotateTRVariants.annotated_vcf_idx,
+            vcf_idxs = AnnotateTRVariants.annotated_vcf_idx,
             prefix = prefix + ".annotated_trs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

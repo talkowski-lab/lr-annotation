@@ -62,7 +62,7 @@ workflow AnnotateAlleleType {
     call Helpers.ConcatVcfs {
         input:
             vcfs = AnnotateSequentially.annotated_vcf,
-            vcfs_idx = AnnotateSequentially.annotated_vcf_idx,
+            vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
             prefix = prefix + ".allele_type_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
