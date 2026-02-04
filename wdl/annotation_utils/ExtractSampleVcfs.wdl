@@ -34,7 +34,7 @@ workflow ExtractSampleVcfs {
                     runtime_attr_override = runtime_attr_extract_sample
             }
 
-            call Helpers.SubsetVcfByLength as SubsetSnvByContig {
+            call Helpers.SubsetVcfByLength as SubsetSnvIndelByContig {
                 input:
                     vcf = ExtractSample.subset_vcf,
                     vcf_idx = ExtractSample.subset_vcf_idx,
@@ -55,10 +55,10 @@ workflow ExtractSampleVcfs {
             }
         }
 
-        call Helpers.ConcatVcfs as ConcatSnvs {
+        call Helpers.ConcatVcfs as ConcatSnvIndels {
             input:
-                vcfs = SubsetSnvByContig.subset_vcf,
-                vcfs_idx = SubsetSnvByContig.subset_vcf_idx,
+                vcfs = SubsetSnvIndelByContig.subset_vcf,
+                vcfs_idx = SubsetSnvIndelByContig.subset_vcf_idx,
                 merge_sort = true,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
@@ -77,8 +77,8 @@ workflow ExtractSampleVcfs {
     }
 
     output {
-        Array[File] snv_vcfs = ConcatSnvs.concat_vcf
-        Array[File] snv_vcf_idxs = ConcatSnvs.concat_vcf_idx
+        Array[File] snv_indel_vcfs = ConcatSnvIndels.concat_vcf
+        Array[File] snv_indel_vcf_idxs = ConcatSnvIndels.concat_vcf_idx
         Array[File] sv_vcfs = ConcatSvs.concat_vcf
         Array[File] sv_vcf_idxs = ConcatSvs.concat_vcf_idx
     }
