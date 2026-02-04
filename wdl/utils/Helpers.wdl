@@ -458,16 +458,14 @@ task ConcatVcfs {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    String merge_flag = if merge_sort then "--allow-overlaps" else ""
-
+    
     command <<<
         set -euo pipefail
         
         VCFS_FILE="~{write_lines(vcfs)}"
 
         bcftools concat \
-            ~{merge_flag} \
+            ~{if merge_sort then "--allow-overlaps" else ""} \
             --file-list ${VCFS_FILE} \
             -Oz -o "~{prefix}.vcf.gz"
         
@@ -503,14 +501,12 @@ task ConcatVcfsLR {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-        Boolean merge_sort = false
         Boolean remove_dup = true
         String prefix
         String sv_base_mini_docker
         RuntimeAttr? runtime_attr_override
     }
 
-    String merge_flag = if merge_sort then "--allow-overlaps" else ""
     Float input_size = size(vcfs, "GB")
     Float compression_factor = 10.0
     Float base_disk_gb = 20.0
@@ -539,7 +535,7 @@ task ConcatVcfsLR {
         set -euo pipefail
 
         bcftools concat \
-            -a ~{merge_flag} \
+            --allow-overlaps \
             --file-list ~{write_lines(vcfs)} \
             -Oz -o merged.tmp.vcf.gz
 

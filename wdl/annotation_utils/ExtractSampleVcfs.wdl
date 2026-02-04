@@ -23,7 +23,7 @@ workflow ExtractSampleVcfs {
 
     scatter (sample_id in sample_ids) {
         scatter (contig in contigs) {
-            call Helpers.ExtractSample {
+            call Helpers.ExtractSample as ExtractSampleContig {
                 input:
                     vcf = cohort_vcf,
                     vcf_idx = cohort_vcf_idx,
@@ -34,21 +34,21 @@ workflow ExtractSampleVcfs {
                     runtime_attr_override = runtime_attr_extract_sample
             }
 
-            call Helpers.SubsetVcfByLength as SubsetSnvIndelByContig {
+            call Helpers.SubsetVcfByLength as SubsetSnvIndel {
                 input:
-                    vcf = ExtractSample.subset_vcf,
-                    vcf_idx = ExtractSample.subset_vcf_idx,
+                    vcf = ExtractSampleContig.subset_vcf,
+                    vcf_idx = ExtractSampleContig.subset_vcf_idx,
                     max_length = min_sv_length - 1,
                     prefix = "~{prefix}.~{sample_id}.~{contig}.snv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_snv
             }
 
-            call Helpers.SubsetVcfByArgs as SubsetSvByContig {
+            call Helpers.SubsetVcfByArgs as SubsetSv {
                 input:
-                    vcf = ExtractSample.subset_vcf,
-                    vcf_idx = ExtractSample.subset_vcf_idx,
-                    include_args = '-i abs(INFO/allele_length) >= ~{min_sv_length} AND INFO/SOURCE = "HPRC_SV_Integration"',
+                    vcf = ExtractSampleContig.subset_vcf,
+                    vcf_idx = ExtractSampleContig.subset_vcf_idx,
+                    include_args = '-i abs(INFO/allele_length) >= ~{min_sv_length} && INFO/SOURCE = "HPRC_SV_Integration"',
                     prefix = "~{prefix}.~{sample_id}.~{contig}.sv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv
@@ -57,9 +57,8 @@ workflow ExtractSampleVcfs {
 
         call Helpers.ConcatVcfs as ConcatSnvIndels {
             input:
-                vcfs = SubsetSnvIndelByContig.subset_vcf,
-                vcf_idxs = SubsetSnvIndelByContig.subset_vcf_idx,
-                merge_sort = true,
+                vcfs = SubsetSnvIndel.subset_vcf,
+                vcf_idxs = SubsetSnvIndel.subset_vcf_idx,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcfs
@@ -67,9 +66,8 @@ workflow ExtractSampleVcfs {
 
         call Helpers.ConcatVcfs as ConcatSvs {
             input:
-                vcfs = SubsetSvByContig.subset_vcf,
-                vcf_idxs = SubsetSvByContig.subset_vcf_idx,
-                merge_sort = true,
+                vcfs = SubsetSv.subset_vcf,
+                vcf_idxs = SubsetSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{sample_id}.sv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcfs
