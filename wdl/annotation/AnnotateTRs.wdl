@@ -177,10 +177,10 @@ task AnnotateTRVariants {
         tabix -p vcf tr_reordered.vcf.gz
 
         touch new_headers.txt
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_type'; then
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=allele_type'; then
             echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
         fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SOURCE'; then
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=SOURCE'; then
             echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' >> new_headers.txt
         fi
         
