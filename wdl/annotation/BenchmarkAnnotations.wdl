@@ -353,11 +353,13 @@ task ExactMatch {
         
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
-            isec_matched/0000.vcf > eval_matched.tsv
+            isec_matched/0000.vcf \
+            > eval_matched.tsv
         
         bcftools query \
             -f '%ID\n' \
-            isec_matched/0001.vcf > truth_matched.tsv
+            isec_matched/0001.vcf \
+            > truth_matched.tsv
         
         paste eval_matched.tsv truth_matched.tsv \
             | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \

@@ -461,16 +461,16 @@ task ConcatVcfs {
     String merge_flag = if merge_sort then "--allow-overlaps" else ""
 
     command <<<
-            set -euo pipefail
-            
-            VCFS_FILE="~{write_lines(vcfs)}"
+        set -euo pipefail
+        
+        VCFS_FILE="~{write_lines(vcfs)}"
 
-            bcftools concat \
-                ~{merge_flag} \
-                --file-list ${VCFS_FILE} \
-                -Oz -o "~{prefix}.vcf.gz"
-            
-            tabix -p vcf -f "~{prefix}.vcf.gz"
+        bcftools concat \
+            ~{merge_flag} \
+            --file-list ${VCFS_FILE} \
+            -Oz -o "~{prefix}.vcf.gz"
+        
+        tabix -p vcf -f "~{prefix}.vcf.gz"
     >>>
 
     output {

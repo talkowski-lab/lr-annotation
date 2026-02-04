@@ -53,7 +53,6 @@ workflow SubsetTRGTToCatalog {
         input:
             vcfs = FilterToCatalog.filtered_vcf,
             vcfs_idx = FilterToCatalog.filtered_vcf_idx,
-            merge_sort = false,
             prefix = prefix + ".catalog_subset",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

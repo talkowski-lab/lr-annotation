@@ -4,38 +4,25 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 ## Cohort
+- HPRC.
+	- 232 total samples.
+	- [Metadata File](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
+		- 234 total samples.
+		- Additionally includes GRC38 and CHM13.
+		- Fabio's table, the DeepVariant callset and the Terra data table all also include HG03492.
 - HGSVC.
-	- Data:
-		- 65 total samples.
-		- 32x aligned reads, produced after downsampling by Fabio.
-		- High coverage assemblies, derived directly from HGSVC.
-	- [Metadata](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
+	- 65 total samples.
+	- [Metadata File](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
 		- 67 total samples.
 		- Renames NA21487 to GM21487.
 		- Duplicates NA19129 (also includes GM19129) and NA20355 (also includes GM20355).
 		- Additionally includes GM19320.
 		- Misses NA24385 (HG002 in Terra).
-- HPRC.
-	- Data:
-		- 232 total samples.
-		- High coverage aligned reads, produced by Fabio.
-		- High coverage assemblies, derived directly from HPRC.
-	- [Metadata](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
-		- 234 total samples.
-		- Additionally includes GRC38 and CHM13.
-		- Fabio's table, the DeepVariant callset and the Terra data table all also include HG03492.
-- Overlapping Samples: 5.
-	- HG002.
-	- HG00733.
-	- HG02818.
-	- NA19036.
-	- NA19240.
+- Overlapping Samples (5): HG002, HG00733, HG02818, NA19036, NA19240.
 
 
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
-- `contigs`: List of chr1 to chr22, plus chrX and chrY.
-- `contigs_primary`: List of chr1 to chr22.
 - `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa_amb`: Index for `mei_fa`.
@@ -70,8 +57,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 ## Annotation Workflows
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
 This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
-
-Note that this workflow directly annotates the input VCF rather than outputting a TSV of annotations.
 
 Inputs:
 - `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.

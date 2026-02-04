@@ -85,7 +85,6 @@ workflow AnnotateTRs {
         input:
             vcfs = AnnotateTRVariants.annotated_vcf,
             vcfs_idx = AnnotateTRVariants.annotated_vcf_idx,
-            merge_sort = false,
             prefix = prefix + ".annotated_trs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf
@@ -177,23 +176,22 @@ task AnnotateTRVariants {
             tr_reordered.vcf.gz
 
         bcftools view tr_header_added.vcf.gz \
-            | awk -v info="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
-                $8 = $8 ";SOURCE=" info
+            | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
+                $8 = $8 ";SOURCE=" source
                 print
             }' | bgzip -c > tr_tagged.vcf.gz
         
         tabix -p vcf tr_tagged.vcf.gz
 
         bcftools query \
-            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/allele_type\t%INFO/allele_length\n' \
-            ~{vcf} \
-            | awk '$7 != "SNV" && $7 != "."' \
-            > vcf.bed
-
-        bcftools query \
             -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' \
             tr_tagged.vcf.gz \
             > tr.bed
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' \
+            ~{vcf} \
+            > vcf.bed
 
         bedtools intersect \
             -f 1.0 \
@@ -203,18 +201,8 @@ task AnnotateTRVariants {
             -b tr.bed \
             > overlaps.bed
 
-        awk -v filter="~{tr_caller}_OVERLAPPED" -v source="~{tr_caller}" 'BEGIN{OFS="\t"} {
-            split($15, motifs, ",")
-            min_motif = 1000000
-            for (i in motifs) {
-                len = length(motifs[i])
-                if (len < min_motif) min_motif = len
-            }
-
-            allele_length = ($8 < 0) ? -$8 : $8
-            if (allele_length < min_motif) next
-
-            print $1, $2, $5, $6, filter, $12, source
+        awk -v filter="~{tr_caller}_OVERLAPPED" 'BEGIN{OFS="\t"} {
+            print $1, $2, $5, $6, filter, $10
         }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
 
         tabix -s 1 -b 2 -e 2 annotations.tsv.gz
@@ -241,7 +229,7 @@ EOF
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,FILTER,INFO/TRID,INFO/SOURCE \
+            -c CHROM,POS,REF,ALT,FILTER,INFO/TRID \
             -h merged_headers.txt \
             -Oz -o vcf_annotated.vcf.gz \
             vcf_stripped.vcf.gz
