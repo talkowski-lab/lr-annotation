@@ -13,6 +13,7 @@ workflow AnnotateAlleleType {
 
         Array[String]? annotations_prefixes
         Array[String]? annotations_suffixes
+        Array[Boolean]? annotations_lowercase
 
         String utils_docker
 
@@ -51,6 +52,7 @@ workflow AnnotateAlleleType {
                 annotations_tsvs = SubsetTsvs.subset_tsv,
                 annotations_prefixes = annotations_prefixes,
                 annotations_suffixes = annotations_suffixes,
+                annotations_lowercase = annotations_lowercase,
                 prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
@@ -79,6 +81,7 @@ task AnnotateSequentially {
         Array[File] annotations_tsvs
         Array[String]? annotations_prefixes
         Array[String]? annotations_suffixes
+        Array[Boolean]? annotations_lowercase
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -91,13 +94,28 @@ task AnnotateSequentially {
         annotations_tsvs_array=(~{sep=' ' annotations_tsvs})
         prefixes_array=(~{sep=' ' select_first([annotations_prefixes, []])})
         suffixes_array=(~{sep=' ' select_first([annotations_suffixes, []])})
+        lowercase_array=(~{sep=' ' select_first([annotations_lowercase, []])})
 
         for i in "${!annotations_tsvs_array[@]}"; do
             tsv_file="${annotations_tsvs_array[$i]}"
             prefix_val="${prefixes_array[$i]:-}"
             suffix_val="${suffixes_array[$i]:-}"
+            lowercase_val="${lowercase_array[$i]:-false}"
             
-            awk -v pre="$prefix_val" -v suf="$suffix_val" 'BEGIN{FS=OFS="\t"} {$6=pre $6 suf; print}' "$tsv_file" > "modified_${i}.tsv"
+            awk -v pre="$prefix_val" -v suf="$suffix_val" -v lower="$lowercase_val" '
+                BEGIN {
+                    FS = OFS = "\t"
+                }
+                {
+                    gsub(/[\n\r]/, "", $6)
+                    $6 = pre $6 suf
+                    if (lower == "true") {
+                        $6 = tolower($6)
+                    }
+                    print
+                }
+            ' "$tsv_file" > "modified_${i}.tsv"
+            
             bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
             tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
             
