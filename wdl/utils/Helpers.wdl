@@ -84,14 +84,14 @@ task AddInfo {
         echo '##INFO=<ID=~{tag_id},Number=1,Type=String,Description="~{tag_description}">' > header.lines
 
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t~{tag_value}\n' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t~{tag_value}\n' \
             ~{vcf} \
         | bgzip -c > annotations.txt.gz
         
         tabix -s1 -b2 -e2 annotations.txt.gz
 
         bcftools annotate -h header.lines -a annotations.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO/~{tag_id} \
+            -c CHROM,POS,REF,ALT,~ID,INFO/~{tag_id} \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
 
@@ -145,12 +145,13 @@ task AnnotateVariantAttributes {
 
         bcftools annotate \
             -h new_headers.txt \
-            ~{vcf} \
-            -Oz -o temp.vcf.gz
+            -Oz -o temp.vcf.gz \
+            ~{vcf}
+        
         tabix -p vcf temp.vcf.gz
 
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/allele_length\t%INFO/allele_type\n' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/allele_length\t%INFO/allele_type\n' \
             temp.vcf.gz \
         | awk -F'\t' '{
             ref_length = length($3)            
@@ -164,19 +165,19 @@ task AnnotateVariantAttributes {
                 calc_type = "del"
             }
 
-            allele_length = ($5 == ".") ? calc_length : $5
-            allele_type = ($6 == ".") ? calc_type : $6
+            allele_length = ($6 == ".") ? calc_length : $6
+            allele_type = ($7 == ".") ? calc_type : $7
 
-            print $1"\t"$2"\t"$3"\t"$4"\t"allele_length"\t"allele_type
+            print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"allele_length"\t"allele_type
         }' \
             | bgzip -c > annot.txt.gz
         
         tabix -s1 -b2 -e2 annot.txt.gz
 
         bcftools annotate -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO/allele_length,INFO/allele_type \
-            temp.vcf.gz \
-            -Oz -o ~{prefix}.vcf.gz
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_length,INFO/allele_type \
+            -Oz -o ~{prefix}.vcf.gz \
+            temp.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -628,8 +629,8 @@ task DropVcfFields {
 
         bcftools annotate \
             -x ~{drop_fields} \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -1121,7 +1122,10 @@ task RenameVariantIds {
     command <<<
         set -euo pipefail
         
-        bcftools annotate --set-id '~{id_format}' ~{vcf} -Oz -o temp_renamed.vcf.gz
+        bcftools annotate \
+            --set-id '~{id_format}' \
+            -Oz -o temp_renamed.vcf.gz \
+            ~{vcf}
         
         if [ "~{strip_chr}" == "true" ]; then
             bcftools view -h temp_renamed.vcf.gz > header.txt
@@ -1175,8 +1179,9 @@ task ResetVcfFilters {
         set -euo pipefail
 
         bcftools annotate \
-            -x FILTER ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+            -x FILTER \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
         
         tabix -p vcf ~{prefix}.vcf.gz
     >>>

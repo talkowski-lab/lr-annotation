@@ -163,26 +163,41 @@ task AnnotateTRVariants {
     command <<<
         set -euo pipefail
 
-        bcftools query -l ~{vcf} > samples.txt
-        bcftools view -S samples.txt ~{tr_vcf} -Oz -o tr_reordered.vcf.gz
+        # TR VCF processing
+        bcftools query \
+            -l \
+            ~{vcf} \
+            > samples.txt
+        
+        bcftools view \
+            -S samples.txt \
+            -Oz -o tr_reordered.vcf.gz \
+            ~{tr_vcf}
+        
         tabix -p vcf tr_reordered.vcf.gz
 
-        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' \
-            > tr_header.txt
+        touch new_headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_type'; then
+            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
+        fi
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SOURCE'; then
+            echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' >> new_headers.txt
+        fi
         
         bcftools annotate \
-            -h tr_header.txt \
+            -h new_headers.txt \
             -Oz -o tr_header_added.vcf.gz \
             tr_reordered.vcf.gz
 
         bcftools view tr_header_added.vcf.gz \
             | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
-                $8 = $8 ";SOURCE=" source
+                $8 = $8 ";allele_type=trv;SOURCE=" source
                 print
             }' | bgzip -c > tr_tagged.vcf.gz
         
         tabix -p vcf tr_tagged.vcf.gz
 
+        # Extract overlaps
         bcftools query \
             -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' \
             tr_tagged.vcf.gz \
@@ -201,8 +216,9 @@ task AnnotateTRVariants {
             -b tr.bed \
             > overlaps.bed
 
+        # Annotate overlaps
         awk -v filter="~{tr_caller}_OVERLAPPED" 'BEGIN{OFS="\t"} {
-            print $1, $2, $5, $6, filter, $10
+            print $1, $2, $5, $6, $4, filter, $10
         }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
 
         tabix -s 1 -b 2 -e 2 annotations.tsv.gz
@@ -229,7 +245,7 @@ EOF
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,FILTER,INFO/TRID \
+            -c CHROM,POS,REF,ALT,~ID,FILTER,INFO/TRID \
             -h merged_headers.txt \
             -Oz -o vcf_annotated.vcf.gz \
             vcf_stripped.vcf.gz
