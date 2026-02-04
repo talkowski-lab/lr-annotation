@@ -1,7 +1,7 @@
 version 1.0
 
-import "../utils/Structs.wdl"
-import "../utils/Helpers.wdl"
+import "Helpers.wdl"
+import "Structs.wdl"
 
 workflow BedtoolsClosestSV {
     input {

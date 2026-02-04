@@ -43,17 +43,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 
 
-## Dockers
-- `hail_docker`: `us.gcr.io/talkowski-sv-gnomad/shineren:hail` from Eren.
-- `gatk_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/gatk:2025-05-20-4.6.2.0-4-g1facd911e-NIGHTLY-SNAPSHOT` from the GATK-SV Featured Workspace.
-- `minimap_docker`: `eichlerlab/assembly_eval:0.2` from the Eichler lab.
-- `minimap_finalize_docker`: `us.gcr.io/broad-dsp-lrma/lr-gcloud-samtools:0.1.3` from the DSP long-reads team.
-- `repeatmasker_docker`: `dfam/tetools:1.8` from DFam.
-- `sv_base_mini_docker`: `us.gcr.io/broad-dsde-methods/gatk-sv/sv-base-mini:2024-10-25-v0.29-beta-5ea22a52` from the GATK-SV Featured Workspace.
-- `trgt_docker`: `us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0` from the DSP long-reads team.
-
-
-
 ## Annotation Workflows
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
 This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
@@ -298,15 +287,13 @@ TODO
 - All mentions of `fasta_index`, `fasta_fai` or `fa_fai`  should instead use `fai` - e.g. `ref_fai` instead of `ref_fasta_index`, `ref_fasta_fai` or `ref_fa_fai`.
 - All mentions of `vcf_index` or `vcf_tbi` should instead use `vcf_idx`.
 - All VCFs should have suffix `_vcf`, and be coupled with a VCF index file that has a suffix `_vcf_idx`.
-- Tsks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows, rather than explicitly defined in a standalone workflow itself.
+- Tasks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows, rather than explicitly defined in a standalone workflow itself.
 - Workflow file names must always match the workflow defined within them.
-- All code written should use 4-space tabs for indentation.
 
 
 ### Python
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.
-- Running `flake8` should yield no errors.
-- All code written should use 2-space tabs for indentation.
+- All code should be compliant with `flake8`
 
 
 ### Codebase

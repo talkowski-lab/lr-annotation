@@ -1,5 +1,6 @@
 version 1.0
 
+import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow PALMER {
@@ -32,7 +33,7 @@ workflow PALMER {
 		RuntimeAttr? runtime_attr_merge_palmer_outputs
 		RuntimeAttr? runtime_attr_palmer_to_vcf
 		RuntimeAttr? runtime_attr_truvari_collapse
-		RuntimeAttr? runtime_attr_concat_sort_vcfs
+		RuntimeAttr? runtime_attr_concat
 	}
 
 	scatter (idx in range(length(mei_types))) {
@@ -41,7 +42,7 @@ workflow PALMER {
 
 		# Paternal haplotype
 		if (!defined(override_palmer_calls_pat)) {
-			call SplitBam as SplitBamPat {
+			call Helpers.SplitBam as SplitBamPat {
 				input:
 					bam = select_first([bam_pat]),
 					bai = select_first([bai_pat]),
@@ -94,7 +95,7 @@ workflow PALMER {
 
 		# Maternal haplotype
 		if (!defined(override_palmer_calls_mat)) {
-			call SplitBam as SplitBamMat {
+			call Helpers.SplitBam as SplitBamMat {
 				input:
 					bam = select_first([bam_mat]),
 					bai = select_first([bai_mat]),
@@ -162,13 +163,13 @@ workflow PALMER {
 		}
 	}
 
-	call ConcatSortVcfs {
+	call Helpers.ConcatVcfs {
 		input:
 			vcfs = TruvariCollapse.diploid_vcf,
 			vcf_idxs = TruvariCollapse.diploid_vcf_idx,
-			prefix = "~{prefix}.truvari",
+			prefix = "~{prefix}.concat",
 			docker = utils_docker,
-			runtime_attr_override = runtime_attr_concat_sort_vcfs
+			runtime_attr_override = runtime_attr_concat
 	}
 
 	output {
@@ -185,53 +186,8 @@ workflow PALMER {
 		Array[File] palmer_diploid_vcfs = TruvariCollapse.diploid_vcf
 		Array[File] palmer_diploid_vcfs_idxs = TruvariCollapse.diploid_vcf_idx
 
-		File palmer_combined_vcf = ConcatSortVcfs.vcf
-		File palmer_combined_vcf_idx = ConcatSortVcfs.vcf_idx
-	}
-}
-
-task SplitBam {
-	input {
-		File bam
-		File bai
-		String prefix
-		Array[String] contigs
-		String docker
-		RuntimeAttr? runtime_attr_override
-	}
-
-	command <<<
-		set -euo pipefail
-
-		for contig in ~{sep=" " contigs}
-		do
-			samtools view -b ~{bam} $contig > ~{prefix}_${contig}.bam
-			samtools index ~{prefix}_${contig}.bam
-		done
-	>>>
-
-	output {
-		Array[File] bams = glob("~{prefix}_*bam")
-		Array[File] bais = glob("~{prefix}_*bai")
-	}
-
-	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
-		disk_gb: 3 * ceil(size(bam, "GB")) + 10,
-		boot_disk_gb: 10,
-		preemptible_tries: 2,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+		File palmer_combined_vcf = ConcatVcfs.concat_vcf
+		File palmer_combined_vcf_idx = ConcatVcfs.concat_vcf_idx
 	}
 }
 
@@ -454,47 +410,6 @@ task TruvariCollapse {
 		cpu_cores: 1,
 		mem_gb: 4,
 		disk_gb: 3 * ceil(size(vcf_pat, "GB") + size(vcf_mat, "GB")) + 10,
-		boot_disk_gb: 10,
-		preemptible_tries: 2,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-	}
-}
-
-task ConcatSortVcfs {
-	input {
-		Array[File] vcfs
-		Array[File] vcf_idxs
-		String prefix
-		String docker
-		RuntimeAttr? runtime_attr_override
-	}
-
-	command <<<
-		set -euo pipefail
-
-		bcftools concat -a ~{sep=" " vcfs} | bcftools sort -Oz > ~{prefix}.vcf.gz
-		tabix ~{prefix}.vcf.gz
-	>>>
-
-	output {
-		File vcf = "~{prefix}.vcf.gz"
-		File vcf_idx = "~{prefix}.vcf.gz.tbi"
-	}
-
-	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
-		disk_gb: 3 * ceil(size(vcfs, "GB")) + 5,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
 		max_retries: 0

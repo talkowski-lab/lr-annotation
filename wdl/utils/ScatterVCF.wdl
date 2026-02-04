@@ -1,7 +1,7 @@
 version 1.0
 
+import "Helpers.wdl"
 import "Structs.wdl"
-import "Helpers.wdl" as Helpers
 
 workflow ScatterVCF {
     input {

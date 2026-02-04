@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
 
 workflow TRGT {
     input {
@@ -20,7 +21,8 @@ workflow TRGT {
         String trgt_docker
         
         RuntimeAttr? runtime_attr_process_with_trgt
-        RuntimeAttr? runtime_attr_finalize_to_file
+        RuntimeAttr? runtime_attr_finalize_vcf
+        RuntimeAttr? runtime_attr_finalize_vcf_idx
     }
 
     Boolean is_female = 'F' == sex
@@ -40,23 +42,23 @@ workflow TRGT {
             runtime_attr_override = runtime_attr_process_with_trgt
     }
 
-    call Helpers.FinalizeToFile as FinalizeTrgtVCF { 
+    call Helpers.FinalizeToFile as FinalizeVcf { 
         input: 
             outdir = outdir, 
             file = ProcessWithTRGT.trgt_output_vcf,
-            runtime_attr_override = runtime_attr_finalize_to_file    
+            runtime_attr_override = runtime_attr_finalize_vcf    
     }
 
-    call Helpers.FinalizeToFile as FinalizeTrgtTBI { 
+    call Helpers.FinalizeToFile as FinalizeTbi { 
         input: 
             outdir = outdir, 
             file = ProcessWithTRGT.trgt_output_vcf_idx,
-            runtime_attr_override = runtime_attr_finalize_to_file
+            runtime_attr_override = runtime_attr_finalize_vcf_idx
     }
 
     output {
-        File trgt_vcf = FinalizeTrgtVCF.gcs_path
-        File trgt_vcf_idx = FinalizeTrgtTBI.gcs_path
+        File trgt_vcf = FinalizeVcf.gcs_path
+        File trgt_vcf_idx = FinalizeTbi.gcs_path
         # File trgt_bam = ProcessWithTRGT.trgt_output_bam
     }
 }

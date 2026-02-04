@@ -1,8 +1,8 @@
 version 1.0
-    
-import "../utils/Structs.wdl"
-import "../utils/ScatterVCF.wdl"
+
 import "../utils/Helpers.wdl"
+import "../utils/ScatterVCF.wdl"
+import "../utils/Structs.wdl"
 
 workflow AnnotateVEPHail {
     input {

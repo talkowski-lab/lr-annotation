@@ -1,9 +1,9 @@
 version 1.0
 
-import "../utils/Structs.wdl"
+import "../utils/BedtoolsClosestSV.wdl"
 import "../utils/Helpers.wdl"
-import "../benchmarking/BedtoolsClosestSV.wdl"
-import "../benchmarking/TruvariMatch.wdl"
+import "../utils/Structs.wdl"
+import "../utils/TruvariMatch.wdl"
 
 workflow BenchmarkAnnotations {
     input {
