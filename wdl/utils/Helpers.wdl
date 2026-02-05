@@ -307,6 +307,58 @@ task CheckSampleConsistency {
     }
 }
 
+task CheckSampleMatch {
+    input {
+        File vcf_a
+        File vcf_a_idx
+        File vcf_b
+        File vcf_b_idx
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools query -l ~{vcf_a} | sort > samples_a.txt
+        bcftools query -l ~{vcf_b} | sort > samples_b.txt
+
+        if ! diff -q samples_a.txt samples_b.txt > /dev/null; then
+            echo "ERROR: Sample mismatch between VCFs"
+            echo "Samples only in VCF A:"
+            comm -23 samples_a.txt samples_b.txt
+            echo "Samples only in VCF B:"
+            comm -13 samples_a.txt samples_b.txt
+            exit 1
+        fi
+
+        echo "SUCCESS: Samples match between VCFs"
+    >>>
+
+    output {
+        String status = "success"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf_a, vcf_b], "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task ConcatAlignedTsvs {
     input {
         Array[File] tsvs
