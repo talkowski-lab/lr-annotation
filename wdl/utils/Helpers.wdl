@@ -1369,7 +1369,7 @@ import pysam
 import sys
 
 vcf_in = pysam.VariantFile("~{vcf}")
-vcf_out = pysam.VariantFile("temp.vcf", "w", header=vcf_in.header)
+vcf_out = pysam.VariantFile("temp.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
     if len(record.alts) <= 1:
@@ -1405,7 +1405,9 @@ vcf_in.close()
 vcf_out.close()
 CODE
 
-        bcftools sort temp.vcf -Oz -o ~{prefix}.vcf.gz
+        bcftools sort \
+            -Oz -o ~{prefix}.vcf.gz \
+            temp.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -1418,7 +1420,7 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 50 * ceil(size(vcf, "GB")) + 5,
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
