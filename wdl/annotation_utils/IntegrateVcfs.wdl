@@ -203,7 +203,7 @@ workflow IntegrateVcfs {
                 vcf_idx = AddInfoSv.annotated_vcf_idx,
                 filter_name = sv_vcf_size_flag,
                 filter_description = sv_vcf_size_flag_description,
-                filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
+                filter_expression = "abs(INFO/allele_length) < ~{min_sv_length}",
                 prefix = "~{prefix}.~{contig}.sv.add_filter",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_add_filter_sv

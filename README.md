@@ -9,7 +9,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 	- [Metadata File](https://github.com/human-pangenomics/hprc_intermediate_assembly/blob/main/data_tables/sample/hprc_release2_sample_metadata.csv).
 		- 234 total samples.
 		- Additionally includes GRC38 and CHM13.
-		- Fabio's table, the DeepVariant callset and the Terra data table all also include HG03492.
+		- Fabio's table and the DeepVariant callset also include HG03492.
 - HGSVC.
 	- 65 total samples.
 	- [Metadata File](https://www.internationalgenome.org/data-portal/data-collection/hgsvc3).
