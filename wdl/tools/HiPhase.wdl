@@ -23,6 +23,12 @@ workflow HiPhase {
 
         String sv_base_mini_docker
         String sv_pipeline_base_docker
+
+        RuntimeAttr? runtime_attr_preprocess_vcf
+        RuntimeAttr? runtime_attr_sync_contigs
+        RuntimeAttr? runtime_attr_hiphase
+        RuntimeAttr? runtime_attr_hiphase_trgt
+        RuntimeAttr? runtime_attr_concat
     }
 
     scatter (contig in contigs) {
@@ -30,7 +36,8 @@ workflow HiPhase {
             input:
                 vcf = sv_vcf,
                 vcf_idx = sv_vcf_idx,
-                prefix = "~{prefix}.~{contig}.preprocessed"
+                prefix = "~{prefix}.~{contig}.preprocessed",
+                runtime_attr_override = runtime_attr_preprocess_vcf
         }
 
         call Helpers.SubsetVcfToContig as SubsetVcfShort { 
@@ -58,7 +65,8 @@ workflow HiPhase {
                 sv_vcf = SubsetVcfSv.subset_vcf,
                 sv_vcf_idx = SubsetVcfSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.synced",
-                docker = sv_pipeline_base_docker
+                docker = sv_pipeline_base_docker,
+                runtime_attr_override = runtime_attr_sync_contigs
         }
 
         if (defined(trgt_vcf) && defined(trgt_vcf_idx)) {
@@ -84,7 +92,8 @@ workflow HiPhase {
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,
-                    extra_args = hiphase_extra_args
+                    extra_args = hiphase_extra_args,
+                    runtime_attr_override = runtime_attr_hiphase_trgt
             }
 
             call Helpers.ConcatVcfsLR as ConcatWithTRGT {
@@ -92,7 +101,8 @@ workflow HiPhase {
                     vcfs = [HiPhaseTRGT.phased_snp_vcf, HiPhaseTRGT.phased_sv_vcf, HiPhaseTRGT.phased_trgt_vcf],
                     vcf_idxs = [HiPhaseTRGT.phased_snp_vcf_idx, HiPhaseTRGT.phased_sv_vcf_idx, HiPhaseTRGT.phased_trgt_vcf_idx],
                     prefix = "~{prefix}.~{contig}.hiphased",
-                    sv_base_mini_docker = sv_base_mini_docker
+                    sv_base_mini_docker = sv_base_mini_docker,
+                    runtime_attr_override = runtime_attr_concat
             }
         }
 
@@ -108,7 +118,8 @@ workflow HiPhase {
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,
-                    extra_args = hiphase_extra_args
+                    extra_args = hiphase_extra_args,
+                    runtime_attr_override = runtime_attr_hiphase
             }
 
             call Helpers.ConcatVcfsLR as ConcatWithoutTRGT {
@@ -116,7 +127,8 @@ workflow HiPhase {
                     vcfs = [HiPhase.phased_snp_vcf, HiPhase.phased_sv_vcf],
                     vcf_idxs = [HiPhase.phased_snp_vcf_idx, HiPhase.phased_sv_vcf_idx],
                     prefix = "~{prefix}.~{contig}.hiphased",
-                    sv_base_mini_docker = sv_base_mini_docker
+                    sv_base_mini_docker = sv_base_mini_docker,
+                    runtime_attr_override = runtime_attr_concat
             }
         }
     }
@@ -126,7 +138,8 @@ workflow HiPhase {
             vcfs = select_all(flatten([ConcatWithTRGT.concat_vcf, ConcatWithoutTRGT.concat_vcf])),
             vcf_idxs = select_all(flatten([ConcatWithTRGT.concat_vcf_idx, ConcatWithoutTRGT.concat_vcf_idx])),
             prefix = "~{prefix}.phased",
-            sv_base_mini_docker = sv_base_mini_docker
+            sv_base_mini_docker = sv_base_mini_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
