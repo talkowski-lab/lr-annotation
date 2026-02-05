@@ -190,15 +190,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AutomopOG
-    primaryDescriptorPath: /wdl/tools/AutomopOG.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: HiPhase
     primaryDescriptorPath: /wdl/tools/HiPhase.wdl
     filters:
