@@ -87,7 +87,7 @@ workflow BenchmarkAnnotations {
             input:
                 vcf = vcf_truth,
                 vcf_idx = vcf_truth_idx,
-                include_args = args_string_vcf,
+                include_args = args_string_vcf_truth,
                 extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.truth",
                 docker = utils_docker,
@@ -98,7 +98,7 @@ workflow BenchmarkAnnotations {
             input:
                 vcf = vcf_sv_truth,
                 vcf_idx = vcf_sv_truth_idx,
-                include_args = args_string_vcf,
+                include_args = args_string_vcf_sv_truth,
                 extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.sv_truth",
                 docker = utils_docker,
