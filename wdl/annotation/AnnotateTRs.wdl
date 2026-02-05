@@ -206,7 +206,12 @@ task AnnotateTRVariants {
         bcftools query \
             -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' \
             ~{vcf} \
-            > vcf.bed
+            | awk 'BEGIN{OFS="\t"} {
+                if (length($5) < length($6) && $3 == $2) {
+                    $3 = $2 + 1
+                }
+                print
+            }' > vcf.bed
 
         bedtools intersect \
             -f 1.0 \
