@@ -1,6 +1,6 @@
 version 1.0
 
-workflow AutomopOG {
+workflow Automop {
     input {
         String workspace_namespace
         String workspace_name
