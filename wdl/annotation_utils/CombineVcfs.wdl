@@ -94,7 +94,7 @@ workflow CombineVcfs {
     output {
         File merged_vcf = ConcatMerged.concat_vcf
         File merged_vcf_idx = ConcatMerged.concat_vcf_idx
-        File concatenated_vcf = ConcatConcatenated.concat_vcf
-        File concatenated_vcf_idx = ConcatConcatenated.concat_vcf_idx
+        File concat_vcf = ConcatConcatenated.concat_vcf
+        File concat_vcf_idx = ConcatConcatenated.concat_vcf_idx
     }
 }
