@@ -16,7 +16,6 @@ workflow HiPhase {
         Array[String] contigs
         String prefix
 
-        Int hiphase_memory
         String hiphase_extra_args
 
         File ref_fa
@@ -85,7 +84,6 @@ workflow HiPhase {
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,
-                    memory = hiphase_memory,
                     extra_args = hiphase_extra_args
             }
 
@@ -110,7 +108,6 @@ workflow HiPhase {
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = prefix,
-                    memory = hiphase_memory,
                     extra_args = hiphase_extra_args
             }
 
@@ -305,13 +302,19 @@ task HiPhase {
         File ref_fai
         String prefix
         String extra_args
-        Int memory
         RuntimeAttr? runtime_attr_override
     }
 
-    Int bam_sz = ceil(size(bam, "GB"))
-	Int disk_size = bam_sz + 200
-    Int thread_num = memory/2
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(bam, "GB")) + 100,
+        boot_disk_gb: 100,
+        preemptible_tries: 2,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -euo pipefail
@@ -319,7 +322,7 @@ task HiPhase {
         touch ~{bai}
 
         hiphase \
-            --threads ~{thread_num} \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --bam ~{bam} \
             --reference ~{ref_fa} \
             --global-realignment-cputime 300 \
@@ -346,16 +349,6 @@ task HiPhase {
         File hiphase_summary = "~{prefix}.summary.tsv"
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: thread_num,
-        mem_gb: memory,
-        disk_gb: disk_size,
-        boot_disk_gb: 100,
-        preemptible_tries: 1,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -382,13 +375,19 @@ task HiPhaseTRGT {
         File ref_fai
         String prefix
         String extra_args
-        Int memory
         RuntimeAttr? runtime_attr_override
     }
 
-    Int bam_sz = ceil(size(bam, "GB"))
-	Int disk_size = bam_sz + 200
-    Int thread_num = memory/2
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(bam, "GB")) + 100,
+        boot_disk_gb: 100,
+        preemptible_tries: 2,
+        max_retries: 0,
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
     command <<<
         set -euo pipefail
@@ -396,7 +395,7 @@ task HiPhaseTRGT {
         touch ~{bai}
 
         hiphase \
-            --threads ~{thread_num} \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --bam ~{bam} \
             --reference ~{ref_fa} \
             --global-realignment-cputime 300 \
@@ -427,16 +426,6 @@ task HiPhaseTRGT {
         File hiphase_summary = "~{prefix}.summary.tsv"
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: thread_num,
-        mem_gb: memory,
-        disk_gb: disk_size,
-        boot_disk_gb: 100,
-        preemptible_tries: 1,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
