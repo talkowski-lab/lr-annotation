@@ -19,9 +19,12 @@ workflow HiPhaseMerge {
         String utils_docker
         String trgt_docker
 
-        RuntimeAttr? runtime_attr_subset
-        RuntimeAttr? runtime_attr_merge
-        RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_subset_trid
+        RuntimeAttr? runtime_attr_subset_integrated
+        RuntimeAttr? runtime_attr_merge_trgt
+        RuntimeAttr? runtime_attr_merge_integrated
+        RuntimeAttr? runtime_attr_concat_trgt
+        RuntimeAttr? runtime_attr_concat_integrated
     }
 
     scatter (i in range(length(phased_vcfs))) {
@@ -32,7 +35,7 @@ workflow HiPhaseMerge {
                 include_args = "TRID != '.'",
                 prefix = "~{prefix}.~{i}.trgt",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_subset_trid
         }
 
         call Helpers.SubsetVcfByArgs as SubsetWithoutTRID {
@@ -42,7 +45,7 @@ workflow HiPhaseMerge {
                 exclude_args = "TRID != '.'",
                 prefix = "~{prefix}.~{i}.integrated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = runtime_attr_subset_integrated
         }
     }
 
@@ -56,7 +59,7 @@ workflow HiPhaseMerge {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 docker = trgt_docker,
-                runtime_attr_override = runtime_attr_merge
+                runtime_attr_override = runtime_attr_merge_trgt
         }
 
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
@@ -67,7 +70,7 @@ workflow HiPhaseMerge {
                 prefix = "~{prefix}.~{contig}.integrated",
                 extra_args = merge_args,
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge
+                runtime_attr_override = runtime_attr_merge_integrated
         }
     }
 
@@ -77,7 +80,7 @@ workflow HiPhaseMerge {
             vcf_idxs = MergeTRGTVcfs.merged_vcf_idx,
             prefix = "~{prefix}.trgt",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_trgt
     }
 
     call Helpers.ConcatVcfs as ConcatIntegratedVcfs {
@@ -86,7 +89,7 @@ workflow HiPhaseMerge {
             vcf_idxs = MergeIntegratedVcfs.merged_vcf_idx,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_integrated
     }
 
     output {
