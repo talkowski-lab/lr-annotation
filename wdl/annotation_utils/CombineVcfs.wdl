@@ -39,7 +39,7 @@ workflow CombineVcfs {
                 vcf = a_vcf,
                 vcf_idx = a_vcf_idx,
                 contig = contig,
-                prefix = "~{prefix}.a.~{contig}.a",
+                prefix = "~{prefix}.~{contig}.a",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_a
         }
@@ -54,15 +54,6 @@ workflow CombineVcfs {
                 runtime_attr_override = runtime_attr_subset_b
         }
 
-        call Helpers.MergeVcfs {
-            input:
-                vcfs = [SubsetA.subset_vcf, SubsetB.subset_vcf],
-                vcf_idxs = [SubsetA.subset_vcf_idx, SubsetB.subset_vcf_idx],
-                prefix = "~{prefix}.~{contig}.merged",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge
-        }
-
         call Helpers.ConcatVcfs {
             input:
                 vcfs = [SubsetA.subset_vcf, SubsetB.subset_vcf],
@@ -73,16 +64,7 @@ workflow CombineVcfs {
         }
     }
 
-    call Helpers.ConcatVcfs as ConcatMerged {
-        input:
-            vcfs = MergeVcfs.merged_vcf,
-            vcf_idxs = MergeVcfs.merged_vcf_idx,
-            prefix = "~{prefix}.merged",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_merged
-    }
-
-    call Helpers.ConcatVcfs as ConcatConcatenated {
+    call Helpers.ConcatVcfs as ConcatContigs {
         input:
             vcfs = ConcatVcfs.concat_vcf,
             vcf_idxs = ConcatVcfs.concat_vcf_idx,
@@ -92,9 +74,7 @@ workflow CombineVcfs {
     }
 
     output {
-        File merged_vcf = ConcatMerged.concat_vcf
-        File merged_vcf_idx = ConcatMerged.concat_vcf_idx
-        File concat_vcf = ConcatConcatenated.concat_vcf
-        File concat_vcf_idx = ConcatConcatenated.concat_vcf_idx
+        File concat_vcf = ConcatContigs.concat_vcf
+        File concat_vcf_idx = ConcatContigs.concat_vcf_idx
     }
 }
