@@ -65,15 +65,15 @@ workflow VcfDist {
     }
 
     output {
-        Array[File] vcf_dist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
-        Array[File] vcf_dist_switchflips_tsv = RunVcfDist.switchflips_tsv
-        Array[File] vcf_dist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
-        Array[File] vcf_dist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
-        Array[File] vcf_dist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
-        Array[File] vcf_dist_superclusters_tsv = RunVcfDist.superclusters_tsv
-        Array[File] vcf_dist_query_tsv = RunVcfDist.query_tsv
-        Array[File] vcf_dist_truth_tsv = RunVcfDist.truth_tsv
-        Array[File] vcf_dist_summary_vcf = RunVcfDist.summary_vcf
+        Array[File] vcfdist_phasing_summary_tsv = RunVcfDist.phasing_summary_tsv
+        Array[File] vcfdist_switchflips_tsv = RunVcfDist.switchflips_tsv
+        Array[File] vcfdist_precision_recall_tsv = RunVcfDist.precision_recall_tsv
+        Array[File] vcfdist_precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv
+        Array[File] vcfdist_phase_blocks_tsv = RunVcfDist.phase_blocks_tsv
+        Array[File] vcfdist_superclusters_tsv = RunVcfDist.superclusters_tsv
+        Array[File] vcfdist_query_tsv = RunVcfDist.query_tsv
+        Array[File] vcfdist_truth_tsv = RunVcfDist.truth_tsv
+        Array[File] vcfdist_summary_vcf = RunVcfDist.summary_vcf
     }
 }
 
