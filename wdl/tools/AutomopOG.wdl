@@ -66,12 +66,12 @@ def main(workspace_namespace, workspace_name, user):
         raise RuntimeError('Did not receive "Operation completed" message from fissfc output.')
     
     mop_event = {
-            'user': user,
-            'datetime': datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d-%H-%M-%S'),
-            'workspace_namespace': workspace_namespace,
-            'workspace_name': workspace_name,
-            'size_deleted': size_in_bytes
-        }
+        'user': user,
+        'datetime': datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d-%H-%M-%S'),
+        'workspace_namespace': workspace_namespace,
+        'workspace_name': workspace_name,
+        'size_deleted': size_in_bytes
+    }
     db = bigquery.Client(project='broad-dsde-methods-automop')
     db.insert_rows(db.get_table('broad-dsde-methods-automop.automop.mop_events'), [mop_event])
 

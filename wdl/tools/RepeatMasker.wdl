@@ -4,11 +4,13 @@ import "../utils/Structs.wdl"
 
 workflow RepeatMasker {
     input {
-        File vcf
-        File vcf_idx
+        File? vcf
+        File? vcf_idx
         String prefix
 
         Int min_length
+
+        File? fa_override
 
         String utils_docker
         String repeatmasker_docker
@@ -17,18 +19,22 @@ workflow RepeatMasker {
         RuntimeAttr? runtime_attr_repeat_masker
     }
 
-    call INSToFa {
-        input:
-            vcf = vcf,
-            min_length = min_length,
-            prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_ins_to_fa
+    if (!defined(fa_override)) {
+        call INSToFa {
+            input:
+                vcf = select_first([vcf]),
+                min_length = min_length,
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_ins_to_fa
+        }
     }
+
+    File fa_input = select_first([fa_override, INSToFa.ins_fa])
 
     call RepeatMasker {
         input:
-            fa = INSToFa.ins_fa,
+            fa = fa_input,
             prefix = prefix,
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
@@ -36,7 +42,7 @@ workflow RepeatMasker {
 
     output {
         File rm_out = RepeatMasker.rm_out
-        File rm_fa = INSToFa.ins_fa
+        File rm_fa = fa_input
     }
 }
 

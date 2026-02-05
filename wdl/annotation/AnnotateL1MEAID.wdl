@@ -13,6 +13,8 @@ workflow AnnotateL1MEAID {
 
         Int min_length
 
+        File? fa_override
+
         String utils_docker
         String repeatmasker_docker
         String l1meaid_docker
@@ -44,6 +46,7 @@ workflow AnnotateL1MEAID {
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 min_length = min_length,
                 prefix = "~{prefix}.~{contig}",
+                fa_override = fa_override,
                 utils_docker = utils_docker,
                 repeatmasker_docker = repeatmasker_docker,
                 runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
@@ -52,7 +55,7 @@ workflow AnnotateL1MEAID {
 
         call L1MEAID {
             input:
-                rm_fa = RepeatMasker.rm_fa,
+                rm_fa = select_first([fa_override, RepeatMasker.rm_fa]),
                 rm_out = RepeatMasker.rm_out,
                 prefix = "~{prefix}.~{contig}",
                 docker = l1meaid_docker,
