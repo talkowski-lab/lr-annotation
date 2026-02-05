@@ -66,7 +66,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = ResetVcfFilters.reset_vcf,
                 vcf_idx = ResetVcfFilters.reset_vcf_idx,
-                include_args = "INFO/allele_type=ins",
+                include_args = 'INFO/allele_type="ins"',
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_ins
@@ -121,7 +121,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = ResetVcfFilters.reset_vcf,
                 vcf_idx = ResetVcfFilters.reset_vcf_idx,
-                include_args = 'INFO/allele_type="del"',
+                include_args = 'INFO/allele_type="ins"',
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_del

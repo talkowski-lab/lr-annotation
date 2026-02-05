@@ -138,6 +138,10 @@ TODO
 TODO
 
 
+### [CombineVcfs](wdl/annotation_utils/CombineVcfs.wdl)
+TODO
+
+
 ### [CreatePEDAncestry](wdl/annotation_utils/CreatePEDAncestry.wdl)
 TODO
 
