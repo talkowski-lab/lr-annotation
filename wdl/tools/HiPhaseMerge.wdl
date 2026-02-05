@@ -19,7 +19,7 @@ workflow HiPhaseMerge {
         String utils_docker
         String trgt_docker
 
-        RuntimeAttr? runtime_attr_subset_trid
+        RuntimeAttr? runtime_attr_subset_trgt
         RuntimeAttr? runtime_attr_subset_integrated
         RuntimeAttr? runtime_attr_merge_trgt
         RuntimeAttr? runtime_attr_merge_integrated
@@ -35,7 +35,7 @@ workflow HiPhaseMerge {
                 include_args = "TRID != '.'",
                 prefix = "~{prefix}.~{i}.trgt",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_trid
+                runtime_attr_override = runtime_attr_subset_trgt
         }
 
         call Helpers.SubsetVcfByArgs as SubsetWithoutTRID {
