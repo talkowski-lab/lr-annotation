@@ -168,6 +168,18 @@ TODO
 
 
 ## Tools
+### [Automop](wdl/tools/Automop.wdl)
+TODO
+
+
+### [HiPhase](wdl/tools/HiPhase.wdl)
+TODO
+
+
+### [HiPhaseMerge](wdl/tools/HiPhaseMerge.wdl)
+TODO
+
+
 ### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)
 This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
 
@@ -203,14 +215,6 @@ TODO
 
 
 ### [PALMERMerge](wdl/tools/PALMERMerge.wdl)
-TODO
-
-
-### [HiPhase](wdl/tools/HiPhase.wdl)
-TODO
-
-
-### [HiPhaseMerge](wdl/tools/HiPhaseMerge.wdl)
 TODO
 
 

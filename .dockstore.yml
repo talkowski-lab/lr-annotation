@@ -172,6 +172,15 @@ workflows:
   # Tools
   # -----
   - subclass: WDL
+    name: Automop
+    primaryDescriptorPath: /wdl/tools/Automop.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: HiPhase
     primaryDescriptorPath: /wdl/tools/HiPhase.wdl
     filters:
