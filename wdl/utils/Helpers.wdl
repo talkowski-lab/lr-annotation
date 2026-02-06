@@ -859,15 +859,9 @@ import sys
 
 phased_in = pysam.VariantFile("~{phased_vcf}")
 unphased_in = pysam.VariantFile("~{unphased_vcf}")
-
-if 'SOURCE' in unphased_in.header.info and 'SOURCE' not in phased_in.header.info:
-    phased_in.header.info.add('SOURCE', number=unphased_in.header.info['SOURCE'].number, type=unphased_in.header.info['SOURCE'].type, description=unphased_in.header.info['SOURCE'].description)
-
-for f in unphased_in.header.filters:
-    if f not in phased_in.header.filters:
-        phased_in.header.filters.add(f, unphased_in.header.filters[f].description)
-
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
+
+NULL_GT = [(None, None), (None, 0), (0, None), (0, ), (None, ), None]
 
 for record in phased_in:
     match = None
@@ -876,31 +870,11 @@ for record in phased_in:
             match = cand
             break
     
-    if match is None:
-        sys.stderr.write(f"Mismatch: Variant {record.chrom}:{record.pos}-{record.ref}-{record.alts} not found in unphased VCF.\n")
-        out.write(record)
-        continue
-
-    if 'SOURCE' in match.info:
-        record.info['SOURCE'] = match.info['SOURCE']
-
-    if list(match.filter):
-        record.filter.clear()
-        for f in match.filter:
-            record.filter.add(f)
-    
     for sample in record.samples:
         u_gt = match.samples[sample]['GT']
         p_gt = record.samples[sample]['GT']
-        if u_gt == (0, 0):
-            is_target = False
-            if p_gt == (None, None):
-                is_target = True
-            elif len(p_gt) == 2:
-                if (p_gt[0] is None and p_gt[1] == 0) or (p_gt[0] == 0 and p_gt[1] is None):
-                    is_target = True
-            if is_target:
-                record.samples[sample]['GT'] = (0, 0)
+        if u_gt == (0, 0) and p_gt in NULL_GT:
+            record.samples[sample]['GT'] = (0, 0)
     
     out.write(record)
 
