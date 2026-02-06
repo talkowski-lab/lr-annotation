@@ -54,7 +54,7 @@ workflow VcfDist {
                 vcf_eval_idx = SubsetVcfEval.subset_vcf_idx,
                 vcf_truth = SubsetVcfTruth.subset_vcf,
                 vcf_truth_idx = SubsetVcfTruth.subset_vcf_idx,
-                prefix = prefix,
+                prefix = "~{prefix}.~{contig}",
                 ref_fa = ref_fa,
                 bed_regions = bed_regions,
                 mode = mode,
