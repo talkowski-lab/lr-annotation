@@ -64,7 +64,7 @@ workflow FillPhasedGenotypes {
     }
 
     output {
-        File hiphase_phased_integrated_vcf = ConcatVcfs.concat_vcf
-        File hiphase_phased_integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File hiphase_phased_vcf = ConcatVcfs.concat_vcf
+        File hiphase_phased_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
