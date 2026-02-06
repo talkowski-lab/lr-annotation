@@ -1429,7 +1429,7 @@ CODE
     runtime {
         cpu: 2
         memory: 4 + " GiB"
-        disks: "local-disk " + 30 + " HDD"
+        disks: "local-disk " + 100 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
