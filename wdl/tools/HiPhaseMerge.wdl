@@ -122,10 +122,7 @@ task FixALHeader {
     command <<<
         set -euo pipefail
 
-        bcftools view -h ~{vcf} \
-            | grep -v '^##FORMAT=<ID=AL,' \
-            > new_header.txt
-        echo '##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">' >> new_header.txt
+        bcftools view -h ~{vcf} | sed 's/^##FORMAT=<ID=AL,.*$/##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">/' > new_header.txt
 
         bcftools reheader -h new_header.txt ~{vcf} \
             | bcftools view -Oz -o ~{prefix}.vcf.gz
