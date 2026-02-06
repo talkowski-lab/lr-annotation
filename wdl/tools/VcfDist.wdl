@@ -132,7 +132,7 @@ task RunVcfDist {
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: 1
-        memory: 80 + " GiB"
+        memory: 75 + " GiB"
         disks: "local-disk " + 10 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
