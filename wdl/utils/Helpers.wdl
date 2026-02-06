@@ -839,7 +839,7 @@ CODE
     }
 }
 
-task FillGenotypesFromUnphased {
+task FillGenotypes {
     input {
         File phased_vcf
         File phased_vcf_idx

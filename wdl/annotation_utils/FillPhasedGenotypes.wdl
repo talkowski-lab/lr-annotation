@@ -42,47 +42,29 @@ workflow FillPhasedGenotypes {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call Helpers.SplitMultiallelics {
+        call Helpers.FillGenotypes {
             input:
-                vcf = SubsetPhased.subset_vcf,
-                vcf_idx = SubsetPhased.subset_vcf_idx,
-                prefix = prefix + ".phased.split",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_split
-        }
-
-        call Helpers.FillGenotypesFromUnphased {
-            input:
-                phased_vcf = SplitMultiallelics.split_vcf,
-                phased_vcf_idx = SplitMultiallelics.split_vcf_idx,
+                phased_vcf = SubsetPhased.subset_vcf,
+                phased_vcf_idx = SubsetPhased.subset_vcf_idx,
                 unphased_vcf = SubsetUnphased.subset_vcf,
                 unphased_vcf_idx = SubsetUnphased.subset_vcf_idx,
-                prefix = prefix + "." + contig + ".filled",
+                prefix = "~{prefix}.~{contig}.filled",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_fill
-        }
-
-        call Helpers.AnnotateVariantAttributes {
-            input:
-                vcf = FillGenotypesFromUnphased.filled_vcf,
-                vcf_idx = FillGenotypesFromUnphased.filled_vcf_idx,
-                prefix = prefix + "." + contig + ".filled.annotated",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = AnnotateVariantAttributes.annotated_vcf,
-            vcf_idxs = AnnotateVariantAttributes.annotated_vcf_idx,
-            prefix = prefix + ".filled",
+            vcfs = FillGenotypes.filled_vcf,
+            vcf_idxs = FillGenotypes.filled_vcf_idx,
+            prefix = "~{prefix}.filled",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File filled_vcf = ConcatVcfs.concat_vcf
-        File filled_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File hiphase_phased_integrated_vcf = ConcatVcfs.concat_vcf
+        File hiphase_phased_integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
