@@ -28,21 +28,21 @@ workflow HiPhaseMerge {
     }
 
     scatter (i in range(length(phased_vcfs))) {
-        call Helpers.SubsetVcfByArgs as SubsetWithTRID {
+        call Helpers.SubsetVcfByArgs as SubsetTRGT {
             input:
                 vcf = phased_vcfs[i],
                 vcf_idx = phased_vcf_idxs[i],
-                include_args = 'INFO/TRID != "."',
+                exclude_args = 'INFO/TRID = "."',
                 prefix = "~{prefix}.~{i}.trgt",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_trgt
         }
 
-        call Helpers.SubsetVcfByArgs as SubsetWithoutTRID {
+        call Helpers.SubsetVcfByArgs as SubsetIntegrated {
             input:
                 vcf = phased_vcfs[i],
                 vcf_idx = phased_vcf_idxs[i],
-                exclude_args = 'INFO/TRID != "."',
+                include_args = 'INFO/TRID = "."',
                 prefix = "~{prefix}.~{i}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_integrated
@@ -52,8 +52,8 @@ workflow HiPhaseMerge {
     scatter (contig in contigs) {
         call TRGTMerge.TRGTMergeContig as MergeTRGTVcfs {
             input:
-                vcfs = SubsetWithTRID.subset_vcf,
-                vcf_idxs = SubsetWithTRID.subset_vcf_idx,
+                vcfs = SubsetTRGT.subset_vcf,
+                vcf_idxs = SubsetTRGT.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.trgt",
                 contig = contig,
                 ref_fa = ref_fa,
@@ -64,8 +64,8 @@ workflow HiPhaseMerge {
 
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
             input:
-                vcfs = SubsetWithoutTRID.subset_vcf,
-                vcf_idxs = SubsetWithoutTRID.subset_vcf_idx,
+                vcfs = SubsetIntegrated.subset_vcf,
+                vcf_idxs = SubsetIntegrated.subset_vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
                 extra_args = merge_args,

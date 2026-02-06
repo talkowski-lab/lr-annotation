@@ -106,15 +106,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: CombineVcfs
-    primaryDescriptorPath: /wdl/annotation_utils/CombineVcfs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
     filters:
