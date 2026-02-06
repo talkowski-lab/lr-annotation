@@ -32,7 +32,7 @@ workflow HiPhaseMerge {
             input:
                 vcf = phased_vcfs[i],
                 vcf_idx = phased_vcf_idxs[i],
-                exclude_args = 'INFO/TRID = "."',
+                include_args = 'INFO/TRID != "."',
                 prefix = "~{prefix}.~{i}.trgt",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_trgt
