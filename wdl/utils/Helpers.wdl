@@ -866,7 +866,7 @@ NULL_GT = [(None, None), (None, 0), (0, None), (0, ), (None, ), None]
 for record in phased_in:
     match = None
     for cand in unphased_in.fetch(record.chrom, record.start, record.stop):
-        if cand.id == record.id:
+        if cand.id == record.id and cand.ref == record.ref and cand.alts == record.alts:
             match = cand
             break
     
@@ -874,16 +874,17 @@ for record in phased_in:
         for sample in record.samples:
             for fmt_key in record.samples[sample].keys():
                 if fmt_key == "GT":
-                    u_gt = match.samples[sample]['GT']
-                    p_gt = record.samples[sample]['GT']
-                    if p_gt in NULL_GT:
-                        record.samples[sample]['GT'] = u_gt
+                    if record.samples[sample]['GT'] in NULL_GT:
+                        try:
+                            record.samples[sample]['GT'] = match.samples[sample]['GT']
+                        except Exception:
+                            print(f"Error copying GT for {sample} at {record.chrom}:{record.pos}", file=sys.stderr)
                 else:
                     if fmt_key in match.samples[sample]:
                         try:
                             record.samples[sample][fmt_key] = match.samples[sample][fmt_key]
                         except Exception:
-                            print(f"Error copying {fmt_key} for sample {sample} at {record.chrom}:{record.pos}", file=sys.stderr)
+                            print(f"Error copying {fmt_key} for {sample} at {record.chrom}:{record.pos}", file=sys.stderr)
     out.write(record)
 
 out.close()
