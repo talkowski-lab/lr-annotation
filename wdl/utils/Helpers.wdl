@@ -870,11 +870,16 @@ for record in phased_in:
             match = cand
             break
     
-    for sample in record.samples:
-        u_gt = match.samples[sample]['GT']
-        p_gt = record.samples[sample]['GT']
-        if u_gt == (0, 0) and p_gt in NULL_GT:
-            record.samples[sample]['GT'] = (0, 0)
+    if match:
+        for sample in record.samples:
+            for fmt_key in match.samples[sample].keys():
+                if fmt_key == "GT":
+                    u_gt = match.samples[sample]['GT']
+                    p_gt = record.samples[sample]['GT']
+                    if p_gt in NULL_GT:
+                        record.samples[sample]['GT'] = u_gt
+                else:
+                    record.samples[sample][fmt_key] = match.samples[sample][fmt_key]
     
     out.write(record)
 
