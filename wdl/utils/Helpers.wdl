@@ -872,7 +872,7 @@ for record in phased_in:
     
     if match:
         for sample in record.samples:
-            for fmt_key in match.samples[sample].keys():
+            for fmt_key in record.samples[sample].keys():
                 if fmt_key == "GT":
                     u_gt = match.samples[sample]['GT']
                     p_gt = record.samples[sample]['GT']
