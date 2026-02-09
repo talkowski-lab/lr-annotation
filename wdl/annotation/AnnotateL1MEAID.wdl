@@ -26,7 +26,8 @@ workflow AnnotateL1MEAID {
         RuntimeAttr? runtime_attr_limeaid
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_annotate
-        RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_concat_contigs
+        RuntimeAttr? runtime_attr_concat_intactmei
     }
 
     scatter (contig in contigs) {
@@ -45,7 +46,7 @@ workflow AnnotateL1MEAID {
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 min_length = min_length,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.rm",
                 fa_override = fa_override,
                 utils_docker = utils_docker,
                 repeatmasker_docker = repeatmasker_docker,
@@ -57,39 +58,49 @@ workflow AnnotateL1MEAID {
             input:
                 rm_fa = select_first([fa_override, RepeatMasker.rm_fa]),
                 rm_out = RepeatMasker.rm_out,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.l1meaid",
                 docker = l1meaid_docker,
                 runtime_attr_override = runtime_attr_limeaid
         }
 
-        call L1MEAIDFilter {
+        call IntactMEI {
             input:
-                limeaid_output = L1MEAID.limeaid_output,
-                prefix = "~{prefix}.~{contig}",
+                l1meaid_output = L1MEAID.l1meaid_output,
+                prefix = "~{prefix}.~{contig}.intactmei",
                 docker = intact_mei_docker,
                 runtime_attr_override = runtime_attr_filter
         }
 
-        call GenerateL1MEAIDAnnotationTable {
+        call GenerateAnnotationTable {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
-                l1meaid_filtered_tsv = L1MEAIDFilter.filtered_output,
-                prefix = "~{prefix}.~{contig}",
+                filtered_tsv = IntactMEI.filtered_output,
+                prefix = "~{prefix}.~{contig}.intactmei_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
     }
 
+    call Helpers.ConcatTsvs as MergeIntactMeiOutput {
+        input:
+            tsvs = IntactMEI.filtered_output,
+            skip_sort = true,
+            prefix = prefix + ".intactmei_output",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_intactmei
+    }
+
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            tsvs = GenerateL1MEAIDAnnotationTable.annotations_tsv,
-            prefix = prefix + ".l1meaid_annotations",
+            tsvs = GenerateAnnotationTable.annotations_tsv,
+            prefix = prefix + ".intactmei_annotations",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_contigs
     }
 
     output {
         File annotations_tsv_l1meaid = MergeAnnotations.concatenated_tsv
+        File annotations_full_l1meaid = MergeIntactMeiOutput.concatenated_tsv
     }
 }
 
@@ -108,11 +119,11 @@ task L1MEAID {
         python3 /opt/src/L1ME-AID/limeaid.py \
             -i ~{rm_fa} \
             -r ~{rm_out} \
-            -o ~{prefix}_limeaid_output.txt
+            -o ~{prefix}.txt
     >>>
 
     output {
-        File limeaid_output = "~{prefix}_limeaid_output.txt"
+        File l1meaid_output = "~{prefix}.txt"
     }
 
     RuntimeAttr default_attr = object {
@@ -135,9 +146,9 @@ task L1MEAID {
     }
 }
 
-task L1MEAIDFilter {
+task IntactMEI {
     input {
-        File limeaid_output
+        File l1meaid_output
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -147,18 +158,18 @@ task L1MEAIDFilter {
         set -euo pipefail
 
         perl /opt/src/utility/limeaid.filter.pl \
-            ~{limeaid_output} \
-            > ~{prefix}_filtered.tsv
+            ~{l1meaid_output} \
+            > ~{prefix}.tsv
     >>>
 
     output {
-        File filtered_output = "~{prefix}_filtered.tsv"
+        File filtered_output = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(limeaid_output, "GB")) + 5,
+        disk_gb: 2 * ceil(size(l1meaid_output, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -175,10 +186,10 @@ task L1MEAIDFilter {
     }
 }
 
-task GenerateL1MEAIDAnnotationTable {
+task GenerateAnnotationTable {
     input {
         File vcf
-        File l1meaid_filtered_tsv
+        File filtered_tsv
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -193,8 +204,8 @@ task GenerateL1MEAIDAnnotationTable {
 import sys
 
 vcf_lookup_file = "vcf_lookup.tsv"
-input_tsv = "~{l1meaid_filtered_tsv}"
-output_anno = "~{prefix}.l1meaid_annotations.tsv"
+input_tsv = "~{filtered_tsv}"
+output_anno = "~{prefix}.tsv"
 
 vcf_lookup = {}
 with open(vcf_lookup_file, 'r') as f:
@@ -239,13 +250,13 @@ EOF
     >>>
 
     output {
-        File annotations_tsv = "~{prefix}.l1meaid_annotations.tsv"
+        File annotations_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(l1meaid_filtered_tsv, "GB")) + 5,
+        disk_gb: 2 * ceil(size(filtered_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
