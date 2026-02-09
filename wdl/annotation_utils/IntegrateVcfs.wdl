@@ -43,6 +43,7 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_add_filter_sv
         RuntimeAttr? runtime_attr_rename_sv
         RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_remove_redundant
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -240,12 +241,21 @@ workflow IntegrateVcfs {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
+
+        call RemoveRedundantVariants {
+            input:
+                vcf = MergeContigVcfs.concat_vcf,
+                vcf_idx = MergeContigVcfs.concat_vcf_idx,
+                prefix = "~{prefix}.~{contig}.filtered",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_remove_redundant
+        }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = MergeContigVcfs.concat_vcf,
-            vcf_idxs = MergeContigVcfs.concat_vcf_idx,
+            vcfs = RemoveRedundantVariants.filtered_vcf,
+            vcf_idxs = RemoveRedundantVariants.filtered_vcf_idx,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -278,9 +288,9 @@ vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 
 for record in vcf_in:
-    if size_flag in record.filter.keys():
+    allele_length = abs(int(record.info.get('allele_length')))
+    if allele_length > 0:
         allele_type = record.info.get('allele_type').upper()
-        allele_length = abs(int(record.info.get('allele_length')))
         record.id = f"{record.chrom}-{record.pos}-{allele_type}-{allele_length}"
     vcf_out.write(record)
 
@@ -354,6 +364,68 @@ CODE
     output {
         File renamed_vcf = "~{prefix}.vcf.gz"
         File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 8 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task RemoveRedundantVariants {
+    input {
+        File vcf
+        File vcf_idx
+        String size_flag
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+from pysam import VariantFile
+
+vcf_in = VariantFile("~{vcf}")
+hprc_sv_variants = set()
+for record in vcf_in:
+    if record.info.get("SOURCE") == "HPRC_SV_Integration":
+        hprc_sv_variants.add((record.chrom, record.pos, record.ref, tuple(record.alts)))
+vcf_in.close()
+
+vcf_in = VariantFile("~{vcf}")
+vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+for record in vcf_in:
+    if record.info.get("SOURCE") == "DeepVariant" and "LARGE_SNV_INDEL" in record.filter \
+        and (record.chrom, record.pos, record.ref, tuple(record.alts)) in hprc_sv_variants:
+            continue
+    vcf_out.write(record)
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File filtered_vcf = "~{prefix}.vcf.gz"
+        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
