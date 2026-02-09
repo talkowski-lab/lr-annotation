@@ -288,10 +288,10 @@ vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 
 for record in vcf_in:
-    allele_length = abs(int(record.info.get('allele_length')))
-    if allele_length > 0:
-        allele_type = record.info.get('allele_type').upper()
-        record.id = f"{record.chrom}-{record.pos}-{allele_type}-{allele_length}"
+    a_len = abs(int(record.info.get('allele_length')))
+    if a_len > 0:
+        a_type = record.info.get('allele_type').upper()
+        record.id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
     vcf_out.write(record)
 
 vcf_in.close()
