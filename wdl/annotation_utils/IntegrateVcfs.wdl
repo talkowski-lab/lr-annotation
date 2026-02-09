@@ -153,7 +153,6 @@ workflow IntegrateVcfs {
             input:
                 vcf = AddFilterSnvIndel.flagged_vcf,
                 vcf_idx = AddFilterSnvIndel.flagged_vcf_idx,
-                size_flag = snv_indel_vcf_size_flag,
                 prefix = "~{prefix}.~{contig}.snv_indel.renamed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_rename_snv_indel
@@ -246,6 +245,9 @@ workflow IntegrateVcfs {
             input:
                 vcf = MergeContigVcfs.concat_vcf,
                 vcf_idx = MergeContigVcfs.concat_vcf_idx,
+                snv_indel_vcf_size_flag = snv_indel_vcf_size_flag,
+                snv_indel_vcf_source_tag = snv_indel_vcf_source_tag,
+                sv_vcf_source_tag = sv_vcf_source_tag,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_remove_redundant
@@ -271,7 +273,6 @@ task RenameSnvIndelIds {
     input {
         File vcf
         File vcf_idx
-        String size_flag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -283,7 +284,6 @@ task RenameSnvIndelIds {
         python3 <<CODE
 from pysam import VariantFile
 
-size_flag = "~{size_flag}"
 vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 
@@ -390,7 +390,9 @@ task RemoveRedundantVariants {
     input {
         File vcf
         File vcf_idx
-        String size_flag
+        String snv_indel_vcf_size_flag
+        String snv_indel_vcf_source_tag
+        String sv_vcf_source_tag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -402,17 +404,21 @@ task RemoveRedundantVariants {
         python3 <<CODE
 from pysam import VariantFile
 
+snv_indel_source = "~{snv_indel_vcf_source_tag}"
+sv_source = "~{sv_vcf_source_tag}"
+size_flag = "~{snv_indel_vcf_size_flag}"
+
 vcf_in = VariantFile("~{vcf}")
 hprc_sv_variants = set()
 for record in vcf_in:
-    if record.info.get("SOURCE") == "HPRC_SV_Integration":
+    if record.info.get("SOURCE") == sv_source:
         hprc_sv_variants.add((record.chrom, record.pos, record.ref, tuple(record.alts)))
 vcf_in.close()
 
 vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 for record in vcf_in:
-    if record.info.get("SOURCE") == "DeepVariant" and "LARGE_SNV_INDEL" in record.filter \
+    if record.info.get("SOURCE") == snv_indel_source and size_flag in record.filter \
         and (record.chrom, record.pos, record.ref, tuple(record.alts)) in hprc_sv_variants:
             continue
     vcf_out.write(record)
