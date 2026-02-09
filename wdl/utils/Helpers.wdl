@@ -1410,10 +1410,10 @@ CODE
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: 4
-        memory: 12 + " GiB"
-        disks: "local-disk " + 200 + " HDD"
-        bootDiskSizeGb: 40
+        cpu: 2
+        memory: 6 + " GiB"
+        disks: "local-disk " + 300 + " HDD"
+        bootDiskSizeGb: 50
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
