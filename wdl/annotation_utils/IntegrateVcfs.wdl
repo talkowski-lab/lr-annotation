@@ -152,6 +152,7 @@ workflow IntegrateVcfs {
             input:
                 vcf = AddFilterSnvIndel.flagged_vcf,
                 vcf_idx = AddFilterSnvIndel.flagged_vcf_idx,
+                size_flag = snv_indel_vcf_size_flag,
                 prefix = "~{prefix}.~{contig}.snv_indel.renamed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_rename_snv_indel
@@ -224,6 +225,7 @@ workflow IntegrateVcfs {
             input:
                 vcf = AddFilterSv.flagged_vcf,
                 vcf_idx = AddFilterSv.flagged_vcf_idx,
+                size_flag = sv_vcf_size_flag,
                 prefix = "~{prefix}.~{contig}.sv.renamed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_rename_sv
@@ -259,6 +261,7 @@ task RenameSnvIndelIds {
     input {
         File vcf
         File vcf_idx
+        String size_flag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -270,13 +273,15 @@ task RenameSnvIndelIds {
         python3 <<CODE
 from pysam import VariantFile
 
+size_flag = "~{size_flag}"
 vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 
 for record in vcf_in:
-    allele_type = record.info.get('allele_type').upper()
-    allele_length = abs(int(record.info.get('allele_length')))
-    record.id = f"{record.chrom}-{record.pos}-{allele_type}-{allele_length}"
+    if size_flag in record.filter.keys():
+        allele_type = record.info.get('allele_type').upper()
+        allele_length = abs(int(record.info.get('allele_length')))
+        record.id = f"{record.chrom}-{record.pos}-{allele_type}-{allele_length}"
     vcf_out.write(record)
 
 vcf_in.close()
@@ -315,6 +320,7 @@ task RenameSvIds {
     input {
         File vcf
         File vcf_idx
+        String size_flag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -323,10 +329,21 @@ task RenameSvIds {
     command <<<
         set -euo pipefail
 
-        bcftools annotate \
-            --set-id '%CHROM-%POS-%REF-%ALT' \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{vcf}
+        python3 <<CODE
+from pysam import VariantFile
+
+size_flag = "~{size_flag}"
+vcf_in = VariantFile("~{vcf}")
+vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+
+for record in vcf_in:
+    if size_flag in record.filter.keys():
+        record.id = f"{record.chrom}-{record.pos}-{record.ref}-{','.join(str(alt) for alt in record.alts)}"
+    vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>

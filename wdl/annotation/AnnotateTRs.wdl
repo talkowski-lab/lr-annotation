@@ -201,7 +201,10 @@ task AnnotateTRVariants {
         bcftools query \
             -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' \
             tr_tagged.vcf.gz \
-            > tr.bed
+            | awk 'BEGIN{OFS="\t"} {
+                $3 = $3 + 1
+                print
+            }' > tr.bed
 
         bcftools query \
             -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' \
