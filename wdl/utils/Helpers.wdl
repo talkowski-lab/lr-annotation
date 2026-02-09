@@ -1410,9 +1410,9 @@ CODE
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: 2
-        memory: 4 + " GiB"
-        disks: "local-disk " + 100 + " HDD"
+        cpu: 4
+        memory: 12 + " GiB"
+        disks: "local-disk " + 200 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
