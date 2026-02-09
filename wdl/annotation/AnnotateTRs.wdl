@@ -20,6 +20,7 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tr_vcf
+        RuntimeAttr? runtime_attr_set_missing_filters
         RuntimeAttr? runtime_attr_rename_variant_ids
         RuntimeAttr? runtime_attr_annotate_trs
         RuntimeAttr? runtime_attr_concat_vcf
@@ -55,11 +56,20 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_subset_tr_vcf
         }
 
+        call Helpers.SetMissingFiltersToPass {
+            input:
+                vcf = SubsetTrVcf.subset_vcf,
+                vcf_idx = SubsetTrVcf.subset_vcf_idx,
+                prefix = "~{prefix}.~{contig}.tr.pass",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_set_missing_filters
+        }
+
         if (defined(tr_rename_ids_string)) {
             call Helpers.RenameVariantIds {
                 input:
-                    vcf = SubsetTrVcf.subset_vcf,
-                    vcf_idx = SubsetTrVcf.subset_vcf_idx,
+                    vcf = SetMissingFiltersToPass.filtered_vcf,
+                    vcf_idx = SetMissingFiltersToPass.filtered_vcf_idx,
                     id_format = select_first([tr_rename_ids_string]),
                     prefix = "~{prefix}.~{contig}.renamed",
                     docker = utils_docker,
@@ -71,8 +81,8 @@ workflow AnnotateTRs {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
-                tr_vcf = select_first([RenameVariantIds.renamed_vcf, SubsetTrVcf.subset_vcf]),
-                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SubsetTrVcf.subset_vcf_idx]),
+                tr_vcf = select_first([RenameVariantIds.renamed_vcf, SetMissingFiltersToPass.filtered_vcf]),
+                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SetMissingFiltersToPass.filtered_vcf_idx]),
                 tr_caller = tr_caller,
                 prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
@@ -199,21 +209,19 @@ task AnnotateTRVariants {
 
         # Extract overlaps
         bcftools query \
-            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\t%INFO/MOTIFS\n' \
+            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
             tr_tagged.vcf.gz \
             | awk 'BEGIN{OFS="\t"} {
-                $3 = $3 + 1
-                print
+                end = $2 + length($4)
+                print $1, $2, end, $3, $4, $5
             }' > tr.bed
-
+        
         bcftools query \
-            -f '%CHROM\t%POS\t%END\t%ID\t%REF\t%ALT\n' \
+            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
             ~{vcf} \
             | awk 'BEGIN{OFS="\t"} {
-                if (length($5) < length($6) && $3 == $2) {
-                    $3 = $2 + 1
-                }
-                print
+                end = $2 + length($4)
+                print $1, $2, end, $3, $4, $5
             }' > vcf.bed
 
         bedtools intersect \
