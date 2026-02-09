@@ -34,12 +34,14 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_annotate_attributes_snv_indel
         RuntimeAttr? runtime_attr_add_info_snv_indel
         RuntimeAttr? runtime_attr_add_filter_snv_indel
+        RuntimeAttr? runtime_attr_rename_snv_indel
         RuntimeAttr? runtime_attr_subset_contig_sv
         RuntimeAttr? runtime_attr_split_sv
         RuntimeAttr? runtime_attr_subset_samples_sv
         RuntimeAttr? runtime_attr_annotate_attributes_sv
         RuntimeAttr? runtime_attr_add_info_sv
         RuntimeAttr? runtime_attr_add_filter_sv
+        RuntimeAttr? runtime_attr_rename_sv
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_concat
     }
@@ -146,6 +148,15 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_add_filter_snv_indel
         }
 
+        call RenameSnvIndelIds {
+            input:
+                vcf = AddFilterSnvIndel.flagged_vcf,
+                vcf_idx = AddFilterSnvIndel.flagged_vcf_idx,
+                prefix = "~{prefix}.~{contig}.snv_indel.renamed",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_rename_snv_indel
+        }
+
         # SV Processing
         call Helpers.SubsetVcfToContig as SubsetContigSv {
             input:
@@ -209,11 +220,20 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_add_filter_sv
         }
 
+        call RenameSvIds {
+            input:
+                vcf = AddFilterSv.flagged_vcf,
+                vcf_idx = AddFilterSv.flagged_vcf_idx,
+                prefix = "~{prefix}.~{contig}.sv.renamed",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_rename_sv
+        }
+
         # Merging
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
-                vcfs = [AddFilterSnvIndel.flagged_vcf, AddFilterSv.flagged_vcf],
-                vcf_idxs = [AddFilterSnvIndel.flagged_vcf_idx, AddFilterSv.flagged_vcf_idx],
+                vcfs = [RenameSnvIndelIds.renamed_vcf, RenameSvIds.renamed_vcf],
+                vcf_idxs = [RenameSnvIndelIds.renamed_vcf_idx, RenameSvIds.renamed_vcf_idx],
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
@@ -232,5 +252,106 @@ workflow IntegrateVcfs {
     output {
         File integrated_vcf = ConcatVcfs.concat_vcf
         File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
+    }
+}
+
+task RenameSnvIndelIds {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+from pysam import VariantFile
+
+vcf_in = VariantFile("~{vcf}")
+vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+
+for record in vcf_in:
+    allele_type = record.info.get('allele_type').upper()
+    allele_length = abs(int(record.info.get('allele_length')))
+    record.id = f"{record.chrom}-{record.pos}-{allele_type}-{allele_length}"
+    vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File renamed_vcf = "~{prefix}.vcf.gz"
+        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 8 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task RenameSvIds {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools annotate \
+            --set-id '%CHROM-%POS-%REF-%ALT' \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File renamed_vcf = "~{prefix}.vcf.gz"
+        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 8 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
