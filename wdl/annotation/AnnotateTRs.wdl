@@ -13,7 +13,6 @@ workflow AnnotateTRs {
         String prefix
 
         String tr_caller
-        String? tr_rename_ids_string
 
         String utils_docker
 
@@ -21,7 +20,7 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tr_vcf
         RuntimeAttr? runtime_attr_set_missing_filters
-        RuntimeAttr? runtime_attr_rename_variant_ids
+        RuntimeAttr? runtime_attr_set_tr_ids
         RuntimeAttr? runtime_attr_annotate_trs
         RuntimeAttr? runtime_attr_concat_vcf
     }
@@ -65,24 +64,21 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_set_missing_filters
         }
 
-        if (defined(tr_rename_ids_string)) {
-            call Helpers.RenameVariantIds {
-                input:
-                    vcf = SetMissingFiltersToPass.filtered_vcf,
-                    vcf_idx = SetMissingFiltersToPass.filtered_vcf_idx,
-                    id_format = select_first([tr_rename_ids_string]),
-                    prefix = "~{prefix}.~{contig}.renamed",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_rename_variant_ids
-            }
+        call SetTRVariantIds {
+            input:
+                vcf = SetMissingFiltersToPass.filtered_vcf,
+                vcf_idx = SetMissingFiltersToPass.filtered_vcf_idx,
+                prefix = "~{prefix}.~{contig}.tr.ids",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_set_tr_ids
         }
 
         call AnnotateTRVariants {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
-                tr_vcf = select_first([RenameVariantIds.renamed_vcf, SetMissingFiltersToPass.filtered_vcf]),
-                tr_vcf_idx = select_first([RenameVariantIds.renamed_vcf_idx, SetMissingFiltersToPass.filtered_vcf_idx]),
+                tr_vcf = SetTRVariantIds.renamed_vcf,
+                tr_vcf_idx = SetTRVariantIds.renamed_vcf_idx,
                 tr_caller = tr_caller,
                 prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
@@ -141,6 +137,55 @@ task CheckSamplesMatch {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task SetTRVariantIds {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view ~{vcf} \
+            | awk 'BEGIN{OFS="\t"} /^#/ {print; next} {
+                id = $1"-"$2"-TRV-"length($4)
+                $3 = id
+                print
+            }' \
+            | bgzip -c > ~{prefix}.vcf.gz
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File renamed_vcf = "~{prefix}.vcf.gz"
+        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
