@@ -121,7 +121,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = ResetVcfFilters.reset_vcf,
                 vcf_idx = ResetVcfFilters.reset_vcf_idx,
-                include_args = 'INFO/allele_type="ins"',
+                include_args = 'INFO/allele_type="del"',
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_del
@@ -200,26 +200,21 @@ task GenerateTRF {
     command <<<
         set -euo pipefail
 
+        gunzip -c ~{vcf} > tmp.vcf
+
         mkdir -p work_dir
 
-        if [[ ~{vcf} == *.gz ]]; then
-            gunzip -c ~{vcf} > work_dir/input.vcf
-            vcf_input="work_dir/input.vcf"
-        else
-            vcf_input="~{vcf}"
-        fi
-
         if [[ "~{mode}" == "ins" ]]; then
-            python3 /app/SVAN/scripts/ins2fasta.py "$vcf_input" work_dir
-            trf work_dir/insertions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.~{mode}_trf.out
+            python3 /app/SVAN/scripts/ins2fasta.py tmp.vcf work_dir
+            trf work_dir/insertions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.out
         elif [[ "~{mode}" == "del" ]]; then
-            python3 /app/SVAN/scripts/del2fasta.py "$vcf_input" work_dir
-            trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.~{mode}_trf.out
+            python3 /app/SVAN/scripts/del2fasta.py tmp.vcf work_dir
+            trf work_dir/deletions_seq.fa 2 7 7 80 10 10 500 -h -d -ngs > ~{prefix}.out
         fi
     >>>
 
     output {
-        File trf_output = "~{prefix}.~{mode}_trf.out"
+        File trf_output = "~{prefix}.out"
     }
 
     RuntimeAttr default_attr = object {
