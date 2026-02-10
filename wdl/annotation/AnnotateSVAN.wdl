@@ -76,7 +76,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = SubsetIns.subset_vcf,
                 vcf_idx = SubsetIns.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.trf",
+                prefix = "~{prefix}.~{contig}.ins_trf",
                 mode = "ins",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_ins
@@ -98,7 +98,7 @@ workflow AnnotateSVAN {
                 mei_fa_sa = mei_fa_sa,
                 mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
-                prefix = "~{prefix}.~{contig}.ins",
+                prefix = "~{prefix}.~{contig}.ins_svan",
                 mode = "ins",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_ins
@@ -111,7 +111,7 @@ workflow AnnotateSVAN {
                 original_vcf = SubsetIns.subset_vcf,
                 original_vcf_idx = SubsetIns.subset_vcf_idx,
                 add_header_row = true,
-                prefix = "~{prefix}.~{contig}.ins",
+                prefix = "~{prefix}.~{contig}.ins_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_ins
         }
@@ -131,7 +131,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = SubsetDel.subset_vcf,
                 vcf_idx = SubsetDel.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.del_trf",
                 mode = "del",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_generate_trf_del
@@ -153,7 +153,7 @@ workflow AnnotateSVAN {
                 mei_fa_sa = mei_fa_sa,
                 mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
-                prefix = "~{prefix}.~{contig}.del",
+                prefix = "~{prefix}.~{contig}.del_svan",
                 mode = "del",
                 docker = svan_docker,
                 runtime_attr_override = runtime_attr_annotate_del
@@ -166,7 +166,7 @@ workflow AnnotateSVAN {
                 original_vcf = SubsetDel.subset_vcf,
                 original_vcf_idx = SubsetDel.subset_vcf_idx,
                 add_header_row = true,
-                prefix = "~{prefix}.~{contig}.del",
+                prefix = "~{prefix}.~{contig}.del_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_del
         }
