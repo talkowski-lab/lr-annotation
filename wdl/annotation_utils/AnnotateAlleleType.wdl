@@ -7,19 +7,31 @@ workflow AnnotateAlleleType {
     input {
         File vcf
         File vcf_idx
-        Array[File] annotations_tsvs
+        File med_tsv
+        File mei_tsv
+        File dup_tsv
         Array[String] contigs
         String prefix
 
-        Array[String]? annotations_prefixes
-        Array[String]? annotations_suffixes
-        Array[Boolean]? annotations_lowercase
+        String? med_prefix
+        String? med_suffix
+        Boolean? med_lowercase
+
+        String? mei_prefix
+        String? mei_suffix
+        Boolean? mei_lowercase
+
+        String? dup_prefix
+        String? dup_suffix
+        Boolean? dup_lowercase
 
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tsv
-        RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_annotate_med
+        RuntimeAttr? runtime_attr_annotate_mei
+        RuntimeAttr? runtime_attr_annotate_dup
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -34,35 +46,86 @@ workflow AnnotateAlleleType {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        scatter (i in range(length(annotations_tsvs))) {
-            call Helpers.SubsetTsvToContig as SubsetTsvs {
-                input:
-                    tsv = annotations_tsvs[i],
-                    contig = contig,
-                    prefix = "~{prefix}.~{contig}.tsv~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_tsv
-            }
+        call Helpers.SubsetTsvToContig as SubsetMedTsv {
+            input:
+                tsv = med_tsv,
+                contig = contig,
+                prefix = "~{prefix}.~{contig}.med",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_tsv
         }
 
-        call AnnotateSequentially {
+        call Helpers.SubsetTsvToContig as SubsetMeiTsv {
+            input:
+                tsv = mei_tsv,
+                contig = contig,
+                prefix = "~{prefix}.~{contig}.mei",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_tsv
+        }
+
+        call Helpers.SubsetTsvToContig as SubsetDupTsv {
+            input:
+                tsv = dup_tsv,
+                contig = contig,
+                prefix = "~{prefix}.~{contig}.dup",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_tsv
+        }
+
+        call AddHeaders {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                annotations_tsvs = SubsetTsvs.subset_tsv,
-                annotations_prefixes = annotations_prefixes,
-                annotations_suffixes = annotations_suffixes,
-                annotations_lowercase = annotations_lowercase,
-                prefix = "~{prefix}.~{contig}.annotated",
+                prefix = "~{prefix}.~{contig}.headers",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+                runtime_attr_override = runtime_attr_annotate_med
+        }
+
+        call AnnotateMed {
+            input:
+                vcf = AddHeaders.vcf_with_headers,
+                vcf_idx = AddHeaders.vcf_with_headers_idx,
+                med_tsv = SubsetMedTsv.subset_tsv,
+                med_prefix = med_prefix,
+                med_suffix = med_suffix,
+                med_lowercase = med_lowercase,
+                prefix = "~{prefix}.~{contig}.med_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_med
+        }
+
+        call AnnotateMei {
+            input:
+                vcf = AnnotateMed.annotated_vcf,
+                vcf_idx = AnnotateMed.annotated_vcf_idx,
+                mei_tsv = SubsetMeiTsv.subset_tsv,
+                mei_prefix = mei_prefix,
+                mei_suffix = mei_suffix,
+                mei_lowercase = mei_lowercase,
+                prefix = "~{prefix}.~{contig}.mei_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_mei
+        }
+
+        call AnnotateDup {
+            input:
+                vcf = AnnotateMei.annotated_vcf,
+                vcf_idx = AnnotateMei.annotated_vcf_idx,
+                dup_tsv = SubsetDupTsv.subset_tsv,
+                dup_prefix = dup_prefix,
+                dup_suffix = dup_suffix,
+                dup_lowercase = dup_lowercase,
+                prefix = "~{prefix}.~{contig}.dup_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_annotate_dup
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = AnnotateSequentially.annotated_vcf,
-            vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
+            vcfs = AnnotateDup.annotated_vcf,
+            vcf_idxs = AnnotateDup.annotated_vcf_idx,
             prefix = prefix + ".allele_type_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -74,14 +137,10 @@ workflow AnnotateAlleleType {
     }
 }
 
-task AnnotateSequentially {
+task AddHeaders {
     input {
         File vcf
         File vcf_idx
-        Array[File] annotations_tsvs
-        Array[String]? annotations_prefixes
-        Array[String]? annotations_suffixes
-        Array[Boolean]? annotations_lowercase
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -90,44 +149,81 @@ task AnnotateSequentially {
     command <<<
         set -euo pipefail
 
-        current_vcf="~{vcf}"
-        annotations_tsvs_array=(~{sep=' ' annotations_tsvs})
-        prefixes_array=(~{sep=' ' select_first([annotations_prefixes, []])})
-        suffixes_array=(~{sep=' ' select_first([annotations_suffixes, []])})
-        lowercase_array=(~{sep=' ' select_first([annotations_lowercase, []])})
+        bcftools view -h "~{vcf}" > header.txt
+        echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family annotation">' >> header.txt
+        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source annotation">' >> header.txt
+        bcftools reheader -h header.txt "~{vcf}" | bgzip -c > ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
 
-        for i in "${!annotations_tsvs_array[@]}"; do
-            tsv_file="${annotations_tsvs_array[$i]}"
-            prefix_val="${prefixes_array[$i]:-}"
-            suffix_val="${suffixes_array[$i]:-}"
-            lowercase_val="${lowercase_array[$i]:-false}"
-            
-            awk -v pre="$prefix_val" -v suf="$suffix_val" -v lower="$lowercase_val" '
-                BEGIN {
-                    FS = OFS = "\t"
-                }
-                {
-                    gsub(/[\n\r]/, "", $6)
-                    $6 = pre $6 suf
-                    if (lower == "true") {
-                        $6 = tolower($6)
-                    }
-                    print
-                }
-            ' "$tsv_file" > "modified_${i}.tsv"
-            
-            bgzip -c "modified_${i}.tsv" > "annotations_${i}.tsv.gz"
-            tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
-            
-            bcftools annotate \
-                -a "annotations_${i}.tsv.gz" \
-                -c CHROM,POS,REF,ALT,~ID,INFO/allele_type \
-                -Oz -o "temp_${i}.vcf.gz" \
-                "$current_vcf"
-            current_vcf="temp_${i}.vcf.gz"
-        done
+    output {
+        File vcf_with_headers = "~{prefix}.vcf.gz"
+        File vcf_with_headers_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 2,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AnnotateMed {
+    input {
+        File vcf
+        File vcf_idx
+        File med_tsv
+        String? med_prefix
+        String? med_suffix
+        Boolean? med_lowercase
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        med_prefix = ~{select_first([med_prefix, ''])}
+        med_suffix = ~{select_first([med_suffix, ''])}
+        med_lowercase = ~{select_first([med_lowercase, 'false'])}
         
-        mv "$current_vcf" ~{prefix}.vcf.gz
+        awk -v pre="$med_prefix" -v suf="$med_suffix" -v lower="$med_lowercase" '
+            BEGIN {
+                FS = OFS = "\t"
+            }
+            {
+                gsub(/[\n\r]/, "", $6)
+                $6 = pre $6 suf
+                if (lower == "true") {
+                    $6 = tolower($6)
+                }
+                print
+            }
+        ' "~{med_tsv}" > "med_modified.tsv"
+        
+        bgzip -c "med_modified.tsv" > "med_annotations.tsv.gz"
+        tabix -s1 -b2 -e2 "med_annotations.tsv.gz"
+        
+        bcftools annotate \
+            -a "med_annotations.tsv.gz" \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type \
+            -Oz -o ~{prefix}.vcf.gz \
+            "~{vcf}"
+        
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
@@ -139,7 +235,160 @@ task AnnotateSequentially {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(annotations_tsvs, "GB")) + 20,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(med_tsv, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AnnotateMei {
+    input {
+        File vcf
+        File vcf_idx
+        File mei_tsv
+        String? mei_prefix
+        String? mei_suffix
+        Boolean? mei_lowercase
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        mei_prefix = ~{select_first([mei_prefix, ''])}
+        mei_suffix = ~{select_first([mei_suffix, ''])}
+        mei_lowercase = ~{select_first([mei_lowercase, 'false'])}
+        
+        awk -v pre="$mei_prefix" -v suf="$mei_suffix" -v lower="$mei_lowercase" '
+            BEGIN {
+                FS = OFS = "\t"
+            }
+            {
+                gsub(/[\n\r]/, "", $6)
+                gsub(/[\n\r]/, "", $7)
+                $6 = pre $6 suf
+                if (lower == "true") {
+                    $6 = tolower($6)
+                }
+                print
+            }
+        ' "~{mei_tsv}" > "mei_modified.tsv"
+        
+        bgzip -c "mei_modified.tsv" > "mei_annotations.tsv.gz"
+        tabix -s1 -b2 -e2 "mei_annotations.tsv.gz"
+        
+        bcftools annotate \
+            -a "mei_annotations.tsv.gz" \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SUB_FAMILY \
+            -Oz -o ~{prefix}.vcf.gz \
+            "~{vcf}"
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(mei_tsv, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AnnotateDup {
+    input {
+        File vcf
+        File vcf_idx
+        File dup_tsv
+        String? dup_prefix
+        String? dup_suffix
+        Boolean? dup_lowercase
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        dup_prefix = ~{select_first([dup_prefix, ''])}
+        dup_suffix = ~{select_first([dup_suffix, ''])}
+        dup_lowercase = ~{select_first([dup_lowercase, 'false'])}
+        
+        awk -v pre="$dup_prefix" -v suf="$dup_suffix" -v lower="$dup_lowercase" '
+            BEGIN {
+                FS = OFS = "\t"
+            }
+            {
+                gsub(/[\n\r]/, "", $6)
+                gsub(/[\n\r]/, "", $7)
+                gsub(/[\n\r]/, "", $8)
+                
+                $6 = pre $6 suf
+                if (lower == "true") {
+                    $6 = tolower($6)
+                }
+                
+                if ($7 != "" && $7 != "." && length($7) > 0) {
+                    source = $7
+                } else {
+                    source = $8
+                }
+                
+                print $1, $2, $3, $4, $5, $6, source
+            }
+        ' "~{dup_tsv}" > "dup_modified.tsv"
+        
+        bgzip -c "dup_modified.tsv" > "dup_annotations.tsv.gz"
+        tabix -s1 -b2 -e2 "dup_annotations.tsv.gz"
+        
+        bcftools annotate \
+            -a "dup_annotations.tsv.gz" \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SOURCE \
+            -Oz -o ~{prefix}.vcf.gz \
+            "~{vcf}"
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(dup_tsv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

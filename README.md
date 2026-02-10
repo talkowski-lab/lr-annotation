@@ -23,8 +23,9 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
-- `exons_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `mei_fa`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `exons_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `mei_catalog`: [Panel from HGSVC3](gs://TODO) from the _GRCh38_MEIs.ALL.20241211.csv.gz_ file released in the [Logdson et al. paper](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Mobile_Elements/1.0/).
+- `mei_fa`: [Sequences for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa_amb`: Index for `mei_fa`.
 - `mei_fa_ann`: Index for `mei_fa`.
 - `mei_fa_bwt`: Index for `mei_fa`.
@@ -33,13 +34,13 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `mei_fa_sa`: Index for `mei_fa`.
 - `noncoding_bed`: [Panel for hg38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the GATK-SV featured workspace.
 - `par_bed`: [Panel for hg38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the GATK-SV featured workspace.
-- `ref_fa`: Reference sequence, derived from what was used for [PAV](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/).
+- `ref_fa`: [Sequences for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/hg38.no_alt.fa) from what was used for [PAV](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/).
 - `ref_fai`: Index for `ref_fa`.
-- `ref_vep_cache`: [v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/). This also contains a series of additional references, which include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
-- `repeats_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `repeat_catalog_trgt`: [Panel for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us Phase 2.
-- `top_level_fa`: [hg38 Release 76](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
-- `vntr_bed`: [hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `ref_vep_cache`: [Cache for v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from the [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/). This contains a series of additional references, which include the MANE protein coding GTF, GENCODE gene list, ClinVar annotation set etc, with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
+- `repeats_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
+- `repeat_catalog_trgt`: [Catalog for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [Ben's repository](https://github.com/broadinstitute/tandem-repeat-catalog/releases) as used in All of Us Phase 2.
+- `top_level_fa`: [Release 76 sequences for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
+- `vntr_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 
 
 
@@ -246,6 +247,58 @@ TODO
 
 ### [VcfDist](wdl/tools/VcfDist.wdl)
 TODO
+
+
+
+## Output Schema
+- `INFO/allele_length`: Allele length - positive for insertions, negative for deletions and 0 for SNVs.
+- `INFO/allele_type`: Allele type, which is one of the below.
+	- `snv`: Single nucleotide variant.
+	- `ins`: Insertion.
+	- `del`: Deletion.
+	- `dup`: Tandem duplication.
+	- `dup_interspersed`: Interspersed duplication.
+	- `complex_dup`: Complex duplication.
+	- `inv_dup`: Inverted duplication.
+	- `numt`: Nuclear-mitochondrial segment.
+	- `trv`: Tandem repeat.
+	- `alu_ins`: ALU insertion.
+	- `line_ins`: LINE insertion.
+	- `sva_ins`: SVA insertion.
+	- `alu_del`: ALU deletion.
+	- `line_del`: LINE deletion.
+	- `sva_del`: SVA deletion.
+- `SOURCE`: Source of call, which is one of the below.
+	- `DeepVariant`: SNV or indel call made by the DeepVariant pipeline.
+	- `HPRC_SV_Integration`: Structural variant call made by the HPRC SV Integration pipeline.
+	- `TRGT`: Tandem repeat call made by TRGT.
+- `ORIGIN`: Origin of duplicated sequence for duplications and NUMTs.
+- `SUB_FAMILY`: Sub-family for MEI calls.
+- `TRID`: TR identifier for TR calls, as well as non-TR calls that that are completely enveloped by a TR call. 
+- Functional Annotations.
+	- `vep`: Annotations from the Variant Effect Predictor (VEP).
+	- `PREDICTED_`: Annotations from SVAnnotate, which are all prefixed by `PREDICTED_`.
+- gnomAD_V4 Benchmarking.
+	- `gnomAD_V4_match_type`: Method for generating match, which is one of the below.
+		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
+		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity. 
+		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
+	- `gnomAD_V4_match_ID`: Variant ID of matched variant.
+	- `gnomAD_V4_match_source`: Source of matched variant, which is one of the below.
+		- `SNV_indel`: SNV & indel callset.
+		- `SV`: SV callset.
+- Allele Frequencies.
+	- `AN`: Count of alleles genotyped.
+	- `AC`: Count of non-reference alleles.
+	- `AF`: Proportion of alleles that are non-reference.
+	- `NCR`: Proportion of alleles that don't have a genotype call.
+	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
+	- `MC_allele`: Motif count per-allele (multiallelic sites only).
+	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
+- Filters.
+	- `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has  `INFO/allele_length ≥ 50`.
+	- `SMALL_SV`: Variant with `SOURCE = "HPRC_SV_Integration"` that has `INFO/allele_length < 50`.
+	- `TRGT_OVERLAPPED`: Variant with `SOURCE != "TRGT"` that is completely enveloped by a call with `SOURCE = "TRGT"`. 
 
 
 
