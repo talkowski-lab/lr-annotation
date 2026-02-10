@@ -754,7 +754,6 @@ task ExtractSample {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -787,7 +786,6 @@ with open("~{prefix}.header.txt", "w") as out:
         out.write(k + "\n")
 
 with open("~{prefix}.annotations.tsv", "w") as out:
-    
     if "~{add_header_row}" == "true":
         fixed_cols = ["#CHROM", "POS", "REF", "ALT", "ID"]
         full_header = fixed_cols + new_keys
@@ -797,7 +795,6 @@ with open("~{prefix}.annotations.tsv", "w") as out:
         alts = ",".join(record.alts) if record.alts else "."
         rid = record.id if record.id else "."
         row = [record.chrom, str(record.pos), record.ref, alts, rid]
-
         for k in new_keys:
             if k in record.info:
                 val = record.info[k]
@@ -1135,7 +1132,6 @@ task MergeVcfs {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        zones: "us-central1-a us-central1-b us-central1-c us-central1-f"
     }
 }
 
@@ -1453,10 +1449,10 @@ CODE
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: 2
-        memory: 6 + " GiB"
-        disks: "local-disk " + 300 + " HDD"
-        bootDiskSizeGb: 50
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])

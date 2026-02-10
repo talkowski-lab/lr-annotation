@@ -222,12 +222,10 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
         
         var_id_str = parts[0]
         sequence = parts[1]
-        
         classification = parts[8]
         structure = parts[10]
         
         me_type = None
-        
         if classification == "SINE/Alu" and (structure == "INTACT" or structure == "INTACT_3end"):
             me_type = "ALU"
         elif classification == "Retroposon/SVA" and (structure == "INTACT" or structure == "INTACT_3end"):
