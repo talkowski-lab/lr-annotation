@@ -8,7 +8,7 @@ workflows:
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
     filters:
       branches:
-        - main
+        - YM
       tags:
         - /.*/
 
@@ -164,7 +164,7 @@ workflows:
     primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToContigs.wdl
     filters:
       branches:
-        - main
+        - YM
       tags:
         - /.*/
 
@@ -239,7 +239,7 @@ workflows:
     primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
     filters:
       branches:
-        - main
+        - YM
       tags:
         - /.*/
 
