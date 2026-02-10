@@ -1,13 +1,23 @@
 version 1.0
 
 import "../utils/Structs.wdl" as Structs
+import "../utils/Helpers.wdl" as Helpers
+
+# Workflow for phasing a joint VCF containing:
+# - Short variants (SNVs/indels) with INFO/SOURCE='DeepVariant'
+# - Structural variants with INFO/SOURCE='HPRC_SV_Integration'
+# - Tandem repeat variants (multiallelic) with INFO/SOURCE='TRGT'
+# 
+# Steps:
+# 1. Subset to region and shard
+# 2. Split multiallelic variants (bcftools norm) and filter (MAC>=2, fill missing genotypes)
+# 3. Fix variant collisions
+# 4. Phase with ShapeIt4/5
 
 workflow SHAPEITPhase {
     input {
-        File joint_short_vcf
-        File joint_short_vcf_idx
-        File joint_sv_vcf
-        File joint_sv_vcf_idx
+        File joint_vcf
+        File joint_vcf_idx
         File reference_fasta
         File reference_fasta_fai
         File genetic_maps_tsv
@@ -15,10 +25,8 @@ workflow SHAPEITPhase {
         String region
         String prefix
 
-        Int filter_and_concat_shard_size = 1000000
-        String? filter_and_concat_short_filter_args
-        String filter_and_concat_short_view_args = "-i 'MAC>=2 && abs(strlen(ALT)-strlen(REF))<50'"
-        String filter_and_concat_sv_view_args = "-i 'MAC>=2 && abs(strlen(ALT)-strlen(REF))>=50'"
+        Int shard_size = 1000000
+        String variant_filter_args = "-i 'MAC>=2'"
 
         File fix_variant_collisions_java
         Int operation = 1
@@ -33,125 +41,112 @@ workflow SHAPEITPhase {
         String shapeit5_extra_args =  "--thread $(nproc)"
         String filter_common_args = "-i 'MAF>=0.001'"
 
-        RuntimeAttr? runtime_attr_create_shards_attr
-        RuntimeAttr? runtime_attr_subset_vcf_short_attr
-        RuntimeAttr? runtime_attr_subset_vcf_sv_attr
-        RuntimeAttr? runtime_attr_filter_and_concat_vcfs_attr
-        RuntimeAttr? runtime_attr_fix_variant_collisions_attr
-        RuntimeAttr? runtime_attr_bcftools_concat_naive_attr
-        RuntimeAttr? runtime_attr_create_shapeit_chunks_attr
-        RuntimeAttr? runtime_attr_shapeit4_attr
-        RuntimeAttr? runtime_attr_filter_common_attr
-        RuntimeAttr? runtime_attr_ligate_vcfs_attr
-        RuntimeAttr? runtime_attr_shapeit5_rare_attr
+        String docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
+
+        RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_filter_vcf
+        RuntimeAttr? runtime_attr_fix_variant_collisions
+        RuntimeAttr? runtime_attr_concat_vcfs
+        RuntimeAttr? runtime_attr_create_shapeit_chunks
+        RuntimeAttr? runtime_attr_shapeit4
+        RuntimeAttr? runtime_attr_filter_common
+        RuntimeAttr? runtime_attr_ligate_vcfs
+        RuntimeAttr? runtime_attr_shapeit5_rare
     }
 
     Map[String, String] genetic_maps_dict = read_map(genetic_maps_tsv)
 
-    call CreateShards {
+    call SubsetVcfToRegion {
         input:
+            vcf = joint_vcf,
+            vcf_idx = joint_vcf_idx,
             region = region,
-            bin_size = filter_and_concat_shard_size,
-            pad_size = 0,
-            prefix = "~{prefix}.shards",
-            runtime_attr_override = runtime_attr_create_shards_attr
+            prefix = "~{prefix}.region",
+            runtime_attr_override = runtime_attr_subset_vcf
     }
 
-    scatter (s in range(length(CreateShards.shard_regions))) {
-        String shard_region = CreateShards.shard_regions[s]
+    scatter (s in range(length(SubsetVcfToRegion.shard_regions))) {
+        String shard_region = SubsetVcfToRegion.shard_regions[s]
 
-        call SubsetVCFStreaming as SubsetVcfShort {
+        call SubsetVcfToRegion as SubsetShard {
             input:
-                vcf = joint_short_vcf,
-                vcf_idx = joint_short_vcf_idx,
+                vcf = SubsetVcfToRegion.subset_vcf,
+                vcf_idx = SubsetVcfToRegion.subset_vcf_idx,
                 region = shard_region,
-                prefix = "~{prefix}.subsetShort.shard-~{s}",
-                runtime_attr_override = runtime_attr_subset_vcf_short_attr
+                prefix = "~{prefix}.shard-~{s}",
+                shard_size = shard_size,
+                runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call SubsetVCF as SubsetVcfSV {
+        call SplitAndFilterVcf {
             input:
-                vcf = select_first([joint_sv_vcf]),
-                vcf_idx = select_first([joint_sv_vcf_idx]),
-                region = shard_region,
-                prefix = "~{prefix}.subsetSV.shard-~{s}",
-                runtime_attr_override = runtime_attr_subset_vcf_sv_attr
-        }
-
-        call FilterAndConcatVcfs {
-            input:
-                short_vcf = SubsetVcfShort.subset_vcf,
-                short_vcf_idx = SubsetVcfShort.subset_idx,
-                sv_vcf = SubsetVcfSV.subset_vcf,
-                sv_vcf_idx = SubsetVcfSV.subset_idx,
-                prefix = "~{prefix}.filterAndConcat.shard-~{s}",
+                vcf = SubsetShard.subset_vcf,
+                vcf_idx = SubsetShard.subset_vcf_idx,
+                prefix = "~{prefix}.filtered.shard-~{s}",
                 reference_fasta = reference_fasta,
                 reference_fasta_fai = reference_fasta_fai,
-                region = shard_region,
-                filter_and_concat_short_view_args = filter_and_concat_short_view_args,
-                filter_and_concat_short_filter_args = filter_and_concat_short_filter_args,
-                filter_and_concat_sv_view_args = filter_and_concat_sv_view_args,
-                runtime_attr_override = runtime_attr_filter_and_concat_vcfs_attr
+                filter_args = variant_filter_args,
+                runtime_attr_override = runtime_attr_filter_vcf
         }
 
-        # added variant collision fix step
         call FixVariantCollisions {
             input:
-                phased_vcf = FilterAndConcatVcfs.filter_and_concat_vcf,
+                phased_vcf = SplitAndFilterVcf.filtered_vcf,
                 fix_variant_collisions_java = fix_variant_collisions_java,
                 operation = operation,
                 weight_tag = weight_tag,
                 is_weight_format_field = is_weight_format_field,
                 default_weight = default_weight,
                 prefix = "~{prefix}.collisionless.shard-~{s}",
-                runtime_attr_override = runtime_attr_fix_variant_collisions_attr
+                runtime_attr_override = runtime_attr_fix_variant_collisions
         }
     }
 
-    call BcftoolsConcatNaive as ConcatFixVariantCollisionsBeforeShapeit {
+    call Helpers.ConcatVcfs as ConcatShards {
         input:
             vcfs = FixVariantCollisions.phased_collisionless_vcf,
             vcf_idxs = FixVariantCollisions.phased_collisionless_vcf_idx,
-            prefix = "~{prefix}.collisionless",
-            runtime_attr_override = runtime_attr_bcftools_concat_naive_attr
+            merge_sort = false,
+            prefix = "~{prefix}.prepared",
+            docker = docker,
+            runtime_attr_override = runtime_attr_concat_vcfs
     }
 
     call CreateShapeitChunks {
         input:
-            vcf = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf,
-            vcf_idx = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf_idx,
+            vcf = ConcatShards.concat_vcf,
+            vcf_idx = ConcatShards.concat_vcf_idx,
             region = region,
             extra_args = chunk_extra_args,
-            runtime_attr_override = runtime_attr_create_shapeit_chunks_attr
+            runtime_attr_override = runtime_attr_create_shapeit_chunks
     }
 
-    Array[String] common_regions = read_lines(CreateShapeitChunks.common_chunks) # for shapeit4
+    Array[String] common_regions = read_lines(CreateShapeitChunks.common_chunks)
 
     scatter (i in range(length(common_regions))) {
         if (!do_shapeit5) {
-            # phase all using Shapeit4
             call Shapeit4 as Shapeit4All {
                 input:
-                    vcf = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf,
-                    vcf_idx = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf_idx,
+                    vcf = ConcatShards.concat_vcf,
+                    vcf_idx = ConcatShards.concat_vcf_idx,
                     genetic_map = genetic_maps_dict[chromosome],
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
-                    runtime_attr_override = runtime_attr_shapeit4_attr
+                    runtime_attr_override = runtime_attr_shapeit4
             }
         }
         if (do_shapeit5) {
             call FilterCommon {
                 input:
-                    vcf = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf,
-                    vcf_idx = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf_idx,
+                    vcf = ConcatShards.concat_vcf,
+                    vcf_idx = ConcatShards.concat_vcf_idx,
                     prefix = "~{prefix}.common",
                     region = common_regions[i],
                     filter_common_args = filter_common_args,
-                    runtime_attr_override = runtime_attr_filter_common_attr
+                    runtime_attr_override = runtime_attr_filter_common
             }
-            # phase common scaffold using Shapeit4
+
             call Shapeit4 as Shapeit4Common {
                 input:
                     vcf = FilterCommon.common_vcf,
@@ -160,7 +155,7 @@ workflow SHAPEITPhase {
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
-                    runtime_attr_override = runtime_attr_shapeit4_attr
+                    runtime_attr_override = runtime_attr_shapeit4
             }
         }
     }
@@ -170,17 +165,16 @@ workflow SHAPEITPhase {
             vcfs = select_all(flatten([Shapeit4All.phased_vcf, Shapeit4Common.phased_vcf])),
             vcf_idxs = select_all(flatten([Shapeit4All.phased_vcf_idx, Shapeit4Common.phased_vcf_idx])),
             prefix = "~{prefix}.phased.ligated",
-            runtime_attr_override = runtime_attr_ligate_vcfs_attr
+            runtime_attr_override = runtime_attr_ligate_vcfs
     }
 
     if (do_shapeit5) {
-        # phase rare using Shapeit5
         Array[String] rare_regions = read_lines(CreateShapeitChunks.rare_chunks)
         scatter (i in range(length(rare_regions))) {
             call Shapeit5Rare {
                 input:
-                    vcf = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf,
-                    vcf_idx = ConcatFixVariantCollisionsBeforeShapeit.concatenated_vcf_idx,
+                    vcf = ConcatShards.concat_vcf,
+                    vcf_idx = ConcatShards.concat_vcf_idx,
                     scaffold_vcf = LigateScaffold.ligated_vcf,
                     scaffold_vcf_idx = LigateScaffold.ligated_vcf_idx,
                     genetic_map = genetic_maps_dict[chromosome],
@@ -188,139 +182,68 @@ workflow SHAPEITPhase {
                     scaffold_region = common_regions[i],
                     prefix = "~{prefix}.phased.chunk-~{i}",
                     extra_args = shapeit5_extra_args,
-                    runtime_attr_override = runtime_attr_shapeit5_rare_attr
+                    runtime_attr_override = runtime_attr_shapeit5_rare
             }
         }
 
-        call BcftoolsConcatNaive as ConcatShapeit5 {
+        call Helpers.ConcatVcfs as ConcatShapeit5 {
             input:
                 vcfs = flatten([Shapeit5Rare.phased_vcf]),
                 vcf_idxs = flatten([Shapeit5Rare.phased_vcf_idx]),
+                merge_sort = false,
                 prefix = "~{prefix}.phased.concat",
-                runtime_attr_override = runtime_attr_bcftools_concat_naive_attr
+                docker = docker,
+                runtime_attr_override = runtime_attr_concat_vcfs
         }
     }
 
     output {
-        File phased_vcf = select_first([ConcatShapeit5.concatenated_vcf, LigateScaffold.ligated_vcf])
-        File phased_vcf_idx = select_first([ConcatShapeit5.concatenated_vcf_idx, LigateScaffold.ligated_vcf_idx])
+        File shapeit_phased_vcf = select_first([ConcatShapeit5.concat_vcf, LigateScaffold.ligated_vcf])
+        File shapeit_phased_vcf_idx = select_first([ConcatShapeit5.concat_vcf_idx, LigateScaffold.ligated_vcf_idx])
     }
 }
 
-task CreateShards {
-    input {
-        String region
-        Int bin_size
-        Int pad_size
-        String prefix
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euxo pipefail
-
-        python - --region ~{region} \
-                 --bin_size ~{bin_size} \
-                 --pad_size ~{pad_size} \
-                 --output_file ~{prefix} \
-                 <<-'EOF'
-        import argparse
-
-        def split_region(region):
-            chromosome, span = region.split(":")
-            start, end = span.split("-")
-            return(chromosome, int(start), int(end))
-
-        def split_region_to_intervals(region, bin_size, pad_size):
-            chromo, start, end = split_region(region)
-            bin_num = (end - start)//bin_size
-            intervals = [(chromo, start, start + bin_size + pad_size)]
-            for i in range(1, bin_num):
-                start_pos = start + i*bin_size - pad_size
-                end_pos = start_pos + bin_size + pad_size
-                intervals.append((chromo, start_pos, end_pos))
-            if end > start + bin_num*bin_size:
-                intervals.append((chromo, start + bin_num*bin_size - pad_size, end))
-            return(intervals)
-
-        def write_output_file(content, output_file):
-            with open(output_file, "w") as f:
-                for item in content:
-                    l = "%s:%d-%d" % (item[0], item[1], item[2])
-                    f.write(l+ "\n")
-
-        def main():
-            parser = argparse.ArgumentParser()
-
-            parser.add_argument('--region',
-                                type=str)
-
-            parser.add_argument('--output_file',
-                                type=str)
-
-            parser.add_argument('--bin_size',
-                    type=int)
-
-            parser.add_argument('--pad_size',
-                    type=int)
-
-            args = parser.parse_args()
-
-            intervals = split_region_to_intervals(args.region, args.bin_size, args.pad_size)
-            write_output_file(intervals, args.output_file + ".txt")
-
-        if __name__ == "__main__":
-            main()
-        EOF
-    >>>
-
-    output {
-        Array[String] shard_regions = read_lines("~{prefix}.txt")
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 1,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
-    }
-}
-
-task SubsetVCF {
+task SubsetVcfToRegion {
     input {
         File vcf
         File vcf_idx
         String region
         String prefix
+        Int shard_size = 1000000
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_gb = 3 * ceil(size([vcf, vcf_idx], "GiB"))
+    Int disk_gb = 3 * ceil(size([vcf, vcf_idx], "GB")) + 20
 
     command <<<
         set -euxo pipefail
 
-        bcftools view --no-version ~{vcf} --regions ~{region} -Ob -o ~{prefix}.bcf
-        bcftools index ~{prefix}.bcf
+        bcftools view --no-version ~{vcf} --regions ~{region} -Oz -o ~{prefix}.vcf.gz
+        bcftools index -t ~{prefix}.vcf.gz
+
+        python3 <<CODE
+region = "~{region}"
+chrom, span = region.split(":")
+start, end = map(int, span.split("-"))
+bin_size = ~{shard_size}
+
+intervals = []
+pos = start
+while pos < end:
+    interval_end = min(pos + bin_size, end)
+    intervals.append(f"{chrom}:{pos}-{interval_end}")
+    pos = interval_end
+
+with open("shards.txt", "w") as f:
+    for interval in intervals:
+        f.write(interval + "\n")
+CODE
     >>>
 
     output {
-        File subset_vcf = "~{prefix}.bcf"
-        File subset_idx = "~{prefix}.bcf.csi"
+        File subset_vcf = "~{prefix}.vcf.gz"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        Array[String] shard_regions = read_lines("shards.txt")
     }
 
     RuntimeAttr default_attr = object {
@@ -345,102 +268,33 @@ task SubsetVCF {
     }
 }
 
-task SubsetVCFStreaming {
+task SplitAndFilterVcf {
     input {
         File vcf
         File vcf_idx
-        String region
         String prefix
-        RuntimeAttr? runtime_attr_override
-    }
-
-    Int disk_gb = 100
-
-    command <<<
-        set -euxo pipefail
-
-        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
-
-        bcftools view --no-version ~{vcf} --regions ~{region} -Ob -o ~{prefix}.bcf
-        bcftools index ~{prefix}.bcf
-    >>>
-
-    output {
-        File subset_vcf = "~{prefix}.bcf"
-        File subset_idx = "~{prefix}.bcf.csi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: disk_gb,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 1,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
-    }
-}
-
-task FilterAndConcatVcfs {
-    input {
-        File short_vcf         # multiallelic
-        File short_vcf_idx
-        File sv_vcf            # biallelic
-        File sv_vcf_idx
-        String prefix
-        String region
         File reference_fasta
         File reference_fasta_fai
-        String? filter_and_concat_short_filter_args
-        String filter_and_concat_short_view_args = "-i 'MAC>=2 && abs(strlen(ALT)-strlen(REF))<50'"
-        String filter_and_concat_sv_view_args = "-i 'MAC>=2 && abs(strlen(ALT)-strlen(REF))>=50'"
+        String filter_args
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_gb = 10 + 4 * ceil(size(short_vcf, "GiB") + size(sv_vcf, "GiB"))
+    Int disk_gb = 4 * ceil(size(vcf, "GB")) + 10
 
     command <<<
         set -euxo pipefail
 
-        # split to biallelic and filter short (re-fill tags when needed)
-        bcftools norm --no-version -r ~{region} -m-any -N -f ~{reference_fasta} ~{short_vcf} | \
-            bcftools +fill-tags --no-version -- -t AF,AC,AN | \
-            bcftools filter --no-version ~{filter_and_concat_short_filter_args} | \
-            bcftools +fill-tags --no-version -- -t AF,AC,AN | \
-            bcftools view --no-version ~{filter_and_concat_short_view_args} | \
-            bcftools sort -Ob -o ~{prefix}.short.bcf
-        bcftools index ~{prefix}.short.bcf
-
-        # populate missing with hom-ref and filter SV
-        bcftools +setGT -r ~{region} ~{sv_vcf} --no-version -- -t . -n 0p | \
-            bcftools +fill-tags --no-version -- -t AF,AC,AN | \
-            bcftools view --no-version ~{filter_and_concat_sv_view_args} \
-                -Ob -o ~{prefix}.SV.bcf
-        bcftools index ~{prefix}.SV.bcf
-
-        # concatenate with deduplication; providing SV VCF as first argument preferentially keeps those records
-        bcftools concat --no-version \
-            ~{prefix}.SV.bcf \
-            ~{prefix}.short.bcf \
-            --allow-overlaps --remove-duplicates | \
-            bcftools sort -Oz -o ~{prefix}.vcf.gz
+        bcftools norm --no-version -m-any -N -f ~{reference_fasta} ~{vcf} | \
+            bcftools +setGT --no-version -- -t . -n 0p | \
+            bcftools +fill-tags --no-version -- -t AF,AC,AN,MAF | \
+            bcftools view --no-version ~{filter_args} -Oz -o ~{prefix}.vcf.gz
+        
         bcftools index -t ~{prefix}.vcf.gz
     >>>
 
     output {
-        File filter_and_concat_vcf = "~{prefix}.vcf.gz"
-        File filter_and_concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File filtered_vcf = "~{prefix}.vcf.gz"
+        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
