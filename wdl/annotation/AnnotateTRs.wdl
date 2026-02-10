@@ -166,13 +166,33 @@ task SetTRVariantIds {
     command <<<
         set -euo pipefail
 
-        bcftools view ~{vcf} \
-            | awk 'BEGIN{OFS="\t"} /^#/ {print; next} {
-                id = $1"-"$2"-TRV-"length($4)
-                $3 = id
-                print
-            }' \
-            | bgzip -c > ~{prefix}.vcf.gz
+        python3 <<CODE
+from pysam import VariantFile
+from collections import defaultdict
+
+# First pass: count ID occurrences
+vcf_in = VariantFile("~{vcf}")
+id_counts = defaultdict(int)
+for record in vcf_in:
+    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    id_counts[new_id] += 1
+vcf_in.close()
+
+# Second pass: assign IDs with suffixes if needed
+vcf_in = VariantFile("~{vcf}")
+vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+id_seen = defaultdict(int)
+for record in vcf_in:
+    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    if id_counts[new_id] > 1:
+        id_seen[new_id] += 1
+        record.id = f"{new_id}_{id_seen[new_id]}"
+    else:
+        record.id = new_id
+    vcf_out.write(record)
+vcf_in.close()
+vcf_out.close()
+CODE
         
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
