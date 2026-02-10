@@ -225,6 +225,10 @@ This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/Repeat
 TODO
 
 
+### [SHAPEITPhase](wdl/tools/SHAPEITPhase.wdl)
+TODO
+
+
 ### [TRGT](wdl/tools/TRGT.wdl)
 This workflow leverages [TRGT](https://github.com/PacificBiosciences/trgt) in order to genotype short-tandem repeats. 
 
