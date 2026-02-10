@@ -306,7 +306,7 @@ EOF
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,~ID,FILTER,INFO/TRID \
+            -c CHROM,POS,REF,ALT,~ID,+FILTER,INFO/TRID \
             -h merged_headers.txt \
             -Oz -o vcf_annotated.vcf.gz \
             vcf_stripped.vcf.gz
