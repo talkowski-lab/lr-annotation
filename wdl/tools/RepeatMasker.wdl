@@ -58,18 +58,15 @@ task INSToFa {
     command <<<
         set -euo pipefail
 
+        echo "Running bcftools to convert to INS seqs to fasta"
         bcftools view \
-            -i 'abs(SVLEN) >= ~{min_length} && SVTYPE == "INS"' \
-            ~{vcf} \
-        | bcftools view \
-            -e 'ALT ~ "<"' \
-            > ~{prefix}.INS.vcf
-
+            -i 'INFO/SVLEN >= ~{min_length} && INFO/SVTYPE == "INS" && ALT !~ "<"' \
+            ~{vcf} | \
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
-            ~{prefix}.INS.vcf \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}_INS.tmp.fa
-        
+
+        echo "Renaming fasta entries"
         seqkit rename -N1 ~{prefix}_INS.tmp.fa > ~{prefix}_INS.fa
     >>>
 
