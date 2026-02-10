@@ -213,18 +213,16 @@ with open(vcf_lookup_file, 'r') as f:
         fields = line.strip().split('\t')
         if len(fields) >= 5:
             chrom, pos, ref, alt, var_id = fields[0], fields[1], fields[2], fields[3], fields[4]
-            vcf_lookup[(chrom, pos, alt)] = (ref, var_id)
+            vcf_lookup[(chrom, pos, ref, alt)] = var_id
 
 with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
     for line in f_in:
         parts = line.strip().split('\t')
-        if len(parts) < 12: continue
+        if len(parts) < 12: 
+            continue
         
-        var_id_str = parts[0]
-        sequence = parts[1]
         classification = parts[8]
         structure = parts[10]
-        
         me_type = None
         if classification == "SINE/Alu" and (structure == "INTACT" or structure == "INTACT_3end"):
             me_type = "ALU"
@@ -234,16 +232,16 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             me_type = "LINE"
         
         if me_type:
-            id_parts = var_id_str.split(';')
-            if len(id_parts) >= 1:
-                location_part = id_parts[0]
-                chrom, pos = location_part.rsplit(':', 1)
-                key = (chrom, pos, sequence)
-                if key in vcf_lookup:
-                    ref, var_id = vcf_lookup[key]
-                    f_out.write(f"{chrom}\t{pos}\t{ref}\t{sequence}\t{var_id}\t{me_type}\n")
-                else:
-                    sys.stderr.write(f"Warning: No matching VCF record for {chrom}:{pos}...\n")
+            full_id = parts[0]
+            full_id_parts = full_id.split(';')
+            chrom = full_id_parts[0].split(':')[0]
+            pos = full_id_parts[0].split(':')[1]
+            ref = full_id_parts[1].split('_')[0]
+            alt = parts[1]
+            subfam = parts[4]
+            key = (chrom, pos, ref, alt)
+            if key in vcf_lookup:
+                f_out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{vcf_lookup[key]}\t{me_type}\t{subfam}\n")
 EOF
     >>>
 
