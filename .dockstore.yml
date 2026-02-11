@@ -4,15 +4,6 @@ workflows:
   # Annotation Workflows
   # --------------------
   - subclass: WDL
-    name: AnnotateL1MEAID-Old
-    primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID-Old.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateL1MEAID
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
     filters:
