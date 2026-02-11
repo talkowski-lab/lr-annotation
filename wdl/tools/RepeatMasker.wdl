@@ -53,15 +53,12 @@ task INSToFa {
         set -euo pipefail
 
         bcftools view \
-            -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "ins"' \
-            -Oz -o ~{prefix}.subset.vcf.gz \
-            ~{vcf}
-        
+            -i 'INFO/SVLEN >= ~{min_length} && INFO/SVTYPE == "INS" && ALT !~ "<"' \
+            ~{vcf} | \
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
-            ~{prefix}.subset.vcf.gz \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
-        
+
         seqkit rename -N1 ~{prefix}.tmp.fa > ~{prefix}.fa
     >>>
 
