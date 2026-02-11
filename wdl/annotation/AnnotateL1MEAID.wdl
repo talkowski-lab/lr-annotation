@@ -39,7 +39,7 @@ workflow AnnotateL1MEAID {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                extra_args = '-i abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type = "ins"',
+                extra_args = "-i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type = \"ins\"'",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
