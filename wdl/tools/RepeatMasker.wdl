@@ -4,13 +4,11 @@ import "../utils/Structs.wdl"
 
 workflow RepeatMasker {
     input {
-        File? vcf
-        File? vcf_idx
+        File vcf
+        File vcf_idx
         String prefix
 
         Int min_length
-
-        File? fa_override
 
         String utils_docker
         String repeatmasker_docker
@@ -19,22 +17,18 @@ workflow RepeatMasker {
         RuntimeAttr? runtime_attr_repeat_masker
     }
 
-    if (!defined(fa_override)) {
-        call INSToFa {
-            input:
-                vcf = select_first([vcf]),
-                min_length = min_length,
-                prefix = "~{prefix}.ins_to_fa",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_ins_to_fa
-        }
+    call INSToFa {
+        input:
+            vcf = vcf,
+            min_length = min_length,
+            prefix = "~{prefix}.ins",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_ins_to_fa
     }
-
-    File fa_input = select_first([fa_override, INSToFa.ins_fa])
 
     call RepeatMasker {
         input:
-            fa = fa_input,
+            fa = INSToFa.ins_fa,
             prefix = "~{prefix}.rm",
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
@@ -42,7 +36,7 @@ workflow RepeatMasker {
 
     output {
         File rm_out = RepeatMasker.rm_out
-        File rm_fa = fa_input
+        File rm_fa = INSToFa.ins_fa
     }
 }
 
@@ -60,19 +54,19 @@ task INSToFa {
 
         bcftools view \
             -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "ins"' \
-            -Oz -o > ~{prefix}.INS.vcf.gz \
+            -Oz -o ~{prefix}.subset.vcf.gz \
             ~{vcf}
         
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
-            ~{prefix}.INS.vcf.gz \
-        | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}_INS.tmp.fa
+            ~{prefix}.subset.vcf.gz \
+        | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
         
-        seqkit rename -N1 ~{prefix}_INS.tmp.fa > ~{prefix}_INS.fa
+        seqkit rename -N1 ~{prefix}.tmp.fa > ~{prefix}.fa
     >>>
 
     output {
-        File ins_fa = '~{prefix}_INS.fa'
+        File ins_fa = '~{prefix}.fa'
     }
 
     RuntimeAttr default_attr = object {
