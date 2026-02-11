@@ -14,6 +14,7 @@ workflow AnnotateL1MEAID {
         Int min_length
 
         File? fa_override
+        Int? records_per_shard
 
         String utils_docker
         String repeatmasker_docker
@@ -21,11 +22,14 @@ workflow AnnotateL1MEAID {
         String intact_mei_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
         RuntimeAttr? runtime_attr_limeaid
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards_intactmei
+        RuntimeAttr? runtime_attr_concat_shards_annotations
         RuntimeAttr? runtime_attr_concat_contigs
         RuntimeAttr? runtime_attr_concat_intactmei
     }
@@ -41,49 +45,89 @@ workflow AnnotateL1MEAID {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call RepeatMasker.RepeatMasker {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                min_length = min_length,
-                prefix = "~{prefix}.~{contig}.rm",
-                fa_override = fa_override,
-                utils_docker = utils_docker,
-                repeatmasker_docker = repeatmasker_docker,
-                runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
-                runtime_attr_repeat_masker = runtime_attr_repeat_masker
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = SubsetVcfToContig.subset_vcf,
+                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call L1MEAID {
-            input:
-                rm_fa = select_first([fa_override, RepeatMasker.rm_fa]),
-                rm_out = RepeatMasker.rm_out,
-                prefix = "~{prefix}.~{contig}.l1meaid",
-                docker = l1meaid_docker,
-                runtime_attr_override = runtime_attr_limeaid
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
+
+        scatter (shard_idx in range(length(vcfs_to_process))) {
+            call RepeatMasker.RepeatMasker {
+                input:
+                    vcf = vcfs_to_process[shard_idx],
+                    vcf_idx = vcf_idxs_to_process[shard_idx],
+                    min_length = min_length,
+                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.rm",
+                    fa_override = fa_override,
+                    utils_docker = utils_docker,
+                    repeatmasker_docker = repeatmasker_docker,
+                    runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
+                    runtime_attr_repeat_masker = runtime_attr_repeat_masker
+            }
+
+            call L1MEAID {
+                input:
+                    rm_fa = select_first([fa_override, RepeatMasker.rm_fa]),
+                    rm_out = RepeatMasker.rm_out,
+                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.l1meaid",
+                    docker = l1meaid_docker,
+                    runtime_attr_override = runtime_attr_limeaid
+            }
+
+            call IntactMEI {
+                input:
+                    l1meaid_output = L1MEAID.l1meaid_output,
+                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei",
+                    docker = intact_mei_docker,
+                    runtime_attr_override = runtime_attr_filter
+            }
+
+            call GenerateAnnotationTable {
+                input:
+                    vcf = vcfs_to_process[shard_idx],
+                    filtered_tsv = IntactMEI.filtered_output,
+                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate
+            }
         }
 
-        call IntactMEI {
-            input:
-                l1meaid_output = L1MEAID.l1meaid_output,
-                prefix = "~{prefix}.~{contig}.intactmei",
-                docker = intact_mei_docker,
-                runtime_attr_override = runtime_attr_filter
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatIntactMeiShards {
+                input:
+                    tsvs = IntactMEI.filtered_output,
+                    skip_sort = true,
+                    prefix = "~{prefix}.~{contig}.intactmei",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards_intactmei
+            }
+
+            call Helpers.ConcatTsvs as ConcatAnnotationShards {
+                input:
+                    tsvs = GenerateAnnotationTable.annotations_tsv,
+                    skip_sort = true,
+                    prefix = "~{prefix}.~{contig}.intactmei_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards_annotations
+            }
         }
 
-        call GenerateAnnotationTable {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                filtered_tsv = IntactMEI.filtered_output,
-                prefix = "~{prefix}.~{contig}.intactmei_annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
-        }
+        File final_intactmei_output = select_first([ConcatIntactMeiShards.concatenated_tsv, IntactMEI.filtered_output[0]])
+        File final_annotations_tsv = select_first([ConcatAnnotationShards.concatenated_tsv, GenerateAnnotationTable.annotations_tsv[0]])
     }
 
     call Helpers.ConcatTsvs as MergeIntactMeiOutput {
         input:
-            tsvs = IntactMEI.filtered_output,
+            tsvs = final_intactmei_output,
             skip_sort = true,
             prefix = prefix + ".intactmei_output",
             docker = utils_docker,
@@ -92,7 +136,7 @@ workflow AnnotateL1MEAID {
 
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            tsvs = GenerateAnnotationTable.annotations_tsv,
+            tsvs = final_annotations_tsv,
             prefix = prefix + ".intactmei_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_contigs
