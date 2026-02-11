@@ -263,13 +263,18 @@ task AnnotateTRVariants {
             -Oz -o tr_header_added.vcf.gz \
             tr_reordered.vcf.gz
 
+        rm -rf tr_reordered.vcf.gz new_headers.txt
+
         bcftools view tr_header_added.vcf.gz \
             | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
                 $8 = $8 ";allele_type=trv;SOURCE=" source
                 print
-            }' | bgzip -c > tr_tagged.vcf.gz
+            }' \
+            | bgzip -c > tr_tagged.vcf.gz
         
         tabix -p vcf tr_tagged.vcf.gz
+        
+        rm -f tr_header_added.vcf.gz
 
         # Extract overlaps
         bcftools query \
@@ -296,19 +301,25 @@ task AnnotateTRVariants {
             -b tr.bed \
             > overlaps.bed
 
+        rm -f tr.bed vcf.bed
+
         # Annotate overlaps
         awk -v filter="~{tr_caller}_OVERLAPPED" 'BEGIN{OFS="\t"} {
             print $1, $2, $5, $6, $4, filter, $10
         }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
 
         tabix -s 1 -b 2 -e 2 annotations.tsv.gz
+        
+        rm -f overlaps.bed
 
         bcftools view \
-            -h ~{vcf} \
+            -h \
+            ~{vcf} \
         | grep -v 'ID=AL,' > vcf_no_al_header.txt
 
         bcftools view \
-            -h ~{tr_vcf} \
+            -h \
+            ~{tr_vcf} \
         | grep 'ID=AL,' > al_header.txt || true
 
         bcftools reheader \
@@ -331,6 +342,8 @@ EOF
             vcf_stripped.vcf.gz
 
         tabix -p vcf vcf_annotated.vcf.gz
+        
+        rm -f annotations.tsv.gz annotations.tsv.gz.tbi vcf_no_al_header.txt al_header.txt new_header.txt merged_headers.txt vcf_stripped.vcf.gz
 
         bcftools concat \
             --allow-overlaps \
@@ -339,6 +352,8 @@ EOF
             -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
+        
+        rm -f vcf_annotated.vcf.gz vcf_annotated.vcf.gz.tbi tr_tagged.vcf.gz tr_tagged.vcf.gz.tbi
     >>>
 
     output {
@@ -347,9 +362,9 @@ EOF
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 5 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 20,
+        cpu_cores: 2,
+        mem_gb: 8,
+        disk_gb: 10 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
