@@ -34,11 +34,11 @@ workflow ExtractSampleVcfs {
                     runtime_attr_override = runtime_attr_extract_sample
             }
 
-            call Helpers.SubsetVcfByLength as SubsetSnvIndel {
+            call Helpers.SubsetVcfByArgs as SubsetSnvIndel {
                 input:
                     vcf = ExtractSampleContig.subset_vcf,
                     vcf_idx = ExtractSampleContig.subset_vcf_idx,
-                    max_length = min_sv_length - 1,
+                    include_args = 'abs(INFO/allele_length) < ~{min_sv_length} && INFO/SOURCE = \"DeepVariant\"',
                     prefix = "~{prefix}.~{contig}.~{sample_id}.snv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_snv

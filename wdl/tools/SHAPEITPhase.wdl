@@ -3,17 +3,6 @@ version 1.0
 import "../utils/Structs.wdl" as Structs
 import "../utils/Helpers.wdl" as Helpers
 
-# Workflow for phasing a joint VCF containing:
-# - Short variants (SNVs/indels) with INFO/SOURCE='DeepVariant'
-# - Structural variants with INFO/SOURCE='HPRC_SV_Integration'
-# - Tandem repeat variants (multiallelic) with INFO/SOURCE='TRGT'
-# 
-# Steps:
-# 1. Subset to region and shard
-# 2. Split multiallelic variants (bcftools norm) and filter (MAC>=2, fill missing genotypes)
-# 3. Fix variant collisions
-# 4. Phase with ShapeIt4/5
-
 workflow SHAPEITPhase {
     input {
         File joint_vcf
