@@ -359,7 +359,7 @@ for record in vcf_in:
         (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants):
         continue
     
-    # Count this ID
+    # Rename variant IDs
     a_type = record.info.get('allele_type').upper()
     a_len = abs(int(record.info.get('allele_length')))
     if a_type == "SNV":

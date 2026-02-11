@@ -21,6 +21,7 @@ workflow AnnotateL1MEAID {
         String intact_mei_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_subset_by_length
         RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
@@ -44,11 +45,21 @@ workflow AnnotateL1MEAID {
                 runtime_attr_override = runtime_attr_subset
         }
 
+        call Helpers.SubsetVcfByLength {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                min_length = min_length,
+                prefix = "~{prefix}.~{contig}.filtered",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_by_length
+        }
+
         if (defined(records_per_shard)) {
             call Helpers.ShardVcfByRecords {
                 input:
-                    vcf = SubsetVcfToContig.subset_vcf,
-                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    vcf = SubsetVcfByLength.subset_vcf,
+                    vcf_idx = SubsetVcfByLength.subset_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
@@ -56,8 +67,8 @@ workflow AnnotateL1MEAID {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByLength.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
 
         scatter (shard_idx in range(length(vcfs_to_process))) {
             call RepeatMasker.RepeatMasker {
