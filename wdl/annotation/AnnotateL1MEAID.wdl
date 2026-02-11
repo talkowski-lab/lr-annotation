@@ -42,17 +42,8 @@ workflow AnnotateL1MEAID {
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
-        }
-
-        call Helpers.SubsetVcfByLength {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 min_length = min_length,
-                prefix = "~{prefix}.~{contig}.filtered",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_by_length
+                runtime_attr_override = runtime_attr_subset
         }
 
         if (defined(records_per_shard)) {
