@@ -9,6 +9,7 @@ workflows:
     filters:
       branches:
         - main
+        - aou_scaling
       tags:
         - /.*/
 
