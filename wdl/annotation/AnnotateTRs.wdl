@@ -306,7 +306,9 @@ task AnnotateTRVariants {
         # Annotate overlaps
         awk -v filter="~{tr_caller}_OVERLAPPED" 'BEGIN{OFS="\t"} {
             print $1, $2, $5, $6, $4, filter, $10
-        }' overlaps.bed | sort -k1,1 -k2,2n | bgzip -c > annotations.tsv.gz
+        }' overlaps.bed \
+            | sort -k1,1 -k2,2n \
+            | bgzip -c > annotations.tsv.gz
 
         tabix -s 1 -b 2 -e 2 annotations.tsv.gz
         
@@ -347,9 +349,9 @@ EOF
 
         bcftools concat \
             --allow-overlaps \
+            -Oz -o ~{prefix}.vcf.gz \
             vcf_annotated.vcf.gz \
-            tr_tagged.vcf.gz \
-            -Oz -o ~{prefix}.vcf.gz
+            tr_tagged.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
         
