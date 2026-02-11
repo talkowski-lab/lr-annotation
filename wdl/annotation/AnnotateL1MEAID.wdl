@@ -13,7 +13,6 @@ workflow AnnotateL1MEAID {
 
         Int min_length
 
-        File? fa_override
         Int? records_per_shard
 
         String utils_docker
@@ -67,7 +66,6 @@ workflow AnnotateL1MEAID {
                     vcf_idx = vcf_idxs_to_process[shard_idx],
                     min_length = min_length,
                     prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.rm",
-                    fa_override = fa_override,
                     utils_docker = utils_docker,
                     repeatmasker_docker = repeatmasker_docker,
                     runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
@@ -76,7 +74,7 @@ workflow AnnotateL1MEAID {
 
             call L1MEAID {
                 input:
-                    rm_fa = select_first([fa_override, RepeatMasker.rm_fa]),
+                    rm_fa = RepeatMasker.rm_fa,
                     rm_out = RepeatMasker.rm_out,
                     prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.l1meaid",
                     docker = l1meaid_docker,

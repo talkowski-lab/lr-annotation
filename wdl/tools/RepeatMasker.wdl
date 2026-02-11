@@ -24,7 +24,7 @@ workflow RepeatMasker {
             input:
                 vcf = select_first([vcf]),
                 min_length = min_length,
-                prefix = prefix,
+                prefix = "~{prefix}.ins_to_fa",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_ins_to_fa
         }
@@ -35,7 +35,7 @@ workflow RepeatMasker {
     call RepeatMasker {
         input:
             fa = fa_input,
-            prefix = prefix,
+            prefix = "~{prefix}.rm",
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
     }
@@ -60,14 +60,12 @@ task INSToFa {
 
         bcftools view \
             -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "ins"' \
-            ~{vcf} \
-        | bcftools view \
-            -e 'ALT ~ "<"' \
-            > ~{prefix}.INS.vcf
-
+            -Oz -o > ~{prefix}.INS.vcf.gz \
+            ~{vcf}
+        
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
-            ~{prefix}.INS.vcf \
+            ~{prefix}.INS.vcf.gz \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}_INS.tmp.fa
         
         seqkit rename -N1 ~{prefix}_INS.tmp.fa > ~{prefix}_INS.fa
