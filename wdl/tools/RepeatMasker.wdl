@@ -8,7 +8,7 @@ workflow RepeatMasker {
         File vcf_idx
         String prefix
 
-        Int min_length
+        Int? min_length
 
         String utils_docker
         String repeatmasker_docker
@@ -43,7 +43,7 @@ workflow RepeatMasker {
 task INSToFa {
     input {
         File vcf
-        Int min_length
+        Int? min_length
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -53,7 +53,7 @@ task INSToFa {
         set -euo pipefail
 
         bcftools view \
-            -i 'abs(INFO/allele_length) >= ~{min_length} && INFO/allele_type == "ins"' \
+            -i '~{if defined(min_length) then "abs(INFO/allele_length) >= " + min_length + " && " else ""}INFO/allele_type == "ins"' \
             -Oz -o ~{prefix}.subset.vcf.gz \
             ~{vcf}
         
