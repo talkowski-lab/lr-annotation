@@ -13,25 +13,18 @@ workflow AnnotateL1MEAID {
 
         Int min_length
 
-        Int? records_per_shard
-
         String utils_docker
         String repeatmasker_docker
         String l1meaid_docker
         String intact_mei_docker
 
         RuntimeAttr? runtime_attr_subset
-        RuntimeAttr? runtime_attr_subset_by_length
-        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
         RuntimeAttr? runtime_attr_limeaid
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_annotate
-        RuntimeAttr? runtime_attr_concat_shards_intactmei
-        RuntimeAttr? runtime_attr_concat_shards_annotations
-        RuntimeAttr? runtime_attr_concat_contigs
-        RuntimeAttr? runtime_attr_concat_intactmei
+        RuntimeAttr? runtime_attr_concat
     }
 
     scatter (contig in contigs) {
@@ -45,91 +38,51 @@ workflow AnnotateL1MEAID {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call Helpers.SubsetVcfByLength {
+        call RepeatMasker.RepeatMasker {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 min_length = min_length,
-                prefix = "~{prefix}.~{contig}.filtered",
+                prefix = "~{prefix}.~{contig}",
+                utils_docker = utils_docker,
+                repeatmasker_docker = repeatmasker_docker,
+                runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
+                runtime_attr_repeat_masker = runtime_attr_repeat_masker
+        }
+
+        call L1MEAID {
+            input:
+                rm_fa = RepeatMasker.rm_fa,
+                rm_out = RepeatMasker.rm_out,
+                prefix = "~{prefix}.~{contig}",
+                docker = l1meaid_docker,
+                runtime_attr_override = runtime_attr_limeaid
+        }
+
+        call L1MEAIDFilter {
+            input:
+                limeaid_output = L1MEAID.limeaid_output,
+                prefix = "~{prefix}.~{contig}",
+                docker = intact_mei_docker,
+                runtime_attr_override = runtime_attr_filter
+        }
+
+        call GenerateL1MEAIDAnnotationTable {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                l1meaid_filtered_tsv = L1MEAIDFilter.filtered_output,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_by_length
+                runtime_attr_override = runtime_attr_annotate
         }
-
-        if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords {
-                input:
-                    vcf = SubsetVcfByLength.subset_vcf,
-                    vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                    records_per_shard = select_first([records_per_shard]),
-                    prefix = "~{prefix}.~{contig}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_shard
-            }
-        }
-
-        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByLength.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
-
-        scatter (shard_idx in range(length(vcfs_to_process))) {
-            call RepeatMasker.RepeatMasker {
-                input:
-                    vcf = vcfs_to_process[shard_idx],
-                    vcf_idx = vcf_idxs_to_process[shard_idx],
-                    min_length = min_length,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.rm",
-                    utils_docker = utils_docker,
-                    repeatmasker_docker = repeatmasker_docker,
-                    runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
-                    runtime_attr_repeat_masker = runtime_attr_repeat_masker
-            }
-
-            call L1MEAID {
-                input:
-                    rm_fa = RepeatMasker.rm_fa,
-                    rm_out = RepeatMasker.rm_out,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.l1meaid",
-                    docker = l1meaid_docker,
-                    runtime_attr_override = runtime_attr_limeaid
-            }
-
-            call IntactMEI {
-                input:
-                    l1meaid_output = L1MEAID.l1meaid_output,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei",
-                    docker = intact_mei_docker,
-                    runtime_attr_override = runtime_attr_filter
-            }
-
-            call GenerateAnnotationTable {
-                input:
-                    vcf = vcfs_to_process[shard_idx],
-                    filtered_tsv = IntactMEI.filtered_output,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei_annotations",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_annotate
-            }
-        }
-
-        if (defined(records_per_shard)) {
-            call Helpers.ConcatTsvs as ConcatAnnotationShards {
-                input:
-                    tsvs = GenerateAnnotationTable.annotations_tsv,
-                    skip_sort = true,
-                    prefix = "~{prefix}.~{contig}.intactmei_annotations",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards_annotations
-            }
-        }
-
-        File final_annotations_tsv = select_first([ConcatAnnotationShards.concatenated_tsv, GenerateAnnotationTable.annotations_tsv[0]])
     }
 
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
-            tsvs = final_annotations_tsv,
-            prefix = prefix + ".intactmei_annotations",
+            tsvs = GenerateL1MEAIDAnnotationTable.annotations_tsv,
+            prefix = prefix + ".l1meaid_annotations",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_contigs
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
@@ -152,11 +105,11 @@ task L1MEAID {
         python3 /opt/src/L1ME-AID/limeaid.py \
             -i ~{rm_fa} \
             -r ~{rm_out} \
-            -o ~{prefix}.txt
+            -o ~{prefix}_limeaid_output.txt
     >>>
 
     output {
-        File l1meaid_output = "~{prefix}.txt"
+        File limeaid_output = "~{prefix}_limeaid_output.txt"
     }
 
     RuntimeAttr default_attr = object {
@@ -179,9 +132,9 @@ task L1MEAID {
     }
 }
 
-task IntactMEI {
+task L1MEAIDFilter {
     input {
-        File l1meaid_output
+        File limeaid_output
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -191,18 +144,18 @@ task IntactMEI {
         set -euo pipefail
 
         perl /opt/src/utility/limeaid.filter.pl \
-            ~{l1meaid_output} \
-            > ~{prefix}.tsv
+            ~{limeaid_output} \
+            > ~{prefix}_filtered.tsv
     >>>
 
     output {
-        File filtered_output = "~{prefix}.tsv"
+        File filtered_output = "~{prefix}_filtered.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(l1meaid_output, "GB")) + 5,
+        disk_gb: 2 * ceil(size(limeaid_output, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -219,10 +172,10 @@ task IntactMEI {
     }
 }
 
-task GenerateAnnotationTable {
+task GenerateL1MEAIDAnnotationTable {
     input {
         File vcf
-        File filtered_tsv
+        File l1meaid_filtered_tsv
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -237,8 +190,8 @@ task GenerateAnnotationTable {
 import sys
 
 vcf_lookup_file = "vcf_lookup.tsv"
-input_tsv = "~{filtered_tsv}"
-output_anno = "~{prefix}.tsv"
+input_tsv = "~{l1meaid_filtered_tsv}"
+output_anno = "~{prefix}.l1meaid_annotations.tsv"
 
 vcf_lookup = {}
 with open(vcf_lookup_file, 'r') as f:
@@ -246,17 +199,21 @@ with open(vcf_lookup_file, 'r') as f:
         fields = line.strip().split('\t')
         if len(fields) >= 5:
             chrom, pos, ref, alt, var_id = fields[0], fields[1], fields[2], fields[3], fields[4]
-            vcf_lookup[(chrom, pos, ref, alt)] = var_id
+            vcf_lookup[(chrom, pos, alt)] = (ref, var_id)
 
 with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
     for line in f_in:
         parts = line.strip().split('\t')
-        if len(parts) < 12: 
-            continue
+        if len(parts) < 12: continue
+        
+        var_id_str = parts[0]
+        sequence = parts[1]
         
         classification = parts[8]
         structure = parts[10]
+        
         me_type = None
+        
         if classification == "SINE/Alu" and (structure == "INTACT" or structure == "INTACT_3end"):
             me_type = "ALU"
         elif classification == "Retroposon/SVA" and (structure == "INTACT" or structure == "INTACT_3end"):
@@ -265,27 +222,27 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             me_type = "LINE"
         
         if me_type:
-            full_id = parts[0]
-            full_id_parts = full_id.split(';')
-            chrom = full_id_parts[0].split(':')[0]
-            pos = full_id_parts[0].split(':')[1]
-            ref = full_id_parts[1].split('_')[0]
-            alt = parts[1]
-            subfam = parts[4]
-            key = (chrom, pos, ref, alt)
-            if key in vcf_lookup:
-                f_out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{vcf_lookup[key]}\t{me_type}\t{subfam}\n")
+            id_parts = var_id_str.split(';')
+            if len(id_parts) >= 1:
+                location_part = id_parts[0]
+                chrom, pos = location_part.rsplit(':', 1)
+                key = (chrom, pos, sequence)
+                if key in vcf_lookup:
+                    ref, var_id = vcf_lookup[key]
+                    f_out.write(f"{chrom}\t{pos}\t{ref}\t{sequence}\t{var_id}\t{me_type}\n")
+                else:
+                    sys.stderr.write(f"Warning: No matching VCF record for {chrom}:{pos}...\n")
 EOF
     >>>
 
     output {
-        File annotations_tsv = "~{prefix}.tsv"
+        File annotations_tsv = "~{prefix}.l1meaid_annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(filtered_tsv, "GB")) + 5,
+        disk_gb: 2 * ceil(size(l1meaid_filtered_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

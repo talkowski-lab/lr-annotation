@@ -37,7 +37,6 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_annotate_attributes_snv_indel
         RuntimeAttr? runtime_attr_add_info_snv_indel
         RuntimeAttr? runtime_attr_add_filter_snv_indel
-        RuntimeAttr? runtime_attr_rename_snv_indel
         RuntimeAttr? runtime_attr_concat_snv_indel_shards
 
         RuntimeAttr? runtime_attr_subset_contig_sv
@@ -47,11 +46,10 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_annotate_attributes_sv
         RuntimeAttr? runtime_attr_add_info_sv
         RuntimeAttr? runtime_attr_add_filter_sv
-        RuntimeAttr? runtime_attr_rename_sv
         RuntimeAttr? runtime_attr_concat_sv_shards
         
         RuntimeAttr? runtime_attr_merge
-        RuntimeAttr? runtime_attr_remove_redundant
+        RuntimeAttr? runtime_attr_rename_and_filter
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -172,30 +170,21 @@ workflow IntegrateVcfs {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_filter_snv_indel
             }
-
-            call RenameSnvIndelIds {
-                input:
-                    vcf = AddFilterSnvIndel.flagged_vcf,
-                    vcf_idx = AddFilterSnvIndel.flagged_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.renamed",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_rename_snv_indel
-            }
         }
 
         if (defined(records_per_shard)) {
             call Helpers.ConcatVcfs as ConcatSnvIndelShards {
                 input:
-                    vcfs = RenameSnvIndelIds.renamed_vcf,
-                    vcf_idxs = RenameSnvIndelIds.renamed_vcf_idx,
+                    vcfs = AddFilterSnvIndel.flagged_vcf,
+                    vcf_idxs = AddFilterSnvIndel.flagged_vcf_idx,
                     prefix = "~{prefix}.~{contig}.snv_indel.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_snv_indel_shards
             }
         }
 
-        File final_snv_indel_vcf_for_contig = select_first([ConcatSnvIndelShards.concat_vcf, RenameSnvIndelIds.renamed_vcf[0]])
-        File final_snv_indel_vcf_idx_for_contig = select_first([ConcatSnvIndelShards.concat_vcf_idx, RenameSnvIndelIds.renamed_vcf_idx[0]])
+        File final_snv_indel_vcf_for_contig = select_first([ConcatSnvIndelShards.concat_vcf, AddFilterSnvIndel.flagged_vcf[0]])
+        File final_snv_indel_vcf_idx_for_contig = select_first([ConcatSnvIndelShards.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
 
         # SV Processing
         call Helpers.SubsetVcfToContig as SubsetContigSv {
@@ -275,31 +264,21 @@ workflow IntegrateVcfs {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_filter_sv
             }
-
-            call RenameSvIds {
-                input:
-                    vcf = AddFilterSv.flagged_vcf,
-                    vcf_idx = AddFilterSv.flagged_vcf_idx,
-                    size_flag = sv_vcf_size_flag,
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.renamed",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_rename_sv
-            }
         }
 
         if (defined(records_per_shard)) {
             call Helpers.ConcatVcfs as ConcatSvShards {
                 input:
-                    vcfs = RenameSvIds.renamed_vcf,
-                    vcf_idxs = RenameSvIds.renamed_vcf_idx,
+                    vcfs = AddFilterSv.flagged_vcf,
+                    vcf_idxs = AddFilterSv.flagged_vcf_idx,
                     prefix = "~{prefix}.~{contig}.sv.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_sv_shards
             }
         }
 
-        File final_sv_vcf_for_contig = select_first([ConcatSvShards.concat_vcf, RenameSvIds.renamed_vcf[0]])
-        File final_sv_vcf_idx_for_contig = select_first([ConcatSvShards.concat_vcf_idx, RenameSvIds.renamed_vcf_idx[0]])
+        File final_sv_vcf_for_contig = select_first([ConcatSvShards.concat_vcf, AddFilterSv.flagged_vcf[0]])
+        File final_sv_vcf_idx_for_contig = select_first([ConcatSvShards.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
 
         # Merging
         call Helpers.ConcatVcfs as MergeContigVcfs {
@@ -311,7 +290,7 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_merge
         }
 
-        call RemoveRedundantVariants {
+        call RenameAndFilterVariants {
             input:
                 vcf = MergeContigVcfs.concat_vcf,
                 vcf_idx = MergeContigVcfs.concat_vcf_idx,
@@ -320,14 +299,14 @@ workflow IntegrateVcfs {
                 sv_vcf_source_tag = sv_vcf_source_tag,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_remove_redundant
+                runtime_attr_override = runtime_attr_rename_and_filter
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = RemoveRedundantVariants.filtered_vcf,
-            vcf_idxs = RemoveRedundantVariants.filtered_vcf_idx,
+            vcfs = RenameAndFilterVariants.filtered_vcf,
+            vcf_idxs = RenameAndFilterVariants.filtered_vcf_idx,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -339,124 +318,7 @@ workflow IntegrateVcfs {
     }
 }
 
-task RenameSnvIndelIds {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-from pysam import VariantFile
-
-vcf_in = VariantFile("~{vcf}")
-vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
-
-for record in vcf_in:
-    a_len = abs(int(record.info.get('allele_length')))
-    if a_len > 0:
-        a_type = record.info.get('allele_type').upper()
-        record.id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
-    vcf_out.write(record)
-
-vcf_in.close()
-vcf_out.close()
-CODE
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File renamed_vcf = "~{prefix}.vcf.gz"
-        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task RenameSvIds {
-    input {
-        File vcf
-        File vcf_idx
-        String size_flag
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-from pysam import VariantFile
-
-size_flag = "~{size_flag}"
-vcf_in = VariantFile("~{vcf}")
-vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
-
-for record in vcf_in:
-    a_type = record.info.get("allele_type").upper()
-    a_len = abs(record.info.get("allele_length"))
-    record.id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
-    if size_flag in record.filter.keys():
-        record.id = f"{record.chrom}-{record.pos}-{record.ref}-{','.join(str(alt) for alt in record.alts)}"
-    vcf_out.write(record)
-
-vcf_in.close()
-vcf_out.close()
-CODE
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File renamed_vcf = "~{prefix}.vcf.gz"
-        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task RemoveRedundantVariants {
+task RenameAndFilterVariants {
     input {
         File vcf
         File vcf_idx
@@ -473,24 +335,67 @@ task RemoveRedundantVariants {
 
         python3 <<CODE
 from pysam import VariantFile
+from collections import defaultdict
 
 snv_indel_source = "~{snv_indel_vcf_source_tag}"
 sv_source = "~{sv_vcf_source_tag}"
 size_flag = "~{snv_indel_vcf_size_flag}"
 
+# First pass: collect SV variants for redundancy check
 vcf_in = VariantFile("~{vcf}")
-hprc_sv_variants = set()
+sv_variants = set()
 for record in vcf_in:
     if record.info.get("SOURCE") == sv_source:
-        hprc_sv_variants.add((record.chrom, record.pos, record.ref, tuple(record.alts)))
+        sv_variants.add((record.chrom, record.pos, record.ref, tuple(record.alts)))
 vcf_in.close()
 
+# Second pass: collect ID counts for non-redundant variants
+vcf_in = VariantFile("~{vcf}")
+id_counts = defaultdict(int)
+for record in vcf_in:
+    # Skip redundant variants
+    if (record.info.get("SOURCE") == snv_indel_source and 
+        size_flag in record.filter and 
+        (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants):
+        continue
+    
+    # Rename variant IDs
+    a_type = record.info.get('allele_type').upper()
+    a_len = abs(int(record.info.get('allele_length')))
+    if a_type == "SNV":
+        new_id = f"{record.chrom}-{record.pos}-{a_type}"
+    else:
+        new_id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
+    
+    id_counts[new_id] += 1
+vcf_in.close()
+
+# Third pass: rename IDs and filter redundant variants
 vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+id_seen = defaultdict(int)
 for record in vcf_in:
-    if record.info.get("SOURCE") == snv_indel_source and size_flag in record.filter \
-        and (record.chrom, record.pos, record.ref, tuple(record.alts)) in hprc_sv_variants:
-            continue
+    # Skip redundant variants
+    if (record.info.get("SOURCE") == snv_indel_source and 
+        size_flag in record.filter and 
+        (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants):
+        continue
+    
+    # Generate new ID
+    a_type = record.info.get('allele_type').upper()
+    a_len = abs(int(record.info.get('allele_length')))
+    if a_type == "SNV":
+        new_id = f"{record.chrom}-{record.pos}-{a_type}"
+    else:
+        new_id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
+    
+    # Handle duplicate IDs
+    if id_counts[new_id] > 1:
+        id_seen[new_id] += 1
+        record.id = f"{new_id}_{id_seen[new_id]}"
+    else:
+        record.id = new_id
+    
     vcf_out.write(record)
 vcf_in.close()
 vcf_out.close()
