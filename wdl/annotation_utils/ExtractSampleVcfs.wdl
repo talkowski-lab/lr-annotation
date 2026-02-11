@@ -29,7 +29,7 @@ workflow ExtractSampleVcfs {
                     vcf_idx = cohort_vcf_idx,
                     sample = sample_id,
                     extra_args = "--regions ~{contig}",
-                    prefix = "~{prefix}.~{sample_id}.~{contig}",
+                    prefix = "~{prefix}.~{contig}.~{sample_id}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_sample
             }
@@ -39,7 +39,7 @@ workflow ExtractSampleVcfs {
                     vcf = ExtractSampleContig.subset_vcf,
                     vcf_idx = ExtractSampleContig.subset_vcf_idx,
                     max_length = min_sv_length - 1,
-                    prefix = "~{prefix}.~{sample_id}.~{contig}.snv",
+                    prefix = "~{prefix}.~{contig}.~{sample_id}.snv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_snv
             }
@@ -49,7 +49,7 @@ workflow ExtractSampleVcfs {
                     vcf = ExtractSampleContig.subset_vcf,
                     vcf_idx = ExtractSampleContig.subset_vcf_idx,
                     include_args = 'abs(INFO/allele_length) >= ~{min_sv_length} && INFO/SOURCE = \"HPRC_SV_Integration\"',
-                    prefix = "~{prefix}.~{sample_id}.~{contig}.sv",
+                    prefix = "~{prefix}.~{contig}.~{sample_id}.sv",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv
             }
