@@ -12,7 +12,7 @@ workflow SHAPEITPhase {
         String prefix
 
         Int operation = 1
-        String weight_tag = "SCORE"
+        String weight_tag = ""
         Int is_weight_format_field = 0
         Float default_weight = 0.5
         Boolean do_shapeit5 = true
@@ -309,7 +309,7 @@ task SplitAndFilterVcf {
 
 task FixVariantCollisions {
     input {
-        File phased_vcf                     # biallelic
+        File phased_vcf
         File fix_variant_collisions_java
         Int operation = 1                   # 0=can only remove an entire VCF record; 1=can remove single ones from a GT
         String weight_tag = "SCORE"         # ID of the weight field; weights are assumed to be non-negative; we set to SCORE to prefer kanpig records (and moreover, those with higher SCORE) over DeepVariant records (these should have no SCORE, and will be assigned the low default_weight below)
