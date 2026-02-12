@@ -54,12 +54,8 @@ task INSToFa {
     command <<<
         set -euo pipefail
 
-        bcftools view \
-            -i '~{if defined(min_length) then "abs(INFO/allele_length) >= " + min_length + " && " else ""}INFO/allele_type == "ins"' \
-            -Oz -o ~{prefix}.subset.vcf.gz \
-            ~{vcf}
-        
         bcftools query \
+            -i 'SVTYPE=="INS"' \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
             ~{prefix}.subset.vcf.gz \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
@@ -74,7 +70,7 @@ task INSToFa {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 20,
+        disk_gb: 3 * ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
