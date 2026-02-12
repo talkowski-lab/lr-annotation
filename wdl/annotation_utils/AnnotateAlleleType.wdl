@@ -160,7 +160,7 @@ task AddHeaders {
         bcftools reheader \
             -h header.txt \
             "~{vcf}" \
-            | bgzip -c > ~{prefix}.vcf.gz
+            > ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
