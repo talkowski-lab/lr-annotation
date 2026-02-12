@@ -17,8 +17,9 @@ workflow BenchmarkAnnotations {
         String prefix
         
         Int variants_per_shard
-        Int min_sv_length_eval
-        Int min_sv_length_truth
+        Int min_sv_length_eval_truvari
+        Int min_sv_length_truth_truvari
+        Int min_sv_length_bedtools_closest
 
         String? skip_vep_categories
         String? args_string_vcf
@@ -50,6 +51,7 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_truvari_run_truvari
         RuntimeAttr? runtime_attr_truvari_concat_matched
 
+        RuntimeAttr? runtime_attr_bedtools_subset_eval
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
         RuntimeAttr? runtime_attr_bedtools_split_eval
         RuntimeAttr? runtime_attr_bedtools_split_truth
@@ -189,8 +191,8 @@ workflow BenchmarkAnnotations {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.truvari",
-                min_sv_length_eval = min_sv_length_eval,
-                min_sv_length_truth = min_sv_length_truth,
+                min_sv_length_eval = min_sv_length_eval_truvari,
+                min_sv_length_truth = min_sv_length_truth_truvari,
                 utils_docker = utils_docker,
                 runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
                 runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
@@ -198,10 +200,20 @@ workflow BenchmarkAnnotations {
                 runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
         }
 
+        call Helpers.SubsetVcfByLength as SubsetBedtoolsEval {
+            input:
+                vcf = TruvariMatch.unmatched_vcf,
+                vcf_idx = TruvariMatch.unmatched_vcf_idx,
+                min_length = min_sv_length_bedtools_closest,
+                prefix = "~{prefix}.~{contig}.bedtools_subset_eval",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_bedtools_subset_eval
+        }
+
         call BedtoolsClosestSV.BedtoolsClosestSV {
             input:
-                vcf_eval = TruvariMatch.unmatched_vcf,
-                vcf_eval_idx = TruvariMatch.unmatched_vcf_idx,
+                vcf_eval = SubsetBedtoolsEval.subset_vcf,
+                vcf_eval_idx = SubsetBedtoolsEval.subset_vcf_idx,
                 vcf_sv_truth = sv_truth_vcf_final,
                 vcf_sv_truth_idx = sv_truth_vcf_final_idx,
                 prefix = "~{prefix}.~{contig}.bedtools_closest",
