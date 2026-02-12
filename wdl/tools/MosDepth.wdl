@@ -4,14 +4,6 @@ import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
 
 workflow AlignedMetrics {
-    parameter_meta {
-        bam: "Aligned BAM file"
-        bai: "Index for aligned BAM file"
-        ref_fasta: "Reference FASTA file"
-        ref_dict: "Reference dictionary file"
-        gcs_output_dir: "GCS Bucket into which to finalize outputs.  If no bucket is given, outputs will not be finalized and instead will remain in their native execution location."
-    }
-
     input {
         File bam
         File bai
@@ -98,42 +90,49 @@ workflow AlignedMetrics {
                 files = MosDepth.full_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageGlobalDist {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.global_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageRegionDist {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.region_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageRegions {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.regions,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageRegionsCsi {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.regions_csi,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageQuantizedDist {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.quantized_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
+
         call Helpers.FinalizeToDir as FFCoverageQuantized {
             input:
                 outdir = outdir + "/coverage/",
                 files = MosDepth.quantized,
                 runtime_attr_override = runtime_attr_finalize
         }
+        
         call Helpers.FinalizeToDir as FFCoverageQuantizedCsi {
             input:
                 outdir = outdir + "/coverage/",

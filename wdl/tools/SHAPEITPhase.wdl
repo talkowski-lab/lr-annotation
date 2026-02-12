@@ -5,8 +5,8 @@ import "../utils/Helpers.wdl" as Helpers
 
 workflow SHAPEITPhase {
     input {
-        File joint_vcf
-        File joint_vcf_idx
+        File vcf
+        File vcf_idx
         String contig
         String region
         String prefix
@@ -16,6 +16,8 @@ workflow SHAPEITPhase {
         Int is_weight_format_field = 0
         Float default_weight = 0.5
         Boolean do_shapeit5 = true
+
+        Int filter_and_concat_shard_size = 2000000
 
         String variant_filter_args = "-i 'MAC>=2'"
         String filter_common_args = "-i 'MAF>=0.001'"
@@ -31,7 +33,8 @@ workflow SHAPEITPhase {
         Int shard_size = 1000000
         String docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
 
-        RuntimeAttr? runtime_attr_subset_region
+
+        RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset_shard
         RuntimeAttr? runtime_attr_filter_vcf
         RuntimeAttr? runtime_attr_fix_variant_collisions
@@ -47,25 +50,24 @@ workflow SHAPEITPhase {
 
     Map[String, String] genetic_maps_dict = read_map(genetic_maps_tsv)
 
-    call SubsetVcfToRegion {
+    call CreateShards {
         input:
-            vcf = joint_vcf,
-            vcf_idx = joint_vcf_idx,
             region = region,
-            prefix = "~{prefix}.region",
-            runtime_attr_override = runtime_attr_subset_region
+            bin_size = filter_and_concat_shard_size,
+            pad_size = 0,
+            prefix = "~{prefix}.shards",
+            runtime_attr_override = runtime_attr_create_shards
     }
 
-    scatter (i in range(length(SubsetVcfToRegion.shard_regions))) {
-        String shard_region = SubsetVcfToRegion.shard_regions[i]
+    scatter (i in range(length(CreateShards.shard_regions))) {
+        String shard_region = CreateShards.shard_regions[i]
 
         call SubsetVcfToRegion as SubsetShard {
             input:
-                vcf = SubsetVcfToRegion.subset_vcf,
-                vcf_idx = SubsetVcfToRegion.subset_vcf_idx,
+                vcf = vcf,
+                vcf_idx = vcf_idx,
                 region = shard_region,
                 prefix = "~{prefix}.~{i}",
-                shard_size = shard_size,
                 runtime_attr_override = runtime_attr_subset_shard
         }
 
@@ -197,39 +199,108 @@ workflow SHAPEITPhase {
     }
 }
 
+task CreateShards {
+    input {
+        String region
+        Int bin_size
+        Int pad_size
+        String prefix
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python - --region ~{region} \
+                 --bin_size ~{bin_size} \
+                 --pad_size ~{pad_size} \
+                 --output_file ~{prefix} \
+                 <<-'EOF'
+        import argparse
+
+        def split_region(region):
+            chromosome, span = region.split(":")
+            start, end = span.split("-")
+            return(chromosome, int(start), int(end))
+
+        def split_region_to_intervals(region, bin_size, pad_size):
+            chromo, start, end = split_region(region)
+            bin_num = (end - start)//bin_size
+            intervals = [(chromo, start, start + bin_size + pad_size)]
+            for i in range(1, bin_num):
+                start_pos = start + i*bin_size - pad_size
+                end_pos = start_pos + bin_size + pad_size
+                intervals.append((chromo, start_pos, end_pos))
+            if end > start + bin_num*bin_size:
+                intervals.append((chromo, start + bin_num*bin_size - pad_size, end))
+            return(intervals)
+
+        def write_output_file(content, output_file):
+            with open(output_file, "w") as f:
+                for item in content:
+                    l = "%s:%d-%d" % (item[0], item[1], item[2])
+                    f.write(l+ "\n")
+
+        def main():
+            parser = argparse.ArgumentParser()
+            parser.add_argument('--region', type=str)
+            parser.add_argument('--output_file', type=str)
+            parser.add_argument('--bin_size', type=int)
+            parser.add_argument('--pad_size', type=int)
+            args = parser.parse_args()
+
+            intervals = split_region_to_intervals(args.region, args.bin_size, args.pad_size)
+            write_output_file(intervals, args.output_file + ".txt")
+
+        if __name__ == "__main__":
+            main()
+        EOF
+    >>>
+
+    output {
+        Array[String] shard_regions = read_lines("~{prefix}.txt")
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1,
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: select_first([runtime_attr.docker, default_attr.docker])
+    }
+}
+
 task SubsetVcfToRegion {
     input {
         File vcf
         File vcf_idx
         String region
         String prefix
-        Int shard_size = 1000000
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
-        bcftools view --no-version ~{vcf} --regions ~{region} -Oz -o ~{prefix}.vcf.gz
+        bcftools view \
+            --no-version \
+            --regions ~{region} \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
+        
         bcftools index -t ~{prefix}.vcf.gz
-
-        python3 <<CODE
-region = "~{region}"
-chrom, span = region.split(":")
-start, end = map(int, span.split("-"))
-bin_size = ~{shard_size}
-
-intervals = []
-pos = start
-while pos < end:
-    interval_end = min(pos + bin_size, end)
-    intervals.append(f"{chrom}:{pos}-{interval_end}")
-    pos = interval_end
-
-with open("shards.txt", "w") as f:
-    for interval in intervals:
-        f.write(interval + "\n")
-CODE
     >>>
 
     output {
@@ -272,7 +343,7 @@ task SplitAndFilterVcf {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         bcftools norm --no-version -m-any -N -f ~{ref_fa} ~{vcf} | \
             bcftools +setGT --no-version -- -t . -n 0p | \
@@ -322,7 +393,7 @@ task FixVariantCollisions {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         java ~{fix_variant_collisions_java} \
             ~{phased_vcf} \
@@ -383,7 +454,7 @@ task CreateShapeitChunks {
     }
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         wget https://github.com/odelaneau/GLIMPSE/releases/download/v1.1.1/GLIMPSE_chunk_static
         chmod +x GLIMPSE_chunk_static
@@ -438,7 +509,7 @@ task FilterCommon {
     Int disk_gb = 50 + 4 * ceil(size(vcf, "GiB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         # filter to common
         bcftools +fill-tags --no-version -r ~{region} ~{vcf} -- -t AF,AC,AN | \
@@ -488,7 +559,7 @@ task Shapeit4 {
     Int disk_gb = 10 + 4 * ceil(size(vcf, "GiB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         shapeit4.2 --input ~{vcf} \
                 --map ~{genetic_map} \
@@ -537,7 +608,7 @@ task LigateVcfs {
     Int disk_gb = 10 + 4 * ceil(size(vcfs, "GiB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         ligate_static --input ~{write_lines(vcfs)} --output ~{prefix}.bcf
         bcftools +fill-tags --no-version ~{prefix}.bcf \
@@ -589,7 +660,7 @@ task Shapeit5Rare {
     Int disk_gb = 10 + 4 * ceil(size(vcf, "GiB")) + ceil(size(scaffold_vcf, "GiB"))
 
     command <<<
-        set -euxo pipefail
+        set -euo pipefail
 
         # we only need to fill rare in input (common in scaffold should have been imputed or filled previously);
         # this also fills common in input, but those records will be ignored by Shapeit5
