@@ -197,6 +197,10 @@ Inputs:
 - `ref_fai`.
 
 
+### [MosDepth](wdl/tools/MosDepth.wdl)
+TODO
+
+
 ### [PALMER](wdl/tools/PALMER.wdl)
 This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
 

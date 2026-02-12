@@ -208,6 +208,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MosDepth
+    primaryDescriptorPath: /wdl/tools/MosDepth.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PALMER
     primaryDescriptorPath: /wdl/tools/PALMER.wdl
     filters:
