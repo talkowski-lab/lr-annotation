@@ -18,7 +18,10 @@ This repository serves as a home for all scripts, workflows and processes for an
 		- Duplicates NA19129 (also includes GM19129) and NA20355 (also includes GM20355).
 		- Additionally includes GM19320.
 		- Misses NA24385 (HG002 in Terra).
-- Overlapping Samples (5): HG002, HG00733, HG02818, NA19036, NA19240.
+- HPRC & HGSVC Overlapping Samples: HG002, HG00733, HG02818, NA19036, NA19240.
+- All of Us Phase 1.
+	- 1027 total samples.
+	- Metadata file extracted from VCF - all samples are unrelated and of African ancestry..
 
 
 ## References
@@ -40,7 +43,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `ref_fai`: Index for `ref_fa`.
 - `ref_vep_cache`: [Cache for v105](gs://gcp-public-data--gnomad/resources/vep/v105/homo_sapiens_merged_vep_105_GRCh38.tar.gz) from the [VEP archives](https://ftp.ensembl.org/pub/release-105/variation/), with the most up-to-date list of these found [here](https://useast.ensembl.org/info/docs/tools/vep/script/vep_cache.html#cache).
 - `repeats_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/REPEATS_hg38.bed) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
-- `repeat_catalog_trgt`: [Catalog for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [the TR Catalog references](https://github.com/broadinstitute/tandem-repeat-catalog/releases), as used in All of Us Phase 2.
+- `repeat_catalog_trgt`: [Catalog for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variation_clusters_and_isolated_TRs_v1.0.1.hg38.TRGT.bed.gz) from [the TR Catalog references](https://github.com/broadinstitute/tandem-repeat-catalog/releases), as used in All of Us Phase.
 - `top_level_fa`: [Release 76 sequences for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
 - `vntr_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 
