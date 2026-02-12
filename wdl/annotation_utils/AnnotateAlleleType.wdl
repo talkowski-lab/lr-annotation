@@ -149,12 +149,11 @@ task AddHeaders {
     command <<<
         set -euo pipefail
 
-        bcftools view -h "~{vcf}" | grep "^##" | grep -v "^##contig" > header.txt
+        bcftools view -h "~{vcf}" | grep "^##" > header.txt
         
         echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family of mobile element">' >> header.txt
         echo '##INFO=<ID=ORIGIN,Number=1,Type=String,Description="Origin locus of event">' >> header.txt
         
-        bcftools view -h "~{vcf}" | grep "^##contig" >> header.txt
         bcftools view -h "~{vcf}" | grep "^#CHROM" >> header.txt
 
         bcftools reheader \
