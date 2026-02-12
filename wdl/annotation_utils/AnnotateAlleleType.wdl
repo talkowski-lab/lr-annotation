@@ -205,9 +205,9 @@ task AnnotateMed {
     command <<<
         set -euo pipefail
 
-        med_prefix = ~{select_first([med_prefix, ''])}
-        med_suffix = ~{select_first([med_suffix, ''])}
-        med_lowercase = ~{select_first([med_lowercase, 'false'])}
+        med_prefix=~{select_first([med_prefix, ''])}
+        med_suffix=~{select_first([med_suffix, ''])}
+        med_lowercase=~{select_first([med_lowercase, 'false'])}
         
         awk -v pre="$med_prefix" -v suf="$med_suffix" -v lower="$med_lowercase" '
             BEGIN {
@@ -277,9 +277,9 @@ task AnnotateMei {
     command <<<
         set -euo pipefail
 
-        mei_prefix = ~{select_first([mei_prefix, ''])}
-        mei_suffix = ~{select_first([mei_suffix, ''])}
-        mei_lowercase = ~{select_first([mei_lowercase, 'false'])}
+        mei_prefix=~{select_first([mei_prefix, ''])}
+        mei_suffix=~{select_first([mei_suffix, ''])}
+        mei_lowercase=~{select_first([mei_lowercase, 'false'])}
         
         awk -v pre="$mei_prefix" -v suf="$mei_suffix" -v lower="$mei_lowercase" '
             BEGIN {
@@ -349,9 +349,9 @@ task AnnotateDup {
     command <<<
         set -euo pipefail
 
-        dup_prefix = ~{select_first([dup_prefix, ''])}
-        dup_suffix = ~{select_first([dup_suffix, ''])}
-        dup_lowercase = ~{select_first([dup_lowercase, 'false'])}
+        dup_prefix=~{select_first([dup_prefix, ''])}
+        dup_suffix=~{select_first([dup_suffix, ''])}
+        dup_lowercase=~{select_first([dup_lowercase, 'false'])}
         
         awk -v pre="$dup_prefix" -v suf="$dup_suffix" -v lower="$dup_lowercase" '
             BEGIN {
