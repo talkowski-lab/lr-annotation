@@ -5,21 +5,20 @@ import "../utils/Helpers.wdl"
 
 workflow AlignedMetrics {
     parameter_meta {
-        aligned_bam: "Aligned BAM file"
-        aligned_bai: "Index for aligned BAM file"
+        bam: "Aligned BAM file"
+        bai: "Index for aligned BAM file"
         ref_fasta: "Reference FASTA file"
         ref_dict: "Reference dictionary file"
         gcs_output_dir: "GCS Bucket into which to finalize outputs.  If no bucket is given, outputs will not be finalized and instead will remain in their native execution location."
     }
 
     input {
-        File aligned_bam
-        File aligned_bai
+        File bam
+        File bai
+        String prefix
 
         File ref_fasta
         File ref_dict
-
-        String prefix
 
         String? gcs_output_dir
 
@@ -33,7 +32,7 @@ workflow AlignedMetrics {
 
     call ReadMetrics as AlignedReadMetrics {
         input:
-            bam = aligned_bam,
+            bam = bam,
             prefix = prefix + ".read_metrics",
             runtime_attr_override = runtime_attr_read_metrics
     }
@@ -48,8 +47,8 @@ workflow AlignedMetrics {
     scatter (chr_info in MakeChrIntervalList.chrs) {
         call MosDepth {
             input:
-                bam = aligned_bam,
-                bai = aligned_bai,
+                bam = bam,
+                bai = bai,
                 chr = chr_info[0],
                 prefix = "~{prefix}.~{chr_info[0]}.coverage",
                 runtime_attr_override = runtime_attr_mosdepth
@@ -65,7 +64,7 @@ workflow AlignedMetrics {
 
     call FlagStats as AlignedFlagStats {
         input:
-            bam = aligned_bam,
+            bam = bam,
             prefix = prefix + ".flag_stats",
             runtime_attr_override = runtime_attr_flag_stats
     }
