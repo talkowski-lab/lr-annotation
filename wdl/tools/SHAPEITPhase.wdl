@@ -7,29 +7,28 @@ workflow SHAPEITPhase {
     input {
         File joint_vcf
         File joint_vcf_idx
-        File reference_fasta
-        File reference_fasta_fai
-        File genetic_maps_tsv
-        String chromosome
+        String contig
         String region
         String prefix
 
-        Int shard_size = 1000000
-        String variant_filter_args = "-i 'MAC>=2'"
-
-        File fix_variant_collisions_java
         Int operation = 1
         String weight_tag = "SCORE"
         Int is_weight_format_field = 0
         Float default_weight = 0.5
-
-        String chunk_extra_args = "--thread $(nproc) --window-size 2000000 --buffer-size 200000"
-
         Boolean do_shapeit5 = true
+
+        String variant_filter_args = "-i 'MAC>=2'"
+        String filter_common_args = "-i 'MAF>=0.001'"
+        String chunk_extra_args = "--thread $(nproc) --window-size 2000000 --buffer-size 200000"
         String shapeit4_extra_args = "--thread $(nproc) --use-PS 0.0001"
         String shapeit5_extra_args =  "--thread $(nproc)"
-        String filter_common_args = "-i 'MAF>=0.001'"
 
+        File ref_fa
+        File ref_fai
+        File genetic_maps_tsv
+        File fix_variant_collisions_java
+
+        Int shard_size = 1000000
         String docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -72,8 +71,8 @@ workflow SHAPEITPhase {
                 vcf = SubsetShard.subset_vcf,
                 vcf_idx = SubsetShard.subset_vcf_idx,
                 prefix = "~{prefix}.filtered.shard-~{s}",
-                reference_fasta = reference_fasta,
-                reference_fasta_fai = reference_fasta_fai,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 filter_args = variant_filter_args,
                 runtime_attr_override = runtime_attr_filter_vcf
         }
@@ -118,7 +117,7 @@ workflow SHAPEITPhase {
                 input:
                     vcf = ConcatShards.concat_vcf,
                     vcf_idx = ConcatShards.concat_vcf_idx,
-                    genetic_map = genetic_maps_dict[chromosome],
+                    genetic_map = genetic_maps_dict[contig],
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
@@ -140,7 +139,7 @@ workflow SHAPEITPhase {
                 input:
                     vcf = FilterCommon.common_vcf,
                     vcf_idx = FilterCommon.common_vcf_idx,
-                    genetic_map = genetic_maps_dict[chromosome],
+                    genetic_map = genetic_maps_dict[contig],
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
@@ -166,7 +165,7 @@ workflow SHAPEITPhase {
                     vcf_idx = ConcatShards.concat_vcf_idx,
                     scaffold_vcf = LigateScaffold.ligated_vcf,
                     scaffold_vcf_idx = LigateScaffold.ligated_vcf_idx,
-                    genetic_map = genetic_maps_dict[chromosome],
+                    genetic_map = genetic_maps_dict[contig],
                     region = rare_regions[i],
                     scaffold_region = common_regions[i],
                     prefix = "~{prefix}.phased.chunk-~{i}",
@@ -262,8 +261,8 @@ task SplitAndFilterVcf {
         File vcf
         File vcf_idx
         String prefix
-        File reference_fasta
-        File reference_fasta_fai
+        File ref_fa
+        File ref_fai
         String filter_args
         RuntimeAttr? runtime_attr_override
     }
@@ -273,7 +272,7 @@ task SplitAndFilterVcf {
     command <<<
         set -euxo pipefail
 
-        bcftools norm --no-version -m-any -N -f ~{reference_fasta} ~{vcf} | \
+        bcftools norm --no-version -m-any -N -f ~{ref_fa} ~{vcf} | \
             bcftools +setGT --no-version -- -t . -n 0p | \
             bcftools +fill-tags --no-version -- -t AF,AC,AN,MAF | \
             bcftools view --no-version ~{filter_args} -Oz -o ~{prefix}.vcf.gz
