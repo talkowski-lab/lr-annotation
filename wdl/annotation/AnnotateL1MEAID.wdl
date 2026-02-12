@@ -35,6 +35,7 @@ workflow AnnotateL1MEAID {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 min_length = select_first([min_length]),
+                length_field = "SVLEN",
                 prefix = "~{prefix}.filtered",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_by_length
