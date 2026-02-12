@@ -31,15 +31,18 @@ workflow SHAPEITPhase {
         Int shard_size = 1000000
         String docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
 
-        RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_subset_region
+        RuntimeAttr? runtime_attr_subset_shard
         RuntimeAttr? runtime_attr_filter_vcf
         RuntimeAttr? runtime_attr_fix_variant_collisions
-        RuntimeAttr? runtime_attr_concat_vcfs
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_create_shapeit_chunks
-        RuntimeAttr? runtime_attr_shapeit4
+        RuntimeAttr? runtime_attr_shapeit4_all
         RuntimeAttr? runtime_attr_filter_common
+        RuntimeAttr? runtime_attr_shapeit4_common
         RuntimeAttr? runtime_attr_ligate_vcfs
         RuntimeAttr? runtime_attr_shapeit5_rare
+        RuntimeAttr? runtime_attr_concat_shapeit5
     }
 
     Map[String, String] genetic_maps_dict = read_map(genetic_maps_tsv)
@@ -50,27 +53,27 @@ workflow SHAPEITPhase {
             vcf_idx = joint_vcf_idx,
             region = region,
             prefix = "~{prefix}.region",
-            runtime_attr_override = runtime_attr_subset_vcf
+            runtime_attr_override = runtime_attr_subset_region
     }
 
-    scatter (s in range(length(SubsetVcfToRegion.shard_regions))) {
-        String shard_region = SubsetVcfToRegion.shard_regions[s]
+    scatter (i in range(length(SubsetVcfToRegion.shard_regions))) {
+        String shard_region = SubsetVcfToRegion.shard_regions[i]
 
         call SubsetVcfToRegion as SubsetShard {
             input:
                 vcf = SubsetVcfToRegion.subset_vcf,
                 vcf_idx = SubsetVcfToRegion.subset_vcf_idx,
                 region = shard_region,
-                prefix = "~{prefix}.shard-~{s}",
+                prefix = "~{prefix}.~{i}",
                 shard_size = shard_size,
-                runtime_attr_override = runtime_attr_subset_vcf
+                runtime_attr_override = runtime_attr_subset_shard
         }
 
         call SplitAndFilterVcf {
             input:
                 vcf = SubsetShard.subset_vcf,
                 vcf_idx = SubsetShard.subset_vcf_idx,
-                prefix = "~{prefix}.filtered.shard-~{s}",
+                prefix = "~{prefix}.{i}.filtered",
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 filter_args = variant_filter_args,
@@ -85,7 +88,7 @@ workflow SHAPEITPhase {
                 weight_tag = weight_tag,
                 is_weight_format_field = is_weight_format_field,
                 default_weight = default_weight,
-                prefix = "~{prefix}.collisionless.shard-~{s}",
+                prefix = "~{prefix}.{i}.collisionless",
                 runtime_attr_override = runtime_attr_fix_variant_collisions
         }
     }
@@ -97,7 +100,7 @@ workflow SHAPEITPhase {
             merge_sort = false,
             prefix = "~{prefix}.prepared",
             docker = docker,
-            runtime_attr_override = runtime_attr_concat_vcfs
+            runtime_attr_override = runtime_attr_concat_shards
     }
 
     call CreateShapeitChunks {
@@ -106,6 +109,7 @@ workflow SHAPEITPhase {
             vcf_idx = ConcatShards.concat_vcf_idx,
             region = region,
             extra_args = chunk_extra_args,
+            prefix = "~{prefix}.chunked",
             runtime_attr_override = runtime_attr_create_shapeit_chunks
     }
 
@@ -121,9 +125,10 @@ workflow SHAPEITPhase {
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
-                    runtime_attr_override = runtime_attr_shapeit4
+                    runtime_attr_override = runtime_attr_shapeit4_all
             }
         }
+
         if (do_shapeit5) {
             call FilterCommon {
                 input:
@@ -143,7 +148,7 @@ workflow SHAPEITPhase {
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
                     extra_args = shapeit4_extra_args,
-                    runtime_attr_override = runtime_attr_shapeit4
+                    runtime_attr_override = runtime_attr_shapeit4_common
             }
         }
     }
@@ -158,6 +163,7 @@ workflow SHAPEITPhase {
 
     if (do_shapeit5) {
         Array[String] rare_regions = read_lines(CreateShapeitChunks.rare_chunks)
+        
         scatter (i in range(length(rare_regions))) {
             call Shapeit5Rare {
                 input:
@@ -181,7 +187,7 @@ workflow SHAPEITPhase {
                 merge_sort = false,
                 prefix = "~{prefix}.phased.concat",
                 docker = docker,
-                runtime_attr_override = runtime_attr_concat_vcfs
+                runtime_attr_override = runtime_attr_concat_shapeit5
         }
     }
 
@@ -200,8 +206,6 @@ task SubsetVcfToRegion {
         Int shard_size = 1000000
         RuntimeAttr? runtime_attr_override
     }
-
-    Int disk_gb = 3 * ceil(size([vcf, vcf_idx], "GB")) + 20
 
     command <<<
         set -euxo pipefail
@@ -237,10 +241,10 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: disk_gb,
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -267,8 +271,6 @@ task SplitAndFilterVcf {
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_gb = 4 * ceil(size(vcf, "GB")) + 10
-
     command <<<
         set -euxo pipefail
 
@@ -286,12 +288,12 @@ task SplitAndFilterVcf {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 8,
-        disk_gb: disk_gb,
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -319,8 +321,6 @@ task FixVariantCollisions {
         RuntimeAttr? runtime_attr_override
     }
 
-    Int disk_gb = 100 + 4 * (ceil(size(phased_vcf, "GiB")))
-
     command <<<
         set -euxo pipefail
 
@@ -333,11 +333,12 @@ task FixVariantCollisions {
             collisionless.vcf \
             windows.txt \
             histogram.txt \
-            null                            # do not output figures
+            null
 
         # replace all missing alleles (correctly) emitted with reference alleles, since this is expected by PanGenie panel-creation script
         bcftools +setGT --no-version collisionless.vcf -- -t . -n 0p | \
             bcftools +fill-tags --no-version -Oz -o ~{prefix}.phased.collisionless.vcf.gz -- -t AF,AC,AN
+        
         # use vcf.gz to avoid errors from missing header lines
         bcftools index -t ~{prefix}.phased.collisionless.vcf.gz
     >>>
@@ -352,11 +353,11 @@ task FixVariantCollisions {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 16,
-        disk_gb: disk_gb,
+        disk_gb: 5 * ceil(size(phased_vcf, "GiB")) + 100,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
-        docker: "us.gcr.io/broad-gatk/gatk:4.6.0.0"     # needs Java + bcftools
+        max_retries: 0,
+        docker: "us.gcr.io/broad-gatk/gatk:4.6.0.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
@@ -377,10 +378,9 @@ task CreateShapeitChunks {
         File vcf_idx
         String region
         String extra_args = "--thread $(nproc) --window-size 5000000 --buffer-size 500000"
+        String prefix
         RuntimeAttr? runtime_attr_override
     }
-
-    Int disk_gb = 10 + 2 * ceil(size([vcf, vcf_idx], "GiB")) + 1
 
     command <<<
         set -euxo pipefail
@@ -392,70 +392,25 @@ task CreateShapeitChunks {
             -I ~{vcf} \
             --region ~{region} \
             ~{extra_args} \
-            -O chunks.txt
+            -O ~{prefix}.txt
 
-        # cut chunks + buffers
-        cut -f 3 chunks.txt > common.chunks.regions.txt
-        cut -f 4 chunks.txt > rare.chunks.regions.txt
+        cut -f3 chunks.txt > ~{prefix}.common.txt
+        cut -f4 chunks.txt > ~{prefix}.rare.txt
     >>>
 
     output {
-        File common_chunks = "common.chunks.regions.txt"
-        File rare_chunks = "rare.chunks.regions.txt"
+        File common_chunks = "~{prefix}.common.txt"
+        File rare_chunks = "~{prefix}.rare.txt"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: disk_gb,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GiB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
-    }
-}
-
-task BcftoolsConcatNaive {
-    input {
-        Array[File] vcfs
-        Array[File] vcf_idxs
-        String prefix
-        RuntimeAttr? runtime_attr_override
-    }
-
-    Int disk_gb = 50 + 4 * ceil(size(vcfs, "GiB"))
-
-    command <<<
-        set -euxo pipefail
-
-        bcftools concat --no-version ~{sep=" " vcfs} --naive -Oz -o ~{prefix}.vcf.gz
-        bcftools index -t ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File concatenated_vcf = "~{prefix}.vcf.gz"
-        File concatenated_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: disk_gb,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 1,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
@@ -503,7 +458,7 @@ task FilterCommon {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -555,7 +510,7 @@ task Shapeit4 {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit4:v1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -601,7 +556,7 @@ task LigateVcfs {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "hangsuunc/shapeit5:v1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -666,7 +621,7 @@ task Shapeit5Rare {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit5:develop"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
