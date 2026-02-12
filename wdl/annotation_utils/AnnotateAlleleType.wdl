@@ -153,8 +153,8 @@ task AddHeaders {
             -h "~{vcf}" \
             > header.txt
         
-        echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family annotation">' >> header.txt
-        echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source annotation">' >> header.txt
+        echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family of mobile element">' >> header.txt
+        echo '##INFO=<ID=ORIGIN,Number=1,Type=String,Description="Origin locus of event">' >> header.txt
 
         bcftools reheader \
             -h header.txt \
@@ -215,6 +215,7 @@ task AnnotateMed {
             }
             {
                 gsub(/[\n\r]/, "", $6)
+                gsub(/[\n\r]/, "", $7)
                 $6 = pre $6 suf
                 if (lower == "true") {
                     $6 = tolower($6)
@@ -228,7 +229,7 @@ task AnnotateMed {
         
         bcftools annotate \
             -a "med_annotations.tsv.gz" \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SUB_FAMILY \
             -Oz -o ~{prefix}.vcf.gz \
             "~{vcf}"
         
@@ -381,7 +382,7 @@ task AnnotateDup {
         
         bcftools annotate \
             -a "dup_annotations.tsv.gz" \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SOURCE \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/ORIGIN \
             -Oz -o ~{prefix}.vcf.gz \
             "~{vcf}"
         

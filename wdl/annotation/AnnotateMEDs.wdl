@@ -224,7 +224,7 @@ annotations = []
 for _, row in bed.iterrows():
     # bedtools intersect -wa -wb outputs:
     # A (del.bed): 0=chrom, 1=pos, 2=end, 3=ref, 4=alt, 5=id
-    # B (MED): 6=chrom, 7=start, 8=end, 9=ID, 10=seq, 11=designation
+    # B (MED): 6=chrom, 7=start, 8=end, 9=ID, 10=seq, 11=designation, 12=sub_family
     del_chrom = row[0]
     del_start = int(row[1])
     del_end = int(row[2])
@@ -235,6 +235,7 @@ for _, row in bed.iterrows():
     med_start = int(row[7])
     med_end = int(row[8])
     designation = row[11]
+    sub_family = row[12]
     
     me_type = get_me_type(designation)
     
@@ -248,10 +249,11 @@ for _, row in bed.iterrows():
             del_ref,
             del_alt,
             del_id,
-            me_type
+            me_type,
+            sub_family
         ])
 
-out_df = pd.DataFrame(annotations, columns=['CHROM', 'POS', 'REF', 'ALT', 'ID', 'ME_TYPE'])
+out_df = pd.DataFrame(annotations, columns=['CHROM', 'POS', 'REF', 'ALT', 'ID', 'ME_TYPE', 'SUB_FAMILY'])
 out_df.drop_duplicates(subset=['ID'], inplace=True)
 out_df.sort_values(['CHROM', 'POS'], inplace=True)
 out_df.to_csv("~{prefix}.annotations.tsv", sep='\t', index=False, header=False)
