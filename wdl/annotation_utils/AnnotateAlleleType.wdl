@@ -149,10 +149,18 @@ task AddHeaders {
     command <<<
         set -euo pipefail
 
-        bcftools view -h "~{vcf}" > header.txt
+        bcftools view \
+            -h "~{vcf}" \
+            > header.txt
+        
         echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family annotation">' >> header.txt
         echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source annotation">' >> header.txt
-        bcftools reheader -h header.txt "~{vcf}" | bgzip -c > ~{prefix}.vcf.gz
+
+        bcftools reheader \
+            -h header.txt \
+            "~{vcf}" \
+            | bgzip -c > ~{prefix}.vcf.gz
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 

@@ -319,10 +319,10 @@ task HiPhase {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: 2 * ceil(size(bam, "GB")) + 100,
-        boot_disk_gb: 100,
+        cpu_cores: 2,
+        mem_gb: 6,
+        disk_gb: 2 * ceil(size(bam, "GB")) + 50,
+        boot_disk_gb: 50,
         preemptible_tries: 2,
         max_retries: 0,
         docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"

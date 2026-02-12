@@ -24,7 +24,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 - `exons_bed`: [Loci for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
-- `mei_catalog`: [Panel from HGSVC3](gs://TODO) from the _GRCh38_MEIs.ALL.20241211.csv.gz_ file released in the [Logdson et al. paper](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Mobile_Elements/1.0/).
+- `mei_catalog`: [Loci for hg38](gs://todo) is a combination of [RepeatMasker](https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema) for ALU and LINE, and [van Bree et al](https://genome.cshlp.org/content/suppl/2022/03/24/gr.275515.121.DC1) for SVAs.
 - `mei_fa`: [Sequences for hg38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `mei_fa_amb`: Index for `mei_fa`.
 - `mei_fa_ann`: Index for `mei_fa`.
