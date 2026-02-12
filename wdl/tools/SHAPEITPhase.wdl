@@ -306,7 +306,6 @@ task SubsetVcfToRegion {
     output {
         File subset_vcf = "~{prefix}.vcf.gz"
         File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
-        Array[String] shard_regions = read_lines("shards.txt")
     }
 
     RuntimeAttr default_attr = object {
@@ -463,7 +462,7 @@ task CreateShapeitChunks {
             -I ~{vcf} \
             --region ~{region} \
             ~{extra_args} \
-            -O ~{prefix}.txt
+            -O chunks.txt
 
         cut -f3 chunks.txt > ~{prefix}.common.txt
         cut -f4 chunks.txt > ~{prefix}.rare.txt
