@@ -19,15 +19,16 @@ workflow SubsetTRGTToCatalog {
         RuntimeAttr? runtime_attr_concat_vcf
     }
     
-    call ExtractCatalogIDs {
-        input:
-            catalog_bed_gz = trgt_catalog_bed_gz,
-            contigs = contigs,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_extract_ids
-    }
-    
     scatter (contig in contigs) {
+        call ExtractCatalogForContig {
+            input:
+                catalog_bed_gz = trgt_catalog_bed_gz,
+                contig = contig,
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_ids
+        }
+        
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
                 vcf = trgt_merged_vcf,
@@ -42,7 +43,7 @@ workflow SubsetTRGTToCatalog {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
-                catalog_ids = ExtractCatalogIDs.catalog_ids,
+                catalog_ids = ExtractCatalogForContig.catalog_ids,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter_to_catalog
@@ -64,10 +65,11 @@ workflow SubsetTRGTToCatalog {
     }
 }
 
-task ExtractCatalogIDs {
+task ExtractCatalogForContig {
     input {
         File catalog_bed_gz
-        Array[String] contigs
+        String contig
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -75,31 +77,24 @@ task ExtractCatalogIDs {
     command <<<
         set -euo pipefail
         
-        cat > contigs.txt <<EOF
-~{sep="\n" contigs}
-EOF
-        
         zcat ~{catalog_bed_gz} | \
-            awk -F'\t' 'BEGIN {
-                while ((getline < "contigs.txt") > 0) {
-                    contig_filter[$0] = 1;
-                }
-            }
-            $1 in contig_filter {
-                split($4, fields, ";");
-                for (i in fields) {
-                    if (fields[i] ~ /^ID=/) {
-                        sub(/^ID=/, "", fields[i]);
-                        print fields[i];
-                        break;
+            awk -F'\t' -v contig="~{contig}" '
+                $1 == contig {
+                    start_pos = $2;
+                    n = split($4, fields, ";");
+                    for (i = 1; i <= n; i++) {
+                        if (fields[i] ~ /^ID=/) {
+                            sub(/^ID=/, "", fields[i]);
+                            print fields[i] "\t" start_pos;
+                            break;
+                        }
                     }
                 }
-            }' | \
-            sort -u > catalog_ids.txt
+            ' > {prefix}.txt
     >>>
     
     output {
-        File catalog_ids = "catalog_ids.txt"
+        File catalog_ids = "~{prefix}.txt"
     }
     
     RuntimeAttr default_attr = object {
@@ -135,35 +130,47 @@ task FilterToCatalog {
     command <<<
         set -euo pipefail
         
-        cp ~{catalog_ids} catalog_ids.txt
+        python3 <<CODE
+import sys
+import gzip
+
+# Load catalog: ID -> start_position
+catalog = {}
+with open('~{catalog_ids}', 'r') as f:
+    for line in f:
+        parts = line.strip().split('\t')
+        if len(parts) == 2:
+            catalog[parts[0]] = parts[1]
+
+
+# Process VCF
+seen = set()
+with gzip.open('~{vcf}', 'rt') as vcf_in, \
+     gzip.open('~{prefix}.vcf.gz', 'wt') as vcf_out:
+    
+    for line in vcf_in:
+        if line.startswith('#'):
+            vcf_out.write(line)
+            continue
         
-        cat > filter_script.awk <<'EOF'
-BEGIN {
-    while ((getline < "catalog_ids.txt") > 0) {
-        allowed_ids[$0] = 1;
-    }
-}
-!/^#/ {
-    trid = "";
-    n = split($8, info_fields, ";");
-    for (i = 1; i <= n; i++) {
-        if (info_fields[i] ~ /^TRID=/) {
-            sub(/^TRID=/, "", info_fields[i]);
-            trid = info_fields[i];
-            break;
-        }
-    }
-    if (trid != "" && trid in allowed_ids) {
-        print;
-    }
-}
-EOF
+        fields = line.strip().split('\t')
+        pos = fields[1]
+        info = fields[7]
         
-        bcftools view -h ~{vcf} > header.vcf
-        bcftools view -H ~{vcf} | \
-            awk -f filter_script.awk | \
-            cat header.vcf - | \
-            bgzip -c > ~{prefix}.vcf.gz
+        # Extract TRID from INFO field
+        trid = None
+        for field in info.split(';'):
+            if field.startswith('TRID='):
+                trid = field[5:]
+                break
+        
+        # Check if TRID matches catalog and position matches
+        if trid and trid in catalog and catalog[trid] == pos:
+            key = (trid, pos)
+            if key not in seen:
+                seen.add(key)
+                vcf_out.write(line)
+CODE
         
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
