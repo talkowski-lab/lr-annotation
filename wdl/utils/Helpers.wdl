@@ -1862,14 +1862,20 @@ task ShardVcfByRecords {
 
     command <<<
         set -euo pipefail
-        
+
+		N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
+        N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
+        N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
+
+		echo "scattering"
         bcftools +scatter ~{vcf} \
             -o shards \
             -O z \
             --prefix ~{prefix}. \
-            --threads 1 \
+            --threads ${N_THREADS} \
             -n ~{records_per_shard}
-        
+
+		echo "indexing shards"
         for shard in shards/*.vcf.gz; do
             tabix -p vcf "$shard"
         done
