@@ -185,10 +185,10 @@ task PreprocessVCF {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 50,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: "hangsuunc/cleanvcf:v1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -233,10 +233,10 @@ task SubsetVcf {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 100,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: docker
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -284,10 +284,10 @@ task SyncContigs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 50,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
+        max_retries: 0,
         docker: docker
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
