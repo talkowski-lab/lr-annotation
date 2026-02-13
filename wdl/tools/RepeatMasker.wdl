@@ -57,7 +57,7 @@ task INSToFa {
         bcftools query \
             -i 'SVTYPE=="INS"' \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
-            ~{prefix}.subset.vcf.gz \
+            ~{vcf} \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
         
         seqkit rename -N1 ~{prefix}.tmp.fa > ~{prefix}.fa
