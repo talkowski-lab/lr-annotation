@@ -132,7 +132,6 @@ task FilterToCatalog {
         
         python3 <<CODE
 import pysam
-import sys
 
 # Load catalog: ID -> start_position
 catalog = {}

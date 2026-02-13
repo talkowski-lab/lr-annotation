@@ -16,8 +16,8 @@ workflow SHAPEITPhase {
         Int is_weight_format_field
         Float default_weight
 
-        Boolean do_shapeit5 = true
-        Int filter_and_concat_shard_size = 2000000
+        Boolean do_shapeit5
+        Int filter_and_concat_shard_size
 
         String variant_filter_args = "-i 'MAC>=2'"
         String filter_common_args = "-i 'MAF>=0.001'"
@@ -75,7 +75,7 @@ workflow SHAPEITPhase {
             input:
                 vcf = SubsetShard.subset_vcf,
                 vcf_idx = SubsetShard.subset_vcf_idx,
-                prefix = "~{prefix}.{i}.filtered",
+                prefix = "~{prefix}.~{i}.filtered",
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 filter_args = variant_filter_args,
@@ -90,7 +90,7 @@ workflow SHAPEITPhase {
                 weight_tag = weight_tag,
                 is_weight_format_field = is_weight_format_field,
                 default_weight = default_weight,
-                prefix = "~{prefix}.{i}.collisionless",
+                prefix = "~{prefix}.~{i}.collisionless",
                 runtime_attr_override = runtime_attr_fix_variant_collisions
         }
     }
