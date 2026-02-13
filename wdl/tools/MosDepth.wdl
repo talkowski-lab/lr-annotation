@@ -12,14 +12,11 @@ workflow MosDepth {
         File ref_fasta
         File ref_dict
 
-        String? gcs_output_dir
-
         RuntimeAttr? runtime_attr_read_metrics
         RuntimeAttr? runtime_attr_make_chr_interval_list
         RuntimeAttr? runtime_attr_run_mosdepth
         RuntimeAttr? runtime_attr_summarize_depth
         RuntimeAttr? runtime_attr_flag_stats
-        RuntimeAttr? runtime_attr_finalize
     }
 
     call ReadMetrics {
