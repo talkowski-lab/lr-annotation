@@ -133,13 +133,13 @@ task FilterToCatalog {
         python3 <<CODE
 import pysam
 
-# Load catalog: ID -> start_position
-catalog = {}
+# Load catalog: Set of (ID, start_position) tuples
+catalog = set()
 with open('~{catalog_ids}', 'r') as f:
     for line in f:
         parts = line.strip().split('\t')
-        if len(parts) == 2:
-            catalog[parts[0]] = parts[1]
+        if len(parts) >= 2:
+            catalog.add((parts[0], parts[1]))
 
 # Process VCF
 seen = set()
@@ -148,10 +148,17 @@ vcf_out = pysam.VariantFile('~{prefix}.vcf.gz', 'wz', header=vcf_in.header)
 
 for record in vcf_in:
     pos = str(record.pos)
-    trid = record.info.get('TRID')
     
-    # Check if TRID matches catalog and position matches
-    if trid and trid in catalog and catalog[trid] == pos:
+    # Handle TRID being a tuple (if Number=. in header) or string
+    # TRGT usually outputs Number=1, but best to be safe
+    trid_val = record.info.get('TRID')
+    if isinstance(trid_val, tuple):
+        trid = trid_val[0]
+    else:
+        trid = trid_val
+    
+    # Check if (TRID, POS) pair exists in catalog
+    if trid and (trid, pos) in catalog:
         key = (trid, pos)
         if key not in seen:
             seen.add(key)
