@@ -9,7 +9,6 @@ workflow MosDepth {
         File bai
         String prefix
 
-        File ref_fasta
         File ref_dict
 
         RuntimeAttr? runtime_attr_read_metrics
