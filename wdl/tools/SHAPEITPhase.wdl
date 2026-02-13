@@ -15,9 +15,7 @@ workflow SHAPEITPhase {
         String weight_tag
         Int is_weight_format_field
         Float default_weight
-
         Boolean do_shapeit5
-        Int filter_and_concat_shard_size
 
         String variant_filter_args = "-i 'MAC>=2'"
         String filter_common_args = "-i 'MAF>=0.001'"
@@ -30,9 +28,8 @@ workflow SHAPEITPhase {
         File genetic_maps_tsv
         File fix_variant_collisions_java
 
-        Int shard_size = 1000000
-        String docker = "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
-
+        Int filter_and_concat_shard_size
+        String utils_docker
 
         RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset_shard
@@ -101,7 +98,7 @@ workflow SHAPEITPhase {
             vcf_idxs = FixVariantCollisions.phased_collisionless_vcf_idx,
             merge_sort = false,
             prefix = "~{prefix}.prepared",
-            docker = docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_shards
     }
 
@@ -188,7 +185,7 @@ workflow SHAPEITPhase {
                 vcf_idxs = flatten([Shapeit5Rare.phased_vcf_idx]),
                 merge_sort = false,
                 prefix = "~{prefix}.phased.concat",
-                docker = docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_shapeit5
         }
     }
@@ -295,7 +292,6 @@ task SubsetVcfToRegion {
         set -euo pipefail
 
         bcftools view \
-            --no-version \
             --regions ~{region} \
             -Oz -o ~{prefix}.vcf.gz \
             ~{vcf}
@@ -318,7 +314,6 @@ task SubsetVcfToRegion {
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -344,10 +339,10 @@ task SplitAndFilterVcf {
     command <<<
         set -euo pipefail
 
-        bcftools norm --no-version -m-any -N -f ~{ref_fa} ~{vcf} | \
-            bcftools +setGT --no-version -- -t . -n 0p | \
-            bcftools +fill-tags --no-version -- -t AF,AC,AN,MAF | \
-            bcftools view --no-version ~{filter_args} -Oz -o ~{prefix}.vcf.gz
+        bcftools norm -m-any -N -f ~{ref_fa} ~{vcf} | \
+            bcftools +setGT -- -t . -n 0p | \
+            bcftools +fill-tags -- -t AF,AC,AN,MAF | \
+            bcftools view ~{filter_args} -Oz -o ~{prefix}.vcf.gz
         
         bcftools index -t ~{prefix}.vcf.gz
     >>>
@@ -367,7 +362,6 @@ task SplitAndFilterVcf {
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -406,8 +400,8 @@ task FixVariantCollisions {
             null
 
         # replace all missing alleles (correctly) emitted with reference alleles, since this is expected by PanGenie panel-creation script
-        bcftools +setGT --no-version collisionless.vcf -- -t . -n 0p | \
-            bcftools +fill-tags --no-version -Oz -o ~{prefix}.phased.collisionless.vcf.gz -- -t AF,AC,AN
+        bcftools +setGT collisionless.vcf -- -t . -n 0p | \
+            bcftools +fill-tags -Oz -o ~{prefix}.phased.collisionless.vcf.gz -- -t AF,AC,AN
         
         # use vcf.gz to avoid errors from missing header lines
         bcftools index -t ~{prefix}.phased.collisionless.vcf.gz
@@ -430,7 +424,6 @@ task FixVariantCollisions {
         docker: "us.gcr.io/broad-gatk/gatk:4.6.0.0"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -483,7 +476,6 @@ task CreateShapeitChunks {
         docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -511,7 +503,7 @@ task FilterCommon {
         set -euo pipefail
 
         # filter to common
-        bcftools +fill-tags --no-version -r ~{region} ~{vcf} -- -t AF,AC,AN | \
+        bcftools +fill-tags -r ~{region} ~{vcf} -- -t AF,AC,AN | \
             bcftools view ~{filter_common_args} \
                 -Ob -o ~{prefix}.common.bcf
         bcftools index ~{prefix}.common.bcf
@@ -532,7 +524,6 @@ task FilterCommon {
         docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -584,7 +575,6 @@ task Shapeit4 {
         docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit4:v1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -609,9 +599,15 @@ task LigateVcfs {
     command <<<
         set -euo pipefail
 
-        ligate_static --input ~{write_lines(vcfs)} --output ~{prefix}.bcf
-        bcftools +fill-tags --no-version ~{prefix}.bcf \
-            -Oz -o ~{prefix}.vcf.gz -- -t AF,AC,AN
+        ligate_static \
+            --input ~{write_lines(vcfs)} \
+            --output ~{prefix}.bcf
+        
+        bcftools +fill-tags \
+            ~{prefix}.bcf \
+            -Oz -o ~{prefix}.vcf.gz \
+            -- -t AF,AC,AN
+        
         bcftools index -t ~{prefix}.vcf.gz
     >>>
 
@@ -630,7 +626,6 @@ task LigateVcfs {
         docker: "hangsuunc/shapeit5:v1"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -695,7 +690,6 @@ task Shapeit5Rare {
         docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit5:develop"
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
