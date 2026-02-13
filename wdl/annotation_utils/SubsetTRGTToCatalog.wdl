@@ -133,7 +133,7 @@ task FilterToCatalog {
         python3 <<CODE
 import pysam
 
-# Load catalog: Set of (ID, start_position) tuples
+# Parse ID and POS from catalog
 catalog = set()
 with open('~{catalog_ids}', 'r') as f:
     for line in f:
@@ -147,10 +147,8 @@ vcf_in = pysam.VariantFile('~{vcf}')
 vcf_out = pysam.VariantFile('~{prefix}.vcf.gz', 'wz', header=vcf_in.header)
 
 for record in vcf_in:
+    # Parse POS and TRID from VCF record
     pos = str(record.pos)
-    
-    # Handle TRID being a tuple (if Number=. in header) or string
-    # TRGT usually outputs Number=1, but best to be safe
     trid_val = record.info.get('TRID')
     if isinstance(trid_val, tuple):
         trid = trid_val[0]
