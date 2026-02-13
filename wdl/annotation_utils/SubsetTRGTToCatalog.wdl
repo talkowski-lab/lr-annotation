@@ -90,7 +90,7 @@ task ExtractCatalogForContig {
                         }
                     }
                 }
-            ' > {prefix}.txt
+            ' > ~{prefix}.txt
     >>>
     
     output {
