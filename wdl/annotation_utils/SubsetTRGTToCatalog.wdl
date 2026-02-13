@@ -131,8 +131,8 @@ task FilterToCatalog {
         set -euo pipefail
         
         python3 <<CODE
+import pysam
 import sys
-import gzip
 
 # Load catalog: ID -> start_position
 catalog = {}
@@ -142,34 +142,24 @@ with open('~{catalog_ids}', 'r') as f:
         if len(parts) == 2:
             catalog[parts[0]] = parts[1]
 
-
 # Process VCF
 seen = set()
-with gzip.open('~{vcf}', 'rt') as vcf_in, \
-     gzip.open('~{prefix}.vcf.gz', 'wt') as vcf_out:
+vcf_in = pysam.VariantFile('~{vcf}')
+vcf_out = pysam.VariantFile('~{prefix}.vcf.gz', 'wz', header=vcf_in.header)
+
+for record in vcf_in:
+    pos = str(record.pos)
+    trid = record.info.get('TRID')
     
-    for line in vcf_in:
-        if line.startswith('#'):
-            vcf_out.write(line)
-            continue
-        
-        fields = line.strip().split('\t')
-        pos = fields[1]
-        info = fields[7]
-        
-        # Extract TRID from INFO field
-        trid = None
-        for field in info.split(';'):
-            if field.startswith('TRID='):
-                trid = field[5:]
-                break
-        
-        # Check if TRID matches catalog and position matches
-        if trid and trid in catalog and catalog[trid] == pos:
-            key = (trid, pos)
-            if key not in seen:
-                seen.add(key)
-                vcf_out.write(line)
+    # Check if TRID matches catalog and position matches
+    if trid and trid in catalog and catalog[trid] == pos:
+        key = (trid, pos)
+        if key not in seen:
+            seen.add(key)
+            vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
 CODE
         
         tabix -p vcf ~{prefix}.vcf.gz
