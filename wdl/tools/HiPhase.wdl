@@ -16,7 +16,7 @@ workflow HiPhase {
         Array[String] contigs
         String prefix
 
-        String hiphase_extra_args
+        String? hiphase_extra_args
 
         File ref_fa
         File ref_fai
@@ -258,15 +258,14 @@ task HiPhase {
     input {
         File bam
         File bai
-
         File unphased_snp_vcf
         File unphased_snp_idx
         File unphased_sv_vcf
         File unphased_sv_idx
+        String? extra_args
         File ref_fa
         File ref_fai
         String prefix
-        String extra_args
         RuntimeAttr? runtime_attr_override
     }
 
@@ -300,7 +299,7 @@ task HiPhase {
             --blocks-file ~{prefix}.blocks.tsv \
             --summary-file ~{prefix}.summary.tsv \
             --verbose \
-            ~{extra_args}
+            ~{if defined(extra_args) then extra_args else ""}
     >>>
 
     output {
@@ -329,17 +328,16 @@ task HiPhaseTRGT {
     input {
         File bam
         File bai
-
         File unphased_snp_vcf
         File unphased_snp_idx
         File unphased_sv_vcf
         File unphased_sv_idx
         File unphased_trgt_vcf
         File unphased_trgt_idx
+        String? extra_args
         File ref_fa
         File ref_fai
         String prefix
-        String extra_args
         RuntimeAttr? runtime_attr_override
     }
     RuntimeAttr default_attr = object {
@@ -374,7 +372,7 @@ task HiPhaseTRGT {
             --blocks-file ~{prefix}.blocks.tsv \
             --summary-file ~{prefix}.summary.tsv \
             --verbose \
-            ~{extra_args}
+            ~{if defined(extra_args) then extra_args else ""}
     >>>
 
     output {
