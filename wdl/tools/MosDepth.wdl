@@ -62,36 +62,36 @@ workflow MosDepth {
     }
 
     output {
-        File aligned_np_hist = ReadMetrics.np_hist
-        File aligned_range_gap_hist = ReadMetrics.range_gap_hist
-        File aligned_zmw_hist = ReadMetrics.zmw_hist
-        File aligned_prl_counts = ReadMetrics.prl_counts
-        File aligned_prl_hist = ReadMetrics.prl_hist
-        File aligned_prl_nx = ReadMetrics.prl_nx
-        File aligned_prl_yield_hist = ReadMetrics.prl_yield_hist
-        File aligned_rl_counts = ReadMetrics.rl_counts
-        File aligned_rl_hist = ReadMetrics.rl_hist
-        File aligned_rl_nx = ReadMetrics.rl_nx
-        File aligned_rl_yield_hist = ReadMetrics.rl_yield_hist
-        File raw_chr_intervals = MakeChrIntervalList.raw_chrs
+        File mosdepth_np_hist = ReadMetrics.np_hist
+        File mosdepth_range_gap_hist = ReadMetrics.range_gap_hist
+        File mosdepth_zmw_hist = ReadMetrics.zmw_hist
+        File mosdepth_prl_counts = ReadMetrics.prl_counts
+        File mosdepth_prl_hist = ReadMetrics.prl_hist
+        File mosdepth_prl_nx = ReadMetrics.prl_nx
+        File mosdepth_prl_yield_hist = ReadMetrics.prl_yield_hist
+        File mosdepth_rl_counts = ReadMetrics.rl_counts
+        File mosdepth_rl_hist = ReadMetrics.rl_hist
+        File mosdepth_rl_nx = ReadMetrics.rl_nx
+        File mosdepth_rl_yield_hist = ReadMetrics.rl_yield_hist
+        File mosdepth_raw_chr_intervals = MakeChrIntervalList.raw_chrs
 
-        Array[File] coverage_dist = RunMosDepth.dist
-        Array[File] coverage_summary = RunMosDepth.summary
-        Array[File] coverage_per_base = RunMosDepth.per_base
-        Array[File] coverage_per_base_csi = RunMosDepth.per_base_csi
-        Array[File] coverage_regions = RunMosDepth.regions
-        Array[File] coverage_regions_csi = RunMosDepth.regions_csi
-        Array[File] coverage_quantized_dist = RunMosDepth.quantized_dist
-        Array[File] coverage_quantized_summary = RunMosDepth.quantized_summary
-        Array[File] coverage_quantized_per_base  = RunMosDepth.quantized_per_base
-        Array[File] coverage_quantized_per_base_csi = RunMosDepth.quantized_per_base_csi
-        Array[File] coverage_quantized_regions = RunMosDepth.quantized_regions
-        Array[File] coverage_quantized_regions_csi = RunMosDepth.quantized_regions_csi
-        Array[File] coverage_quantized_bed = RunMosDepth.quantized_bed
-        Array[File] coverage_quantized_bed_csi = RunMosDepth.quantized_bed_csi
+        Array[File] mosdepth_dist = RunMosDepth.dist
+        Array[File] mosdepth_summary = RunMosDepth.summary
+        Array[File] mosdepth_per_base = RunMosDepth.per_base
+        Array[File] mosdepth_per_base_csi = RunMosDepth.per_base_csi
+        Array[File] mosdepth_regions = RunMosDepth.regions
+        Array[File] mosdepth_regions_csi = RunMosDepth.regions_csi
+        Array[File] mosdepth_quantized_dist = RunMosDepth.quantized_dist
+        Array[File] mosdepth_quantized_summary = RunMosDepth.quantized_summary
+        Array[File] mosdepth_quantized_per_base  = RunMosDepth.quantized_per_base
+        Array[File] mosdepth_quantized_per_base_csi = RunMosDepth.quantized_per_base_csi
+        Array[File] mosdepth_quantized_regions = RunMosDepth.quantized_regions
+        Array[File] mosdepth_quantized_regions_csi = RunMosDepth.quantized_regions_csi
+        Array[File] mosdepth_quantized_bed = RunMosDepth.quantized_bed
+        Array[File] mosdepth_quantized_bed_csi = RunMosDepth.quantized_bed_csi
 
-        Array[File] summarized_coverage = SummarizeDepth.cov_summary
-        File aligned_flag_stats = FlagStats.flag_stats
+        Array[File] mosdepth_summarized_coverage = SummarizeDepth.cov_summary
+        File mosdepth_flag_stats = FlagStats.flag_stats
     }
 }
 
