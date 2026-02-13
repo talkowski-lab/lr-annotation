@@ -368,12 +368,12 @@ task AnnotateDup {
                 }
                 
                 if ($7 != "" && $7 != "." && length($7) > 0) {
-                    source = $7
+                    origin = $7
                 } else {
-                    source = $8
+                    origin = $8
                 }
                 
-                print $1, $2, $3, $4, $5, $6, source
+                print $1, $2, $3, $4, $5, $6, origin
             }
         ' "~{dup_tsv}" > "dup_modified.tsv"
         

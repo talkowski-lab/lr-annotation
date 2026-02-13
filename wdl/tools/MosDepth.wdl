@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
 
-workflow AlignedMetrics {
+workflow MosDepth {
     input {
         File bam
         File bai
@@ -16,13 +16,13 @@ workflow AlignedMetrics {
 
         RuntimeAttr? runtime_attr_read_metrics
         RuntimeAttr? runtime_attr_make_chr_interval_list
-        RuntimeAttr? runtime_attr_mosdepth
+        RuntimeAttr? runtime_attr_run_mosdepth
         RuntimeAttr? runtime_attr_summarize_depth
         RuntimeAttr? runtime_attr_flag_stats
         RuntimeAttr? runtime_attr_finalize
     }
 
-    call ReadMetrics as AlignedReadMetrics {
+    call ReadMetrics {
         input:
             bam = bam,
             prefix = prefix + ".read_metrics",
@@ -37,27 +37,27 @@ workflow AlignedMetrics {
     }
 
     scatter (chr_info in MakeChrIntervalList.chrs) {
-        call MosDepth {
+        call RunMosDepth {
             input:
                 bam = bam,
                 bai = bai,
                 chr = chr_info[0],
                 prefix = "~{prefix}.~{chr_info[0]}.coverage",
-                runtime_attr_override = runtime_attr_mosdepth
+                runtime_attr_override = runtime_attr_run_mosdepth
         }
 
         call SummarizeDepth {
             input:
-                regions = MosDepth.regions,
+                regions = RunMosDepth.regions,
                 prefix = "~{prefix}.~{chr_info[0]}.coverage_summary",
                 runtime_attr_override = runtime_attr_summarize_depth
         }
     }
 
-    call FlagStats as AlignedFlagStats {
+    call FlagStats {
         input:
             bam = bam,
-            prefix = prefix + ".flag_stats",
+            prefix = "~{prefix}.flag_stats",
             runtime_attr_override = runtime_attr_flag_stats
     }
 
@@ -66,109 +66,109 @@ workflow AlignedMetrics {
 
         call Helpers.FinalizeToDir as FFYieldAligned {
             input:
-                outdir = outdir + "/yield_aligned/",
+                outdir = "~{outdir}/yield_aligned/",
                 files = [
-                    AlignedFlagStats.flag_stats,
-                    AlignedReadMetrics.np_hist,
-                    AlignedReadMetrics.range_gap_hist,
-                    AlignedReadMetrics.zmw_hist,
-                    AlignedReadMetrics.prl_counts,
-                    AlignedReadMetrics.prl_hist,
-                    AlignedReadMetrics.prl_nx,
-                    AlignedReadMetrics.prl_yield_hist,
-                    AlignedReadMetrics.rl_counts,
-                    AlignedReadMetrics.rl_hist,
-                    AlignedReadMetrics.rl_nx,
-                    AlignedReadMetrics.rl_yield_hist
+                    FlagStats.flag_stats,
+                    ReadMetrics.np_hist,
+                    ReadMetrics.range_gap_hist,
+                    ReadMetrics.zmw_hist,
+                    ReadMetrics.prl_counts,
+                    ReadMetrics.prl_hist,
+                    ReadMetrics.prl_nx,
+                    ReadMetrics.prl_yield_hist,
+                    ReadMetrics.rl_counts,
+                    ReadMetrics.rl_hist,
+                    ReadMetrics.rl_nx,
+                    ReadMetrics.rl_yield_hist
                 ],
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageFullDist {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.full_dist,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.full_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageGlobalDist {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.global_dist,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.global_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageRegionDist {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.region_dist,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.region_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageRegions {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.regions,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.regions,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageRegionsCsi {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.regions_csi,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.regions_csi,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageQuantizedDist {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.quantized_dist,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.quantized_dist,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFCoverageQuantized {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.quantized,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.quantized,
                 runtime_attr_override = runtime_attr_finalize
         }
         
         call Helpers.FinalizeToDir as FFCoverageQuantizedCsi {
             input:
-                outdir = outdir + "/coverage/",
-                files = MosDepth.quantized_csi,
+                outdir = "~{outdir}/coverage/",
+                files = RunMosDepth.quantized_csi,
                 runtime_attr_override = runtime_attr_finalize
         }
 
         call Helpers.FinalizeToDir as FFDepthSummaries {
             input:
-                outdir = outdir + "/coverage_summaries/",
+                outdir = "~{outdir}/coverage_summaries/",
                 files = SummarizeDepth.cov_summary,
                 runtime_attr_override = runtime_attr_finalize
         }
     }
 
     output {
-        File aligned_flag_stats = AlignedFlagStats.flag_stats
-        Array[File] coverage_full_dist = MosDepth.full_dist
-        Array[File] coverage_global_dist = MosDepth.global_dist
-        Array[File] coverage_region_dist = MosDepth.region_dist
-        Array[File] coverage_regions = MosDepth.regions
-        Array[File] coverage_regions_csi = MosDepth.regions_csi
-        Array[File] coverage_quantized_dist = MosDepth.quantized_dist
-        Array[File] coverage_quantized = MosDepth.quantized
-        Array[File] coverage_quantized_csi  = MosDepth.quantized_csi
-        File aligned_np_hist = AlignedReadMetrics.np_hist
-        File aligned_range_gap_hist = AlignedReadMetrics.range_gap_hist
-        File aligned_zmw_hist = AlignedReadMetrics.zmw_hist
-        File aligned_prl_counts = AlignedReadMetrics.prl_counts
-        File aligned_prl_hist = AlignedReadMetrics.prl_hist
-        File aligned_prl_nx = AlignedReadMetrics.prl_nx
-        File aligned_prl_yield_hist = AlignedReadMetrics.prl_yield_hist
-        File aligned_rl_counts = AlignedReadMetrics.rl_counts
-        File aligned_rl_hist = AlignedReadMetrics.rl_hist
-        File aligned_rl_nx = AlignedReadMetrics.rl_nx
-        File aligned_rl_yield_hist = AlignedReadMetrics.rl_yield_hist
+        File aligned_flag_stats = FlagStats.flag_stats
+        Array[File] coverage_full_dist = RunMosDepth.full_dist
+        Array[File] coverage_global_dist = RunMosDepth.global_dist
+        Array[File] coverage_region_dist = RunMosDepth.region_dist
+        Array[File] coverage_regions = RunMosDepth.regions
+        Array[File] coverage_regions_csi = RunMosDepth.regions_csi
+        Array[File] coverage_quantized_dist = RunMosDepth.quantized_dist
+        Array[File] coverage_quantized = RunMosDepth.quantized
+        Array[File] coverage_quantized_csi  = RunMosDepth.quantized_csi
+        File aligned_np_hist = ReadMetrics.np_hist
+        File aligned_range_gap_hist = ReadMetrics.range_gap_hist
+        File aligned_zmw_hist = ReadMetrics.zmw_hist
+        File aligned_prl_counts = ReadMetrics.prl_counts
+        File aligned_prl_hist = ReadMetrics.prl_hist
+        File aligned_prl_nx = ReadMetrics.prl_nx
+        File aligned_prl_yield_hist = ReadMetrics.prl_yield_hist
+        File aligned_rl_counts = ReadMetrics.rl_counts
+        File aligned_rl_hist = ReadMetrics.rl_hist
+        File aligned_rl_nx = ReadMetrics.rl_nx
+        File aligned_rl_yield_hist = ReadMetrics.rl_yield_hist
         File raw_chr_intervals = MakeChrIntervalList.raw_chrs
     }
 }
@@ -215,7 +215,7 @@ task MakeChrIntervalList {
     }
 }
 
-task MosDepth {
+task RunMosDepth {
     input {
         File bam
         File bai
@@ -354,7 +354,7 @@ task FlagStats {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: ceil(size(bam, "GB")),
+        disk_gb: 2 * ceil(size(bam, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
