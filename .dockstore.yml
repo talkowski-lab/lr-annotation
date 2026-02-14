@@ -181,8 +181,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: ExtractRegionFromBAM-KJ
-    primaryDescriptorPath: /wdl/tools/ExtractRegionFromBAM-KJ.wdl
+    name: ExtractRegionFromBamKJ
+    primaryDescriptorPath: /wdl/tools/ExtractRegionFromBAMKJ.wdl
     filters:
       branches:
         - main
