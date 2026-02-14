@@ -2,7 +2,7 @@ version 1.0
 
 import "Structs.wdl"
 
-workflow ExtractRegionFromBamKJ {
+workflow ExtractRegionKJ {
     input {
         Array[File] bam_list
         Array[File] bai_list
