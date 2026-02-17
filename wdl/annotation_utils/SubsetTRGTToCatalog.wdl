@@ -82,15 +82,22 @@ task ExtractCatalogForContig {
                 $1 == contig {
                     start_pos = $2;
                     n = split($4, fields, ";");
+                    found_id = 0;
                     for (i = 1; i <= n; i++) {
                         if (fields[i] ~ /^ID=/) {
                             sub(/^ID=/, "", fields[i]);
                             print fields[i] "\t" start_pos;
+                            found_id = 1;
                             break;
                         }
                     }
+                    if (!found_id) {
+                        print "WARNING: No ID found for " contig ":" start_pos > "/dev/stderr";
+                    }
                 }
             ' > ~{prefix}.txt
+        
+        echo "Extracted $(wc -l < ~{prefix}.txt) catalog entries for ~{contig}" >&2
     >>>
     
     output {
@@ -145,9 +152,7 @@ with open('~{catalog_ids}', 'r') as f:
 seen = set()
 vcf_in = pysam.VariantFile('~{vcf}')
 vcf_out = pysam.VariantFile('~{prefix}.vcf.gz', 'wz', header=vcf_in.header)
-
 for record in vcf_in:
-    # Parse POS and TRID from VCF record
     pos = str(record.pos)
     trid_val = record.info.get('TRID')
     if isinstance(trid_val, tuple):
@@ -155,7 +160,6 @@ for record in vcf_in:
     else:
         trid = trid_val
     
-    # Check if (TRID, POS) pair exists in catalog
     if trid and (trid, pos) in catalog:
         key = (trid, pos)
         if key not in seen:

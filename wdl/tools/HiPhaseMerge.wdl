@@ -11,6 +11,8 @@ workflow HiPhaseMerge {
         Array[String] contigs
         String prefix
 
+        Boolean merge_trgt
+
         String merge_args = "--merge id"
 
         File ref_fa
@@ -28,42 +30,44 @@ workflow HiPhaseMerge {
         RuntimeAttr? runtime_attr_concat_integrated
     }
 
-    scatter (i in range(length(phased_vcfs))) {
-        call Helpers.SubsetVcfByArgs as SubsetIntegrated {
-            input:
-                vcf = phased_vcfs[i],
-                vcf_idx = phased_vcf_idxs[i],
-                include_args = 'INFO/TRID = "."',
-                prefix = "~{prefix}.~{i}.integrated",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_integrated
-        }
+    if (merge_trgt) {
+        scatter (i in range(length(phased_vcfs))) {
+            call Helpers.SubsetVcfByArgs as SubsetIntegrated {
+                input:
+                    vcf = phased_vcfs[i],
+                    vcf_idx = phased_vcf_idxs[i],
+                    include_args = 'INFO/TRID = "."',
+                    prefix = "~{prefix}.~{i}.integrated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_integrated
+            }
 
-        call Helpers.SubsetVcfByArgs as SubsetTRGT {
-            input:
-                vcf = phased_vcfs[i],
-                vcf_idx = phased_vcf_idxs[i],
-                include_args = 'INFO/TRID != "."',
-                prefix = "~{prefix}.~{i}.trgt",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_trgt
-        }
+            call Helpers.SubsetVcfByArgs as SubsetTRGT {
+                input:
+                    vcf = phased_vcfs[i],
+                    vcf_idx = phased_vcf_idxs[i],
+                    include_args = 'INFO/TRID != "."',
+                    prefix = "~{prefix}.~{i}.trgt",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_trgt
+            }
 
-        call FixALHeader {
-            input:
-                vcf = SubsetTRGT.subset_vcf,
-                vcf_idx = SubsetTRGT.subset_vcf_idx,
-                prefix = "~{prefix}.~{i}.trgt.fixed_al",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_fix_al_header
+            call FixALHeader {
+                input:
+                    vcf = SubsetTRGT.subset_vcf,
+                    vcf_idx = SubsetTRGT.subset_vcf_idx,
+                    prefix = "~{prefix}.~{i}.trgt.fixed_al",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_fix_al_header
+            }
         }
     }
 
     scatter (contig in contigs) {
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
             input:
-                vcfs = SubsetIntegrated.subset_vcf,
-                vcf_idxs = SubsetIntegrated.subset_vcf_idx,
+                vcfs = select_first([SubsetIntegrated.subset_vcf, phased_vcfs]),
+                vcf_idxs = select_first([SubsetIntegrated.subset_vcf_idx, phased_vcf_idxs]),
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
                 extra_args = merge_args,
@@ -71,16 +75,18 @@ workflow HiPhaseMerge {
                 runtime_attr_override = runtime_attr_merge_integrated
         }
 
-        call TRGTMerge.TRGTMergeContig as MergeTRGTVcfs {
-            input:
-                vcfs = FixALHeader.fixed_vcf,
-                vcf_idxs = FixALHeader.fixed_vcf_idx,
-                prefix = "~{prefix}.~{contig}.trgt",
-                contig = contig,
-                ref_fa = ref_fa,
-                ref_fai = ref_fai,
-                docker = trgt_docker,
-                runtime_attr_override = runtime_attr_merge_trgt
+        if (merge_trgt) {
+            call TRGTMerge.TRGTMergeContig as MergeTRGTVcfs {
+                input:
+                    vcfs = select_first([FixALHeader.fixed_vcf]),
+                    vcf_idxs = select_first([FixALHeader.fixed_vcf_idx]),
+                    prefix = "~{prefix}.~{contig}.trgt",
+                    contig = contig,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    docker = trgt_docker,
+                    runtime_attr_override = runtime_attr_merge_trgt
+            }
         }
     }
 
@@ -93,20 +99,22 @@ workflow HiPhaseMerge {
             runtime_attr_override = runtime_attr_concat_integrated
     }
 
-    call Helpers.ConcatVcfs as ConcatTRGTVcfs {
-        input:
-            vcfs = MergeTRGTVcfs.merged_vcf,
-            vcf_idxs = MergeTRGTVcfs.merged_vcf_idx,
-            prefix = "~{prefix}.trgt",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_trgt
+    if (merge_trgt) {
+        call Helpers.ConcatVcfs as ConcatTRGTVcfs {
+            input:
+                vcfs = select_all(MergeTRGTVcfs.merged_vcf),
+                vcf_idxs = select_all(MergeTRGTVcfs.merged_vcf_idx),
+                prefix = "~{prefix}.trgt",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_trgt
+        }
     }
 
     output {
         File hiphase_merged_integrated_vcf = ConcatIntegratedVcfs.concat_vcf
         File hiphase_merged_integrated_vcf_idx = ConcatIntegratedVcfs.concat_vcf_idx
-        File hiphase_merged_trgt_vcf = ConcatTRGTVcfs.concat_vcf
-        File hiphase_merged_trgt_vcf_idx = ConcatTRGTVcfs.concat_vcf_idx
+        File? hiphase_merged_trgt_vcf = ConcatTRGTVcfs.concat_vcf
+        File? hiphase_merged_trgt_vcf_idx = ConcatTRGTVcfs.concat_vcf_idx
     }
 }
 

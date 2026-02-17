@@ -292,7 +292,7 @@ task SubsetVcfToRegion {
         set -euo pipefail
 
         bcftools view \
-            --regions ~{region} \
+            -r ~{region} \
             -Oz -o ~{prefix}.vcf.gz \
             ~{vcf}
         
