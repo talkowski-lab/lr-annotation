@@ -21,13 +21,14 @@ workflow HiPhase {
         File ref_fa
         File ref_fai
 
-        String sv_base_mini_docker
-        String sv_pipeline_base_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_preprocess_vcf
+        RuntimeAttr? runtime_attr_subset_vcf_short
+        RuntimeAttr? runtime_attr_subset_vcf_sv
+        RuntimeAttr? runtime_attr_subset_vcf_trgt
         RuntimeAttr? runtime_attr_sync_contigs
         RuntimeAttr? runtime_attr_hiphase
-        RuntimeAttr? runtime_attr_hiphase_trgt
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -46,7 +47,8 @@ workflow HiPhase {
                 vcf_idx = small_vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.short",
-                docker = sv_pipeline_base_docker
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_vcf_short
         }
 
         call Helpers.SubsetVcfToContig as SubsetVcfSv {
@@ -55,7 +57,8 @@ workflow HiPhase {
                 vcf_idx = PreprocessVCF.preprocessed_vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.sv",
-                docker = sv_pipeline_base_docker
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_vcf_sv
         }
 
         call SyncContigs {
@@ -65,7 +68,7 @@ workflow HiPhase {
                 sv_vcf = SubsetVcfSv.subset_vcf,
                 sv_vcf_idx = SubsetVcfSv.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.synced",
-                docker = sv_pipeline_base_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_sync_contigs
         }
 
@@ -76,7 +79,8 @@ workflow HiPhase {
                     vcf_idx = select_first([trgt_vcf_idx]),
                     contig = contig,
                     prefix = "~{prefix}.~{contig}.trgt",
-                    docker = sv_pipeline_base_docker
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf_trgt
             }
 
             call HiPhaseTRGT { 
@@ -91,17 +95,17 @@ workflow HiPhase {
                     unphased_trgt_idx = SubsetVcfTRGT.subset_vcf_idx,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
-                    prefix = prefix,
+                    prefix = "~{prefix}.~{contig}.phased",
                     extra_args = hiphase_extra_args,
-                    runtime_attr_override = runtime_attr_hiphase_trgt
+                    runtime_attr_override = runtime_attr_hiphase
             }
 
             call Helpers.ConcatVcfsLR as ConcatWithTRGT {
                 input:
                     vcfs = [HiPhaseTRGT.phased_snp_vcf, HiPhaseTRGT.phased_sv_vcf, HiPhaseTRGT.phased_trgt_vcf],
                     vcf_idxs = [HiPhaseTRGT.phased_snp_vcf_idx, HiPhaseTRGT.phased_sv_vcf_idx, HiPhaseTRGT.phased_trgt_vcf_idx],
-                    prefix = "~{prefix}.~{contig}.hiphased",
-                    sv_base_mini_docker = sv_base_mini_docker,
+                    prefix = "~{prefix}.~{contig}.concat",
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat
             }
         }
@@ -117,7 +121,7 @@ workflow HiPhase {
                     unphased_snp_idx = SubsetVcfShort.subset_vcf_idx,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
-                    prefix = prefix,
+                    prefix = "~{prefix}.~{contig}.phased",
                     extra_args = hiphase_extra_args,
                     runtime_attr_override = runtime_attr_hiphase
             }
@@ -126,8 +130,8 @@ workflow HiPhase {
                 input:
                     vcfs = [HiPhase.phased_snp_vcf, HiPhase.phased_sv_vcf],
                     vcf_idxs = [HiPhase.phased_snp_vcf_idx, HiPhase.phased_sv_vcf_idx],
-                    prefix = "~{prefix}.~{contig}.hiphased",
-                    sv_base_mini_docker = sv_base_mini_docker,
+                    prefix = "~{prefix}.~{contig}.concat",
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat
             }
         }
@@ -138,7 +142,7 @@ workflow HiPhase {
             vcfs = select_all(flatten([ConcatWithTRGT.concat_vcf, ConcatWithoutTRGT.concat_vcf])),
             vcf_idxs = select_all(flatten([ConcatWithTRGT.concat_vcf_idx, ConcatWithoutTRGT.concat_vcf_idx])),
             prefix = "~{prefix}.phased",
-            sv_base_mini_docker = sv_base_mini_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
@@ -173,8 +177,6 @@ task PreprocessVCF {
 
         bcftools +setGT ~{prefix}.uppercase.vcf.gz --no-version -Oz -o ~{prefix}.vcf.gz -- --target-gt a --new-gt u
         bcftools index -t ~{prefix}.vcf.gz
-
-        ls -l
     >>>
 
     output {
@@ -188,8 +190,7 @@ task PreprocessVCF {
         disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "hangsuunc/cleanvcf:v1"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -197,9 +198,9 @@ task PreprocessVCF {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "hangsuunc/cleanvcf:v1"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -275,8 +276,7 @@ task HiPhase {
         disk_gb: 2 * ceil(size(bam, "GB")) + 50,
         boot_disk_gb: 100,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
@@ -316,9 +316,9 @@ task HiPhase {
         memory: 12 + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -345,8 +345,7 @@ task HiPhaseTRGT {
         disk_gb: 2 * ceil(size(bam, "GB")) + 50,
         boot_disk_gb: 100,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 
@@ -390,8 +389,8 @@ task HiPhaseTRGT {
         memory: 12 + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }

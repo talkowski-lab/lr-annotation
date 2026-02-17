@@ -525,17 +525,17 @@ task ConcatVcfs {
     >>>
 
     output {
-            File concat_vcf = "~{prefix}.vcf.gz"
-            File concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File concat_vcf = "~{prefix}.vcf.gz"
+        File concat_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
+        cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
-        cpu_cores: 1,
+        boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -555,22 +555,17 @@ task ConcatVcfsLR {
         Array[File] vcf_idxs
         Boolean remove_dup = true
         String prefix
-        String sv_base_mini_docker
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
-    Float input_size = size(vcfs, "GB")
-    Float compression_factor = 10.0
-    Float base_disk_gb = 20.0
-    Float base_mem_gb = 10.0
-
     RuntimeAttr runtime_default = object {
-        mem_gb: base_mem_gb + compression_factor * input_size,
-        disk_gb: ceil(base_disk_gb + input_size * (2.0 + compression_factor)),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
-        boot_disk_gb: 10
+        mem_gb: 8,
+        disk_gb: 10 * ceil(size(vcfs)) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
     }
     RuntimeAttr runtime_override = select_first([runtime_attr_override, runtime_default])
     runtime {

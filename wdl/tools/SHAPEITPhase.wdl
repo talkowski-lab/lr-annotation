@@ -264,8 +264,7 @@ task CreateShards {
         disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -273,9 +272,9 @@ task CreateShards {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -310,8 +309,7 @@ task SubsetVcfToRegion {
         disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -319,9 +317,9 @@ task SubsetVcfToRegion {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -358,8 +356,7 @@ task SplitAndFilterVcf {
         disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -367,9 +364,9 @@ task SplitAndFilterVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -420,8 +417,7 @@ task FixVariantCollisions {
         disk_gb: 5 * ceil(size(phased_vcf, "GiB")) + 100,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-gatk/gatk:4.6.0.0"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -429,9 +425,9 @@ task FixVariantCollisions {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-gatk/gatk:4.6.0.0"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -472,8 +468,7 @@ task CreateShapeitChunks {
         disk_gb: 2 * ceil(size([vcf, vcf_idx], "GiB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -481,9 +476,9 @@ task CreateShapeitChunks {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.11"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -520,8 +515,7 @@ task FilterCommon {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -529,9 +523,9 @@ task FilterCommon {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -571,8 +565,7 @@ task Shapeit4 {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit4:v1"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -580,9 +573,9 @@ task Shapeit4 {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit4:v1"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -622,8 +615,7 @@ task LigateVcfs {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "hangsuunc/shapeit5:v1"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -631,9 +623,9 @@ task LigateVcfs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "hangsuunc/shapeit5:v1"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -686,8 +678,7 @@ task Shapeit5Rare {
         disk_gb: disk_gb,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit5:develop"
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -695,8 +686,8 @@ task Shapeit5Rare {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/shapeit5:develop"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
