@@ -10,6 +10,7 @@ workflow MosDepth {
         String prefix
 
         File ref_dict
+        Boolean quantize_mode
 
         RuntimeAttr? runtime_attr_read_metrics
         RuntimeAttr? runtime_attr_make_chr_interval_list
@@ -45,6 +46,7 @@ workflow MosDepth {
                 bai = bai,
                 chr = chr_info[0],
                 prefix = "~{prefix}.~{chr_info[0]}.coverage",
+                quantize_mode = quantize_mode,
                 runtime_attr_override = runtime_attr_run_mosdepth
         }
     }
@@ -68,12 +70,8 @@ workflow MosDepth {
         Array[File] mosdepth_summary = RunMosDepth.summary
         Array[File] mosdepth_per_base = RunMosDepth.per_base
         Array[File] mosdepth_per_base_csi = RunMosDepth.per_base_csi
-        Array[File] mosdepth_quantized_dist = RunMosDepth.quantized_dist
-        Array[File] mosdepth_quantized_summary = RunMosDepth.quantized_summary
-        Array[File] mosdepth_quantized_per_base  = RunMosDepth.quantized_per_base
-        Array[File] mosdepth_quantized_per_base_csi = RunMosDepth.quantized_per_base_csi
-        Array[File] mosdepth_quantized_bed = RunMosDepth.quantized_bed
-        Array[File] mosdepth_quantized_bed_csi = RunMosDepth.quantized_bed_csi
+        Array[File] mosdepth_quantized_bed = select_all(RunMosDepth.quantized_bed)
+        Array[File] mosdepth_quantized_bed_csi = select_all(RunMosDepth.quantized_bed_csi)
     }
 }
 
@@ -175,33 +173,36 @@ task RunMosDepth {
         File bai
         String chr
         String prefix
+        Boolean quantize_mode
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euo pipefail
 
-        mosdepth \
-            -t 4 \
-            -c "~{chr}" \
-            -Q 1 \
-            -x \
-            ~{prefix} \
-            ~{bam}
+        if [ "~{quantize_mode}" == "true" ]; then
+            export MOSDEPTH_Q0=NO_COVERAGE   # 0 -- defined by the arguments to --quantize
+            export MOSDEPTH_Q1=LOW_COVERAGE  # 1..4
+            export MOSDEPTH_Q2=CALLABLE      # 5..149
+            export MOSDEPTH_Q3=HIGH_COVERAGE # 150 ...
 
-        export MOSDEPTH_Q0=NO_COVERAGE   # 0 -- defined by the arguments to --quantize
-        export MOSDEPTH_Q1=LOW_COVERAGE  # 1..4
-        export MOSDEPTH_Q2=CALLABLE      # 5..149
-        export MOSDEPTH_Q3=HIGH_COVERAGE # 150 ...
-
-        mosdepth \
-            -t 4 \
-            -c "~{chr}" \
-            -Q 1 \
-            -x \
-            --quantize 0:1:5:150: \
-            ~{prefix}.quantized \
-            ~{bam}
+            mosdepth \
+                -t 4 \
+                -c "~{chr}" \
+                -Q 1 \
+                -x \
+                --quantize 0:1:5:150: \
+                ~{prefix} \
+                ~{bam}
+        else
+            mosdepth \
+                -t 4 \
+                -c "~{chr}" \
+                -Q 1 \
+                -x \
+                ~{prefix} \
+                ~{bam}
+        fi
     >>>
 
     output {
@@ -209,12 +210,8 @@ task RunMosDepth {
         File summary = "~{prefix}.mosdepth.summary.txt"
         File per_base = "~{prefix}.per-base.bed.gz"
         File per_base_csi = "~{prefix}.per-base.bed.gz.csi"
-        File quantized_dist = "~{prefix}.quantized.mosdepth.global.dist.txt"
-        File quantized_summary = "~{prefix}.quantized.mosdepth.summary.txt"
-        File quantized_per_base = "~{prefix}.quantized.per-base.bed.gz"
-        File quantized_per_base_csi = "~{prefix}.quantized.per-base.bed.gz.csi"
-        File quantized_bed = "~{prefix}.quantized.quantized.bed.gz"
-        File quantized_bed_csi = "~{prefix}.quantized.quantized.bed.gz.csi"
+        File? quantized_bed = "~{prefix}.quantized.bed.gz"
+        File? quantized_bed_csi = "~{prefix}.quantized.bed.gz.csi"
     }
 
     RuntimeAttr default_attr = object {
