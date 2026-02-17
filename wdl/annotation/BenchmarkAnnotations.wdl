@@ -617,7 +617,7 @@ task ComputeShardBenchmarks {
                 --eval_vep_header ~{eval_vep_header} \
                 --truth_vep_header ~{truth_vep_header} \
                 --shard_label ~{shard_label} \
-                ~{"--skip_vep_categories " + skip_vep_categories}
+                ~{if defined(skip_vep_categories) then "--skip_vep_categories " + skip_vep_categories else ""}
         fi
     >>>
 
