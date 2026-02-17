@@ -45,13 +45,12 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_rename_eval
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
-        RuntimeAttr? runtime_attr_exact_match
 
+        RuntimeAttr? runtime_attr_exact_match
         RuntimeAttr? runtime_attr_truvari_subset_eval
         RuntimeAttr? runtime_attr_truvari_subset_truth
         RuntimeAttr? runtime_attr_truvari_run_truvari
         RuntimeAttr? runtime_attr_truvari_concat_matched
-
         RuntimeAttr? runtime_attr_bedtools_subset_eval
         RuntimeAttr? runtime_attr_bedtools_subset_truth
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic

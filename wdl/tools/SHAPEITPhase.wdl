@@ -498,9 +498,15 @@ task FilterCommon {
         set -euo pipefail
 
         # filter to common
-        bcftools +fill-tags -r ~{region} ~{vcf} -- -t AF,AC,AN | \
-            bcftools view ~{filter_common_args} \
-                -Ob -o ~{prefix}.common.bcf
+        bcftools +fill-tags \
+            -r ~{region} \
+            ~{vcf} \
+            -- \
+            -t AF,AC,AN \
+        | bcftools view \
+            ~{filter_common_args} \
+            -Ob -o ~{prefix}.common.bcf
+        
         bcftools index ~{prefix}.common.bcf
     >>>
 
@@ -545,12 +551,14 @@ task Shapeit4 {
     command <<<
         set -euo pipefail
 
-        shapeit4.2 --input ~{vcf} \
-                --map ~{genetic_map} \
-                --region ~{region} \
-                --sequencing \
-                --output ~{prefix}.bcf \
-                ~{extra_args}
+        shapeit4.2 \
+            --input ~{vcf} \
+            --map ~{genetic_map} \
+            --region ~{region} \
+            --sequencing \
+            --output ~{prefix}.bcf \
+            ~{extra_args}
+        
         bcftools index ~{prefix}.bcf
     >>>
 
