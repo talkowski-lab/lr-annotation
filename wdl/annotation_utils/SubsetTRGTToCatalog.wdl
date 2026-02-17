@@ -5,8 +5,8 @@ import "../utils/Structs.wdl"
 
 workflow SubsetTRGTToCatalog {
     input {
-        File trgt_merged_vcf
-        File trgt_merged_vcf_idx
+        File trgt_full_merged_vcf
+        File trgt_full_merged_vcf_idx
         File trgt_catalog_bed_gz
         Array[String] contigs
         String prefix
@@ -31,8 +31,8 @@ workflow SubsetTRGTToCatalog {
         
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
-                vcf = trgt_merged_vcf,
-                vcf_idx = trgt_merged_vcf_idx,
+                vcf = trgt_full_merged_vcf,
+                vcf_idx = trgt_full_merged_vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
@@ -60,8 +60,8 @@ workflow SubsetTRGTToCatalog {
     }
     
     output {
-        File catalog_subset_vcf = ConcatVcfs.concat_vcf
-        File catalog_subset_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File trgt_merged_vcf = ConcatVcfs.concat_vcf
+        File trgt_merged_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
