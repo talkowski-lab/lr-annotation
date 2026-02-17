@@ -140,31 +140,28 @@ task FilterToCatalog {
         python3 <<CODE
 import pysam
 
-# Parse ID and POS from catalog
+# Parse catalog
 catalog = set()
 with open('~{catalog_ids}', 'r') as f:
     for line in f:
         parts = line.strip().split('\t')
         if len(parts) >= 2:
-            catalog.add((parts[0], parts[1]))
+            catalog.add((str(parts[0]), str(parts[1])))
 
 # Process VCF
 seen = set()
 vcf_in = pysam.VariantFile('~{vcf}')
 vcf_out = pysam.VariantFile('~{prefix}.vcf.gz', 'wz', header=vcf_in.header)
 for record in vcf_in:
-    pos = str(record.pos)
-    trid_val = record.info.get('TRID')
-    if isinstance(trid_val, tuple):
-        trid = trid_val[0]
-    else:
-        trid = trid_val
+    pos = record.pos
+    trid = record.info.get('TRID')
+    if isinstance(trid, tuple):
+        trid = ','.join(trid)
+    key = (str(trid), str(pos))
     
-    if trid and (trid, pos) in catalog:
-        key = (trid, pos)
-        if key not in seen:
-            seen.add(key)
-            vcf_out.write(record)
+    if key in catalog and key not in seen:
+        seen.add(key)
+        vcf_out.write(record)
 
 vcf_in.close()
 vcf_out.close()
