@@ -315,7 +315,7 @@ task HiPhase {
 
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: 8 + " GiB"
+        memory: 12 + " GiB"
         disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
