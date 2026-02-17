@@ -10,10 +10,15 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth
         File vcf_sv_truth_idx
         String prefix
+
+        Int min_sv_length_eval
+        Int min_sv_length_truth
         
         String benchmark_annotations_docker
         String utils_docker
         
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
         RuntimeAttr? runtime_attr_split_truth
@@ -23,10 +28,31 @@ workflow BedtoolsClosestSV {
     }
 
     # Preprocessing
-    call Helpers.ConvertToSymbolic {
+    call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
+            min_length = min_sv_length_eval,
+            prefix = "~{prefix}.subset_eval",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_eval
+    }
+
+    call Helpers.SubsetVcfByLength as SubsetTruth {
+        input:
+            vcf = vcf_sv_truth,
+            vcf_idx = vcf_sv_truth_idx,
+            min_length = min_sv_length_truth,
+            length_field = "SVLEN",
+            prefix = "~{prefix}.subset_truth",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_truth
+    }
+
+    call Helpers.ConvertToSymbolic {
+        input:
+            vcf = SubsetEval.subset_vcf,
+            vcf_idx = SubsetEval.subset_vcf_idx,
             prefix = "~{prefix}.eval.symbolic",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
@@ -45,8 +71,8 @@ workflow BedtoolsClosestSV {
 
     call SplitQueryVcf as SplitTruth {
         input:
-            vcf = vcf_sv_truth,
-            vcf_idx = vcf_sv_truth_idx,
+            vcf = SubsetTruth.subset_vcf,
+            vcf_idx = SubsetTruth.subset_vcf_idx,
             type_field = "SVTYPE",
             length_field = "SVLEN",
             prefix = "~{prefix}.truth",
@@ -102,8 +128,8 @@ workflow BedtoolsClosestSV {
 
     call CreateBedtoolsAnnotationTsv {
         input:
-            truvari_unmatched_vcf = vcf_eval,
-            truvari_unmatched_vcf_idx = vcf_eval_idx,
+            truvari_unmatched_vcf = SubsetEval.subset_vcf,
+            truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
             closest_bed = ConcatTsvs.concatenated_tsv,
             prefix = prefix,
             docker = utils_docker,
