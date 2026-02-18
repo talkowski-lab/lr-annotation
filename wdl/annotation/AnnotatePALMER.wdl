@@ -215,10 +215,14 @@ task FilterPALMER {
                 | sort -k1,1 -k2,2n \
                 > PALMER_calls.bed
 
-            bedtools intersect -wo -a RM_filtered.bed -b PALMER_calls.bed > intersection
+            bedtools intersect \
+                -wo \
+                -a RM_filtered.bed \
+                -b PALMER_calls.bed \
+                > intersection.bed
 
             python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
-                --intersection intersection \
+                --intersection intersection.bed \
                 --target-vcf ~{vcf} \
                 --me-type ${ME_type} \
                 --output ${ME_type}_annotations.tsv \

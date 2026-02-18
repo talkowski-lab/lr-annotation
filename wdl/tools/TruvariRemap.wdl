@@ -1,8 +1,9 @@
 version 1.0
 
 import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl" as Helpers
 
-workflow CallInsRemap {
+workflow TruvariRemap {
     input {
         File vcf
         File vcf_idx
@@ -12,10 +13,10 @@ workflow CallInsRemap {
         File ref_fa
         Array[File] ref_bwa_indices
 
-        Int? minlength
-        Int? maxlength
-        Int? mm2_threshold
-        Float? cov_threshold
+        Int minlength
+        Int maxlength
+        Int mm2_threshold
+        Float cov_threshold
 
         RuntimeAttr? runtime_attr_ins_remap
         RuntimeAttr? runtime_attr_merge
@@ -38,16 +39,15 @@ workflow CallInsRemap {
         }
     }
 
-    call MergePerChrCalls {
+    call Helpers.ConcatTsvs {
         input:
-            vcfs = InsRemap.remapped_vcf,
-            prefix = "~{prefix}.remapped",
-            runtime_attr_override = runtime_attr_merge
+            tsvs = InsRemap.remap_annotations_tsv,
+            prefix = "~{prefix}.remap_annotations",
+            docker = "us.gcr.io/broad-dsp-lrma/lr-basic:latest"
     }
 
     output {
-        File remapped_vcf = MergePerChrCalls.vcf
-        File remapped_vcf_idx = MergePerChrCalls.tbi
+        File remap_annotations_tsv = ConcatTsvs.concatenated_tsv
     }
 }
 
@@ -58,10 +58,10 @@ task InsRemap {
         String contig
         File ref_fa
         Array[File] ref_bwa_indices
-        Int minlength = 50
-        Int maxlength = 10000000
-        Int mm2_threshold = 5000
-        Float cov_threshold = 0.8
+        Int minlength
+        Int maxlength
+        Int mm2_threshold
+        Float cov_threshold
         String prefix
         RuntimeAttr? runtime_attr_override
     }
@@ -74,10 +74,9 @@ task InsRemap {
         N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
 
         bcftools view \
-            -Oz \
-            ~{vcf} \
-            ~{contig} \
-            > ~{contig}.vcf.gz
+            -r ~{contig} \
+            -Oz -o ~{contig}.vcf.gz \
+            ~{vcf}
         
         tabix ~{contig}.vcf.gz
 
@@ -98,10 +97,16 @@ task InsRemap {
             --threads ${N_THREADS} \
             --cov-threshold ~{cov_threshold} \
             ~{contig}.vcf.gz
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/remap_classification\t%INFO/remap_coords\t%INFO/remap_ori\t%INFO/remap_perc\n' \
+            ~{prefix}.vcf.gz \
+        | awk -F'\t' '($6 != "." || $7 != "." || $8 != "." || $9 != ".")' \
+        > ~{prefix}.tsv
     >>>
     
     output {
-        File remapped_vcf = "~{prefix}.vcf.gz"
+        File remap_annotations_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
@@ -119,54 +124,6 @@ task InsRemap {
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: "quay.io/ymostovoy/lr-remap:latest"
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task MergePerChrCalls {
-    input {
-        Array[File] vcfs
-        String prefix
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        VCF_WITH_HEADER=~{vcfs[0]}
-
-        bcftools view -h $VCF_WITH_HEADER > tmp.vcf
-
-        for vcf in ~{sep=" " vcfs}; do
-            bcftools view -H $vcf >> tmp.vcf
-        done
-
-        bcftools sort -Oz tmp.vcf > ~{prefix}.vcf.gz
-        tabix ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File unsorted_vcf = "tmp.vcf"
-        File vcf = "~{prefix}.vcf.gz"
-        File tbi = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 24,
-        disk_gb: 5 * ceil(size(vcfs, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:latest"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
