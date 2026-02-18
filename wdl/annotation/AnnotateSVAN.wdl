@@ -245,6 +245,7 @@ task RunSvanAnnotate {
         File vntr_bed
         File exons_bed
         File repeats_bed
+        File ref_fa
         File mei_fa
         File mei_fa_amb
         File mei_fa_ann
@@ -252,7 +253,6 @@ task RunSvanAnnotate {
         File mei_fa_pac
         File mei_fa_sa
         File mei_fa_mmi
-        File ref_fa
         String prefix
         String mode
         String docker
@@ -305,7 +305,7 @@ task RunSvanAnnotate {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(mei_fa, "GB") + size(mei_fa_amb, "GB") + size(mei_fa_ann, "GB") + size(mei_fa_bwt, "GB") + size(mei_fa_pac, "GB") + size(mei_fa_sa, "GB") + size(mei_fa_mmi, "GB")) + 25,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
