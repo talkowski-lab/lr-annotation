@@ -13,13 +13,15 @@ workflow TruvariRemap {
         File ref_fa
         Array[File] ref_bwa_indices
 
-        Int minlength
-        Int maxlength
+        Int min_length
+        Int max_length
         Int mm2_threshold
         Float cov_threshold
 
+        String utils_docker
+
         RuntimeAttr? runtime_attr_ins_remap
-        RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_concat
     }
 
     scatter (contig in contigs) {
@@ -30,8 +32,8 @@ workflow TruvariRemap {
                 contig = contig,
                 ref_fa = ref_fa,
                 ref_bwa_indices = ref_bwa_indices,
-                minlength = minlength,
-                maxlength = maxlength,
+                min_length = min_length,
+                max_length = max_length,
                 mm2_threshold = mm2_threshold,
                 cov_threshold = cov_threshold,
                 prefix = "~{prefix}.~{contig}.remapped",
@@ -43,11 +45,12 @@ workflow TruvariRemap {
         input:
             tsvs = InsRemap.remap_annotations_tsv,
             prefix = "~{prefix}.remap_annotations",
-            docker = "us.gcr.io/broad-dsp-lrma/lr-basic:latest"
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File remap_annotations_tsv = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_remap = ConcatTsvs.concatenated_tsv
     }
 }
 
@@ -58,8 +61,8 @@ task InsRemap {
         String contig
         File ref_fa
         Array[File] ref_bwa_indices
-        Int minlength
-        Int maxlength
+        Int min_length
+        Int max_length
         Int mm2_threshold
         Float cov_threshold
         String prefix
@@ -91,8 +94,8 @@ task InsRemap {
         truvari anno remap \
             -r ref_files/$ref_fa_basename \
             -o ~{prefix}.vcf.gz \
-            --min-length ~{minlength} \
-            --max-length ~{maxlength} \
+            --min-length ~{min_length} \
+            --max-length ~{max_length} \
             --mm2-threshold ~{mm2_threshold} \
             --threads ${N_THREADS} \
             --cov-threshold ~{cov_threshold} \
