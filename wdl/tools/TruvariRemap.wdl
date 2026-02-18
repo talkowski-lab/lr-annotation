@@ -43,7 +43,7 @@ workflow TruvariRemap {
 
     call Helpers.ConcatTsvs {
         input:
-            tsvs = InsRemap.remap_annotations_tsv,
+            tsvs = InsRemap.annotations_tsv,
             prefix = "~{prefix}.remap_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
@@ -109,13 +109,13 @@ task InsRemap {
     >>>
     
     output {
-        File remap_annotations_tsv = "~{prefix}.tsv"
+        File annotations_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 8,
+        cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: ceil(size(vcf, "GB") + size(ref_fa, "GB")) * 3 + 50,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
