@@ -10,7 +10,6 @@ workflow CallInsRemap {
         String prefix
 
         File ref_fa
-        File ref_fai
         Array[File] ref_bwa_indices
 
         Int? minlength
@@ -29,7 +28,6 @@ workflow CallInsRemap {
                 vcf_idx = vcf_idx,
                 contig = contig,
                 ref_fa = ref_fa,
-                ref_fai = ref_fai,
                 ref_bwa_indices = ref_bwa_indices,
                 minlength = minlength,
                 maxlength = maxlength,
@@ -59,7 +57,6 @@ task InsRemap {
         File vcf_idx
         String contig
         File ref_fa
-        File ref_fai
         Array[File] ref_bwa_indices
         Int minlength = 50
         Int maxlength = 10000000
@@ -86,7 +83,6 @@ task InsRemap {
 
         mkdir ref_files
         mv ~{ref_fa} ref_files/
-        mv ~{ref_fai} ref_files/
         for x in ~{sep=' ' ref_bwa_indices}; do
             mv $x ref_files/
         done

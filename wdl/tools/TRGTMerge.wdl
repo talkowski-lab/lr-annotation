@@ -60,16 +60,6 @@ task TRGTMergeContig {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     
     command <<<
         set -euo pipefail
@@ -91,6 +81,15 @@ task TRGTMergeContig {
         File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
