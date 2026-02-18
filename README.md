@@ -258,6 +258,10 @@ TODO
 TODO
 
 
+### [TruvariRemap](wdl/tools/TruvariRemap.wdl)
+TODO
+
+
 ### [VcfDist](wdl/tools/VcfDist.wdl)
 TODO
 

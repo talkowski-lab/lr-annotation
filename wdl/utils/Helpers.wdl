@@ -870,13 +870,13 @@ for record in phased_in:
                         try:
                             record.samples[sample]['GT'] = match.samples[sample]['GT']
                         except Exception:
-                            print(f"Error copying GT for {sample} at {record.chrom}:{record.pos}", file=sys.stderr)
+                            pass
                 else:
                     if fmt_key in match.samples[sample]:
                         try:
                             record.samples[sample][fmt_key] = match.samples[sample][fmt_key]
                         except Exception:
-                            print(f"Error copying {fmt_key} for {sample} at {record.chrom}:{record.pos}", file=sys.stderr)
+                            pass
     out.write(record)
 
 out.close()

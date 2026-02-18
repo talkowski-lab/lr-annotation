@@ -289,6 +289,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: TruvariRemap
+    primaryDescriptorPath: /wdl/tools/TruvariRemap.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: VcfDist
     primaryDescriptorPath: /wdl/tools/VcfDist.wdl
     filters:
