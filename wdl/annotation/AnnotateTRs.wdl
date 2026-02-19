@@ -7,12 +7,12 @@ workflow AnnotateTRs {
     input {
         File vcf
         File vcf_idx
-        File tr_vcf
-        File tr_vcf_idx
+        Array[File] tr_vcfs
+        Array[File] tr_vcf_idxs
         Array[String] contigs
         String prefix
 
-        String tr_caller
+        Array[String] tr_callers
 
         String utils_docker
 
@@ -20,17 +20,24 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tr_vcf
         RuntimeAttr? runtime_attr_set_missing_filters
+        RuntimeAttr? runtime_attr_tag_tr_vcf
+        RuntimeAttr? runtime_attr_deduplicate_trs
+        RuntimeAttr? runtime_attr_concat_tr_vcfs
         RuntimeAttr? runtime_attr_set_tr_ids
-        RuntimeAttr? runtime_attr_annotate_trs
+        RuntimeAttr? runtime_attr_annotate_vcf
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
-    call CheckSamplesMatch {
-        input:
-            vcf = vcf,
-            tr_vcf = tr_vcf,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_check_samples
+    scatter (i in range(length(tr_vcfs))) {
+        call Helpers.CheckSampleMatch {
+            input:
+                vcf_a = vcf,
+                vcf_a_idx = vcf_idx,
+                vcf_b = tr_vcfs[i],
+                vcf_b_idx = tr_vcf_idxs[i],
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_check_samples
+        }
     }
 
     scatter (contig in contigs) {
@@ -44,53 +51,82 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.SubsetVcfToContig as SubsetTrVcf {
-            input:
-                vcf = tr_vcf,
-                vcf_idx = tr_vcf_idx,
-                contig = contig,
-                extra_args = "--min-ac 1",
-                prefix = "~{prefix}.~{contig}.tr",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tr_vcf
+        scatter (i in range(length(tr_vcfs))) {
+            call Helpers.SubsetVcfToContig as SubsetTrVcf {
+                input:
+                    vcf = tr_vcfs[i],
+                    vcf_idx = tr_vcf_idxs[i],
+                    contig = contig,
+                    extra_args = "--min-ac 1",
+                    prefix = "~{prefix}.~{contig}.tr~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tr_vcf
+            }
+
+            call Helpers.SetMissingFiltersToPass as SetTrFiltersToPass {
+                input:
+                    vcf = SubsetTrVcf.subset_vcf,
+                    vcf_idx = SubsetTrVcf.subset_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.tr~{i}.pass",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_set_missing_filters
+            }
+
+            call TagTRVcf {
+                input:
+                    vcf = SetTrFiltersToPass.filtered_vcf,
+                    vcf_idx = SetTrFiltersToPass.filtered_vcf_idx,
+                    tr_caller = tr_callers[i],
+                    prefix = "~{prefix}.~{contig}.tr~{i}.tagged",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_tag_tr_vcf
+            }
         }
 
-        call Helpers.SetMissingFiltersToPass {
+        call Helpers.ConcatVcfs as ConcatTrVcfs {
             input:
-                vcf = SubsetTrVcf.subset_vcf,
-                vcf_idx = SubsetTrVcf.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.tr.pass",
+                vcfs = TagTRVcf.tagged_vcf,
+                vcf_idxs = TagTRVcf.tagged_vcf_idx,
+                prefix = "~{prefix}.~{contig}.tr_concat",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_set_missing_filters
+                runtime_attr_override = runtime_attr_concat_tr_vcfs
+        }
+
+        call DeduplicateEnvelopedVariants {
+            input:
+                vcf = ConcatTrVcfs.concat_vcf,
+                vcf_idx = ConcatTrVcfs.concat_vcf_idx,
+                prefix = "~{prefix}.~{contig}.tr_dedup",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_deduplicate_trs
         }
 
         call SetTRVariantIds {
             input:
-                vcf = SetMissingFiltersToPass.filtered_vcf,
-                vcf_idx = SetMissingFiltersToPass.filtered_vcf_idx,
+                vcf = DeduplicateEnvelopedVariants.dedup_vcf,
+                vcf_idx = DeduplicateEnvelopedVariants.dedup_vcf_idx,
                 prefix = "~{prefix}.~{contig}.tr.ids",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_set_tr_ids
         }
 
-        call AnnotateTRVariants {
+        call AnnotateVcfWithTRs {
             input:
                 vcf = SubsetVcf.subset_vcf,
                 vcf_idx = SubsetVcf.subset_vcf_idx,
                 tr_vcf = SetTRVariantIds.renamed_vcf,
                 tr_vcf_idx = SetTRVariantIds.renamed_vcf_idx,
-                tr_caller = tr_caller,
-                prefix = "~{prefix}.~{contig}.annotated",
+                tr_callers = tr_callers,
+                prefix = "~{prefix}.~{contig}.merged",
                 docker = utils_docker,
-                check_passed = CheckSamplesMatch.check_passed,
-                runtime_attr_override = runtime_attr_annotate_trs
+                runtime_attr_override = runtime_attr_annotate_vcf
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = AnnotateTRVariants.annotated_vcf,
-            vcf_idxs = AnnotateTRVariants.annotated_vcf_idx,
+            vcfs = AnnotateVcfWithTRs.annotated_vcf,
+            vcf_idxs = AnnotateVcfWithTRs.annotated_vcf_idx,
             prefix = prefix + ".annotated_trs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf
@@ -102,10 +138,12 @@ workflow AnnotateTRs {
     }
 }
 
-task CheckSamplesMatch {
+task TagTRVcf {
     input {
         File vcf
-        File tr_vcf
+        File vcf_idx
+        String tr_caller
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -113,30 +151,134 @@ task CheckSamplesMatch {
     command <<<
         set -euo pipefail
 
-        bcftools query -l ~{vcf} | sort > samples_vcf.txt
-        bcftools query -l ~{tr_vcf} | sort > samples_tr_vcf.txt
+        bcftools query \
+            -l \
+            ~{vcf} \
+            > samples.txt
+        
+        bcftools view \
+            -S samples.txt \
+            -Oz -o tr_reordered.vcf.gz \
+            ~{vcf}
+        
+        tabix -p vcf tr_reordered.vcf.gz
 
-        if ! diff samples_vcf.txt samples_tr_vcf.txt > /dev/null; then
-            echo "ERROR: Sample lists do not match between VCF and TR VCF" >&2
-            echo "VCF samples:" >&2
-            cat samples_vcf.txt >&2
-            echo "TR VCF samples:" >&2
-            cat samples_tr_vcf.txt >&2
-            exit 1
+        touch new_headers.txt
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=allele_type'; then
+            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
         fi
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=SOURCE'; then
+            echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' >> new_headers.txt
+        fi
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##FILTER=<ID=~{tr_caller}_OVERLAPPED'; then
+            echo '##FILTER=<ID=~{tr_caller}_OVERLAPPED,Description="Variant enveloped by ~{tr_caller}">' >> new_headers.txt
+        fi
+        
+        bcftools annotate \
+            -h new_headers.txt \
+            -Oz -o tr_header_added.vcf.gz \
+            tr_reordered.vcf.gz
 
-        echo "Sample lists match"
-        echo "true" > check_passed.txt
+        rm -f tr_reordered.vcf.gz new_headers.txt
+
+        bcftools view tr_header_added.vcf.gz \
+            | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
+                $8 = $8 ";allele_type=trv;SOURCE=" source
+                print
+            }' \
+            | bgzip -c > ~{prefix}.vcf.gz
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+        
+        rm -f tr_header_added.vcf.gz
     >>>
 
     output {
-        Boolean check_passed = read_boolean("check_passed.txt")
+        File tagged_vcf = "~{prefix}.vcf.gz"
+        File tagged_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 5,
+        disk_gb: 3 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task DeduplicateEnvelopedVariants {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
+            ~{vcf} \
+            | awk 'BEGIN{OFS="\t"} {
+                end = $2 + length($4)
+                ref_len = length($4)
+                alt_len = length($5)
+                var_len = (ref_len > alt_len) ? ref_len - alt_len : alt_len - ref_len
+                print $1, $2, end, $3, var_len
+            }' > variants.bed
+
+        bedtools intersect \
+            -f 1.0 \
+            -wa \
+            -wb \
+            -a variants.bed \
+            -b variants.bed \
+            | awk 'BEGIN{OFS="\t"} $4 != $9 {
+                if ($5 < $10) {
+                    print $4
+                } else if ($5 == $10 && $4 > $9) {
+                    print $4
+                }
+            }' \
+            | sort -u > ids_to_remove.txt
+
+        if [ -s ids_to_remove.txt ]; then
+            bcftools view \
+                -e "ID=@ids_to_remove.txt" \
+                -Oz -o ~{prefix}.vcf.gz \
+                ~{vcf}
+        else
+            cp ~{vcf} ~{prefix}.vcf.gz
+        fi
+        
+        tabix -p vcf ~{prefix}.vcf.gz
+        
+        rm -f variants.bed ids_to_remove.txt
+    >>>
+
+    output {
+        File dedup_vcf = "~{prefix}.vcf.gz"
+        File dedup_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 3 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -169,7 +311,6 @@ task SetTRVariantIds {
 from pysam import VariantFile
 from collections import defaultdict
 
-# First pass: count ID occurrences
 vcf_in = VariantFile("~{vcf}")
 id_counts = defaultdict(int)
 for record in vcf_in:
@@ -177,7 +318,6 @@ for record in vcf_in:
     id_counts[new_id] += 1
 vcf_in.close()
 
-# Second pass: assign IDs with suffixes if needed
 vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 id_seen = defaultdict(int)
@@ -221,68 +361,27 @@ CODE
     }
 }
 
-task AnnotateTRVariants {
+task AnnotateVcfWithTRs {
     input {
         File vcf
         File vcf_idx
         File tr_vcf
         File tr_vcf_idx
-        String tr_caller
+        Array[String] tr_callers
         String prefix
         String docker
-        Boolean check_passed
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euo pipefail
 
-        # TR VCF processing
         bcftools query \
-            -l \
-            ~{vcf} \
-            > samples.txt
-        
-        bcftools view \
-            -S samples.txt \
-            -Oz -o tr_reordered.vcf.gz \
-            ~{tr_vcf}
-        
-        tabix -p vcf tr_reordered.vcf.gz
-
-        touch new_headers.txt
-        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=allele_type'; then
-            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
-        fi
-        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=SOURCE'; then
-            echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' >> new_headers.txt
-        fi
-        
-        bcftools annotate \
-            -h new_headers.txt \
-            -Oz -o tr_header_added.vcf.gz \
-            tr_reordered.vcf.gz
-
-        rm -rf tr_reordered.vcf.gz new_headers.txt
-
-        bcftools view tr_header_added.vcf.gz \
-            | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
-                $8 = $8 ";allele_type=trv;SOURCE=" source
-                print
-            }' \
-            | bgzip -c > tr_tagged.vcf.gz
-        
-        tabix -p vcf tr_tagged.vcf.gz
-        
-        rm -f tr_header_added.vcf.gz
-
-        # Extract overlaps
-        bcftools query \
-            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
-            tr_tagged.vcf.gz \
+            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\t%INFO/SOURCE\n' \
+            ~{tr_vcf} \
             | awk 'BEGIN{OFS="\t"} {
                 end = $2 + length($4)
-                print $1, $2, end, $3, $4, $5
+                print $1, $2, end, $3, $4, $5, $6
             }' > tr.bed
         
         bcftools query \
@@ -303,8 +402,9 @@ task AnnotateTRVariants {
 
         rm -f tr.bed vcf.bed
 
-        # Annotate overlaps
-        awk -v filter="~{tr_caller}_OVERLAPPED" 'BEGIN{OFS="\t"} {
+        awk 'BEGIN{OFS="\t"} {
+            source = $13
+            filter = source "_OVERLAPPED"
             print $1, $2, $5, $6, $4, filter, $10
         }' overlaps.bed \
             | sort -k1,1 -k2,2n \
@@ -331,8 +431,11 @@ task AnnotateTRVariants {
 
         cat <<EOF > new_header.txt
 ##INFO=<ID=TRID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
-##FILTER=<ID=~{tr_caller}_OVERLAPPED,Description="Variant enveloped by ~{tr_caller}">
 EOF
+
+        cat ~{write_lines(tr_callers)} | while read caller; do
+            echo "##FILTER=<ID=${caller}_OVERLAPPED,Description=\"Variant enveloped by ${caller}\">" >> new_header.txt
+        done
         
         cat new_header.txt al_header.txt > merged_headers.txt
 
@@ -351,11 +454,11 @@ EOF
             --allow-overlaps \
             -Oz -o ~{prefix}.vcf.gz \
             vcf_annotated.vcf.gz \
-            tr_tagged.vcf.gz
+            ~{tr_vcf}
 
         tabix -p vcf ~{prefix}.vcf.gz
         
-        rm -f vcf_annotated.vcf.gz vcf_annotated.vcf.gz.tbi tr_tagged.vcf.gz tr_tagged.vcf.gz.tbi
+        rm -f vcf_annotated.vcf.gz vcf_annotated.vcf.gz.tbi
     >>>
 
     output {
