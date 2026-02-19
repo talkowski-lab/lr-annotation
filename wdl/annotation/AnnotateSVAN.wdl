@@ -13,15 +13,9 @@ workflow AnnotateSVAN {
         File vntr_bed
         File exons_bed
         File repeats_bed
-
         File mei_fa
-        File mei_fa_amb
-        File mei_fa_ann
-        File mei_fa_bwt
-        File mei_fa_pac
-        File mei_fa_sa
-        File mei_fa_mmi
         File ref_fa
+        Array[File] fa_indices
 
         String utils_docker
         String svan_docker
@@ -91,13 +85,8 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
-                mei_fa_amb = mei_fa_amb,
-                mei_fa_ann = mei_fa_ann,
-                mei_fa_bwt = mei_fa_bwt,
-                mei_fa_pac = mei_fa_pac,
-                mei_fa_sa = mei_fa_sa,
-                mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
+                fa_indices = fa_indices,
                 prefix = "~{prefix}.~{contig}.ins_svan",
                 mode = "ins",
                 docker = svan_docker,
@@ -146,13 +135,8 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
-                mei_fa_amb = mei_fa_amb,
-                mei_fa_ann = mei_fa_ann,
-                mei_fa_bwt = mei_fa_bwt,
-                mei_fa_pac = mei_fa_pac,
-                mei_fa_sa = mei_fa_sa,
-                mei_fa_mmi = mei_fa_mmi,
                 ref_fa = ref_fa,
+                fa_indices = fa_indices,
                 prefix = "~{prefix}.~{contig}.del_svan",
                 mode = "del",
                 docker = svan_docker,
@@ -245,14 +229,9 @@ task RunSvanAnnotate {
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File ref_fa
         File mei_fa
-        File mei_fa_amb
-        File mei_fa_ann
-        File mei_fa_bwt
-        File mei_fa_pac
-        File mei_fa_sa
-        File mei_fa_mmi
+        File ref_fa
+        Array[File] fa_indices
         String prefix
         String mode
         String docker
