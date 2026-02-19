@@ -170,8 +170,8 @@ task TagTRVcf {
         if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=SOURCE'; then
             echo '##INFO=<ID=SOURCE,Number=1,Type=String,Description="Source of variant call">' >> new_headers.txt
         fi
-        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##FILTER=<ID=~{tr_caller}_OVERLAPPED'; then
-            echo '##FILTER=<ID=~{tr_caller}_OVERLAPPED,Description="Variant enveloped by ~{tr_caller}">' >> new_headers.txt
+        if ! bcftools view -h tr_reordered.vcf.gz | grep -q '##INFO=<ID=TR_OVERLAPPED'; then
+            echo '##INFO=<ID=TR_OVERLAPPED,Number=0,Type=Flag,Description="Variant enveloped by tandem repeat">' >> new_headers.txt
         fi
         
         bcftools annotate \
@@ -403,9 +403,7 @@ task AnnotateVcfWithTRs {
         rm -f tr.bed vcf.bed
 
         awk 'BEGIN{OFS="\t"} {
-            source = $13
-            filter = source "_OVERLAPPED"
-            print $1, $2, $5, $6, $4, filter, $10
+            print $1, $2, $5, $6, $4, "1", $10
         }' overlaps.bed \
             | sort -k1,1 -k2,2n \
             | bgzip -c > annotations.tsv.gz
@@ -430,18 +428,15 @@ task AnnotateVcfWithTRs {
             > vcf_stripped.vcf.gz
 
         cat <<EOF > new_header.txt
+##INFO=<ID=TR_OVERLAPPED,Number=0,Type=Flag,Description="Variant enveloped by tandem repeat">
 ##INFO=<ID=TRID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
 EOF
-
-        cat ~{write_lines(tr_callers)} | while read caller; do
-            echo "##FILTER=<ID=${caller}_OVERLAPPED,Description=\"Variant enveloped by ${caller}\">" >> new_header.txt
-        done
         
         cat new_header.txt al_header.txt > merged_headers.txt
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,~ID,=FILTER,INFO/TRID \
+            -c CHROM,POS,REF,ALT,~ID,INFO/TR_OVERLAPPED,INFO/TRID \
             -h merged_headers.txt \
             -Oz -o vcf_annotated.vcf.gz \
             vcf_stripped.vcf.gz
