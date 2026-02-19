@@ -75,6 +75,16 @@ workflows:
       tags:
         - /.*/
 
+
+  - subclass: WDL
+    name: AnnotateVRS
+    primaryDescriptorPath: /wdl/annotation/AnnotateVRS.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
   - subclass: WDL
     name: BenchmarkAnnotations
     primaryDescriptorPath: /wdl/annotation/BenchmarkAnnotations.wdl

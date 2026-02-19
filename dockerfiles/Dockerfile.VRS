@@ -1,0 +1,13 @@
+FROM python:3.10-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    python3-dev \
+    htslib-tools \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install vrs-python with extras
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir 'ga4gh.vrs[extras]'
