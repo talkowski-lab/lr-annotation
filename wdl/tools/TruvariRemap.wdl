@@ -115,7 +115,7 @@ task InsRemap {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB")) + 25,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(ref_bwa_indices, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
