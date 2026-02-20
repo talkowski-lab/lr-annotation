@@ -73,17 +73,15 @@ task AnnotateVcfWithVRS {
     command <<<
         set -euo pipefail
 
-        # 1. Setup SeqRepo
+        # Setup SeqRepo
         mkdir seqrepo_data
-        echo "Extracting SeqRepo..."
         tar -xzf ~{seqrepo_tar_gz} -C seqrepo_data --strip-components 1
         
-        # Locate the directory containing the actual aliases.sqlite3 file to build the URI
+        # Locate the directory containing the aliases.sqlite3 file to build the URI
         SEQREPO_PATH=$(find $(pwd)/seqrepo_data -name "aliases.sqlite3" | xargs dirname)
         echo "SeqRepo path determined: $SEQREPO_PATH"
 
-        # 2. Run vrs-annotate
-        # Using --dataproxy-uri to point to the local file structure extracted above
+        # Run vrs-annotate
         vrs-annotate vcf \
             --dataproxy-uri="seqrepo+file://${SEQREPO_PATH}" \
             --vcf-out ~{prefix}.vcf.gz \
@@ -91,10 +89,10 @@ task AnnotateVcfWithVRS {
             --vrs-attributes \
             ~{vcf}
 
-        # 3. Index output
+        # Index output
         tabix -p vcf ~{prefix}.vcf.gz
         
-        # Clean up huge seqrepo files to prevent egress issues if using local disk
+        # Clean up
         rm -rf seqrepo_data
     >>>
 
