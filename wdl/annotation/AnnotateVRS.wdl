@@ -66,7 +66,6 @@ task AnnotateVcfWithVRS {
         File seqrepo_tar_gz
         String prefix
         String assembly
-        Boolean vrs_attributes
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -89,7 +88,7 @@ task AnnotateVcfWithVRS {
             --dataproxy-uri="seqrepo+file://${SEQREPO_PATH}" \
             --vcf-out ~{prefix}.vcf.gz \
             --assembly ~{assembly} \
-            ~{true='--vrs-attributes' false='' vrs_attributes} \
+            --vrs-attributes \
             ~{vcf}
 
         # 3. Index output
