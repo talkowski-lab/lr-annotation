@@ -14,8 +14,9 @@ workflow AnnotateSVAN {
         File exons_bed
         File repeats_bed
         File mei_fa
+        Array[File] mei_fa_indices
         File ref_fa
-        Array[File] fa_indices
+        Array[File] ref_fa_indices
 
         String utils_docker
         String svan_docker
@@ -85,8 +86,9 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
+                mei_fa_indices = mei_fa_indices,
                 ref_fa = ref_fa,
-                fa_indices = fa_indices,
+                ref_fa_indices = ref_fa_indices,
                 prefix = "~{prefix}.~{contig}.ins_svan",
                 mode = "ins",
                 docker = svan_docker,
@@ -135,8 +137,9 @@ workflow AnnotateSVAN {
                 exons_bed = exons_bed,
                 repeats_bed = repeats_bed,
                 mei_fa = mei_fa,
+                mei_fa_indices = mei_fa_indices,
                 ref_fa = ref_fa,
-                fa_indices = fa_indices,
+                ref_fa_indices = ref_fa_indices,
                 prefix = "~{prefix}.~{contig}.del_svan",
                 mode = "del",
                 docker = svan_docker,
@@ -230,8 +233,9 @@ task RunSvanAnnotate {
         File exons_bed
         File repeats_bed
         File mei_fa
+        Array[File] mei_fa_indices
         File ref_fa
-        Array[File] fa_indices
+        Array[File] ref_fa_indices
         String prefix
         String mode
         String docker
@@ -284,7 +288,7 @@ task RunSvanAnnotate {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 16,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(fa_indices, "GB")) + 20,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(mei_fa, "GB") + size(mei_fa_indices, "GB") + size(ref_fa, "GB")  + size(ref_fa_indices, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
