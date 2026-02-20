@@ -35,7 +35,7 @@ workflow AnnotateVRS {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                seqrepo_tar_gz = seqrepo_tar_gz,
+                seqrepo_tar = seqrepo_tar,
                 prefix = "~{prefix}.~{contig}.vrs",
                 docker = vrs_docker,
                 runtime_attr_override = runtime_attr_annotate_vrs
@@ -61,7 +61,7 @@ task AnnotateVcfWithVRS {
     input {
         File vcf
         File vcf_idx
-        File seqrepo_tar_gz
+        File seqrepo_tar
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -72,7 +72,7 @@ task AnnotateVcfWithVRS {
 
         # Setup SeqRepo
         mkdir seqrepo_data
-        tar -xzf ~{seqrepo_tar_gz} -C seqrepo_data --strip-components 1
+        tar -xzf ~{seqrepo_tar} -C seqrepo_data --strip-components 1
         
         # Locate the directory containing the aliases.sqlite3 file to build the URI
         SEQREPO_PATH=$(find $(pwd)/seqrepo_data -name "aliases.sqlite3" | xargs dirname)
@@ -100,7 +100,7 @@ task AnnotateVcfWithVRS {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4, 
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(seqrepo_tar_gz, "GB")) + 20,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(seqrepo_tar, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
