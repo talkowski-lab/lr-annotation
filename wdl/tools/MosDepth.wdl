@@ -36,6 +36,7 @@ workflow MosDepth {
             tsvs = RunMosDepth.per_base,
             prefix = "~{prefix}.per-base",
             docker = utils_docker,
+            compressed_tsvs = true,
             runtime_attr_override = runtime_attr_concat_tsvs
     }
 
@@ -110,7 +111,7 @@ task RunMosDepth {
         disk_gb: ceil(size(bam, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

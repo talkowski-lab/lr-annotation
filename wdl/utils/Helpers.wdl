@@ -457,23 +457,32 @@ CODE
 task ConcatTsvs {
     input {
         Array[File] tsvs
-        String prefix
-        String docker
         Boolean preserve_header = false
         Boolean skip_sort = false
+        Boolean compressed_tsvs = false
+        String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euo pipefail
 
-        if [ "~{preserve_header}" == "true" ]; then
-            head -n 1 ~{tsvs[0]} > ~{prefix}.tsv
-            tail -n +2 -q ~{sep=' ' tsvs} >> ~{prefix}.tsv
-        elif [ "~{skip_sort}" == "true" ]; then
-            cat ~{sep=' ' tsvs} > ~{prefix}.tsv
+        if [ "~{compressed_tsvs}" == "true" ]; then
+            CAT_CMD="gunzip -c"
         else
-            cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv
+            CAT_CMD="cat"
+        fi
+
+        if [ "~{preserve_header}" == "true" ]; then
+            $CAT_CMD ~{tsvs[0]} | head -n 1 > ~{prefix}.tsv
+            for file in ~{sep=' ' tsvs}; do
+                $CAT_CMD "$file" | tail -n +2
+            done >> ~{prefix}.tsv
+        elif [ "~{skip_sort}" == "true" ]; then
+            $CAT_CMD ~{sep=' ' tsvs} > ~{prefix}.tsv
+        else
+            $CAT_CMD ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv
         fi
     >>>
 
