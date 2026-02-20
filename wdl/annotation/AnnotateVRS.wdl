@@ -10,8 +10,7 @@ workflow AnnotateVRS {
         Array[String] contigs
         String prefix
         
-        File seqrepo_tar_gz
-        String assembly
+        File seqrepo_tar
 
         String utils_docker
         String vrs_docker
@@ -38,7 +37,6 @@ workflow AnnotateVRS {
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 seqrepo_tar_gz = seqrepo_tar_gz,
                 prefix = "~{prefix}.~{contig}.vrs",
-                assembly = assembly,
                 docker = vrs_docker,
                 runtime_attr_override = runtime_attr_annotate_vrs
         }
@@ -65,7 +63,6 @@ task AnnotateVcfWithVRS {
         File vcf_idx
         File seqrepo_tar_gz
         String prefix
-        String assembly
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -85,7 +82,6 @@ task AnnotateVcfWithVRS {
         vrs-annotate vcf \
             --dataproxy-uri="seqrepo+file://${SEQREPO_PATH}" \
             --vcf-out ~{prefix}.vcf.gz \
-            --assembly ~{assembly} \
             --vrs-attributes \
             ~{vcf}
 
