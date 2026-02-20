@@ -106,11 +106,11 @@ task RunMosDepth {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 4,
+        mem_gb: 2,
         disk_gb: ceil(size(bam, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
