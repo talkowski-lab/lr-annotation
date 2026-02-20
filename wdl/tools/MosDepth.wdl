@@ -31,28 +31,11 @@ workflow MosDepth {
         }
     }
 
-    call Helpers.ConcatTsvs as ConcatPerBase {
-        input:
-            tsvs = RunMosDepth.per_base,
-            prefix = "~{prefix}.per-base",
-            docker = utils_docker,
-            compressed_tsvs = true,
-            runtime_attr_override = runtime_attr_concat_tsvs
-    }
-
-    call CompressAndIndex {
-        input:
-            bed_file = ConcatPerBase.concatenated_tsv,
-            prefix = "~{prefix}.per-base",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compress_index
-    }
-
     output {
         Array[File] mosdepth_dist = RunMosDepth.dist
         Array[File] mosdepth_summary = RunMosDepth.summary
-        File mosdepth_per_base = CompressAndIndex.compressed_bed
-        File mosdepth_per_base_csi = CompressAndIndex.compressed_bed_csi
+        Array[File] mosdepth_per_base = RunMosDepth.per_base
+        Array[File] mosdepth_per_base_csi = RunMosDepth.per_base_csi
         Array[File] mosdepth_quantized_bed = select_all(RunMosDepth.quantized_bed)
         Array[File] mosdepth_quantized_bed_csi = select_all(RunMosDepth.quantized_bed_csi)
     }
@@ -120,47 +103,6 @@ task RunMosDepth {
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: "us.gcr.io/broad-dsp-lrma/lr-mosdepth:0.3.1"
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CompressAndIndex {
-    input {
-        File bed_file
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        bgzip -c ~{bed_file} > ~{prefix}.bed.gz
-
-        tabix -p bed -C ~{prefix}.bed.gz
-    >>>
-
-    output {
-        File compressed_bed = "~{prefix}.bed.gz"
-        File compressed_bed_csi = "~{prefix}.bed.gz.csi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(bed_file, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
