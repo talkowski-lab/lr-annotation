@@ -71,10 +71,10 @@ task RunMosDepth {
         set -euo pipefail
 
         if [ "~{quantize_mode}" == "true" ]; then
-            export MOSDEPTH_Q0=NO_COVERAGE   # 0 -- defined by the arguments to --quantize
-            export MOSDEPTH_Q1=LOW_COVERAGE  # 1..4
-            export MOSDEPTH_Q2=CALLABLE      # 5..149
-            export MOSDEPTH_Q3=HIGH_COVERAGE # 150 ...
+            export MOSDEPTH_Q0=NO_COVERAGE
+            export MOSDEPTH_Q1=LOW_COVERAGE
+            export MOSDEPTH_Q2=CALLABLE
+            export MOSDEPTH_Q3=HIGH_COVERAGE
 
             mosdepth \
                 -t 4 \
@@ -106,7 +106,7 @@ task RunMosDepth {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 2,
+        mem_gb: 4,
         disk_gb: ceil(size(bam, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
