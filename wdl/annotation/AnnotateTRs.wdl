@@ -236,9 +236,7 @@ task DeduplicateEnvelopedVariants {
             | awk 'BEGIN{OFS="\t"} {
                 end = $2 + length($4)
                 ref_len = length($4)
-                alt_len = length($5)
-                var_len = (ref_len > alt_len) ? ref_len - alt_len : alt_len - ref_len
-                print $1, $2, end, $3, var_len
+                print $1, $2, end, $3, ref_len
             }' > variants.bed
 
         bedtools intersect \

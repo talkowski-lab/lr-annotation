@@ -101,7 +101,7 @@ task AnnotateVcfWithVRS {
         cpu_cores: 1,
         mem_gb: 4, 
         disk_gb: 2 * ceil(size(vcf, "GB") + size(seqrepo_tar, "GB")) + 20,
-        boot_disk_gb: 10,
+        boot_disk_gb: 50,
         preemptible_tries: 2,
         max_retries: 0
     }
