@@ -183,6 +183,7 @@ task TagTRVcf {
 
         bcftools view tr_header_added.vcf.gz \
             | awk -v source="~{tr_caller}" 'BEGIN{OFS="\t"} /^#/ {print; next} {
+                $3 = $1 "-" $2 "-" source "-" length($4)
                 $8 = $8 ";allele_type=trv;SOURCE=" source
                 print
             }' \
