@@ -200,8 +200,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: Automop
-    primaryDescriptorPath: /wdl/tools/Automop.wdl
+    name: CreateReadCountsFile
+    primaryDescriptorPath: /wdl/tools/CreateReadCountsFile.wdl
     filters:
       branches:
         - main
@@ -209,8 +209,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: CreateReadCountsFile
-    primaryDescriptorPath: /wdl/tools/CreateReadCountsFile.wdl
+    name: HiPhase
+    primaryDescriptorPath: /wdl/tools/HiPhase.wdl
     filters:
       branches:
         - main
