@@ -27,7 +27,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 ## References
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 - `dbgap_vcf`: [Build 156 variants for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GCF_000001405.40.vcf.gz) from [dbGaP](https://ftp.ncbi.nih.gov/snp/archive/b156/VCF/GCF_000001405.40.gz).
-- `dbgap_vcf_idx`: 
+- `dbgap_vcf_idx`: Index for `dbgap_vcf`.
 - `exons_bed`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `fix_variant_collisions_java`: [Script for phasing](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/FixVariantCollisions-9daf9b2.java) from the DSP Long-Read SV team.
 - `genetic_maps_tsv`: [Maps for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/genetic_map_b38.tsv) from the [GLIMPSE references](https://github.com/odelaneau/GLIMPSE/tree/master/maps/genetic_maps.b38).

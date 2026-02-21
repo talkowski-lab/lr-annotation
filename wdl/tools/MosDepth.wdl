@@ -15,8 +15,6 @@ workflow MosDepth {
         String utils_docker
 
         RuntimeAttr? runtime_attr_run_mosdepth
-        RuntimeAttr? runtime_attr_concat_tsvs
-        RuntimeAttr? runtime_attr_compress_index
     }
 
     scatter (contig in contigs) {
