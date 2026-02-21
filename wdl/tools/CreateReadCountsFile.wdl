@@ -39,7 +39,7 @@ workflow CreateReadCountsFile {
     }
 
     output {
-        File merged_counts = MergeBinnedCounts.merged_counts
+        File read_counts = MergeBinnedCounts.merged_counts
     }
 }
 
