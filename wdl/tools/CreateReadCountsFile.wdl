@@ -34,13 +34,11 @@ workflow CreateReadCountsFile {
             binned_counts = BinMosDepthCounts.binned_counts,
             binned_counts_indices = BinMosDepthCounts.binned_counts_idx,
             ref_dict = ref_dict,
-            prefix = prefix,
+            prefix = "~{prefix}.counts",
             runtime_attr_override = runtime_attr_merge
     }
 
     output {
-        Array[File] per_contig_counts = BinMosDepthCounts.binned_counts
-        Array[File] per_contig_counts_indices = BinMosDepthCounts.binned_counts_idx
         File merged_counts = MergeBinnedCounts.merged_counts
     }
 }
