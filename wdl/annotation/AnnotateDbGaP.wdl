@@ -89,8 +89,6 @@ task RenameDbGaPContigs {
     command <<<
         set -euo pipefail
 
-        # Create chromosome name mapping file
-        # Maps RefSeq accessions (NC_000001.*, NC_000002.*) to canonical names (chr1, chr2, etc.)
         cat > chr_name_mapping.txt <<EOF
 NC_000001.11 chr1
 NC_000002.12 chr2
@@ -118,7 +116,6 @@ NC_000023.11 chrX
 NC_000024.10 chrY
 EOF
 
-        # Rename chromosomes using bcftools annotate
         bcftools annotate \
             --rename-chrs chr_name_mapping.txt \
             -Oz -o ~{prefix}.vcf.gz \
