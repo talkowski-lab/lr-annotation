@@ -177,10 +177,9 @@ task AnnotateDbGaPIds {
 
         # Extract SNVs from input VCF for variants with allele_type='snv'
         bcftools query \
-            -i 'INFO/allele_type="snv"' \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
             temp.vcf.gz \
-            > snvs_from_input.txt
+            > input_variants.txt
 
         # Extract all variants from dbGaP VCF
         bcftools query \
@@ -188,19 +187,27 @@ task AnnotateDbGaPIds {
             ~{dbgap_vcf} \
             > dbgap_variants.txt
 
-        # Match SNVs with dbGaP variants on CHROM, POS, REF and ALT
+        # Match SNVs with dbGaP variants on CHROM, POS, REF and any matching ALT
         awk 'BEGIN{OFS="\t"} 
         NR==FNR {
-            key = $1"\t"$2"\t"$3"\t"$4
-            dbgap[key] = $5
+            chrom = $1
+            pos = $2
+            ref = $3
+            alt_string = $4
+            id = $5
+            n = split(alt_string, alts, ",")
+            for (i = 1; i <= n; i++) {
+                key = chrom "\t" pos "\t" ref "\t" alts[i]
+                dbgap[key] = id
+            }
             next
         } 
         {
-            key = $1"\t"$2"\t"$3"\t"$4
+            key = $1 "\t" $2 "\t" $3 "\t" $4
             if (key in dbgap) {
                 print $1, $2, $3, $4, $5, dbgap[key]
             }
-        }' dbgap_variants.txt snvs_from_input.txt \
+        }' dbgap_variants.txt input_variants.txt \
             | bgzip -c > annotations.txt.gz
         
         tabix -s1 -b2 -e2 annotations.txt.gz
