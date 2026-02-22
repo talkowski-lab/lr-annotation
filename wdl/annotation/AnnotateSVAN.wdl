@@ -10,6 +10,8 @@ workflow AnnotateSVAN {
         Array[String] contigs
         String prefix
         
+        Int? records_per_shard
+        
         File vntr_bed
         File exons_bed
         File repeats_bed
@@ -23,6 +25,7 @@ workflow AnnotateSVAN {
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_reset_filters
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_subset_ins
         RuntimeAttr? runtime_attr_subset_del
         RuntimeAttr? runtime_attr_generate_trf_ins
@@ -31,6 +34,7 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_annotate_del
         RuntimeAttr? runtime_attr_extract_ins
         RuntimeAttr? runtime_attr_extract_del
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_final
     }
 
@@ -67,45 +71,74 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_subset_ins
         }
 
-        call GenerateTRF as GenerateTRFIns {
-            input:
-                vcf = SubsetIns.subset_vcf,
-                vcf_idx = SubsetIns.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.ins_trf",
-                mode = "ins",
-                docker = svan_docker,
-                runtime_attr_override = runtime_attr_generate_trf_ins
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardIns {
+                input:
+                    vcf = SubsetIns.subset_vcf,
+                    vcf_idx = SubsetIns.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.ins",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call RunSvanAnnotate as SvanAnnotateIns {
-            input:
-                vcf = SubsetIns.subset_vcf,
-                vcf_idx = SubsetIns.subset_vcf_idx,
-                trf_output = GenerateTRFIns.trf_output,
-                vntr_bed = vntr_bed,
-                exons_bed = exons_bed,
-                repeats_bed = repeats_bed,
-                mei_fa = mei_fa,
-                mei_fa_indices = mei_fa_indices,
-                ref_fa = ref_fa,
-                ref_fa_indices = ref_fa_indices,
-                prefix = "~{prefix}.~{contig}.ins_svan",
-                mode = "ins",
-                docker = svan_docker,
-                runtime_attr_override = runtime_attr_annotate_ins
+        Array[File] ins_vcfs_to_process = select_first([ShardIns.shards, [SubsetIns.subset_vcf]])
+        Array[File] ins_vcf_idxs_to_process = select_first([ShardIns.shard_idxs, [SubsetIns.subset_vcf_idx]])
+
+        scatter (ins_shard_idx in range(length(ins_vcfs_to_process))) {
+            call GenerateTRF as GenerateTRFIns {
+                input:
+                    vcf = ins_vcfs_to_process[ins_shard_idx],
+                    vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.trf",
+                    mode = "ins",
+                    docker = svan_docker,
+                    runtime_attr_override = runtime_attr_generate_trf_ins
+            }
+
+            call RunSvanAnnotate as SvanAnnotateIns {
+                input:
+                    vcf = ins_vcfs_to_process[ins_shard_idx],
+                    vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    trf_output = GenerateTRFIns.trf_output,
+                    vntr_bed = vntr_bed,
+                    exons_bed = exons_bed,
+                    repeats_bed = repeats_bed,
+                    mei_fa = mei_fa,
+                    mei_fa_indices = mei_fa_indices,
+                    ref_fa = ref_fa,
+                    ref_fa_indices = ref_fa_indices,
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.svan",
+                    mode = "ins",
+                    docker = svan_docker,
+                    runtime_attr_override = runtime_attr_annotate_ins
+            }
+
+            call Helpers.ExtractVcfAnnotations as ExtractIns {
+                input:
+                    vcf = SvanAnnotateIns.annotated_vcf,
+                    vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
+                    original_vcf = ins_vcfs_to_process[ins_shard_idx],
+                    original_vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    add_header_row = true,
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_ins
+            }
         }
 
-        call Helpers.ExtractVcfAnnotations as ExtractIns {
-            input:
-                vcf = SvanAnnotateIns.annotated_vcf,
-                vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
-                original_vcf = SubsetIns.subset_vcf,
-                original_vcf_idx = SubsetIns.subset_vcf_idx,
-                add_header_row = true,
-                prefix = "~{prefix}.~{contig}.ins_annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_ins
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatAlignedTsvs as ConcatInsShards {
+                input:
+                    tsvs = ExtractIns.annotations_tsv,
+                    prefix = "~{prefix}.~{contig}.ins_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
+
+        File final_ins_annotations = select_first([ConcatInsShards.merged_tsv, ExtractIns.annotations_tsv[0]])
 
         # Deletions
         call Helpers.SubsetVcfByArgs as SubsetDel {
@@ -118,51 +151,80 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_subset_del
         }
 
-        call GenerateTRF as GenerateTRFDel {
-            input:
-                vcf = SubsetDel.subset_vcf,
-                vcf_idx = SubsetDel.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.del_trf",
-                mode = "del",
-                docker = svan_docker,
-                runtime_attr_override = runtime_attr_generate_trf_del
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardDel {
+                input:
+                    vcf = SubsetDel.subset_vcf,
+                    vcf_idx = SubsetDel.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.del",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call RunSvanAnnotate as SvanAnnotateDel {
-            input:
-                vcf = SubsetDel.subset_vcf,
-                vcf_idx = SubsetDel.subset_vcf_idx,
-                trf_output = GenerateTRFDel.trf_output,
-                vntr_bed = vntr_bed,
-                exons_bed = exons_bed,
-                repeats_bed = repeats_bed,
-                mei_fa = mei_fa,
-                mei_fa_indices = mei_fa_indices,
-                ref_fa = ref_fa,
-                ref_fa_indices = ref_fa_indices,
-                prefix = "~{prefix}.~{contig}.del_svan",
-                mode = "del",
-                docker = svan_docker,
-                runtime_attr_override = runtime_attr_annotate_del
+        Array[File] del_vcfs_to_process = select_first([ShardDel.shards, [SubsetDel.subset_vcf]])
+        Array[File] del_vcf_idxs_to_process = select_first([ShardDel.shard_idxs, [SubsetDel.subset_vcf_idx]])
+
+        scatter (del_shard_idx in range(length(del_vcfs_to_process))) {
+            call GenerateTRF as GenerateTRFDel {
+                input:
+                    vcf = del_vcfs_to_process[del_shard_idx],
+                    vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.trf",
+                    mode = "del",
+                    docker = svan_docker,
+                    runtime_attr_override = runtime_attr_generate_trf_del
+            }
+
+            call RunSvanAnnotate as SvanAnnotateDel {
+                input:
+                    vcf = del_vcfs_to_process[del_shard_idx],
+                    vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    trf_output = GenerateTRFDel.trf_output,
+                    vntr_bed = vntr_bed,
+                    exons_bed = exons_bed,
+                    repeats_bed = repeats_bed,
+                    mei_fa = mei_fa,
+                    mei_fa_indices = mei_fa_indices,
+                    ref_fa = ref_fa,
+                    ref_fa_indices = ref_fa_indices,
+                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.svan",
+                    mode = "del",
+                    docker = svan_docker,
+                    runtime_attr_override = runtime_attr_annotate_del
+            }
+
+            call Helpers.ExtractVcfAnnotations as ExtractDel {
+                input:
+                    vcf = SvanAnnotateDel.annotated_vcf,
+                    vcf_idx = SvanAnnotateDel.annotated_vcf_idx,
+                    original_vcf = del_vcfs_to_process[del_shard_idx],
+                    original_vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    add_header_row = true,
+                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_del
+            }
         }
 
-        call Helpers.ExtractVcfAnnotations as ExtractDel {
-            input:
-                vcf = SvanAnnotateDel.annotated_vcf,
-                vcf_idx = SvanAnnotateDel.annotated_vcf_idx,
-                original_vcf = SubsetDel.subset_vcf,
-                original_vcf_idx = SubsetDel.subset_vcf_idx,
-                add_header_row = true,
-                prefix = "~{prefix}.~{contig}.del_annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_del
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatAlignedTsvs as ConcatDelShards {
+                input:
+                    tsvs = ExtractDel.annotations_tsv,
+                    prefix = "~{prefix}.~{contig}.del_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
+
+        File final_del_annotations = select_first([ConcatDelShards.merged_tsv, ExtractDel.annotations_tsv[0]])
     }
     
     # Postprocessing
     call Helpers.ConcatAlignedTsvs {
         input:
-            tsvs = flatten([ExtractIns.annotations_tsv, ExtractDel.annotations_tsv]),
+            tsvs = flatten([final_ins_annotations, final_del_annotations]),
             prefix = prefix + ".svan_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_final
