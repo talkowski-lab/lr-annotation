@@ -129,16 +129,17 @@ workflow AnnotateSVAN {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ConcatAlignedTsvs as ConcatInsShards {
+            call Helpers.ConcatTsvs as ConcatInsShards {
                 input:
                     tsvs = ExtractIns.annotations_tsv,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.ins_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
             }
         }
 
-        File final_ins_annotations = select_first([ConcatInsShards.merged_tsv, ExtractIns.annotations_tsv[0]])
+        File final_ins_annotations = select_first([ConcatInsShards.concatenated_tsv, ExtractIns.annotations_tsv[0]])
 
         # Deletions
         call Helpers.SubsetVcfByArgs as SubsetDel {
@@ -209,16 +210,17 @@ workflow AnnotateSVAN {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ConcatAlignedTsvs as ConcatDelShards {
+            call Helpers.ConcatTsvs as ConcatDelShards {
                 input:
                     tsvs = ExtractDel.annotations_tsv,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.del_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
             }
         }
 
-        File final_del_annotations = select_first([ConcatDelShards.merged_tsv, ExtractDel.annotations_tsv[0]])
+        File final_del_annotations = select_first([ConcatDelShards.concatenated_tsv, ExtractDel.annotations_tsv[0]])
     }
     
     # Postprocessing

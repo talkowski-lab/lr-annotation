@@ -100,7 +100,6 @@ workflow TruvariMatch {
         input:
             tsvs = [RunTruvari_09.annotation_tsv, RunTruvari_07.annotation_tsv, RunTruvari_05.annotation_tsv],
             prefix = "~{prefix}.truvari_combined",
-            skip_sort = true,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_matched
     }

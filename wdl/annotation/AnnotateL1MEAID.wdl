@@ -103,7 +103,6 @@ workflow AnnotateL1MEAID {
             call Helpers.ConcatTsvs as ConcatAnnotationShards {
                 input:
                     tsvs = GenerateAnnotationTable.annotations_tsv,
-                    skip_sort = true,
                     prefix = "~{prefix}.~{contig}.intactmei_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards_annotations

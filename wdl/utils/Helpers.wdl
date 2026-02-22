@@ -458,7 +458,7 @@ task ConcatTsvs {
     input {
         Array[File] tsvs
         Boolean preserve_header = false
-        Boolean skip_sort = false
+        Boolean sort_output = true
         Boolean compressed_tsvs = false
         String prefix
         String docker
@@ -479,7 +479,7 @@ task ConcatTsvs {
             for file in ~{sep=' ' tsvs}; do
                 $CAT_CMD "$file" | tail -n +2
             done >> ~{prefix}.tsv
-        elif [ "~{skip_sort}" == "true" ]; then
+        elif [ "~{sort_output}" == "false" ]; then
             $CAT_CMD ~{sep=' ' tsvs} > ~{prefix}.tsv
         else
             $CAT_CMD ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv

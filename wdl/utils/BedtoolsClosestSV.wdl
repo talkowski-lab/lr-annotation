@@ -121,7 +121,6 @@ workflow BedtoolsClosestSV {
         input:
             tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp],
             prefix = "~{prefix}.comparison",
-            skip_sort = true,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
