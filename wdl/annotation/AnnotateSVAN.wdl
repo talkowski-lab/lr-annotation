@@ -24,10 +24,12 @@ workflow AnnotateSVAN {
         String svan_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_reset_filters
-        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_subset_ins
         RuntimeAttr? runtime_attr_subset_del
+        RuntimeAttr? runtime_attr_shard_ins
+        RuntimeAttr? runtime_attr_shard_del
+        RuntimeAttr? runtime_attr_reset_filters_ins
+        RuntimeAttr? runtime_attr_reset_filters_del
         RuntimeAttr? runtime_attr_generate_trf_ins
         RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
@@ -52,20 +54,11 @@ workflow AnnotateSVAN {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.ResetVcfFilters {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.reset_filters",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_reset_filters
-        }
-
         # Insertions
         call Helpers.SubsetVcfByArgs as SubsetIns {
             input:
-                vcf = ResetVcfFilters.reset_vcf,
-                vcf_idx = ResetVcfFilters.reset_vcf_idx,
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 include_args = 'INFO/allele_type="ins"',
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
@@ -80,7 +73,7 @@ workflow AnnotateSVAN {
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}.ins",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_shard
+                    runtime_attr_override = runtime_attr_shard_ins
             }
         }
 
@@ -88,10 +81,19 @@ workflow AnnotateSVAN {
         Array[File] ins_vcf_idxs_to_process = select_first([ShardIns.shard_idxs, [SubsetIns.subset_vcf_idx]])
 
         scatter (ins_shard_idx in range(length(ins_vcfs_to_process))) {
-            call GenerateTRF as GenerateTRFIns {
+            call Helpers.ResetVcfFilters as ResetIns {
                 input:
                     vcf = ins_vcfs_to_process[ins_shard_idx],
                     vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.reset_filters",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_reset_filters_ins
+            }
+
+            call GenerateTRF as GenerateTRFIns {
+                input:
+                    vcf = ResetIns.reset_vcf,
+                    vcf_idx = ResetIns.reset_vcf_idx,
                     prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.trf",
                     mode = "ins",
                     docker = svan_docker,
@@ -100,8 +102,8 @@ workflow AnnotateSVAN {
 
             call RunSvanAnnotate as SvanAnnotateIns {
                 input:
-                    vcf = ins_vcfs_to_process[ins_shard_idx],
-                    vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    vcf = ResetIns.reset_vcf,
+                    vcf_idx = ResetIns.reset_vcf_idx,
                     trf_output = GenerateTRFIns.trf_output,
                     vntr_bed = vntr_bed,
                     exons_bed = exons_bed,
@@ -120,8 +122,8 @@ workflow AnnotateSVAN {
                 input:
                     vcf = SvanAnnotateIns.annotated_vcf,
                     vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
-                    original_vcf = ins_vcfs_to_process[ins_shard_idx],
-                    original_vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
+                    original_vcf = ResetIns.reset_vcf,
+                    original_vcf_idx = ResetIns.reset_vcf_idx,
                     add_header_row = true,
                     prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.annotations",
                     docker = utils_docker,
@@ -145,8 +147,8 @@ workflow AnnotateSVAN {
         # Deletions
         call Helpers.SubsetVcfByArgs as SubsetDel {
             input:
-                vcf = ResetVcfFilters.reset_vcf,
-                vcf_idx = ResetVcfFilters.reset_vcf_idx,
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 include_args = 'INFO/allele_type="del"',
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,
@@ -161,7 +163,7 @@ workflow AnnotateSVAN {
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}.del",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_shard
+                    runtime_attr_override = runtime_attr_shard_del
             }
         }
 
@@ -169,10 +171,19 @@ workflow AnnotateSVAN {
         Array[File] del_vcf_idxs_to_process = select_first([ShardDel.shard_idxs, [SubsetDel.subset_vcf_idx]])
 
         scatter (del_shard_idx in range(length(del_vcfs_to_process))) {
-            call GenerateTRF as GenerateTRFDel {
+            call Helpers.ResetVcfFilters as ResetDel {
                 input:
                     vcf = del_vcfs_to_process[del_shard_idx],
                     vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.reset_filters",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_reset_filters_del
+            }
+
+            call GenerateTRF as GenerateTRFDel {
+                input:
+                    vcf = ResetDel.reset_vcf,
+                    vcf_idx = ResetDel.reset_vcf_idx,
                     prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.trf",
                     mode = "del",
                     docker = svan_docker,
@@ -181,8 +192,8 @@ workflow AnnotateSVAN {
 
             call RunSvanAnnotate as SvanAnnotateDel {
                 input:
-                    vcf = del_vcfs_to_process[del_shard_idx],
-                    vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    vcf = ResetDel.reset_vcf,
+                    vcf_idx = ResetDel.reset_vcf_idx,
                     trf_output = GenerateTRFDel.trf_output,
                     vntr_bed = vntr_bed,
                     exons_bed = exons_bed,
@@ -201,8 +212,8 @@ workflow AnnotateSVAN {
                 input:
                     vcf = SvanAnnotateDel.annotated_vcf,
                     vcf_idx = SvanAnnotateDel.annotated_vcf_idx,
-                    original_vcf = del_vcfs_to_process[del_shard_idx],
-                    original_vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
+                    original_vcf = ResetDel.reset_vcf,
+                    original_vcf_idx = ResetDel.reset_vcf_idx,
                     add_header_row = true,
                     prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.annotations",
                     docker = utils_docker,
