@@ -34,7 +34,8 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_annotate_del
         RuntimeAttr? runtime_attr_extract_ins
         RuntimeAttr? runtime_attr_extract_del
-        RuntimeAttr? runtime_attr_concat_shards
+        RuntimeAttr? runtime_attr_concat_ins
+        RuntimeAttr? runtime_attr_concat_del
         RuntimeAttr? runtime_attr_concat_final
     }
 
@@ -135,7 +136,7 @@ workflow AnnotateSVAN {
                     sort_output = false,
                     prefix = "~{prefix}.~{contig}.ins_annotations",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards
+                    runtime_attr_override = runtime_attr_concat_ins
             }
         }
 
@@ -216,7 +217,7 @@ workflow AnnotateSVAN {
                     sort_output = false,
                     prefix = "~{prefix}.~{contig}.del_annotations",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards
+                    runtime_attr_override = runtime_attr_concat_del
             }
         }
 
