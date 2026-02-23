@@ -5,8 +5,8 @@ import "../utils/Helpers.wdl"
 
 workflow CreateCoverageFile {
     input {
-        Array[Array[File]] mosdepth_bed_files
-        Array[Array[File]] mosdepth_bed_indices
+        Array[File] mosdepth_bed_files
+        Array[File] mosdepth_bed_indices
         Array[String] contigs
         String prefix
 
@@ -18,15 +18,10 @@ workflow CreateCoverageFile {
     }
 
     scatter (contig_idx in range(length(contigs))) {
-        scatter (sample_idx in range(length(mosdepth_bed_files))) {
-            File sample_contig_bed = mosdepth_bed_files[sample_idx][contig_idx]
-            File sample_contig_bed_idx = mosdepth_bed_indices[sample_idx][contig_idx]
-        }
-
         call ComputeBinnedCoverage {
             input:
-                mosdepth_beds = sample_contig_bed,
-                mosdepth_bed_indices = sample_contig_bed_idx,
+                mosdepth_beds = mosdepth_bed_files,
+                mosdepth_bed_indices = mosdepth_bed_indices,
                 contig = contigs[contig_idx],
                 bin_size = bin_size,
                 thresholds = thresholds,
@@ -73,6 +68,7 @@ task ComputeBinnedCoverage {
 
         python3 <<CODE
 import gzip
+import subprocess
 from statistics import mean, median
 from collections import defaultdict
 
@@ -90,24 +86,29 @@ for sample_idx, bed_file in enumerate(mosdepth_files):
     # Track per-sample coverage for each bin
     sample_bin_coverages = defaultdict(list)
     
-    with gzip.open(bed_file, 'rt') as f:
-        for line in f:
-            parts = line.strip().split('\t')
-            chrom = parts[0]
-            start = int(parts[1])
-            end = int(parts[2])
-            coverage = float(parts[3])
+    # Use tabix to extract only this contig
+    cmd = ['tabix', bed_file, contig]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+    
+    for line in result.stdout.strip().split('\n'):
+        if not line:
+            continue
+        parts = line.strip().split('\t')
+        chrom = parts[0]
+        start = int(parts[1])
+        end = int(parts[2])
+        coverage = float(parts[3])
+        
+        start_bin = (start // bin_size) * bin_size
+        end_bin = ((end - 1) // bin_size) * bin_size
+        
+        for bin_start in range(start_bin, end_bin + 1, bin_size):
+            bin_end = bin_start + bin_size
+            overlap_start = max(start, bin_start)
+            overlap_end = min(end, bin_end)
+            overlap_length = overlap_end - overlap_start
             
-            start_bin = (start // bin_size) * bin_size
-            end_bin = ((end - 1) // bin_size) * bin_size
-            
-            for bin_start in range(start_bin, end_bin + 1, bin_size):
-                bin_end = bin_start + bin_size
-                overlap_start = max(start, bin_start)
-                overlap_end = min(end, bin_end)
-                overlap_length = overlap_end - overlap_start
-                
-                sample_bin_coverages[bin_start].extend([coverage] * overlap_length)
+            sample_bin_coverages[bin_start].extend([coverage] * overlap_length)
     
     # Compute per-sample mean for each bin and store
     for bin_start, coverages in sample_bin_coverages.items():
@@ -142,7 +143,7 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: 2 * ceil(size(mosdepth_beds, "GB")) + 20,
+        disk_gb: ceil(size(mosdepth_beds, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

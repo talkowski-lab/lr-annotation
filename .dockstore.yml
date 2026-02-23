@@ -125,6 +125,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: ConcatenateMosDepth
+    primaryDescriptorPath: /wdl/annotation_utils/ConcatenateMosDepth.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreateCoverageFile
     primaryDescriptorPath: /wdl/annotation_utils/CreateCoverageFile.wdl
     filters:
