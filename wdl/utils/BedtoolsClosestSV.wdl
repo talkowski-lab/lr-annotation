@@ -130,7 +130,7 @@ workflow BedtoolsClosestSV {
             truvari_unmatched_vcf = SubsetEval.subset_vcf,
             truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
             closest_bed = ConcatTsvs.concatenated_tsv,
-            prefix = prefix,
+            prefix = "~{prefix}.bedtools_closest_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }

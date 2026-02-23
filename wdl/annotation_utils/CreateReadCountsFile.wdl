@@ -9,6 +9,7 @@ workflow CreateReadCountsFile {
         Array[File] mosdepth_bed_indices
         Array[String] contigs
         String prefix
+        String sample_id
 
         Int bin_size
         File ref_dict
@@ -34,12 +35,13 @@ workflow CreateReadCountsFile {
             binned_counts = BinMosDepthCounts.binned_counts,
             binned_counts_indices = BinMosDepthCounts.binned_counts_idx,
             ref_dict = ref_dict,
+            sample_id = sample_id,
             prefix = "~{prefix}.counts",
             runtime_attr_override = runtime_attr_merge
     }
 
     output {
-        File read_counts = MergeBinnedCounts.merged_counts
+        File binned_read_counts = MergeBinnedCounts.merged_counts
     }
 }
 
@@ -130,6 +132,7 @@ task MergeBinnedCounts {
         Array[File] binned_counts
         Array[File] binned_counts_indices
         File ref_dict
+        String sample_id
         String prefix
         RuntimeAttr? runtime_attr_override
     }
@@ -138,6 +141,7 @@ task MergeBinnedCounts {
         set -euo pipefail
 
         grep "^@" ~{ref_dict} > ~{prefix}.tsv
+        echo -e "@RG\tID:GATKCopyNumber\tSM:~{sample_id}" >> ~{prefix}.tsv
         echo -e "CONTIG\tSTART\tEND\tCOUNT" >> ~{prefix}.tsv
 
         while IFS= read -r file; do

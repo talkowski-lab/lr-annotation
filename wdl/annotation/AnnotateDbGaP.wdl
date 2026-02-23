@@ -24,7 +24,7 @@ workflow AnnotateDbGaP {
         input:
             vcf = dbgap_vcf,
             vcf_idx = dbgap_vcf_idx,
-            prefix = prefix + ".dbgap_renamed",
+            prefix = "~{prefix}.dbgap_renamed",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_dbgap_vcf
     }
@@ -66,7 +66,7 @@ workflow AnnotateDbGaP {
         input:
             vcfs = AnnotateDbGaPIds.annotated_vcf,
             vcf_idxs = AnnotateDbGaPIds.annotated_vcf_idx,
-            prefix = prefix + ".dbgap_annotated",
+            prefix = "~{prefix}.dbgap_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

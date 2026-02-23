@@ -65,7 +65,7 @@ workflow AnnotateVcf {
         input:
             vcfs = AnnotateSequentially.annotated_vcf,
             vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
-            prefix = prefix + ".annotated",
+            prefix = "~{prefix}.annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

@@ -21,7 +21,7 @@ workflow SubsetTsvToColumns {
             header_file = annotations_header,
             columns_to_keep = subset_columns,
             column_filter_values = subset_column_values,
-            prefix = prefix,
+            prefix = "~{prefix}.subset",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset
     }

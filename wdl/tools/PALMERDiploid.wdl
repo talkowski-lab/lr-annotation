@@ -38,7 +38,7 @@ workflow PALMERDiploid {
 				input:
 					bam = select_first([bam]),
 					bai = select_first([bai]),
-					prefix = prefix,
+					prefix = "~{prefix}.split",
 					contigs = contigs,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_split_bam
@@ -49,7 +49,7 @@ workflow PALMERDiploid {
 					input:
 						bam = SplitBam.bams[i],
 						bai = SplitBam.bais[i],
-						prefix = prefix,
+						prefix = "~{prefix}.shard_{i}" ,
 						mode = mode,
 						mei_type = mei_type,
 						ref_fa = ref_fa,
@@ -62,7 +62,7 @@ workflow PALMERDiploid {
 				input:
 					calls_shards = RunPALMERShard.calls_shard,
 					tsd_reads_shards = RunPALMERShard.tsd_reads_shard,
-					prefix = prefix,
+					prefix = "~{prefix}.merged",
 					mei_type = mei_type,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_merge_palmer_outputs
@@ -74,7 +74,7 @@ workflow PALMERDiploid {
 				input:
 					input_file = select_first([override_palmer_calls])[idx],
 					mei_type = mei_type,
-					prefix = prefix,
+					prefix = "~{prefix}.mei_type_added",
 					file_type = "calls",
 					docker = utils_docker
 			}
@@ -85,7 +85,7 @@ workflow PALMERDiploid {
 				input:
 					input_file = select_first([override_palmer_tsd_files])[idx],
 					mei_type = mei_type,
-					prefix = prefix,
+					prefix = "~{prefix}.mei_type_added",
 					file_type = "tsd_reads",
 					docker = utils_docker
 			}

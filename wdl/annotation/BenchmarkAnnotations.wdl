@@ -324,7 +324,7 @@ workflow BenchmarkAnnotations {
     call MergePlotTarballs {
         input:
             tarballs = select_all(MergeShardBenchmarks.plot_tarball),
-            prefix = prefix,
+            prefix = "~{prefix}.plot_tarballs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_plot_tarballs
     }

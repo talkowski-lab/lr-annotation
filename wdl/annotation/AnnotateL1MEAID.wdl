@@ -115,7 +115,7 @@ workflow AnnotateL1MEAID {
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
             tsvs = final_annotations_tsv,
-            prefix = prefix + ".intactmei_annotations",
+            prefix = "~{prefix}.intactmei_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_contigs
     }

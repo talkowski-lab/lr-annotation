@@ -239,7 +239,7 @@ workflow AnnotateSVAN {
     call Helpers.ConcatAlignedTsvs {
         input:
             tsvs = flatten([final_ins_annotations, final_del_annotations]),
-            prefix = prefix + ".svan_annotations",
+            prefix = "~{prefix}.svan_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_final
     }

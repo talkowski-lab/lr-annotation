@@ -24,7 +24,7 @@ workflow AnnotateMEIs {
             input:
                 tsv = annotations_tsv_l1meaid,
                 contig = contig,
-                prefix = prefix + ".l1meaid",
+                prefix = "~{prefix}.~{contig}.l1meaid",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }
@@ -33,7 +33,7 @@ workflow AnnotateMEIs {
             input:
                 tsv = annotations_tsv_palmer,
                 contig = contig,
-                prefix = prefix + ".palmer",
+                prefix = "~{prefix}.~{contig}.palmer",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }
@@ -42,7 +42,7 @@ workflow AnnotateMEIs {
             input:
                 tsv = annotations_tsv_svan,
                 contig = contig,
-                prefix = prefix + ".svan",
+                prefix = "~{prefix}.~{contig}.svan",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }
@@ -53,7 +53,7 @@ workflow AnnotateMEIs {
                 tsv_palmer = SubsetPALMER.subset_tsv,
                 tsv_svan = SubsetSVAN.subset_tsv,
                 header_svan = annotations_header_svan,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_filter
         }
@@ -62,7 +62,7 @@ workflow AnnotateMEIs {
     call Helpers.ConcatTsvs {
         input:
             tsvs = FilterMEIs.filtered_tsv,
-            prefix = prefix + ".mei_annotations",
+            prefix = "~{prefix}.mei_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

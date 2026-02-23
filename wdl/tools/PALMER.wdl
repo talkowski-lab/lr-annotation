@@ -46,7 +46,7 @@ workflow PALMER {
 				input:
 					bam = select_first([bam_pat]),
 					bai = select_first([bai_pat]),
-					prefix = prefix + ".pat",
+					prefix = "~{prefix}.pat",
 					contigs = contigs,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_split_bam
@@ -57,7 +57,7 @@ workflow PALMER {
 					input:
 						bam = SplitBamPat.bams[i],
 						bai = SplitBamPat.bais[i],
-						prefix = prefix + ".pat",
+						prefix = "~{prefix}.shard_{i}.pat",
 						mode = mode,
 						mei_type = mei_type,
 						ref_fa = ref_fa,
@@ -70,7 +70,7 @@ workflow PALMER {
 				input:
 					calls_shards = RunPALMERShardPat.calls_shard,
 					tsd_reads_shards = RunPALMERShardPat.tsd_reads_shard,
-					prefix = prefix + ".pat",
+					prefix = "~{prefix}.merged_pat",
 					mei_type = mei_type,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_merge_palmer_outputs
@@ -99,7 +99,7 @@ workflow PALMER {
 				input:
 					bam = select_first([bam_mat]),
 					bai = select_first([bai_mat]),
-					prefix = prefix + ".mat",
+					prefix = "~{prefix}.mat",
 					contigs = contigs,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_split_bam
@@ -110,7 +110,7 @@ workflow PALMER {
 					input:
 						bam = SplitBamMat.bams[i],
 						bai = SplitBamMat.bais[i],
-						prefix = prefix + ".mat",
+						prefix = "~{prefix}.shard_{i}.mat",
 						mode = mode,
 						mei_type = mei_type,
 						ref_fa = ref_fa,
@@ -123,7 +123,7 @@ workflow PALMER {
 				input:
 					calls_shards = RunPALMERShardMat.calls_shard,
 					tsd_reads_shards = RunPALMERShardMat.tsd_reads_shard,
-					prefix = prefix + ".mat",
+					prefix = "~{prefix}.merged_mat",
 					mei_type = mei_type,
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_merge_palmer_outputs

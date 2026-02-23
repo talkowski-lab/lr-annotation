@@ -17,7 +17,7 @@ workflow CreatePEDAncestry {
         input:
             sample_ids = sample_ids,
             sexes = sexes,
-            prefix = prefix,
+            prefix = "~{prefix}.ped",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_override
     }
@@ -25,7 +25,7 @@ workflow CreatePEDAncestry {
     call CreateAncestryFile {
         input:
             sample_ids = sample_ids,
-            prefix = prefix,
+            prefix = "~{prefix}.ancestry",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_override
     }

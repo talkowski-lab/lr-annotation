@@ -127,7 +127,7 @@ workflow AnnotateTRs {
         input:
             vcfs = AnnotateVcfWithTRs.annotated_vcf,
             vcf_idxs = AnnotateVcfWithTRs.annotated_vcf_idx,
-            prefix = prefix + ".annotated_trs",
+            prefix = "~{prefix}.annotated_trs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf
     }

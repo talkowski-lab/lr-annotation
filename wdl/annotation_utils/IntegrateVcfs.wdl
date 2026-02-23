@@ -59,7 +59,7 @@ workflow IntegrateVcfs {
                 vcf = snv_indel_vcf,
                 vcf_idx = snv_indel_vcf_idx,
                 sample_swap_list = select_first([swap_samples_snv_indel]),
-                prefix = prefix + ".snv_indel.swapped",
+                prefix = "~{prefix}.snv_indel.swapped",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_swap_samples_snv_indel
         }
@@ -71,7 +71,7 @@ workflow IntegrateVcfs {
                 vcf = sv_vcf,
                 vcf_idx = sv_vcf_idx,
                 sample_swap_list = select_first([swap_samples_sv]),
-                prefix = prefix + ".sv.swapped",
+                prefix = "~{prefix}.sv.swapped",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_swap_samples_sv
         }

@@ -126,7 +126,7 @@ workflow AnnotateAlleleType {
         input:
             vcfs = AnnotateDup.annotated_vcf,
             vcf_idxs = AnnotateDup.annotated_vcf_idx,
-            prefix = prefix + ".allele_type_annotated",
+            prefix = "~{prefix}.allele_type_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }

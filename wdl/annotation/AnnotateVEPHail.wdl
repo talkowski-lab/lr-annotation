@@ -38,7 +38,7 @@ workflow AnnotateVEPHail {
         input:
             file = vcf,
             split_vcf_hail_script = split_vcf_hail_script,
-            prefix = prefix,
+            prefix = "~{prefix}.scattered",
             genome_build = genome_build,
             localize_vcf = localize_vcf,
             get_chromosome_sizes = get_chromosome_sizes,
@@ -68,7 +68,7 @@ workflow AnnotateVEPHail {
     call Helpers.ConcatTsvs {
         input:
             tsvs = VepAnnotate.vep_tsv_file,
-            prefix = prefix + ".vep_annotations",
+            prefix = "~{prefix}.vep_annotations",
             docker = sv_base_mini_docker,
             runtime_attr_override = runtime_attr_concat
     }

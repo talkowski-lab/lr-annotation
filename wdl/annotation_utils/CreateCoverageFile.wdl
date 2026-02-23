@@ -53,7 +53,7 @@ workflow CreateCoverageFile {
     }
 
     output {
-        File coverage = ConcatenateCoverages.merged_coverage
+        File binned_coverage_tsv = ConcatenateCoverages.merged_coverage
     }
 }
 
