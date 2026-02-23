@@ -13,7 +13,7 @@ workflow ConcatenateMosDepth {
     call ConcatenateBeds {
         input:
             bed_files = mosdepth_bed_files,
-            prefix = prefix,
+            prefix = "~{prefix}.combined",
             runtime_attr_override = runtime_attr_concatenate
     }
 
@@ -33,14 +33,14 @@ task ConcatenateBeds {
     command <<<
         set -euo pipefail
 
-        zcat ~{sep=' ' bed_files} | bgzip > ~{prefix}.per-base.bed.gz
+        zcat ~{sep=' ' bed_files} | bgzip > ~{prefix}.bed.gz
 
-        tabix -s 1 -b 2 -e 3 ~{prefix}.per-base.bed.gz
+        tabix -s 1 -b 2 -e 3 ~{prefix}.bed.gz
     >>>
 
     output {
-        File concatenated_bed = "~{prefix}.per-base.bed.gz"
-        File concatenated_bed_idx = "~{prefix}.per-base.bed.gz.tbi"
+        File concatenated_bed = "~{prefix}.bed.gz"
+        File concatenated_bed_idx = "~{prefix}.bed.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
