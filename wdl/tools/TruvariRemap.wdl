@@ -20,16 +20,27 @@ workflow TruvariRemap {
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_subset_contig
         RuntimeAttr? runtime_attr_ins_remap
         RuntimeAttr? runtime_attr_concat
     }
 
     scatter (contig in contigs) {
-        call InsRemap {
+        call Helpers.SubsetVcfToContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
+                extra_args = "-G -i 'INFO/allele_type=\"ins\"'",
+                prefix = "~{prefix}.~{contig}.ins",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_contig
+        }
+
+        call InsRemap {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_bwa_indices = ref_bwa_indices,
                 min_length = min_length,
@@ -58,7 +69,6 @@ task InsRemap {
     input {
         File vcf
         File vcf_idx
-        String contig
         File ref_fa
         Array[File] ref_bwa_indices
         Int min_length
@@ -76,13 +86,6 @@ task InsRemap {
         N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
         N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
 
-        bcftools view \
-            -r ~{contig} \
-            -Oz -o ~{contig}.vcf.gz \
-            ~{vcf}
-        
-        tabix ~{contig}.vcf.gz
-
         mkdir ref_files
         mv ~{ref_fa} ref_files/
         for x in ~{sep=' ' ref_bwa_indices}; do
@@ -99,7 +102,7 @@ task InsRemap {
             --mm2-threshold ~{mm2_threshold} \
             --threads ${N_THREADS} \
             --cov-threshold ~{cov_threshold} \
-            ~{contig}.vcf.gz
+            ~{vcf}
 
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/remap_classification\t%INFO/remap_coords\t%INFO/remap_ori\t%INFO/remap_perc\n' \
