@@ -1463,56 +1463,6 @@ CODE
     }
 }
 
-task SplitVcfIntoShards {
-    input {
-        File input_vcf
-        File input_vcf_idx
-        Int variants_per_shard
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        mkdir chunks
-        bcftools view -h ~{input_vcf} > chunks/header.vcf
-        bcftools view -H ~{input_vcf} | split -l ~{variants_per_shard} - chunks/body_
-
-        for body in chunks/body_*; do
-        chunk_name=chunks/~{prefix}_$(basename "$body")
-        cat chunks/header.vcf "$body" | bgzip -c > "${chunk_name}.vcf.gz"
-        tabix -p vcf -f "${chunk_name}.vcf.gz"
-        done
-    
-    >>>
-
-    output {
-        Array[File] split_vcfs = glob("chunks/*.vcf.gz")
-        Array[File] split_vcf_idxes = glob("chunks/*.vcf.gz.tbi")
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(input_vcf,"GB")*2.5) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
 task StripGenotypes {
     input {
         File vcf

@@ -157,7 +157,15 @@ TODO
 TODO
 
 
+### [CreateCoverageFile](wdl/annotation_utils/CreateCoverageFile.wdl)
+TODO
+
+
 ### [CreatePEDAncestry](wdl/annotation_utils/CreatePEDAncestry.wdl)
+TODO
+
+
+### [CreateReadCountFiles](wdl/annotation_utils/CreateReadCountFiles.wdl)
 TODO
 
 
@@ -188,10 +196,6 @@ TODO
 
 ## Tools
 ### [Automop](wdl/tools/Automop.wdl)
-TODO
-
-
-### [CreateReadCountFiles](wdl/tools/CreateReadCountFiles.wdl)
 TODO
 
 

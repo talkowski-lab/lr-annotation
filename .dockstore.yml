@@ -125,8 +125,26 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CreateCoverageFile
+    primaryDescriptorPath: /wdl/annotation_utils/CreateCoverageFile.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: CreateReadCountsFile
+    primaryDescriptorPath: /wdl/annotation_utils/CreateReadCountsFile.wdl
     filters:
       branches:
         - main
@@ -193,15 +211,6 @@ workflows:
   - subclass: WDL
     name: Automop
     primaryDescriptorPath: /wdl/tools/Automop.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CreateReadCountsFile
-    primaryDescriptorPath: /wdl/tools/CreateReadCountsFile.wdl
     filters:
       branches:
         - main

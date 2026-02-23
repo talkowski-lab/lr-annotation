@@ -132,6 +132,7 @@ task VepAnnotate {
             "--minimal",
             "--assembly", "~{genome_build}",
             "--merged",
+            "--pick_allele",
             "--fasta", "~{top_level_fa}",
             "--dir_cache", "'$dir_cache_path'",
             "-o", "STDOUT"
