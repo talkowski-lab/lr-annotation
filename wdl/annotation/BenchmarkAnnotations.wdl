@@ -23,7 +23,7 @@ workflow BenchmarkAnnotations {
         Int min_sv_length_eval_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
 
-        String? min_sv_length_eval_field = "allele_length"
+        String min_sv_length_eval_field = "allele_length"
         String? skip_vep_categories
         String? args_string_vcf
         String? args_string_vcf_truth
