@@ -23,7 +23,9 @@ workflow BenchmarkAnnotations {
         Int min_sv_length_eval_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
 
-        String min_sv_length_eval_field = "allele_length"
+        String sv_type_eval_field = "allele_type"
+        String sv_length_eval_field = "allele_length"
+
         String? skip_vep_categories
         String? args_string_vcf
         String? args_string_vcf_truth
@@ -177,7 +179,7 @@ workflow BenchmarkAnnotations {
                 vcf_truth_idx = truth_vcf_final_idx,
                 min_sv_length_eval = min_sv_length_eval_truvari,
                 min_sv_length_truth = min_sv_length_truth_truvari,
-                min_sv_length_eval_field = min_sv_length_eval_field,
+                sv_length_eval_field = sv_length_eval_field,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.truvari",
@@ -196,7 +198,8 @@ workflow BenchmarkAnnotations {
                 vcf_sv_truth_idx = sv_truth_vcf_final_idx,
                 min_sv_length_eval = min_sv_length_eval_bedtools_closest,
                 min_sv_length_truth = min_sv_length_truth_bedtools_closest,
-                min_sv_length_eval_field = min_sv_length_eval_field,
+                sv_type_eval_field = sv_type_eval_field,
+                sv_length_eval_field = sv_length_eval_field,
                 prefix = "~{prefix}.~{contig}.bedtools_closest",
                 benchmark_annotations_docker = benchmark_annotations_docker,
                 utils_docker = utils_docker,

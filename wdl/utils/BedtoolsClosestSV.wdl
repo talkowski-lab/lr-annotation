@@ -15,7 +15,7 @@ workflow BedtoolsClosestSV {
         Int min_sv_length_truth
         
         String sv_type_eval_field
-        String min_sv_length_eval_field
+        String sv_length_eval_field
         
         String benchmark_annotations_docker
         String utils_docker
@@ -30,27 +30,16 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
-    # Preprocessing
+    # Preprocess eval VCF
     call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
             min_length = min_sv_length_eval,
-            length_field = min_sv_length_eval_field,
+            length_field = sv_length_eval_field,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
-    }
-
-    call Helpers.SubsetVcfByLength as SubsetTruth {
-        input:
-            vcf = vcf_sv_truth,
-            vcf_idx = vcf_sv_truth_idx,
-            min_length = min_sv_length_truth,
-            length_field = "SVLEN",
-            prefix = "~{prefix}.subset_truth",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_truth
     }
 
     call Helpers.ConvertToSymbolic {
@@ -67,10 +56,22 @@ workflow BedtoolsClosestSV {
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
             type_field = sv_type_eval_field,
-            length_field = "allele_length",
+            length_field = sv_length_eval_field,
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
+    }
+
+    # Preprocess truth VCF
+    call Helpers.SubsetVcfByLength as SubsetTruth {
+        input:
+            vcf = vcf_sv_truth,
+            vcf_idx = vcf_sv_truth_idx,
+            min_length = min_sv_length_truth,
+            length_field = "SVLEN",
+            prefix = "~{prefix}.subset_truth",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_truth
     }
 
     call SplitQueryVcf as SplitTruth {
