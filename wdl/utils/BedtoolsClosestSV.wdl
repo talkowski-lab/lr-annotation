@@ -13,6 +13,8 @@ workflow BedtoolsClosestSV {
 
         Int min_sv_length_eval
         Int min_sv_length_truth
+        
+        String sv_type_eval_field
         String min_sv_length_eval_field
         
         String benchmark_annotations_docker
@@ -64,7 +66,7 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            type_field = "allele_type",
+            type_field = sv_type_eval_field,
             length_field = "allele_length",
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
@@ -82,7 +84,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_split_truth
     }
 
-    # Deletions
+    # Comparisons by variant type
     call Helpers.BedtoolsClosest as CompareDEL {
         input:
             bed_a = SplitEval.del_bed,
@@ -100,7 +102,6 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    # Insertions
     call Helpers.BedtoolsClosest as CompareINS {
         input:
             bed_a = SplitEval.ins_bed,
@@ -118,10 +119,61 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    call Helpers.BedtoolsClosest as CompareDUP {
+        input:
+            bed_a = SplitEval.dup_bed,
+            bed_b = SplitTruth.dup_bed,
+            prefix = "~{prefix}.DUP",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+    
+    call SelectMatchedSVs as CalcuDUP {
+        input:
+            input_bed = CompareDUP.output_bed,
+            prefix = "~{prefix}.DUP",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
+    call Helpers.BedtoolsClosest as CompareINV {
+        input:
+            bed_a = SplitEval.inv_bed,
+            bed_b = SplitTruth.inv_bed,
+            prefix = "~{prefix}.INV",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+    
+    call SelectMatchedSVs as CalcuINV {
+        input:
+            input_bed = CompareINV.output_bed,
+            prefix = "~{prefix}.INV",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
+    call Helpers.BedtoolsClosest as CompareBND {
+        input:
+            bed_a = SplitEval.bnd_bed,
+            bed_b = SplitTruth.bnd_bed,
+            prefix = "~{prefix}.BND",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+    
+    call SelectMatchedINSs as CalcuBND {
+        input:
+            input_bed = CompareBND.output_bed,
+            prefix = "~{prefix}.BND",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+    
     # Postprocessing
     call Helpers.ConcatTsvs {
         input:
-            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp],
+            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
             prefix = "~{prefix}.comparison",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
