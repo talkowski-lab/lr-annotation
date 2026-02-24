@@ -14,6 +14,8 @@ workflow CreateReadCountsFile {
         Int bin_size
         File ref_dict
 
+        String utils_docker
+
         RuntimeAttr? runtime_attr_bin
         RuntimeAttr? runtime_attr_merge
     }
@@ -26,6 +28,7 @@ workflow CreateReadCountsFile {
                 contig = contigs[i],
                 bin_size = bin_size,
                 prefix = "~{prefix}.~{contigs[i]}",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_bin
         }
     }
@@ -37,6 +40,7 @@ workflow CreateReadCountsFile {
             ref_dict = ref_dict,
             sample_id = sample_id,
             prefix = "~{prefix}.counts",
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -52,6 +56,7 @@ task BinMosDepthCounts {
         String contig
         Int bin_size
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -121,7 +126,7 @@ CODE
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -134,6 +139,7 @@ task MergeBinnedCounts {
         File ref_dict
         String sample_id
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -169,7 +175,7 @@ task MergeBinnedCounts {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

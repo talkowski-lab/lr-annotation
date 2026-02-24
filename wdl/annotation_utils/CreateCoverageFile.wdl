@@ -13,37 +13,32 @@ workflow CreateCoverageFile {
         Int bin_size
         Array[Int] thresholds
 
+        String utils_docker
+
         RuntimeAttr? runtime_attr_bin
         RuntimeAttr? runtime_attr_merge
     }
 
-    scatter (contig_idx in range(length(contigs))) {
+    scatter (contig in contigs) {
         call ComputeBinnedCoverage {
             input:
                 mosdepth_beds = mosdepth_bed_files,
                 mosdepth_bed_indices = mosdepth_bed_indices,
-                contig = contigs[contig_idx],
+                contig = contig,
                 bin_size = bin_size,
                 thresholds = thresholds,
-                prefix = "~{prefix}.~{contigs[contig_idx]}",
-                runtime_attr_override = runtime_attr_bin
-        }
-
-        call FormatContigCoverage {
-            input:
-                binned_coverage = ComputeBinnedCoverage.binned_coverage,
-                contig = contigs[contig_idx],
-                thresholds = thresholds,
-                prefix = "~{prefix}.~{contigs[contig_idx]}",
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_bin
         }
     }
 
     call ConcatenateCoverages {
         input:
-            formatted_coverages = FormatContigCoverage.formatted_coverage,
+            formatted_coverages = ComputeBinnedCoverage.binned_coverage,
             thresholds = thresholds,
             prefix = "~{prefix}.coverage",
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
     }
 
@@ -60,6 +55,7 @@ task ComputeBinnedCoverage {
         Int bin_size
         Array[Int] thresholds
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -70,7 +66,6 @@ task ComputeBinnedCoverage {
 import gzip
 import subprocess
 from statistics import mean, median
-from collections import defaultdict
 
 mosdepth_files = "~{sep=',' mosdepth_beds}".split(',')
 bin_size = ~{bin_size}
@@ -79,61 +74,80 @@ contig = "~{contig}"
 output_file = "~{prefix}.tsv"
 num_samples = len(mosdepth_files)
 
-bins = defaultdict(lambda: [0.0] * num_samples)
+iterators = []
+current_rows = []
 
-# Process each sample file
-for sample_idx, bed_file in enumerate(mosdepth_files):
-    # Track per-sample coverage for each bin
-    sample_bin_coverages = defaultdict(list)
+for bed_file in mosdepth_files:
+    proc = subprocess.Popen(['tabix', bed_file, contig], stdout=subprocess.PIPE, text=True)
+    iterators.append(proc.stdout)
     
-    # Use tabix to extract only this contig
-    cmd = ['tabix', bed_file, contig]
-    result = subprocess.run(cmd, capture_output=True, text=True, check=True)
-    
-    for line in result.stdout.strip().split('\n'):
-        if not line:
-            continue
+    line = proc.stdout.readline()
+    if line:
         parts = line.strip().split('\t')
-        chrom = parts[0]
-        start = int(parts[1])
-        end = int(parts[2])
-        coverage = float(parts[3])
+        current_rows.append((int(parts[1]), int(parts[2]), float(parts[3])))
+    else:
+        current_rows.append(None)
+
+min_pos = min((row[0] for row in current_rows if row), default=None)
+with gzip.open(output_file + '.gz', 'wt') as out:
+    current_bin = (min_pos // bin_size) * bin_size
+    
+    while any(row is not None for row in current_rows):
+        bin_end = current_bin + bin_size
+        bin_coverages = [[] for _ in range(num_samples)]
+        has_data = False
         
-        start_bin = (start // bin_size) * bin_size
-        end_bin = ((end - 1) // bin_size) * bin_size
+        for sample_idx in range(num_samples):
+            while current_rows[sample_idx] is not None:
+                start, end, coverage = current_rows[sample_idx]
+                
+                if end <= current_bin:
+                    # Row before bin, skip it
+                    line = iterators[sample_idx].readline()
+                    if line:
+                        parts = line.strip().split('\t')
+                        current_rows[sample_idx] = (int(parts[1]), int(parts[2]), float(parts[3]))
+                    else:
+                        current_rows[sample_idx] = None
+                elif start >= bin_end:
+                    # Row after bin, keep it for next bin
+                    break
+                else:
+                    # Row overlaps bin
+                    has_data = True
+                    overlap_start = max(start, current_bin)
+                    overlap_end = min(end, bin_end)
+                    overlap_length = overlap_end - overlap_start
+                    bin_coverages[sample_idx].extend([coverage] * overlap_length)
+                    
+                    if end > bin_end:
+                        # Row extends beyond bin, keep for next
+                        break
+                    else:
+                        # Row consumed, get next
+                        line = iterators[sample_idx].readline()
+                        if line:
+                            parts = line.strip().split('\t')
+                            current_rows[sample_idx] = (int(parts[1]), int(parts[2]), float(parts[3]))
+                        else:
+                            current_rows[sample_idx] = None
         
-        for bin_start in range(start_bin, end_bin + 1, bin_size):
-            bin_end = bin_start + bin_size
-            overlap_start = max(start, bin_start)
-            overlap_end = min(end, bin_end)
-            overlap_length = overlap_end - overlap_start
+        if has_data:
+            sample_means = [mean(cov) if cov else 0.0 for cov in bin_coverages]
+            mean_cov = mean(sample_means)
+            median_cov = int(median(sample_means))
+            total_dp = sum(sample_means)
+            over_counts = [sum(1 for sm in sample_means if sm > t) for t in thresholds]
             
-            sample_bin_coverages[bin_start].extend([coverage] * overlap_length)
-    
-    # Compute per-sample mean for each bin and store
-    for bin_start, coverages in sample_bin_coverages.items():
-        bins[bin_start][sample_idx] = mean(coverages) if coverages else 0.0
-    
-    # Clear sample data to free memory
-    sample_bin_coverages.clear()
-
-# Write output
-with open(output_file, 'w') as out:
-    for bin_start in sorted(bins.keys()):
-        bin_end = bin_start + bin_size
-        sample_means = bins[bin_start]
+            row = [contig, str(current_bin + 1), str(bin_end), str(mean_cov), str(median_cov), str(int(total_dp))]
+            row.extend(map(str, over_counts))
+            out.write("\t".join(row) + "\n")
         
-        mean_cov = mean(sample_means)
-        median_cov = int(median(sample_means))
-        total_dp = sum(sample_means)
-        over_counts = [sum(1 for sm in sample_means if sm > t) for t in thresholds]
-        
-        row = [contig, str(bin_start + 1), str(bin_end), str(mean_cov), str(median_cov), str(int(total_dp))]
-        row.extend([str(c) for c in over_counts])
-        out.write("\t".join(row) + "\n")
+        current_bin += bin_size
+    
+    for it in iterators:
+        it.close()
 CODE
-
-        bgzip ~{prefix}.tsv
     >>>
 
     output {
@@ -142,7 +156,7 @@ CODE
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
+        mem_gb: 4,
         disk_gb: ceil(size(mosdepth_beds, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
@@ -154,46 +168,7 @@ CODE
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task FormatContigCoverage {
-    input {
-        File binned_coverage
-        String contig
-        Array[Int] thresholds
-        String prefix
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        zcat ~{binned_coverage} | awk -F'\t' 'BEGIN{OFS="\t"} {printf "%s:%s-%s", $1, $2, $3; for(i=4; i<=NF; i++) printf "\t%s", $i; printf "\n"}' | bgzip > ~{prefix}.formatted.tsv.gz
-    >>>
-
-    output {
-        File formatted_coverage = "~{prefix}.formatted.tsv.gz"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 2,
-        disk_gb: 3 * ceil(size(binned_coverage, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -204,6 +179,7 @@ task ConcatenateCoverages {
         Array[File] formatted_coverages
         Array[Int] thresholds
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -219,7 +195,7 @@ task ConcatenateCoverages {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 4,
+        mem_gb: 2,
         disk_gb: 3 * ceil(size(formatted_coverages, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
@@ -231,7 +207,7 @@ task ConcatenateCoverages {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-utils:0.1.9"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
