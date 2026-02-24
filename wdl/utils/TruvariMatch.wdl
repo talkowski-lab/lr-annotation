@@ -13,6 +13,7 @@ workflow TruvariMatch {
 
         Int min_sv_length_eval
         Int min_sv_length_truth
+        String min_sv_length_eval_field
 
         File ref_fa
         File ref_fai
@@ -30,6 +31,7 @@ workflow TruvariMatch {
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
             min_length = min_sv_length_eval,
+            length_field = min_sv_length_eval_field,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
