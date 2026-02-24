@@ -9,13 +9,14 @@ workflow BenchmarkAnnotations {
     input {
         File vcf_eval
         File vcf_eval_idx
-        File vcf_truth
-        File vcf_truth_idx
+        Array[File] vcf_truth
+        Array[File] vcf_truth_idx
         File vcf_sv_truth
         File vcf_sv_truth_idx
         Array[String] contigs
         String prefix
         
+        Boolean compare_annotations
         Int variants_per_shard
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
@@ -74,7 +75,9 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_merge_plot_tarballs
     }
 
-    scatter (contig in contigs) {
+    scatter (idx in range(length(contigs))) {
+        String contig = contigs[idx]
+
         call Helpers.SubsetVcfByArgs as SubsetEval {
             input:
                 vcf = vcf_eval,
@@ -88,8 +91,8 @@ workflow BenchmarkAnnotations {
 
         call Helpers.SubsetVcfByArgs as SubsetTruth {
             input:
-                vcf = vcf_truth,
-                vcf_idx = vcf_truth_idx,
+                vcf = vcf_truth[idx],
+                vcf_idx = vcf_truth_idx[idx],
                 include_args = args_string_vcf_truth,
                 extra_args = "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.truth",
@@ -154,24 +157,6 @@ workflow BenchmarkAnnotations {
         File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, SubsetSVTruth.subset_vcf])
         File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, SubsetSVTruth.subset_vcf_idx])
 
-        call ExtractVepHeader as ExtractTruthVepHeader {
-            input:
-                vcf = truth_vcf_final,
-                vcf_idx = truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}.truth",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_truth_vep_header
-        }
-
-        call ExtractVepHeader as ExtractEvalVepHeader {
-            input:
-                vcf = eval_vcf_final,
-                vcf_idx = eval_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}.eval",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_eval_vep_header
-        }
-
         call ExactMatch {
             input:
                 vcf_eval = eval_vcf_final,
@@ -230,68 +215,88 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_build_annotation_tsv
         }
 
-        call CollectMatchedIDsAndINFO {
-            input:
-                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
-                vcf_eval = eval_vcf_final,
-                vcf_eval_idx = eval_vcf_final_idx,
-                vcf_truth_snv = truth_vcf_final,
-                vcf_truth_snv_idx = truth_vcf_final_idx,
-                vcf_truth_sv = sv_truth_vcf_final,
-                vcf_truth_sv_idx = sv_truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}.collected",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_collect_matched_ids
-        }
-
-        call ComputeSummaryForContig {
-            input:
-                eval_vcf = eval_vcf_final,
-                eval_vcf_idx = eval_vcf_final_idx,
-                annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
-                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
-                eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
-                truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.summary",
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_compute_summary_for_contig
-        }
-
-        call ShardedMatchedVariants {
-            input:
-                matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
-                variants_per_shard = variants_per_shard,
-                prefix = "~{prefix}.~{contig}.sharded",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_shard_matched_eval
-        }
-
-        scatter (i in range(length(ShardedMatchedVariants.shard_tsvs))) {
-            call ComputeShardBenchmarks {
+        if (compare_annotations) {
+            call ExtractVepHeader as ExtractTruthVepHeader {
                 input:
-                    matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[i],
+                    vcf = truth_vcf_final,
+                    vcf_idx = truth_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.truth",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_truth_vep_header
+            }
+
+            call ExtractVepHeader as ExtractEvalVepHeader {
+                input:
+                    vcf = eval_vcf_final,
+                    vcf_idx = eval_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.eval",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_eval_vep_header
+            }
+
+            call CollectMatchedIDsAndINFO {
+                input:
+                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                    vcf_eval = eval_vcf_final,
+                    vcf_eval_idx = eval_vcf_final_idx,
+                    vcf_truth_snv = truth_vcf_final,
+                    vcf_truth_snv_idx = truth_vcf_final_idx,
+                    vcf_truth_sv = sv_truth_vcf_final,
+                    vcf_truth_sv_idx = sv_truth_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.collected",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_collect_matched_ids
+            }
+
+            call ComputeSummaryForContig {
+                input:
+                    eval_vcf = eval_vcf_final,
+                    eval_vcf_idx = eval_vcf_final_idx,
+                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                    matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                     eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                     truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                     contig = contig,
-                    shard_label = "~{i}",
-                    prefix = "~{prefix}.~{contig}.shard_~{i}",
+                    prefix = "~{prefix}.~{contig}.summary",
+                    docker = benchmark_annotations_docker,
+                    runtime_attr_override = runtime_attr_compute_summary_for_contig
+            }
+
+            call ShardedMatchedVariants {
+                input:
+                    matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
+                    variants_per_shard = variants_per_shard,
+                    prefix = "~{prefix}.~{contig}.sharded",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard_matched_eval
+            }
+
+            scatter (i in range(length(ShardedMatchedVariants.shard_tsvs))) {
+                call ComputeShardBenchmarks {
+                    input:
+                        matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[i],
+                        eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
+                        truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
+                        contig = contig,
+                        shard_label = "~{i}",
+                        prefix = "~{prefix}.~{contig}.shard_~{i}",
+                        skip_vep_categories = skip_vep_categories,
+                        docker = benchmark_annotations_docker,
+                        runtime_attr_override = runtime_attr_compute_shard_benchmarks
+                }
+            }
+
+            call MergeShardBenchmarks {
+                input:
+                    af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
+                    vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
+                    truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.merged",
                     skip_vep_categories = skip_vep_categories,
                     docker = benchmark_annotations_docker,
-                    runtime_attr_override = runtime_attr_compute_shard_benchmarks
+                    runtime_attr_override = runtime_attr_merge_shard_benchmarks
             }
-        }
-
-        call MergeShardBenchmarks {
-            input:
-                af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
-                vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
-                truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.merged",
-                skip_vep_categories = skip_vep_categories,
-                docker = benchmark_annotations_docker,
-                runtime_attr_override = runtime_attr_merge_shard_benchmarks
         }
     }
 
@@ -303,37 +308,39 @@ workflow BenchmarkAnnotations {
             runtime_attr_override = runtime_attr_merge_annotation_tsvs
     }
 
-    call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
-        input:
-            tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
-            prefix = "~{prefix}.benchmark_summary",
-            preserve_header = true,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_benchmark_summaries
-    }
+    if (compare_annotations) {
+        call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
+            input:
+                tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
+                prefix = "~{prefix}.benchmark_summary",
+                preserve_header = true,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_benchmark_summaries
+        }
 
-    call Helpers.ConcatTsvs as MergeSummaryStats {
-        input:
-            tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
-            prefix = "~{prefix}.summary_stats",
-            preserve_header = true,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_summary_stats
-    }
+        call Helpers.ConcatTsvs as MergeSummaryStats {
+            input:
+                tsvs = select_all(ComputeSummaryForContig.summary_stats_tsv),
+                prefix = "~{prefix}.summary_stats",
+                preserve_header = true,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_summary_stats
+        }
 
-    call MergePlotTarballs {
-        input:
-            tarballs = select_all(MergeShardBenchmarks.plot_tarball),
-            prefix = "~{prefix}.plot_tarballs",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_plot_tarballs
+        call MergePlotTarballs {
+            input:
+                tarballs = select_all(MergeShardBenchmarks.plot_tarball),
+                prefix = "~{prefix}.plot_tarballs",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_plot_tarballs
+        }
     }
 
     output {
         File annotations_tsv_benchmark = MergeAnnotationTsvs.concatenated_tsv
-        File benchmark_annotations_plots_tarball = MergePlotTarballs.merged_tarball
-        File benchmark_annotations_summary_tsv = MergeBenchmarkSummaries.concatenated_tsv
-        File benchmark_annotations_stats_tsv = MergeSummaryStats.concatenated_tsv
+        File? benchmark_annotations_summary_tsv = MergeBenchmarkSummaries.concatenated_tsv
+        File? benchmark_annotations_stats_tsv = MergeSummaryStats.concatenated_tsv
+        File? benchmark_annotations_plots_tarball = MergePlotTarballs.merged_tarball
     }
 }
 
@@ -557,12 +564,8 @@ task ShardedMatchedVariants {
         
         mkdir -p shards
         
-        if [ ! -s ~{matched_with_info_tsv} ] || [ $(cat ~{matched_with_info_tsv} | wc -l) -eq 0 ]; then
-            echo "No matched variants found, creating empty shard"
-            touch shards/matched.000000.tsv
-        else
-            cat ~{matched_with_info_tsv} | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
-        fi
+        cat ~{matched_with_info_tsv} \
+            | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
     >>>
 
     output {
@@ -605,20 +608,14 @@ task ComputeShardBenchmarks {
     command <<<
         set -euo pipefail
 
-        if [ ! -s ~{matched_shard_tsv} ] || [ $(cat ~{matched_shard_tsv} | wc -l) -eq 0 ]; then
-            echo "Empty shard, creating empty output files"
-            echo -e "af_key\teval_af\ttruth_af" > ~{prefix}.shard_~{shard_label}.af_pairs.tsv
-            echo -e "category\teval\ttruth\tcount" > ~{prefix}.shard_~{shard_label}.vep_pairs.tsv
-        else
-            python3 /opt/gnomad-lr/scripts/benchmark/compute_benchmarks_shard.py \
-                --prefix ~{prefix} \
-                --contig ~{contig} \
-                --matched_shard_tsv ~{matched_shard_tsv} \
-                --eval_vep_header ~{eval_vep_header} \
-                --truth_vep_header ~{truth_vep_header} \
-                --shard_label ~{shard_label} \
-                ~{if defined(skip_vep_categories) then "--skip_vep_categories " + skip_vep_categories else ""}
-        fi
+        python3 /opt/gnomad-lr/scripts/benchmark/compute_benchmarks_shard.py \
+            --prefix ~{prefix} \
+            --contig ~{contig} \
+            --matched_shard_tsv ~{matched_shard_tsv} \
+            --eval_vep_header ~{eval_vep_header} \
+            --truth_vep_header ~{truth_vep_header} \
+            --shard_label ~{shard_label} \
+            ~{if defined(skip_vep_categories) then "--skip_vep_categories " + skip_vep_categories else ""}
     >>>
 
     output {
