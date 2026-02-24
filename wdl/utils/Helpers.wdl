@@ -477,7 +477,7 @@ task ConcatTsvs {
 
         # Handle concatenation
         if [ "~{preserve_header}" == "true" ]; then
-            $CAT_CMD ~{tsvs[0]} | head -n 1 > combined_raw.tsv
+            $CAT_CMD ~{tsvs[0]} | head -n 1 > combined_raw.tsv || true
             for file in ~{sep=' ' tsvs}; do
                 $CAT_CMD "$file" | tail -n +2 >> combined_raw.tsv
             done
@@ -485,7 +485,7 @@ task ConcatTsvs {
             $CAT_CMD ~{sep=' ' tsvs} > combined_raw.tsv
         fi
 
-        # Handle Sorting
+        # Handle sorting
         if [ "~{sort_output}" == "true" ]; then
             if [ "~{preserve_header}" == "true" ]; then
                 head -n 1 combined_raw.tsv > ~{prefix}.tsv
