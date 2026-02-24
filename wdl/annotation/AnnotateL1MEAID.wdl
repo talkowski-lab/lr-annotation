@@ -60,12 +60,12 @@ workflow AnnotateL1MEAID {
         Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
         Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
 
-        scatter (shard_idx in range(length(vcfs_to_process))) {
+        scatter (i in range(length(vcfs_to_process))) {
             call RepeatMasker.RepeatMasker {
                 input:
-                    vcf = vcfs_to_process[shard_idx],
-                    vcf_idx = vcf_idxs_to_process[shard_idx],
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.rm",
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.rm",
                     utils_docker = utils_docker,
                     repeatmasker_docker = repeatmasker_docker,
                     runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,
@@ -76,7 +76,7 @@ workflow AnnotateL1MEAID {
                 input:
                     rm_fa = RepeatMasker.rm_fa,
                     rm_out = RepeatMasker.rm_out,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.l1meaid",
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.l1meaid",
                     docker = l1meaid_docker,
                     runtime_attr_override = runtime_attr_limeaid
             }
@@ -84,16 +84,16 @@ workflow AnnotateL1MEAID {
             call IntactMEI {
                 input:
                     l1meaid_output = L1MEAID.l1meaid_output,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei",
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.intactmei",
                     docker = intact_mei_docker,
                     runtime_attr_override = runtime_attr_filter
             }
 
             call GenerateAnnotationTable {
                 input:
-                    vcf = vcfs_to_process[shard_idx],
+                    vcf = vcfs_to_process[i],
                     filtered_tsv = IntactMEI.filtered_output,
-                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.intactmei_annotations",
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.intactmei_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate
             }

@@ -267,15 +267,15 @@ workflow BenchmarkAnnotations {
                 runtime_attr_override = runtime_attr_shard_matched_eval
         }
 
-        scatter (shard_idx in range(length(ShardedMatchedVariants.shard_tsvs))) {
+        scatter (i in range(length(ShardedMatchedVariants.shard_tsvs))) {
             call ComputeShardBenchmarks {
                 input:
-                    matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[shard_idx],
+                    matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[i],
                     eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                     truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                     contig = contig,
-                    shard_label = "~{shard_idx}",
-                    prefix = "~{prefix}.~{contig}.shard~{shard_idx}",
+                    shard_label = "~{i}",
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
                     skip_vep_categories = skip_vep_categories,
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_compute_shard_benchmarks

@@ -80,12 +80,12 @@ workflow AnnotateSVAN {
         Array[File] ins_vcfs_to_process = select_first([ShardIns.shards, [SubsetIns.subset_vcf]])
         Array[File] ins_vcf_idxs_to_process = select_first([ShardIns.shard_idxs, [SubsetIns.subset_vcf_idx]])
 
-        scatter (ins_shard_idx in range(length(ins_vcfs_to_process))) {
+        scatter (i in range(length(ins_vcfs_to_process))) {
             call Helpers.ResetVcfFilters as ResetIns {
                 input:
-                    vcf = ins_vcfs_to_process[ins_shard_idx],
-                    vcf_idx = ins_vcf_idxs_to_process[ins_shard_idx],
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.reset_filters",
+                    vcf = ins_vcfs_to_process[i],
+                    vcf_idx = ins_vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.reset_filters",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_reset_filters_ins
             }
@@ -94,7 +94,7 @@ workflow AnnotateSVAN {
                 input:
                     vcf = ResetIns.reset_vcf,
                     vcf_idx = ResetIns.reset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.trf",
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.trf",
                     mode = "ins",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_generate_trf_ins
@@ -112,7 +112,7 @@ workflow AnnotateSVAN {
                     mei_fa_indices = mei_fa_indices,
                     ref_fa = ref_fa,
                     ref_fa_indices = ref_fa_indices,
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.svan",
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.svan",
                     mode = "ins",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_annotate_ins
@@ -125,7 +125,7 @@ workflow AnnotateSVAN {
                     original_vcf = ResetIns.reset_vcf,
                     original_vcf_idx = ResetIns.reset_vcf_idx,
                     add_header_row = true,
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{ins_shard_idx}.annotations",
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_ins
             }
@@ -135,7 +135,7 @@ workflow AnnotateSVAN {
             call Helpers.ConcatTsvs as ConcatInsShards {
                 input:
                     tsvs = ExtractIns.annotations_tsv,
-                    sort_output = false,
+                    preserve_header = true,
                     prefix = "~{prefix}.~{contig}.ins_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_ins
@@ -170,12 +170,12 @@ workflow AnnotateSVAN {
         Array[File] del_vcfs_to_process = select_first([ShardDel.shards, [SubsetDel.subset_vcf]])
         Array[File] del_vcf_idxs_to_process = select_first([ShardDel.shard_idxs, [SubsetDel.subset_vcf_idx]])
 
-        scatter (del_shard_idx in range(length(del_vcfs_to_process))) {
+        scatter (i in range(length(del_vcfs_to_process))) {
             call Helpers.ResetVcfFilters as ResetDel {
                 input:
-                    vcf = del_vcfs_to_process[del_shard_idx],
-                    vcf_idx = del_vcf_idxs_to_process[del_shard_idx],
-                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.reset_filters",
+                    vcf = del_vcfs_to_process[i],
+                    vcf_idx = del_vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.reset_filters",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_reset_filters_del
             }
@@ -184,7 +184,7 @@ workflow AnnotateSVAN {
                 input:
                     vcf = ResetDel.reset_vcf,
                     vcf_idx = ResetDel.reset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.trf",
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.trf",
                     mode = "del",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_generate_trf_del
@@ -202,7 +202,7 @@ workflow AnnotateSVAN {
                     mei_fa_indices = mei_fa_indices,
                     ref_fa = ref_fa,
                     ref_fa_indices = ref_fa_indices,
-                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.svan",
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.svan",
                     mode = "del",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_annotate_del
@@ -215,7 +215,7 @@ workflow AnnotateSVAN {
                     original_vcf = ResetDel.reset_vcf,
                     original_vcf_idx = ResetDel.reset_vcf_idx,
                     add_header_row = true,
-                    prefix = "~{prefix}.~{contig}.del_shard_~{del_shard_idx}.annotations",
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_del
             }
@@ -225,7 +225,7 @@ workflow AnnotateSVAN {
             call Helpers.ConcatTsvs as ConcatDelShards {
                 input:
                     tsvs = ExtractDel.annotations_tsv,
-                    sort_output = false,
+                    preserve_header = true,
                     prefix = "~{prefix}.~{contig}.del_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_del

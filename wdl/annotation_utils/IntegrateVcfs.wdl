@@ -118,12 +118,12 @@ workflow IntegrateVcfs {
         Array[File] snv_indel_vcfs_to_process = select_first([ShardSnvIndel.shards, [SubsetContigSnvIndel.subset_vcf]])
         Array[File] snv_indel_vcf_idxs_to_process = select_first([ShardSnvIndel.shard_idxs, [SubsetContigSnvIndel.subset_vcf_idx]])
 
-        scatter (shard_idx in range(length(snv_indel_vcfs_to_process))) {
+        scatter (i in range(length(snv_indel_vcfs_to_process))) {
             call Helpers.SplitMultiallelics as SplitSnvIndel {
                 input:
-                    vcf = snv_indel_vcfs_to_process[shard_idx],
-                    vcf_idx = snv_indel_vcf_idxs_to_process[shard_idx],
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.split",
+                    vcf = snv_indel_vcfs_to_process[i],
+                    vcf_idx = snv_indel_vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.split",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_split_snv_indel
             }
@@ -133,7 +133,7 @@ workflow IntegrateVcfs {
                     vcf = SplitSnvIndel.split_vcf,
                     vcf_idx = SplitSnvIndel.split_vcf_idx,
                     samples = sample_ids,
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.subset",
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.subset",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_samples_snv_indel
             }
@@ -142,7 +142,7 @@ workflow IntegrateVcfs {
                 input:
                     vcf = SubsetSamplesSnvIndel.subset_vcf,
                     vcf_idx = SubsetSamplesSnvIndel.subset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.annotated",
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate_attributes_snv_indel
             }
@@ -154,7 +154,7 @@ workflow IntegrateVcfs {
                     tag_id = "SOURCE",
                     tag_value = snv_indel_vcf_source_tag,
                     tag_description = "Source of variant call",
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.add_info",
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.add_info",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_info_snv_indel
             }
@@ -166,7 +166,7 @@ workflow IntegrateVcfs {
                     filter_name = snv_indel_vcf_size_flag,
                     filter_description = snv_indel_vcf_size_flag_description,
                     filter_expression = "abs(INFO/allele_length) >= ~{min_sv_length}",
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{shard_idx}.add_filter",
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.add_filter",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_filter_snv_indel
             }
@@ -212,12 +212,12 @@ workflow IntegrateVcfs {
         Array[File] sv_vcfs_to_process = select_first([ShardSv.shards, [SubsetContigSv.subset_vcf]])
         Array[File] sv_vcf_idxs_to_process = select_first([ShardSv.shard_idxs, [SubsetContigSv.subset_vcf_idx]])
 
-        scatter (shard_idx in range(length(sv_vcfs_to_process))) {
+        scatter (i in range(length(sv_vcfs_to_process))) {
             call Helpers.SplitMultiallelics as SplitSv {
                 input:
-                    vcf = sv_vcfs_to_process[shard_idx],
-                    vcf_idx = sv_vcf_idxs_to_process[shard_idx],
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.split",
+                    vcf = sv_vcfs_to_process[i],
+                    vcf_idx = sv_vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.split",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_split_sv
             }
@@ -227,7 +227,7 @@ workflow IntegrateVcfs {
                     vcf = SplitSv.split_vcf,
                     vcf_idx = SplitSv.split_vcf_idx,
                     samples = sample_ids,
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.subset",
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.subset",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_samples_sv
             }
@@ -236,7 +236,7 @@ workflow IntegrateVcfs {
                 input:
                     vcf = SubsetSamplesSv.subset_vcf,
                     vcf_idx = SubsetSamplesSv.subset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.annotated",
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate_attributes_sv
             }
@@ -248,7 +248,7 @@ workflow IntegrateVcfs {
                     tag_id = "SOURCE",
                     tag_value = sv_vcf_source_tag,
                     tag_description = "Source of variant call",
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.add_info",
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.add_info",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_info_sv
             }
@@ -260,7 +260,7 @@ workflow IntegrateVcfs {
                     filter_name = sv_vcf_size_flag,
                     filter_description = sv_vcf_size_flag_description,
                     filter_expression = "abs(INFO/allele_length) < ~{min_sv_length}",
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{shard_idx}.add_filter",
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.add_filter",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_add_filter_sv
             }

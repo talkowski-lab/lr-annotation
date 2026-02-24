@@ -468,21 +468,33 @@ task ConcatTsvs {
     command <<<
         set -euo pipefail
 
+        # Handle compression command
         if [ "~{compressed_tsvs}" == "true" ]; then
             CAT_CMD="gunzip -c"
         else
             CAT_CMD="cat"
         fi
 
+        # Handle concatenation
         if [ "~{preserve_header}" == "true" ]; then
-            $CAT_CMD ~{tsvs[0]} | head -n 1 > ~{prefix}.tsv
+            $CAT_CMD ~{tsvs[0]} | head -n 1 > combined_raw.tsv
             for file in ~{sep=' ' tsvs}; do
-                $CAT_CMD "$file" | tail -n +2
-            done >> ~{prefix}.tsv
-        elif [ "~{sort_output}" == "false" ]; then
-            $CAT_CMD ~{sep=' ' tsvs} > ~{prefix}.tsv
+                $CAT_CMD "$file" | tail -n +2 >> combined_raw.tsv
+            done
         else
-            $CAT_CMD ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv
+            $CAT_CMD ~{sep=' ' tsvs} > combined_raw.tsv
+        fi
+
+        # Handle Sorting
+        if [ "~{sort_output}" == "true" ]; then
+            if [ "~{preserve_header}" == "true" ]; then
+                head -n 1 combined_raw.tsv > ~{prefix}.tsv
+                tail -n +2 combined_raw.tsv | sort -k1,1 -k2,2n >> ~{prefix}.tsv
+            else
+                sort -k1,1 -k2,2n combined_raw.tsv > ~{prefix}.tsv
+            fi
+        else
+            mv combined_raw.tsv ~{prefix}.tsv
         fi
     >>>
 
