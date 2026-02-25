@@ -15,8 +15,8 @@ workflow CreateCoverageFile {
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_bin
-        RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_compute_coverage
+        RuntimeAttr? runtime_attr_merge_coverages
     }
 
     scatter (contig in contigs) {
@@ -29,7 +29,7 @@ workflow CreateCoverageFile {
                 thresholds = thresholds,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_bin
+                runtime_attr_override = runtime_attr_compute_coverage
         }
     }
 
@@ -39,7 +39,7 @@ workflow CreateCoverageFile {
             thresholds = thresholds,
             prefix = "~{prefix}.coverage",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge
+            runtime_attr_override = runtime_attr_merge_coverages
     }
 
     output {
@@ -78,7 +78,7 @@ iterators = []
 current_rows = []
 
 for bed_file in mosdepth_files:
-    proc = subprocess.Popen(['tabix', bed_file, contig], stdout=subprocess.PIPE, text=True)
+    proc = subprocess.Popen(['tabix', '-0', bed_file, contig], stdout=subprocess.PIPE, text=True)
     iterators.append(proc.stdout)
     
     line = proc.stdout.readline()
