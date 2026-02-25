@@ -56,7 +56,6 @@ workflow LRCNVs {
         Array[String]+ depth_profiles
         String cohort_entity_id
         File contig_ploidy_priors
-        File ref_map_file
         Int num_intervals_per_scatter = 10000
         File ref_fa
         File ref_fai
