@@ -36,7 +36,7 @@ workflow BedtoolsClosestSV {
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
             min_length = min_sv_length_eval,
-            length_field = sv_length_eval_field,
+            length_field = length_field_eval,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
