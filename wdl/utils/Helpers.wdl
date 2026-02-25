@@ -632,6 +632,8 @@ task ConvertToSymbolic {
     input {
         File vcf
         File vcf_idx
+        String type_field = "allele_type"
+        String length_field = "allele_length"
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -641,13 +643,15 @@ task ConvertToSymbolic {
         set -euo pipefail
 
         bcftools query \
-            -f '%INFO/allele_type\n' \
+            -f '%INFO/~{type_field}\n' \
             ~{vcf} \
             | sort -u > allele_types.txt
         
         python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
             --input ~{vcf} \
             --output ~{prefix}.vcf.gz \
+            --length_field ~{length_field} \
+            --type_field ~{type_field} \
             --types allele_types.txt
         
         tabix -p vcf ~{prefix}.vcf.gz

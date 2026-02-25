@@ -10,6 +10,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--type_field", required=True)
+    parser.add_argument("--length_field", required=True)
     parser.add_argument("--types", required=True)
     args = parser.parse_args()
 
@@ -33,25 +35,26 @@ def main():
 
     vcf_out = VariantFile(args.output, 'w', header=header)
     for record in vcf_in:
-        if "allele_type" in record.info:
-            allele_type = record.info["allele_type"]
-            if isinstance(allele_type, (list, tuple)):
-                allele_type = allele_type[0]
+        # Parse allele type to set REF/ALT
+        allele_type = record.info[args.type_field]
+        if isinstance(allele_type, (list, tuple)):
+            allele_type = allele_type[0]
 
-            allele_type = allele_type.upper()
-            if allele_type == "BND":
-                record.info["BND_ALT"] = record.alts[0]
-            record.ref = "N"
-            record.alts = (f"<{allele_type}>", )
+        allele_type = allele_type.upper()
+        if allele_type == "BND":
+            record.info["BND_ALT"] = record.alts[0]
+        record.ref = "N"
+        record.alts = (f"<{allele_type}>", )
 
-        if "allele_length" in record.info:
-            allele_length = record.info["allele_length"]
-            if isinstance(allele_length, (list, tuple)):
-                allele_length = allele_length[0]
+        # Parse allele length to set END
+        allele_length = record.info[args.length_field]
+        if isinstance(allele_length, (list, tuple)):
+            allele_length = allele_length[0]
 
-            allele_length = abs(allele_length)
-            record.stop = record.pos + allele_length
+        allele_length = abs(allele_length)
+        record.stop = record.pos + allele_length
 
+        # Output record
         vcf_out.write(record)
 
     vcf_in.close()

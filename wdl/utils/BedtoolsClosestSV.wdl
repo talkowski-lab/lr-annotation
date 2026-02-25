@@ -14,8 +14,8 @@ workflow BedtoolsClosestSV {
         Int min_sv_length_eval
         Int min_sv_length_truth
         
-        String sv_type_eval_field
-        String sv_length_eval_field
+        String type_field_eval
+        String length_field_eval
         
         String benchmark_annotations_docker
         String utils_docker
@@ -46,6 +46,8 @@ workflow BedtoolsClosestSV {
         input:
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
+            type_field = type_field_eval,
+            length_field = length_field_eval,
             prefix = "~{prefix}.eval.symbolic",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
@@ -55,8 +57,8 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            type_field = sv_type_eval_field,
-            length_field = sv_length_eval_field,
+            type_field = type_field_eval,
+            length_field = length_field_eval,
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
