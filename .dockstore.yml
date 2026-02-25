@@ -351,3 +351,12 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: LRCNVs
+    primaryDescriptorPath: /wdl/tools/LRCNVs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
