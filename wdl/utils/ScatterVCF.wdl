@@ -29,6 +29,7 @@ workflow ScatterVCF {
     if (split_by_chromosome) {
         if (!localize_vcf) {
             String vcf_uri = file
+
             if (get_chromosome_sizes) {
                 call GetChromosomeSizes {
                     input:
@@ -44,6 +45,7 @@ workflow ScatterVCF {
             'GRCh37': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 'X', 'Y']
         }
         Array[String] chromosomes = chromosomes_dict[genome_build]
+
         scatter (chromosome in chromosomes) {
             if (localize_vcf) {
                 call SplitByChromosome {
@@ -54,12 +56,11 @@ workflow ScatterVCF {
                         runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
+
             if (!localize_vcf) {
                 String vcf_uri = file
-                Float input_size_ = if (get_chromosome_sizes) then 
                 # chrom_length * ceil(n_samples*0.001) / 1000000
-                    select_first([GetChromosomeSizes.contig_lengths])[chromosome] * ceil(select_first([GetChromosomeSizes.n_samples])*0.001) / 1000000 
-                    else size(vcf_uri, 'GB')
+                Float input_size_ = if (get_chromosome_sizes) then select_first([GetChromosomeSizes.contig_lengths])[chromosome] * ceil(select_first([GetChromosomeSizes.n_samples])*0.001) / 1000000 else size(vcf_uri, 'GB')
                 call SplitByChromosomeRemote {
                     input:
                         vcf_file = vcf_uri,
@@ -70,6 +71,7 @@ workflow ScatterVCF {
                         runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
+
             File splitChromosomeShards = select_first([SplitByChromosome.shards, SplitByChromosomeRemote.shards])
             Float splitChromosomeContigLengths = select_first([SplitByChromosome.contig_lengths, SplitByChromosomeRemote.contig_lengths])
             Pair[File, Float] split_chromosomes = (splitChromosomeShards, splitChromosomeContigLengths)
@@ -82,6 +84,7 @@ workflow ScatterVCF {
                 File chrom_shard = select_first([chrom_pair.left])
                 Float chrom_n_records = select_first([chrom_pair.right])
                 Int chrom_n_shards = ceil(chrom_n_records / select_first([records_per_shard, 0]))
+
                 call ExecuteScattering as scatterChromosomes {
                     input:
                         vcf_file = chrom_shard,
@@ -109,8 +112,10 @@ workflow ScatterVCF {
                         runtime_attr_override = runtime_attr_split_into_shards
                     }
             }
+
             if (!localize_vcf) {
                 String mt_uri = file
+
                 call Helpers.GetHailMTSize as getHailMTSize {
                     input:
                         mt_uri = mt_uri,
@@ -133,13 +138,7 @@ workflow ScatterVCF {
     }    
 
     output {
-        Array[File] vcf_shards = select_first([
-            ExecuteScattering.shards, 
-            ScatterVCFRemote.shards, 
-            chromosome_shards, 
-            splitChromosomeShards, 
-            [file]
-        ])
+        Array[File] vcf_shards = select_first([ExecuteScattering.shards, ScatterVCFRemote.shards, chromosome_shards, splitChromosomeShards, [file]])
     }
 }   
 
@@ -154,27 +153,6 @@ task GetChromosomeSizes {
     Float base_disk_gb = 10.0
     String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb),
-        cpu_cores: 1,
-        preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: sv_base_mini_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
     
     command <<<        
         set -euo pipefail
@@ -195,6 +173,25 @@ task GetChromosomeSizes {
         Float n_samples = read_lines('n_samples.txt')[0]
         Map[String, Float] contig_lengths = read_map('contig_lengths.txt')
     }
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb),
+        cpu_cores: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: sv_base_mini_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    }
 }
 
 task SplitByChromosomeRemote { 
@@ -211,27 +208,6 @@ task SplitByChromosomeRemote {
     Float input_disk_scale = 5.0
     String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: sv_base_mini_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
 
     command <<<        
         set -euo pipefail
@@ -251,6 +227,25 @@ task SplitByChromosomeRemote {
         File shards_idx = "~{prefix}.~{chromosome}.vcf.gz.tbi"
         Float contig_lengths = read_lines('contig_length.txt')[0]
     }
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
+        cpu_cores: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: sv_base_mini_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    }
 }
 
 task SplitByChromosome { 
@@ -266,27 +261,6 @@ task SplitByChromosome {
     Float input_disk_scale = 2.0
     String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: sv_base_mini_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
 
     command <<<
         set -euo pipefail
@@ -306,6 +280,25 @@ task SplitByChromosome {
         File shards_idx = "~{prefix}.~{chromosome}.vcf.gz.tbi"
         Float contig_lengths = read_lines('contig_length.txt')[0]
     }
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
+        cpu_cores: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: sv_base_mini_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
+    }
 }
 
 task ExecuteScattering {
@@ -324,27 +317,6 @@ task ExecuteScattering {
     Float input_disk_scale = 5.0
     String filename = basename(vcf_file)
     String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-    
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
     
     command <<<
         set -euo pipefail
@@ -358,9 +330,29 @@ task ExecuteScattering {
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz
         done
     >>>
+
     output {
         Array[File] shards = glob("~{prefix}.shard_*.vcf.bgz")
         Array[String] shards_string = glob("~{prefix}.shard_*.vcf.bgz")
+    }
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
+        cpu_cores: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: hail_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
     }
 }
 
@@ -379,28 +371,6 @@ task ScatterVCFRemote {
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
     String prefix = if sub(vcf_file, '.mt', '')!=vcf_file then basename(vcf_file, '.mt') else basename(vcf_file, ".vcf.gz")
-
-    RuntimeAttr default_attr = object {
-        mem_gb: 4,
-        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
-        cpu_cores: 1,
-        preemptible_tries: 2,
-        max_retries: 0,
-        boot_disk_gb: 10
-    }
-
-    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
-
-    
-    runtime {
-        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
-        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
-        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
-        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
-        docker: hail_docker
-        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
-    }
     
     command <<<
         set -euo pipefail
@@ -414,8 +384,28 @@ task ScatterVCFRemote {
             mv ~{prefix}.vcf.bgz/$file ~{prefix}.shard_"$shard_num".vcf.bgz
         done
     >>>
+
     output {
         Array[File] shards = glob("~{prefix}.shard_*.vcf.bgz")
         Array[String] shards_string = glob("~{prefix}.shard_*.vcf.bgz")
+    }
+
+    RuntimeAttr default_attr = object {
+        mem_gb: 4,
+        disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
+        cpu_cores: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
+        boot_disk_gb: 10
+    }
+    RuntimeAttr runtime_override = select_first([runtime_attr_override, default_attr])
+    runtime {
+        memory: "~{select_first([runtime_override.mem_gb, default_attr.mem_gb])} GB"
+        disks: "local-disk ~{select_first([runtime_override.disk_gb, default_attr.disk_gb])} HDD"
+        cpu: select_first([runtime_override.cpu_cores, default_attr.cpu_cores])
+        preemptible: select_first([runtime_override.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_override.max_retries, default_attr.max_retries])
+        docker: hail_docker
+        bootDiskSizeGb: select_first([runtime_override.boot_disk_gb, default_attr.boot_disk_gb])
     }
 }

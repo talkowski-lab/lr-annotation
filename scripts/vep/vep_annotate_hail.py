@@ -50,7 +50,7 @@ table = table.select(
     REF=table.alleles[0],
     ALT=table.alleles[1],
     ID=hl.or_else(table.rsid, '.'),
-    CSQ=hl.or_else(table.vep[0], '.')
+    CSQ=hl.or_else(hl.delimit(table.vep, ','), '.')
 )
 
 table = table.key_by().select('CHROM', 'POS', 'REF', 'ALT', 'ID', 'CSQ')
