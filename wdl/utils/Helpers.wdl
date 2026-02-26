@@ -1068,6 +1068,52 @@ CODE
     }
 }
 
+task MakeWindows {
+    input {
+        File ref_fai
+        Array[String] contigs
+        Int window_size
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        
+        awk -v contigs="~{sep=',' contigs}" 'BEGIN {split(contigs, c, ","); for(i in c) req[c[i]]=1} {if(req[$1]) print $1 "\t" $2}' ~{ref_fai} > genome.txt
+        
+        bedtools makewindows \
+            -g genome.txt \
+            -w ~{window_size} \
+            > windows.bed
+        
+        awk '{print $1":"$2"-"$3}' windows.bed > regions.txt
+    >>>
+
+    output {
+        Array[String] regions = read_lines("regions.txt")
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(ref_fai, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task MergeHeaderLines {
     input {
         Array[File] header_files

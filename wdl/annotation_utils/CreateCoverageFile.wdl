@@ -10,6 +10,7 @@ workflow CreateCoverageFile {
         Array[String] contigs
         String prefix
 
+        Int window_size
         Int bin_size
         Array[Int] thresholds
 
@@ -17,19 +18,29 @@ workflow CreateCoverageFile {
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_make_windows
         RuntimeAttr? runtime_attr_compute_coverage
         RuntimeAttr? runtime_attr_merge_coverages
     }
 
-    scatter (contig in contigs) {
+    call Helpers.MakeWindows {
+        input:
+            ref_fai = ref_fai,
+            contigs = contigs,
+            window_size = window_size,
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_make_windows
+    }
+
+    scatter (region in MakeWindows.regions) {
         call ComputeBinnedCoverage {
             input:
                 mosdepth_beds = mosdepth_bed_files,
                 mosdepth_bed_indices = mosdepth_bed_indices,
-                contig = contig,
+                region = region,
                 bin_size = bin_size,
                 thresholds = thresholds,
-                prefix = "~{prefix}.~{contig}",
+                prefix = "~{prefix}." + sub(region, ":", "_"),
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_compute_coverage
         }
@@ -53,7 +64,7 @@ task ComputeBinnedCoverage {
     input {
         Array[File] mosdepth_beds
         Array[File] mosdepth_bed_indices
-        String contig
+        String region
         Int bin_size
         Array[Int] thresholds
         String prefix
@@ -76,7 +87,7 @@ region = "~{region}"
 output_file = "~{prefix}.tsv"
 num_samples = len(mosdepth_files)
 
-# Parse boundaries to ensure we strictly clamp to shard limits
+# Parse boundaries
 if ":" in region:
     contig, span = region.split(":")
     reg_start, reg_end = map(int, span.split("-"))
@@ -92,16 +103,17 @@ for bed_file in mosdepth_files:
     proc = subprocess.Popen(
         ['tabix', bed_file, region], 
         stdout=subprocess.PIPE, 
-        stderr=subprocess.DEVNULL, # Mutes the -0 option coordinate warnings
+        stderr=subprocess.DEVNULL,
         text=True
     )
     iterators.append(proc.stdout)
     
-    # Fast-forward to the first valid overlapping interval
+    # Fast-forward to first valid overlapping interval
     line = proc.stdout.readline()
     while line:
         parts = line.strip().split('\t')
-        # Clamp coordinates to boundaries to strictly prevent double-counting across shards
+
+        # Clamp coordinates to boundaries
         s = max(int(parts[1]), reg_start)
         e = min(int(parts[2]), reg_end)
         if s < e:
@@ -112,49 +124,47 @@ for bed_file in mosdepth_files:
         current_rows.append(None)
 
 with gzip.open(output_file + '.gz', 'wt') as out:
-    # Only process if ALL samples have data for this region
-    if not any(r is None for r in current_rows):
-        active_starts = [r[0] for r in current_rows if r]
-        current_pos = max((min(active_starts) // bin_size) * bin_size, reg_start)
+    active_starts = [r[0] for r in current_rows if r]
+    current_pos = max((min(active_starts) // bin_size) * bin_size, reg_start)
 
-        while True:
-            # Advance any iterator that has fallen behind current_pos
-            for i in range(num_samples):
-                while current_rows[i] is not None and current_rows[i][1] <= current_pos:
+    while True:
+        # Advance any iterator that has fallen behind current_pos
+        for i in range(num_samples):
+            while current_rows[i] is not None and current_rows[i][1] <= current_pos:
+                line = iterators[i].readline()
+                while line:
+                    parts = line.strip().split('\t')
+                    s = max(int(parts[1]), reg_start)
+                    e = min(int(parts[2]), reg_end)
+                    if s < e:
+                        current_rows[i] = (s, e, float(parts[3]))
+                        break
                     line = iterators[i].readline()
-                    while line:
-                        parts = line.strip().split('\t')
-                        s = max(int(parts[1]), reg_start)
-                        e = min(int(parts[2]), reg_end)
-                        if s < e:
-                            current_rows[i] = (s, e, float(parts[3]))
-                            break
-                        line = iterators[i].readline()
-                    else:
-                        current_rows[i] = None
+                else:
+                    current_rows[i] = None
+        
+        if any(r is None for r in current_rows):
+            break
             
-            if any(r is None for r in current_rows):
-                break
-                
-            # Find the end of this block of constant coverage across ALL samples
-            min_end = min((r[1] for r in current_rows))
+        # Find the end of this block of constant coverage across all samples
+        min_end = min((r[1] for r in current_rows))
+        
+        if min_end > current_pos:
+            # Calculate stats once for the whole constant block
+            depths = [r[2] for r in current_rows]
+            total_dp = sum(depths)
+            mean_cov = total_dp / num_samples
+            depths_sorted = sorted(depths)
+            median_cov = int(depths_sorted[num_samples // 2])
+            over_counts = [sum(1 for d in depths if d > t) for t in thresholds]
+            stats_str = f"{mean_cov}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(map(str, over_counts))
             
-            if min_end > current_pos:
-                # Calculate stats once for the whole constant block
-                depths = [r[2] for r in current_rows]
-                total_dp = sum(depths)
-                mean_cov = total_dp / num_samples
-                depths_sorted = sorted(depths)
-                median_cov = int(depths_sorted[num_samples // 2])
-                over_counts = [sum(1 for d in depths if d > t) for t in thresholds]
-                stats_str = f"{mean_cov}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(map(str, over_counts))
-                
-                # Output bins matching the bin_size
-                while current_pos < min_end:
-                    next_bin_boundary = ((current_pos // bin_size) + 1) * bin_size
-                    actual_end = min(next_bin_boundary, min_end)
-                    out.write(f"{contig}\t{current_pos + 1}\t{actual_end}\t{stats_str}\n")
-                    current_pos = actual_end
+            # Output bins matching the bin_size
+            while current_pos < min_end:
+                next_bin_boundary = ((current_pos // bin_size) + 1) * bin_size
+                actual_end = min(next_bin_boundary, min_end)
+                out.write(f"{contig}\t{current_pos + 1}\t{actual_end}\t{stats_str}\n")
+                current_pos = actual_end
 
 for it in iterators:
     it.close()
