@@ -33,8 +33,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `genetic_maps_tsv`: [Maps for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/genetic_map_b38.tsv) from the [GLIMPSE references](https://github.com/odelaneau/GLIMPSE/tree/master/maps/genetic_maps.b38).
 - `gnomad_sv_vcf`: [gnomAD V4 structural variants](gs://gcp-public-data--gnomad/release/4.1/genome_sv/gnomad.v4.1.sv.sites.vcf.gz) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
 - `gnomad_sv_vcf_idx`: Index for `gnomad_sv_vcf`.
-- `gnomad_vcf`: [gnomAD V4 short variants](gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/gnomad.genomes.v4.1.sites.chr22.vcf.bgz) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
-- `gnomad_vcf_idx`: Index for `gnomad_vcf`.
+- `gnomad_vcfs`: [gnomAD V4 short variants](gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
+- `gnomad_vcf_idxs`: Indexes for `gnomad_vcfs`.
 - `mei_catalog`: [Loci for GRCh38](gs://todo) is a combination of ALU and LINE loci from [RepeatMasker](https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema) and SVA loci from [van Bree et al](https://genome.cshlp.org/content/suppl/2022/03/24/gr.275515.121.DC1).
 - `mei_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 - `mei_fa_indices`: BWA and Minimap indices for `mei_fa`.
