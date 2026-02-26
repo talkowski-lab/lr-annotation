@@ -98,9 +98,10 @@ with gzip.open(bed_file, 'rt') as f:
 
 with open(output_file, 'w') as out:
     for bin_start in sorted(bins.keys()):
-        bin_end = bin_start + bin_size
-        median_coverage = int(median(bins[bin_start])) if bins[bin_start] else 0
-        out.write(f"{contig}\t{bin_start + 1}\t{bin_end}\t{median_coverage}\n")
+        if len(bins[bin_start]) == bin_size:
+            bin_end = bin_start + bin_size
+            median_coverage = int(median(bins[bin_start]))
+            out.write(f"{contig}\t{bin_start + 1}\t{bin_end}\t{median_coverage}\n")
 CODE
 
         bgzip ~{prefix}.tsv
