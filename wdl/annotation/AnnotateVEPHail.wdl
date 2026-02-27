@@ -10,6 +10,8 @@ workflow AnnotateVEPHail {
         File vcf_idx
         String prefix
         
+        String? args_string_vcf
+
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail.py"
         String genome_build = "GRCh38"
@@ -28,15 +30,28 @@ workflow AnnotateVEPHail {
         String hail_docker
         String sv_base_mini_docker
         
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
         RuntimeAttr? runtime_attr_vep_annotate
         RuntimeAttr? runtime_attr_concat
     }
 
+    if (defined(args_string_vcf)) {
+        call Helpers.SubsetVcfByArgs {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                extra_args = args_string_vcf,
+                prefix = "~{prefix}.subset",
+                docker = sv_base_mini_docker,
+                runtime_attr_override = runtime_attr_subset_vcf
+        }
+    }
+
     call ScatterVCF.ScatterVCF {
         input:
-            file = vcf,
+            file = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
             split_vcf_hail_script = split_vcf_hail_script,
             prefix = "~{prefix}.scattered",
             genome_build = genome_build,
