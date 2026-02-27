@@ -1,7 +1,6 @@
 version 1.0
 
 import "../utils/Structs.wdl"
-import "../utils/Helpers.wdl"
 
 workflow CreateReadCountsFile {
     input {
@@ -151,9 +150,9 @@ task MergeBinnedCounts {
         echo -e "@RG\tID:GATKCopyNumber\tSM:~{sample_id}" >> ~{prefix}.tsv
         echo -e "CONTIG\tSTART\tEND\tCOUNT" >> ~{prefix}.tsv
 
-        while IFS= read -r file; do
-            zcat "$file" >> ~{prefix}.tsv
-        done < ~{write_lines(binned_counts)}
+        cat ~{sep=' ' binned_counts} \
+            | sort -k1,1 -V \
+            >> ~{prefix}.tsv
 
         bgzip ~{prefix}.tsv
     >>>

@@ -243,6 +243,15 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: IndexCram
+    primaryDescriptorPath: /wdl/tools/IndexCram.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
   
   - subclass: WDL
     name: MinimapAlignment
