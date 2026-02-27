@@ -157,7 +157,7 @@ with gzip.open(output_file + '.gz', 'wt') as out:
             depths_sorted = sorted(depths)
             median_cov = int(depths_sorted[num_samples // 2])
             over_counts = [sum(1 for d in depths if d > t) for t in thresholds]
-            stats_str = f"{mean_cov}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(map(str, over_counts))
+            stats_str = f"{mean_cov:.2f}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(map(str, over_counts))
             
             # Output bins matching the bin_size
             while current_pos < min_end:
