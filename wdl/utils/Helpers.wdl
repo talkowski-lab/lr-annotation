@@ -1218,8 +1218,11 @@ task NormalizeVcf {
         bcftools norm \
             -m -any \
             -f ~{ref_fa} \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{vcf}
+            -Ou \
+            ~{vcf} \
+        | bcftools sort \
+            -Oz \
+            -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
