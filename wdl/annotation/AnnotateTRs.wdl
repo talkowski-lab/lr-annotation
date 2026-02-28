@@ -12,13 +12,16 @@ workflow AnnotateTRs {
         Array[String] contigs
         String prefix
 
+        Array[String] sample_ids
         Array[String] tr_callers
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_check_samples
-        RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_subset_tr_vcf
+        RuntimeAttr? runtime_attr_subset_contig_base
+        RuntimeAttr? runtime_attr_subset_contig_tr
+        RuntimeAttr? runtime_attr_subset_samples_base
+        RuntimeAttr? runtime_attr_subset_samples_tr
+        RuntimeAttr? runtime_attr_check_sample_consistency
         RuntimeAttr? runtime_attr_set_missing_filters
         RuntimeAttr? runtime_attr_tag_tr_vcf
         RuntimeAttr? runtime_attr_deduplicate_trs
@@ -28,31 +31,29 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
-    scatter (i in range(length(tr_vcfs))) {
-        call Helpers.CheckSampleMatch {
-            input:
-                vcf_a = vcf,
-                vcf_a_idx = vcf_idx,
-                vcf_b = tr_vcfs[i],
-                vcf_b_idx = tr_vcf_idxs[i],
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_check_samples
-        }
-    }
-
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetVcf {
+        call Helpers.SubsetVcfToContig as SubsetContigBase {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+                runtime_attr_override = runtime_attr_subset_contig_base
+        }
+
+        call Helpers.SubsetVcfToSamples as SubsetSamplesBase {
+            input:
+                vcf = SubsetContigBase.subset_vcf,
+                vcf_idx = SubsetContigBase.subset_vcf_idx,
+                samples = sample_ids,
+                prefix = "~{prefix}.~{contig}.subset_samples",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_samples_base
         }
 
         scatter (i in range(length(tr_vcfs))) {
-            call Helpers.SubsetVcfToContig as SubsetTrVcf {
+            call Helpers.SubsetVcfToContig as SubsetContigTr {
                 input:
                     vcf = tr_vcfs[i],
                     vcf_idx = tr_vcf_idxs[i],
@@ -60,14 +61,32 @@ workflow AnnotateTRs {
                     extra_args = "--min-ac 1",
                     prefix = "~{prefix}.~{contig}.tr~{i}",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_tr_vcf
+                    runtime_attr_override = runtime_attr_subset_contig_tr
+            }
+
+            call Helpers.SubsetVcfToSamples as SubsetSamplesTr {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    samples = sample_ids,
+                    prefix = "~{prefix}.~{contig}.tr~{i}.subset_samples",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_samples_tr
+            }
+
+            call Helpers.CheckSampleConsistency {
+                input:
+                    vcfs = [SubsetSamplesBase.subset_vcf, SubsetSamplesTr.subset_vcf],
+                    sample_ids = sample_ids,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_check_sample_consistency
             }
 
             call Helpers.SetMissingFiltersToPass as SetTrFiltersToPass {
                 input:
-                    vcf = SubsetTrVcf.subset_vcf,
-                    vcf_idx = SubsetTrVcf.subset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.tr~{i}.pass",
+                    vcf = SubsetSamplesTr.subset_vcf,
+                    vcf_idx = SubsetSamplesTr.subset_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.tr~{i}.refiltered",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_set_missing_filters
             }
@@ -112,8 +131,8 @@ workflow AnnotateTRs {
 
         call AnnotateVcfWithTRs {
             input:
-                vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_vcf_idx,
+                vcf = SubsetSamplesBase.subset_vcf,
+                vcf_idx = SubsetSamplesBase.subset_vcf_idx,
                 tr_vcf = SetTRVariantIds.renamed_vcf,
                 tr_vcf_idx = SetTRVariantIds.renamed_vcf_idx,
                 tr_callers = tr_callers,

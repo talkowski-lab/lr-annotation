@@ -128,7 +128,7 @@ workflow IntegrateVcfs {
                     runtime_attr_override = runtime_attr_split_snv_indel
             }
 
-            call Helpers.SubsetVcfToSampleList as SubsetSamplesSnvIndel {
+            call Helpers.SubsetVcfToSamples as SubsetSamplesSnvIndel {
                 input:
                     vcf = SplitSnvIndel.split_vcf,
                     vcf_idx = SplitSnvIndel.split_vcf_idx,
@@ -222,7 +222,7 @@ workflow IntegrateVcfs {
                     runtime_attr_override = runtime_attr_split_sv
             }
 
-            call Helpers.SubsetVcfToSampleList as SubsetSamplesSv {
+            call Helpers.SubsetVcfToSamples as SubsetSamplesSv {
                 input:
                     vcf = SplitSv.split_vcf,
                     vcf_idx = SplitSv.split_vcf_idx,
