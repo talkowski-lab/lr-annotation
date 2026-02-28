@@ -150,7 +150,8 @@ task MergeBinnedCounts {
         echo -e "@RG\tID:GATKCopyNumber\tSM:~{sample_id}" >> ~{prefix}.tsv
         echo -e "CONTIG\tSTART\tEND\tCOUNT" >> ~{prefix}.tsv
 
-        zcat ~{sep=' ' binned_counts} | sort -s -k1,1 -V >> ~{prefix}.tsv
+        export LC_ALL=C
+        zcat ~{sep=' ' binned_counts} | sort -s -k1,1 >> ~{prefix}.tsv
 
         bgzip ~{prefix}.tsv
     >>>
