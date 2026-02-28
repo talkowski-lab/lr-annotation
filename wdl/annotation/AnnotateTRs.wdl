@@ -77,6 +77,7 @@ workflow AnnotateTRs {
             call Helpers.CheckSampleConsistency {
                 input:
                     vcfs = [SubsetSamplesBase.subset_vcf, SubsetSamplesTr.subset_vcf],
+                    vcf_idxs = [SubsetSamplesBase.subset_vcf_idx, SubsetSamplesTr.subset_vcf_idx],
                     sample_ids = sample_ids,
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_check_sample_consistency
