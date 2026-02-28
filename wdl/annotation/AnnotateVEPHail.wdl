@@ -27,6 +27,8 @@ workflow AnnotateVEPHail {
         File ref_vep_cache
         File ref_fa
         File ref_fai
+        File ref_fa_gz
+        File ref_fai_gz
 
         String vep_hail_docker
         String hail_docker
@@ -88,7 +90,8 @@ workflow AnnotateVEPHail {
                 vcf = vcf_shard,
                 vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 ref_vep_cache = ref_vep_cache,
-                ref_fa = ref_fa,
+                ref_fa_gz = ref_fa_gz,
+                ref_fai_gz = ref_fai_gz,
                 docker = vep_hail_docker,
                 genome_build = genome_build,
                 vep_json_schema = vep_json_schema,
@@ -113,31 +116,13 @@ task VepAnnotate {
     input {
         File vcf
         File ref_vep_cache
-        File ref_fa
+        File ref_fa_gz
+        File ref_fai_gz
         String genome_build
         String vep_json_schema
         String vep_annotate_hail_python_script
         String docker
         RuntimeAttr? runtime_attr_override
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 5 * ceil(size(vcf, "GB") + size(ref_vep_cache, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: 6 + " GiB"
-        disks: "local-disk " + 100 + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 
     String filename = basename(vcf)
@@ -165,7 +150,7 @@ task VepAnnotate {
             "--merged",
             "--per_gene",
             "--pick_order", "rank",
-            "--fasta", "~{ref_fa}",
+            "--fasta", "~{ref_fa_gz}",
             "--dir_cache", "'$dir_cache_path'",
             "-o", "STDOUT"
         ],
@@ -188,5 +173,24 @@ task VepAnnotate {
     output {
         File vep_tsv_file = "~{prefix}.vep.tsv"
         File hail_log = "hail_log.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(vcf, "GB") + size(ref_vep_cache, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: 6 + " GiB"
+        disks: "local-disk " + 100 + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
