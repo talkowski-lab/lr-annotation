@@ -1221,8 +1221,7 @@ task NormalizeVcf {
             -Ou \
             ~{vcf} \
         | bcftools sort \
-            -Oz \
-            -o ~{prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
