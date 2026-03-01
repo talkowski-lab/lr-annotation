@@ -175,7 +175,7 @@ workflow IntegrateVcfs {
         }
 
         File final_snv_indel_vcf_for_contig = select_first([ConcatSnvIndelShards.concat_vcf, AddFilterSnvIndel.flagged_vcf[0]])
-        File final_snv_indel_vcf_idx_for_contig = select_first([ConcatSnvIndelShards.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
+        File final_snv_indel_vcf_for_contig_idx = select_first([ConcatSnvIndelShards.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
 
         # SV Processing
         call Helpers.SubsetVcfToContig as SubsetContigSv {
@@ -269,7 +269,7 @@ workflow IntegrateVcfs {
         }
 
         File final_sv_vcf_for_contig = select_first([ConcatSvShards.concat_vcf, AddFilterSv.flagged_vcf[0]])
-        File final_sv_vcf_idx_for_contig = select_first([ConcatSvShards.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
+        File final_sv_vcf_for_contig_idx = select_first([ConcatSvShards.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
 
         # Merging
         call Helpers.CheckSampleConsistency {
@@ -284,7 +284,7 @@ workflow IntegrateVcfs {
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
                 vcfs = [final_snv_indel_vcf_for_contig, final_sv_vcf_for_contig],
-                vcf_idxs = [final_snv_indel_vcf_idx_for_contig, final_sv_vcf_idx_for_contig],
+                vcf_idxs = [final_snv_indel_vcf_for_contig_idx, final_sv_vcf_for_contig_idx],
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
