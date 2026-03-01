@@ -82,15 +82,6 @@ workflow IntegrateVcfs {
     File final_sv_vcf = select_first([SwapSv.swapped_vcf, sv_vcf])
     File final_sv_vcf_idx = select_first([SwapSv.swapped_vcf_idx, sv_vcf_idx])
 
-    call Helpers.CheckSampleConsistency {
-        input:
-            vcfs = [final_snv_indel_vcf, final_sv_vcf],
-            vcf_idxs = [final_snv_indel_vcf, final_sv_vcf],
-            sample_ids = sample_ids,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_check_samples
-    }
-
     scatter (contig in contigs) {
         # SNV Indel Processing
         call Helpers.SubsetVcfToContig as SubsetContigSnvIndel {
@@ -281,6 +272,15 @@ workflow IntegrateVcfs {
         File final_sv_vcf_idx_for_contig = select_first([ConcatSvShards.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
 
         # Merging
+        call Helpers.CheckSampleConsistency {
+            input:
+                vcfs = [final_snv_indel_vcf_for_contig, final_sv_vcf_for_contig],
+                vcf_idxs = [final_snv_indel_vcf_for_contig_idx, final_sv_vcf_for_contig_idx],
+                sample_ids = sample_ids,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_check_samples
+        }
+        
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
                 vcfs = [final_snv_indel_vcf_for_contig, final_sv_vcf_for_contig],
