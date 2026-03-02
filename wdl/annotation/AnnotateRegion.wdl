@@ -10,8 +10,9 @@ workflow AnnotateRegion {
         Array[String] contigs
         String prefix
 
-        Array[File] region_files
-        Array[String] region_names
+        File simple_repeats_bed
+        File seg_dup_bed
+        File repeat_masker_bed
         Float min_coverage
 
         String utils_docker
@@ -33,22 +34,46 @@ workflow AnnotateRegion {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call LabelVariantRegions {
+        call LabelVariantRegions as LabelSimpleRepeats {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                region_files = region_files,
-                region_names = region_names,
+                region_bed = simple_repeats_bed,
+                region_name = "SR",
                 min_coverage = min_coverage,
-                prefix = "~{prefix}.~{contig}.region_labeled",
+                prefix = "~{prefix}.~{contig}.simple_repeats",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_label_regions
+        }
+
+        call LabelVariantRegions as LabelSegDups {
+            input:
+                vcf = LabelSimpleRepeats.labeled_vcf,
+                vcf_idx = LabelSimpleRepeats.labeled_vcf_idx,
+                region_bed = seg_dup_bed,
+                region_name = "SD",
+                min_coverage = min_coverage,
+                prefix = "~{prefix}.~{contig}.seg_dups",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_label_regions
+        }
+
+        call LabelVariantRegions as LabelRepeatMasker {
+            input:
+                vcf = LabelSegDups.labeled_vcf,
+                vcf_idx = LabelSegDups.labeled_vcf_idx,
+                region_bed = repeat_masker_bed,
+                region_name = "RM",
+                min_coverage = min_coverage,
+                prefix = "~{prefix}.~{contig}.repeat_masker",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_label_regions
         }
 
         call SetUniqueRegion {
             input:
-                vcf = LabelVariantRegions.labeled_vcf,
-                vcf_idx = LabelVariantRegions.labeled_vcf_idx,
+                vcf = LabelRepeatMasker.labeled_vcf,
+                vcf_idx = LabelRepeatMasker.labeled_vcf_idx,
                 prefix = "~{prefix}.~{contig}.region_annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_set_unique
@@ -74,8 +99,8 @@ task LabelVariantRegions {
     input {
         File vcf
         File vcf_idx
-        Array[File] region_files
-        Array[String] region_names
+        File region_bed
+        String region_name
         Float min_coverage
         String prefix
         String docker
@@ -85,63 +110,48 @@ task LabelVariantRegions {
     command <<<
         set -euo pipefail
 
-        # Extract variants as BED
+        # Add REGION header if not already present
+        touch header.lines
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=REGION'; then
+            echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context (e.g. SIMPLE_REPEAT, SEG_DUP, REPEAT_MASKER). UNIQUE if no region overlaps by the minimum coverage threshold.">' \
+                > header.lines
+        fi
+        bcftools annotate \
+            -h header.lines \
+            -Oz -o with_header.vcf.gz \
+            ~{vcf}
+        tabix -p vcf with_header.vcf.gz
+
+        # Extract variants
         bcftools query \
-            -f '%CHROM\t%POS0\t%END0\t%ID\t%REF\t%ALT\n' \
-            ~{vcf} \
+            -f '%CHROM\t%POS0\t%END\t%ID\t%REF\t%ALT\n' \
+            -e 'INFO/REGION!="."' \
+            with_header.vcf.gz \
         | awk -F'\t' '{print $1"\t"$2"\t"$3"\t"$4"\t"($3-$2)"\t"$5"\t"$6}' \
         | sort -k1,1 -k2,2n > variants.bed
 
-        # Add REGION header
-        echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context (e.g. tandem_repeat, segdup). UNIQUE if no region overlaps by the minimum coverage threshold.">' \
-            > header.lines
+        # Intersect variants with regions
+        bedtools intersect \
+            -a variants.bed \
+            -b ~{region_bed} \
+            -wo \
+        | awk -v min_cov=~{min_coverage} -v region="~{region_name}" \
+            '{ vid=$4; vlen=($5>0?$5:1); overlap=$NF
+               if (overlap/vlen >= min_cov && !seen[vid]++)
+                   print $1"\t"($2+1)"\t"$6"\t"$7"\t"vid"\t"region }' \
+        | sort -k1,1 -k2,2n \
+        | bgzip -c > annot.txt.gz
+
+        tabix -s1 -b2 -e2 annot.txt.gz
+
+        # Annotate flagged variants
         bcftools annotate \
-            -h header.lines \
-            -Oz -o current.vcf.gz \
-            ~{vcf}
-        tabix -p vcf current.vcf.gz
+            -a annot.txt.gz \
+            -c CHROM,POS,REF,ALT,~ID,INFO/REGION \
+            with_header.vcf.gz \
+            -Oz -o ~{prefix}.vcf.gz
 
-        region_files_arr=(~{sep=' ' region_files})
-        region_names_arr=(~{sep=' ' region_names})
-
-        # Iterate over region files
-        for i in "${!region_files_arr[@]}"; do
-            region_file="${region_files_arr[$i]}"
-            region_name="${region_names_arr[$i]}"
-
-            bcftools query \
-                -f '%ID\n' \
-                -i 'INFO/REGION!="."' \
-                current.vcf.gz \
-                > annotated_ids.txt
-
-            bedtools intersect \
-                -a variants.bed \
-                -b "$region_file" \
-                -wo \
-            | awk -v min_cov=~{min_coverage} -v region="$region_name" \
-                'BEGIN { while ((getline line < "annotated_ids.txt") > 0) skip[line]=1 }
-                 { vid=$4; vlen=($5>0?$5:1); overlap=$NF
-                   if (!(vid in skip) && overlap/vlen >= min_cov && !seen[vid]++)
-                       print $1"\t"($2+1)"\t"$6"\t"$7"\t"vid"\t"region }' \
-            | sort -k1,1 -k2,2n \
-            | bgzip -c > annot.txt.gz
-
-            tabix -s1 -b2 -e2 annot.txt.gz
-
-            bcftools annotate \
-                -a annot.txt.gz \
-                -c CHROM,POS,REF,ALT,~ID,INFO/REGION \
-                current.vcf.gz \
-                -Oz -o next.vcf.gz
-            tabix -p vcf next.vcf.gz
-
-            mv next.vcf.gz current.vcf.gz
-            mv next.vcf.gz.tbi current.vcf.gz.tbi
-        done
-
-        mv current.vcf.gz ~{prefix}.vcf.gz
-        mv current.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
@@ -151,8 +161,8 @@ task LabelVariantRegions {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(region_files, "GB")) + 10,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(region_bed, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -186,7 +196,7 @@ task SetUniqueRegion {
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
             -e 'INFO/REGION!="."' \
             ~{vcf} \
-        | awk '{print $0"\tUNIQUE"}' \
+        | awk '{print $0"\tUS"}' \
         | bgzip -c > unique_annot.txt.gz
 
         tabix -s1 -b2 -e2 unique_annot.txt.gz
