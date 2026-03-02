@@ -153,11 +153,11 @@ with gzip.open(output_file + '.gz', 'wt') as out:
             # Calculate stats once for the whole constant block
             depths = [r[2] for r in current_rows]
             total_dp = sum(depths)
-            mean_cov = total_dp / num_samples
+            mean_cov = round(total_dp / num_samples, 6)
             depths_sorted = sorted(depths)
             median_cov = int(depths_sorted[num_samples // 2])
-            over_counts = [sum(1 for d in depths if d > t) for t in thresholds]
-            stats_str = f"{mean_cov:.2f}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(map(str, over_counts))
+            over_fracs = [round(sum(1 for d in depths if d > t) / num_samples, 6) for t in thresholds]
+            stats_str = f"{mean_cov:.6f}\t{median_cov}\t{int(total_dp)}\t" + "\t".join(f"{f:.6f}" for f in over_fracs)
             
             # Output bins matching the bin_size
             while current_pos < min_end:
