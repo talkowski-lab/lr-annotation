@@ -90,8 +90,8 @@ workflow AnnotateRegion {
     }
 
     output {
-        File annotated_vcf = ConcatVcfs.concat_vcf
-        File annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File region_annotated_vcf = ConcatVcfs.concat_vcf
+        File region_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
