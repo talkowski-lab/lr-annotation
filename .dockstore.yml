@@ -49,6 +49,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateRegion
+    primaryDescriptorPath: /wdl/annotation/AnnotateRegion.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateSVAN
     primaryDescriptorPath: /wdl/annotation/AnnotateSVAN.wdl
     filters:

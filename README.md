@@ -94,6 +94,10 @@ Inputs:
 - `ref_fai`.
 
 
+### [AnnotateRegion](wdl/annotation/AnnotateRegion.wdl)
+TODO
+
+
 ### [AnnotateSVAN](wdl/annotation/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
@@ -349,7 +353,7 @@ TODO
 - Workflows should be structured in the following order, with each of the below separated by a blank line:
 	1. Imports.
 	2. Inputs.
-	3. Definition of variables dynamically generated in the workflow itself - unless these require outputs from other tasks, in which case they can go after the tasks they are dependent on.
+	3. Definition of variables dynamically generated in the workflow itself.
 	4. Calls to tasks.
 	5. Outputs.
 - Tasks should be structured in the following order, with each of the below separated by a blank line:
@@ -357,7 +361,7 @@ TODO
 	2. Definition of variables dynamically generated in the task itself.
 	3. Command.
 	4. Outputs.
-	5. Runtime settings - which should first be its default runtime settings, followed by a select first with the runtime override, then the actual runtime block.
+	5. Runtime settings - default parameters, followed by a select first with the runtime override, then the actual runtime block.
 - Inputs should be structured in the following order, with each of the below separated by a blank lines:
 	1. Core input files that will be run through the workflow - e.g. VCFs being annotated, BAMs being analyzed etc (as well as their indexes if applicable). Also the contigs to be run on as well as the prefix.
 	2. Parameters that govern how the file will be processed - e.g. prefixes, modes, input arguments to tools being called, PEDs, metadata files etc.
@@ -388,20 +392,19 @@ TODO
 - All VCFs should have suffix `_vcf`, and be coupled with a VCF index file that has a suffix `_vcf_idx`.
 - Tasks that can be generalized and used across workflows should live in `Helpers.wdl` and be imported by consumer workflows, rather than explicitly defined in a standalone workflow itself.
 - Workflow file names must always match the workflow defined within them.
+- Annotation workflows should always output a TSV file rather than a VCF, unless its annotations are done for every single variant in the input VCF or if the underlying workflow is designed to annotate variants in a VCF. 
 
 
 ### Python
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.
-- All code should be compliant with `flake8`
+- All code should be compliant with `flake8`.
 
 
 ### Codebase
 - Workflows in `wdl/annotation/` should begin with _Annotate_.
-- Workflows directly run in the pipeline should be in either `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
-- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should have an entry in `dockstore.yml`.
-- Workflows in `wdl/annotation/`, `wdl/annotation_utils/` and `wdl/tools/` should be documented.
+- Workflows directly run in the pipeline should be in one of `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`, and should have entries in `dockstore.yml` and `README.md`.
 
 
 ### Workspace
-- All references should be passed in via workspace data.
+- All reference files - i.e. those not specific to an input callset - should be passed in via workspace data.
 - All dockers should be passed in via workspace data.
