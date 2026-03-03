@@ -397,8 +397,9 @@ task TruvariCollapse {
 			~{collapse_params}
 
 		bcftools sort \
-			~{sample}.~{mei_type}.merged.vcf.gz \
-			-Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz
+			-T . \
+			-Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz \
+			~{sample}.~{mei_type}.merged.vcf.gz
 		
 		tabix ~{sample}.~{mei_type}.merged.sorted.vcf.gz
 	>>>

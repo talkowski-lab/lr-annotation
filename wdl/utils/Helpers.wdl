@@ -229,6 +229,65 @@ task CheckSampleConsistency {
     }
 }
 
+task CollapseMultiallelics {
+    input {
+        File tsv
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import subprocess
+
+groups = {}
+with open('unsorted.tsv', 'w') as out:
+    with open('~{tsv}', 'r') as f:
+        for line in f:
+            fields = line.rstrip('\n').split('\t')
+            vid = fields[4]
+            if 'TRV' not in vid:
+                out.write(line)
+            else:
+                if vid not in groups:
+                    groups[vid] = fields[:]
+                else:
+                    groups[vid][3] += ',' + fields[3]
+                    groups[vid][5] += ',' + fields[5]
+    for row in groups.values():
+        out.write('\t'.join(row) + '\n')
+
+subprocess.run(['sort', '-k1,1', '-k2,2n', 'unsorted.tsv', '-o', '~{prefix}.tsv'], check=True)
+CODE
+    >>>
+
+    output {
+        File collapsed_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsv, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task ConcatAlignedTsvs {
     input {
         Array[File] tsvs
@@ -882,6 +941,43 @@ task FinalizeToFile {
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task GetContigsFromTsv {
+    input {
+        File tsv
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        cut -f1 ~{tsv} | sort -u > contigs.txt
+    >>>
+
+    output {
+        Array[String] contigs = read_lines("contigs.txt")
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsv, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

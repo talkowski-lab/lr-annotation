@@ -39,7 +39,11 @@ workflow AnnotateVEPHail {
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
         RuntimeAttr? runtime_attr_vep_annotate
-        RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_concat_shards
+        RuntimeAttr? runtime_attr_get_contigs
+        RuntimeAttr? runtime_attr_subset_tsv
+        RuntimeAttr? runtime_attr_collapse_multiallelics
+        RuntimeAttr? runtime_attr_concat_contigs
     }
 
     if (defined(args_string_vcf)) {
@@ -104,11 +108,48 @@ workflow AnnotateVEPHail {
             tsvs = VepAnnotate.vep_tsv_file,
             prefix = "~{prefix}.vep_annotations",
             docker = sv_base_mini_docker,
-            runtime_attr_override = runtime_attr_concat
+            runtime_attr_override = runtime_attr_concat_shards
+    }
+
+    if (normalize_vcf) {
+        call Helpers.GetContigsFromTsv {
+            input:
+                tsv = ConcatTsvs.concatenated_tsv,
+                docker = sv_base_mini_docker,
+                runtime_attr_override = runtime_attr_get_contigs
+        }
+
+        scatter (contig in GetContigsFromTsv.contigs) {
+            call Helpers.SubsetTsvToContig as SubsetForCollapse {
+                input:
+                    tsv = ConcatTsvs.concatenated_tsv,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = sv_base_mini_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+
+            }
+
+            call Helpers.CollapseMultiallelics {
+                input:
+                    tsv = SubsetForCollapse.subset_tsv,
+                    prefix = "~{prefix}.~{contig}.collapsed",
+                    docker = sv_base_mini_docker,
+                    runtime_attr_override = runtime_attr_collapse_multiallelics
+            }
+        }
+
+        call Helpers.ConcatTsvs as ConcatCollapsed {
+            input:
+                tsvs = CollapseMultiallelics.collapsed_tsv,
+                prefix = "~{prefix}.vep_annotations.collapsed",
+                docker = sv_base_mini_docker,
+                runtime_attr_override = runtime_attr_concat_contigs
+        }
     }
 
     output {
-        File annotations_tsv_vep = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_vep = select_first([ConcatCollapsed.concatenated_tsv, ConcatTsvs.concatenated_tsv])
     }
 }   
 
