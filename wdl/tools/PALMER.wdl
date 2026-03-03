@@ -328,8 +328,9 @@ task ConvertPALMERToVcf {
 			--ref_fa ~{ref_fa} \
 			--ref_fai ~{ref_fai} \
 			--haplotype "~{haplotype}" \
-			| bcftools sort -Oz \
-			> ~{sample}.palmer_calls.~{mei_type}.vcf.gz
+		| bcftools sort \
+			-T . \
+			-Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 		
 		tabix ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 	>>>
@@ -382,6 +383,7 @@ task TruvariCollapse {
 			~{vcf_pat} \
 			~{vcf_mat} \
 		| bcftools sort \
+			-T . \
 			-Oz -o combined.vcf.gz
 		
 		tabix combined.vcf.gz

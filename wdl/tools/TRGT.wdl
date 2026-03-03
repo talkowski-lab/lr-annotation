@@ -100,8 +100,8 @@ task ProcessWithTRGT {
         find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
 
         bcftools sort \
-            -Ob \
-            -o ~{vcf_out_name}.sorted.vcf.gz \
+            -T . \
+            -Ob -o ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz
         
         mv ~{vcf_out_name}.sorted.vcf.gz \

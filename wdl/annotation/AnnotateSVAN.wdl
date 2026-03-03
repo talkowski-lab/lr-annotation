@@ -352,6 +352,7 @@ task RunSvanAnnotate {
             -o work_dir
 
         bcftools sort \
+            -T . \
             -Oz -o ~{prefix}.vcf.gz \
             work_dir/svan_annotated.vcf
         

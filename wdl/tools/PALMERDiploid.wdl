@@ -308,8 +308,9 @@ task ConvertPALMERToVcf {
 			--ref_fa ~{ref_fa} \
 			--ref_fai ~{ref_fai} \
 			--haplotype "1/1" \
-			| bcftools sort -Oz \
-			> ~{sample}.palmer_calls.~{mei_type}.vcf.gz
+		| bcftools sort \
+			-T . \
+			-Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 		
 		tabix ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 	>>>

@@ -372,6 +372,7 @@ vcf_out.close()
 CODE
 
         bcftools sort \
+            -T . \
             -Oz -o ~{prefix}.vcf.gz \
             temp.vcf.gz
 

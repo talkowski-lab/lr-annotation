@@ -1092,6 +1092,7 @@ task NormalizeVcf {
             ~{vcf}
         
         bcftools sort \
+            -T . \
             -Oz -o ~{prefix}.vcf.gz \
             unsorted.vcf.gz
 
