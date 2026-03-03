@@ -53,7 +53,7 @@ task CpgPileup {
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int threads = select_first([runtime_attr.cpu_cores, runtime_default.cpu_cores])
+    Int threads = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
