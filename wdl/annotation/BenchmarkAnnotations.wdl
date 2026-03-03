@@ -680,7 +680,7 @@ task MergeShardBenchmarks {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(af_pair_tsvs[0], "GB")) + 5,
+        disk_gb: 3 * ceil(size(af_pair_tsvs, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
