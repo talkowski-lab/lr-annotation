@@ -350,7 +350,7 @@ task AnnotateIntervals {
     }
 
     Int machine_mem_mb = select_first([mem_gb, 2]) * 1000
-    Int command_mem_mb = machine_mem_mb - 500
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
     
     # Determine output filename
     String base_filename = basename(intervals, ".interval_list")
@@ -407,7 +407,7 @@ task FilterIntervals {
     }
 
     Int machine_mem_mb = select_first([mem_gb, 7]) * 1000
-    Int command_mem_mb = machine_mem_mb - 500
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
     
     # Determine output filename
     String base_filename = basename(intervals, ".intervals")
@@ -461,7 +461,7 @@ task ScatterIntervals {
     }
 
     Int machine_mem_mb = select_first([mem_gb, 2]) * 1000
-    Int command_mem_mb = machine_mem_mb - 500
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
 
     # If optional output_dir not specified, use "out";
     String output_dir_ = select_first([output_dir, "out"])
@@ -541,7 +541,7 @@ task PostprocessGermlineCNVCalls {
     }
 
     Int machine_mem_mb = select_first([mem_gb, 7]) * 1000
-    Int command_mem_mb = machine_mem_mb - 1000
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
 
     String genotyped_intervals_vcf_filename = "genotyped-intervals-~{entity_id}.vcf.gz"
     String genotyped_segments_vcf_filename = "genotyped-segments-~{entity_id}.vcf.gz"
@@ -738,7 +738,7 @@ task DetermineGermlineContigPloidyCohortMode {
     # We do not expose Hybrid ADVI parameters -- the default values are decent
 
     Int machine_mem_mb = select_first([mem_gb, 7]) * 1000
-    Int command_mem_mb = machine_mem_mb - 500
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
 
     # If optional output_dir not specified, use "out"
     String output_dir_ = select_first([output_dir, "out"])
@@ -845,7 +845,7 @@ task GermlineCNVCallerCohortMode {
     }
 
     Int machine_mem_mb = select_first([mem_gb, 7]) * 1000
-    Int command_mem_mb = machine_mem_mb - 500
+    Int command_mem_mb = ceil(machine_mem_mb * 0.8)
 
     # If optional output_dir not specified, use "out"
     String output_dir_ = select_first([output_dir, "out"])
