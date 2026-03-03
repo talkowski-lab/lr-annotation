@@ -261,6 +261,24 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: LRCNVs
+    primaryDescriptorPath: /wdl/tools/LRCNVs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: MethylationProfiling
+    primaryDescriptorPath: /wdl/tools/MethylationProfiling.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
   
   - subclass: WDL
     name: MinimapAlignment
@@ -364,15 +382,6 @@ workflows:
   - subclass: WDL
     name: VcfDist
     primaryDescriptorPath: /wdl/tools/VcfDist.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: LRCNVs
-    primaryDescriptorPath: /wdl/tools/LRCNVs.wdl
     filters:
       branches:
         - main

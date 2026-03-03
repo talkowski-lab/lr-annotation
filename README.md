@@ -218,6 +218,18 @@ TODO
 TODO
 
 
+### [IndexCram](wdl/tools/IndexCram.wdl)
+TODO
+
+
+### [LRCNVs](wdl/tools/LRCNVs.wdl)
+TODO
+
+
+### [MethylationProfiling](wdl/tools/MethylationProfiling.wdl)
+TODO
+
+
 ### [MinimapAlignment](wdl/tools/MinimapAlignment.wdl)
 This workflow leverages [Minimap2](https://github.com/BeckLaboratory/agglovar) in order to align assemblies to a reference.
 
