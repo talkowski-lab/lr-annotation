@@ -744,7 +744,7 @@ task DetermineGermlineContigPloidyCohortMode {
     String output_dir_ = select_first([output_dir, "out"])
 
     command <<<
-        set -euo pipefail
+        set -xeuo pipefail
 
         export GATK_LOCAL_JAR=~{default="/root/gatk.jar" gatk4_jar_override}
         export MKL_NUM_THREADS=~{default=8 cpu}
