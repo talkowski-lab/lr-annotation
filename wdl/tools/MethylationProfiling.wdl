@@ -1,5 +1,4 @@
 version 1.0
-# a stripped-down version of PacBio's WDLs that calls cpg_pileup only
 
 import "../utils/Structs.wdl"
 
@@ -66,9 +65,7 @@ task CpgPileup {
 
     command <<<
         set -euo pipefail
-
-        aligned_bam_to_cpg_scores --version
-
+        
         aligned_bam_to_cpg_scores \
             --threads ~{threads} \
             --bam ~{bam} \
