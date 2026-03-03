@@ -384,9 +384,9 @@ CODE
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
+        cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 10 * ceil(size(vcf, "GB")) + 10,
+        disk_gb: 50 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
