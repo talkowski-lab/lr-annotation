@@ -33,6 +33,7 @@ workflow AnnotateVEPHail {
         String vep_hail_docker
         String hail_docker
         String sv_base_mini_docker
+        String utils_docker
         
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_normalize
@@ -53,7 +54,7 @@ workflow AnnotateVEPHail {
                 vcf_idx = vcf_idx,
                 extra_args = args_string_vcf,
                 prefix = "~{prefix}.subset",
-                docker = sv_base_mini_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
     }
@@ -66,7 +67,7 @@ workflow AnnotateVEPHail {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.normalized",
-                docker = sv_base_mini_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_normalize
         }
     }
@@ -107,7 +108,7 @@ workflow AnnotateVEPHail {
         input:
             tsvs = VepAnnotate.vep_tsv_file,
             prefix = "~{prefix}.vep_annotations",
-            docker = sv_base_mini_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_shards
     }
 
@@ -115,7 +116,7 @@ workflow AnnotateVEPHail {
         call Helpers.GetContigsFromTsv {
             input:
                 tsv = ConcatTsvs.concatenated_tsv,
-                docker = sv_base_mini_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_get_contigs
         }
 
@@ -125,7 +126,7 @@ workflow AnnotateVEPHail {
                     tsv = ConcatTsvs.concatenated_tsv,
                     contig = contig,
                     prefix = "~{prefix}.~{contig}",
-                    docker = sv_base_mini_docker,
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_tsv
 
             }
@@ -134,7 +135,7 @@ workflow AnnotateVEPHail {
                 input:
                     tsv = SubsetForCollapse.subset_tsv,
                     prefix = "~{prefix}.~{contig}.collapsed",
-                    docker = sv_base_mini_docker,
+                    docker = utils_docker,
                     runtime_attr_override = runtime_attr_collapse_multiallelics
             }
         }
@@ -143,7 +144,7 @@ workflow AnnotateVEPHail {
             input:
                 tsvs = CollapseMultiallelics.collapsed_tsv,
                 prefix = "~{prefix}.vep_annotations.collapsed",
-                docker = sv_base_mini_docker,
+                docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_contigs
         }
     }

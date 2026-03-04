@@ -317,18 +317,14 @@ TODO
 	- `snv`: Single nucleotide variant.
 	- `ins`: Insertion.
 	- `del`: Deletion.
+	- `trv`: Tandem repeat.
 	- `dup`: Tandem duplication.
 	- `dup_interspersed`: Interspersed duplication.
 	- `complex_dup`: Complex duplication.
 	- `inv_dup`: Inverted duplication.
 	- `numt`: Nuclear-mitochondrial segment.
-	- `trv`: Tandem repeat.
-	- `alu_ins`: ALU insertion.
-	- `line_ins`: LINE insertion.
-	- `sva_ins`: SVA insertion.
-	- `alu_del`: ALU deletion.
-	- `line_del`: LINE deletion.
-	- `sva_del`: SVA deletion.
+	- `{ME_TYPE}_ins`: Mobile element insertion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
+	- `{ME_TYPE}_del`: Mobile element deletion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
 - `SOURCE`: Source of call, which is one of the below.
 	- `DeepVariant`: SNV or indel call made by the DeepVariant pipeline.
 	- `HPRC_SV_Integration`: Structural variant call made by the HPRC SV Integration pipeline.
