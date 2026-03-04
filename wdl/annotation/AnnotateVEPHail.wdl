@@ -123,7 +123,7 @@ workflow AnnotateVEPHail {
         scatter (contig in GetContigsFromTsv.contigs) {
             call Helpers.SubsetTsvToContig as SubsetForCollapse {
                 input:
-                    tsv = ConcatTsvs.concatenated_tsv,
+                    tsv = ConcatShards.concatenated_tsv,
                     contig = contig,
                     prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
@@ -150,7 +150,7 @@ workflow AnnotateVEPHail {
     }
 
     output {
-        File annotations_tsv_vep = select_first([ConcatCollapsed.concatenated_tsv, ConcatTsvs.concatenated_tsv])
+        File annotations_tsv_vep = select_first([ConcatCollapsed.concatenated_tsv, ConcatShards.concatenated_tsv])
     }
 }   
 
