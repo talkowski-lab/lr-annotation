@@ -455,7 +455,7 @@ task ConcatVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-        Boolean merge_sort = true
+        Boolean sort_output = true
         String prefix = "concat"
         String docker
         RuntimeAttr? runtime_attr_override
@@ -467,7 +467,7 @@ task ConcatVcfs {
         VCFS_FILE="~{write_lines(vcfs)}"
 
         bcftools concat \
-            ~{if merge_sort then "--allow-overlaps" else ""} \
+            ~{if sort_output then "--allow-overlaps" else ""} \
             --file-list ${VCFS_FILE} \
             -Oz -o "~{prefix}.vcf.gz"
         
