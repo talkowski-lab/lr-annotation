@@ -143,6 +143,7 @@ workflow AnnotateVEPHail {
         call Helpers.ConcatTsvs as ConcatCollapsed {
             input:
                 tsvs = CollapseMultiallelics.collapsed_tsv,
+                sort_output = false,
                 prefix = "~{prefix}.vep_annotations.collapsed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_contigs
