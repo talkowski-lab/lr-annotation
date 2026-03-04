@@ -46,6 +46,7 @@ workflow AnnotateVRS {
         input:
             vcfs = AnnotateVcfWithVRS.annotated_vcf,
             vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
+            sort_output = false,
             prefix = "~{prefix}.vrs_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

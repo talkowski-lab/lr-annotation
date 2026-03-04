@@ -307,6 +307,7 @@ workflow IntegrateVcfs {
         input:
             vcfs = RenameAndFilterVariants.filtered_vcf,
             vcf_idxs = RenameAndFilterVariants.filtered_vcf_idx,
+            sort_output = false,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
