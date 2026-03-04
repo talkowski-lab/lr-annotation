@@ -296,7 +296,6 @@ workflow BenchmarkAnnotations {
                 input:
                     af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
                     vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
-                    truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                     contig = contig,
                     prefix = "~{prefix}.~{contig}.merged",
                     skip_vep_categories = skip_vep_categories,
@@ -653,7 +652,6 @@ task MergeShardBenchmarks {
     input {
         Array[File] af_pair_tsvs
         Array[File] vep_pair_tsvs
-        File truth_vep_header
         String contig
         String prefix
         String? skip_vep_categories
@@ -669,7 +667,6 @@ task MergeShardBenchmarks {
             --contig ~{contig} \
             --af_pair_tsvs ~{sep=',' af_pair_tsvs} \
             --vep_pair_tsvs ~{sep=',' vep_pair_tsvs} \
-            --truth_vep_header ~{truth_vep_header} \
             ~{"--skip_vep_categories " + skip_vep_categories}
     >>>
 

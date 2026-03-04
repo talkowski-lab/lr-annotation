@@ -4,22 +4,14 @@ import argparse
 import os
 import tarfile
 import gc
-from typing import List, Tuple, Dict
-
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
+
+from typing import List, Dict
 from scipy.stats import pearsonr
-import numpy as np
 from collections import defaultdict
-
-
-def parse_vep_header_line(header_line: str) -> Tuple[str, List[str]]:
-    line = header_line.strip()
-    vep_id = "CSQ" if "ID=CSQ" in line else "VEP"
-    fmt_part = line.split("Format:")[-1].strip().strip('"').lower()
-    fields = [f.strip() for f in fmt_part.split("|")]
-    return vep_id, fields
 
 
 def plot_af_correlation(df: pd.DataFrame, pop: str, output_dir: str):
@@ -42,16 +34,6 @@ def plot_af_correlation(df: pd.DataFrame, pop: str, output_dir: str):
         )
     plt.savefig(os.path.join(output_dir, f"{pop}.png"))
     plt.close()
-
-
-def write_vep_table_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
-    os.makedirs(output_dir, exist_ok=True)
-    eval_labels = sorted(pairs_df["eval"].unique().tolist())
-    truth_labels = sorted(pairs_df["truth"].unique().tolist())
-    table = pd.DataFrame(0, index=truth_labels, columns=eval_labels)
-    for _, row in pairs_df.iterrows():
-        table.loc[row["truth"], row["eval"]] += int(row["count"])
-    table.to_csv(os.path.join(output_dir, f"{column}.tsv"), sep="\t")
 
 
 def plot_vep_heatmap_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
@@ -108,10 +90,7 @@ def plot_vep_heatmap_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
     fig_height = max(10, len(row_labels) * 0.6)
     fig_width = max(12, len(col_labels) * 0.8)
     plt.figure(figsize=(fig_width, fig_height))
-
-    masked_percent_matrix = np.ma.masked_where(
-        zero_count_mask.values, percent_matrix.values
-    )
+    masked_percent_matrix = np.ma.masked_where(zero_count_mask.values, percent_matrix.values)
 
     sns.heatmap(
         masked_percent_matrix,
@@ -162,27 +141,28 @@ def plot_vep_heatmap_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
     plt.close()
 
 
+def write_vep_table_agg(pairs_df: pd.DataFrame, column: str, output_dir: str):
+    os.makedirs(output_dir, exist_ok=True)
+    eval_labels = sorted(pairs_df["eval"].unique().tolist())
+    truth_labels = sorted(pairs_df["truth"].unique().tolist())
+    table = pd.DataFrame(0, index=truth_labels, columns=eval_labels)
+    for _, row in pairs_df.iterrows():
+        table.loc[row["truth"], row["eval"]] += int(row["count"])
+    table.to_csv(os.path.join(output_dir, f"{column}.tsv"), sep="\t")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prefix", required=True)
     ap.add_argument("--contig", required=True)
-    ap.add_argument(
-        "--af_pair_tsvs", required=True, help="Comma-separated list of gz TSVs"
-    )
-    ap.add_argument(
-        "--vep_pair_tsvs", required=True, help="Comma-separated list of gz TSVs"
-    )
-    ap.add_argument("--truth_vep_header", required=True)
-    ap.add_argument(
-        "--skip_vep_categories", help="Comma-separated list of VEP categories to skip"
-    )
+    ap.add_argument("--af_pair_tsvs", required=True, help="Comma-separated list of gz TSVs")
+    ap.add_argument("--vep_pair_tsvs", required=True, help="Comma-separated list of gz TSVs")
+    ap.add_argument("--skip_vep_categories", help="Comma-separated list of VEP categories to skip")
     args = ap.parse_args()
 
     skip_categories = set()
     if args.skip_vep_categories:
-        skip_categories = {
-            cat.strip().lower() for cat in args.skip_vep_categories.split(",")
-        }
+        skip_categories = { cat.strip().lower() for cat in args.skip_vep_categories.split(",") }
 
     af_pair_paths = [p for p in args.af_pair_tsvs.split(",") if p]
     vep_pair_paths = [p for p in args.vep_pair_tsvs.split(",") if p]
@@ -198,7 +178,6 @@ def main():
                 chunk_count = chunk_count + 1
                 for key, sub in chunk.groupby("af_key"):
                     af_groups[key].append(sub[["eval_af", "truth_af"]].copy())
-
         gc.collect()
 
     for key, pieces in af_groups.items():
@@ -206,10 +185,8 @@ def main():
             continue
         df_all = pd.concat(pieces, ignore_index=True)
         plot_af_correlation(df_all, key, af_dir)
-
         del df_all
         pieces.clear()
-
     af_groups.clear()
     gc.collect()
 
@@ -217,16 +194,13 @@ def main():
     for _, p in enumerate(vep_pair_paths):
         with open(p, "rt") as fh:
             chunk_count = 0
-            reader = pd.read_csv(
-                fh, sep="\t", keep_default_na=False, chunksize=200000, iterator=True
-            )
+            reader = pd.read_csv(fh, sep="\t", keep_default_na=False, chunksize=100000, iterator=True)
             for chunk in reader:
                 chunk_count += 1
                 for cat, sub in chunk.groupby("category"):
                     if cat.lower() in skip_categories:
                         continue
                     vep_lists[cat].append(sub[["eval", "truth", "count"]].copy())
-
         gc.collect()
 
     for cat, frames in vep_lists.items():

@@ -104,7 +104,7 @@ workflow AnnotateVEPHail {
         }
     }
     
-    call Helpers.ConcatTsvs {
+    call Helpers.ConcatTsvs as ConcatShards {
         input:
             tsvs = VepAnnotate.vep_tsv_file,
             prefix = "~{prefix}.vep_annotations",
@@ -115,7 +115,7 @@ workflow AnnotateVEPHail {
     if (normalize_vcf) {
         call Helpers.GetContigsFromTsv {
             input:
-                tsv = ConcatTsvs.concatenated_tsv,
+                tsv = ConcatShards.concatenated_tsv,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_get_contigs
         }
