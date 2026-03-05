@@ -624,7 +624,7 @@ task ComputeShardBenchmarks {
             --eval_vep_header ~{eval_vep_header} \
             --truth_vep_header ~{truth_vep_header} \
             --shard_label ~{shard_label} \
-            --skip_vep_categories ~{skip_vep_categories}
+            ~{if skip_vep_categories != "" then "--skip_vep_categories " + skip_vep_categories else ""}
     >>>
 
     output {
@@ -671,7 +671,7 @@ task MergeShardBenchmarks {
             --contig ~{contig} \
             --af_pair_tsvs ~{sep=',' af_pair_tsvs} \
             --vep_pair_tsvs ~{sep=',' vep_pair_tsvs} \
-            --skip_vep_categories ~{skip_vep_categories}
+            ~{if skip_vep_categories != "" then "--skip_vep_categories " + skip_vep_categories else ""}
     >>>
 
     output {
