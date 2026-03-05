@@ -25,8 +25,8 @@ workflow BenchmarkAnnotations {
 
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
+        String skip_vep_categories = ""
 
-        String? skip_vep_categories
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
@@ -606,10 +606,10 @@ task ComputeShardBenchmarks {
         File matched_shard_tsv
         File eval_vep_header
         File truth_vep_header
+        String skip_vep_categories
         String contig
         String shard_label
         String prefix
-        String? skip_vep_categories
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -624,7 +624,7 @@ task ComputeShardBenchmarks {
             --eval_vep_header ~{eval_vep_header} \
             --truth_vep_header ~{truth_vep_header} \
             --shard_label ~{shard_label} \
-            ~{if defined(skip_vep_categories) then "--skip_vep_categories " + skip_vep_categories else ""}
+            --skip_vep_categories ~{skip_vep_categories}
     >>>
 
     output {
@@ -656,9 +656,9 @@ task MergeShardBenchmarks {
     input {
         Array[File] af_pair_tsvs
         Array[File] vep_pair_tsvs
+        String skip_vep_categories
         String contig
         String prefix
-        String? skip_vep_categories
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -671,7 +671,7 @@ task MergeShardBenchmarks {
             --contig ~{contig} \
             --af_pair_tsvs ~{sep=',' af_pair_tsvs} \
             --vep_pair_tsvs ~{sep=',' vep_pair_tsvs} \
-            ~{"--skip_vep_categories " + skip_vep_categories}
+            --skip_vep_categories ~{skip_vep_categories}
     >>>
 
     output {
