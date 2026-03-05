@@ -27,8 +27,8 @@ workflow MethylationProfiling {
     }
 
     output {
-        File cpg_combined_bed = CpgPileup.pileup_bed_combined
-        File cpg_combined_bw = CpgPileup.pileup_bigwig_combined
+        File cpg_bed = CpgPileup.pileup_bed
+        File cpg_bed_idx = CpgPileup.pileup_bed_idx
     }
 }
 
@@ -79,7 +79,7 @@ task CpgPileup {
     >>>
 
     output {
-        File pileup_bed_combined = "~{prefix}.combined.bed.gz"
-        File pileup_bigwig_combined = "~{prefix}.combined.bw"
+        File pileup_bed = "~{prefix}.combined.bed.gz"
+        File pileup_bed_idx = "~{prefix}.combined.bed.gz.tbi"
     }
 }
