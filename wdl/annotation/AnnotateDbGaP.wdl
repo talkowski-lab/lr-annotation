@@ -66,7 +66,7 @@ workflow AnnotateDbGaP {
         input:
             vcfs = AnnotateDbGaPIds.annotated_vcf,
             vcf_idxs = AnnotateDbGaPIds.annotated_vcf_idx,
-            sort_output = false,
+            allow_overlaps = false,
             prefix = "~{prefix}.dbgap_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

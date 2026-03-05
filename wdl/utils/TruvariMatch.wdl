@@ -102,6 +102,7 @@ workflow TruvariMatch {
     call Helpers.ConcatTsvs as ConcatAnnotationTsvs {
         input:
             tsvs = [RunTruvari_09.annotation_tsv, RunTruvari_07.annotation_tsv, RunTruvari_05.annotation_tsv],
+            sort_output = true,
             prefix = "~{prefix}.truvari_combined",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_matched

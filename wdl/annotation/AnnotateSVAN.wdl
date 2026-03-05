@@ -135,6 +135,7 @@ workflow AnnotateSVAN {
             call Helpers.ConcatTsvs as ConcatInsShards {
                 input:
                     tsvs = ExtractIns.annotations_tsv,
+                    sort_output = true,
                     preserve_header = true,
                     prefix = "~{prefix}.~{contig}.ins_annotations",
                     docker = utils_docker,
@@ -225,6 +226,7 @@ workflow AnnotateSVAN {
             call Helpers.ConcatTsvs as ConcatDelShards {
                 input:
                     tsvs = ExtractDel.annotations_tsv,
+                    sort_output = true,
                     preserve_header = true,
                     prefix = "~{prefix}.~{contig}.del_annotations",
                     docker = utils_docker,

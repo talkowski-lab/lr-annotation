@@ -101,6 +101,7 @@ workflow AnnotatePALMER {
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
             tsvs = FilterPALMER.annotations_tsv,
+            sort_output = false,
             prefix = "~{prefix}.palmer_annotations",
             docker = annotate_palmer_docker,
             runtime_attr_override = runtime_attr_concat

@@ -43,6 +43,7 @@ workflow TRGTLPS {
     call Helpers.ConcatTsvs {
         input:
             tsvs = RunTRGTLPS.lps_tsv,
+            sort_output = false,
             prefix = "~{prefix}.concat",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

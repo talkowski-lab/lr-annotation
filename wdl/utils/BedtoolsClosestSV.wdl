@@ -177,6 +177,7 @@ workflow BedtoolsClosestSV {
     call Helpers.ConcatTsvs {
         input:
             tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
+            sort_output = true,
             prefix = "~{prefix}.comparison",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons

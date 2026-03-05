@@ -103,6 +103,7 @@ workflow AnnotateL1MEAID {
             call Helpers.ConcatTsvs as ConcatAnnotationShards {
                 input:
                     tsvs = GenerateAnnotationTable.annotations_tsv,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.intactmei_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards_annotations
@@ -115,6 +116,7 @@ workflow AnnotateL1MEAID {
     call Helpers.ConcatTsvs as MergeAnnotations {
         input:
             tsvs = final_annotations_tsv,
+            sort_output = false,
             prefix = "~{prefix}.intactmei_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_contigs

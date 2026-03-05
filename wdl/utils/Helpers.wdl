@@ -386,8 +386,8 @@ CODE
 task ConcatTsvs {
     input {
         Array[File] tsvs
+        Boolean sort_output
         Boolean preserve_header = false
-        Boolean sort_output = true
         Boolean compressed_tsvs = false
         String prefix
         String docker
@@ -455,8 +455,8 @@ task ConcatVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-        Boolean sort_output = true
-        String prefix = "concat"
+        Boolean allow_overlaps
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -467,7 +467,7 @@ task ConcatVcfs {
         VCFS_FILE="~{write_lines(vcfs)}"
 
         bcftools concat \
-            ~{if sort_output then "--allow-overlaps" else ""} \
+            ~{if allow_overlaps then "--allow-overlaps" else ""} \
             --file-list ${VCFS_FILE} \
             -Oz -o "~{prefix}.vcf.gz"
         
@@ -1858,12 +1858,12 @@ task ShardVcfByRecords {
     command <<<
         set -euo pipefail
         
-        bcftools +scatter ~{vcf} \
-            -o shards \
-            -O z \
+        bcftools +scatter \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            -n ~{records_per_shard} \
             --prefix ~{prefix}. \
-            --threads 1 \
-            -n ~{records_per_shard}
+            -Oz -o shards \
+            ~{vcf}
         
         for shard in shards/*.vcf.gz; do
             tabix -p vcf "$shard"

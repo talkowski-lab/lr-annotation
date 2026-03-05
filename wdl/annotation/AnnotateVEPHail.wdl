@@ -107,6 +107,7 @@ workflow AnnotateVEPHail {
     call Helpers.ConcatTsvs as ConcatShards {
         input:
             tsvs = VepAnnotate.vep_tsv_file,
+            sort_output = false,
             prefix = "~{prefix}.vep_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_shards

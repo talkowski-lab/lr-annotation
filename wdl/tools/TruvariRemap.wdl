@@ -55,6 +55,7 @@ workflow TruvariRemap {
     call Helpers.ConcatTsvs {
         input:
             tsvs = InsRemap.annotations_tsv,
+            sort_output = false,
             prefix = "~{prefix}.remap_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

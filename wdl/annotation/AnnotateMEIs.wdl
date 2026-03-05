@@ -62,6 +62,7 @@ workflow AnnotateMEIs {
     call Helpers.ConcatTsvs {
         input:
             tsvs = FilterMEIs.filtered_tsv,
+            sort_output = false,
             prefix = "~{prefix}.mei_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

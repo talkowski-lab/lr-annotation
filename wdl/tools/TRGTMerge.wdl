@@ -38,6 +38,7 @@ workflow TRGTMerge {
         input:
             vcfs = TRGTMergeContig.merged_vcf,
             vcf_idxs = TRGTMergeContig.merged_vcf_idx,
+            allow_overlaps = false,
             prefix = "~{prefix}.trgt_merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

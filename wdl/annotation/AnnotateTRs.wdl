@@ -107,6 +107,7 @@ workflow AnnotateTRs {
             input:
                 vcfs = TagTRVcf.tagged_vcf,
                 vcf_idxs = TagTRVcf.tagged_vcf_idx,
+                allow_overlaps = true,
                 prefix = "~{prefix}.~{contig}.tr_concat",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_tr_vcfs
@@ -147,7 +148,7 @@ workflow AnnotateTRs {
         input:
             vcfs = AnnotateVcfWithTRs.annotated_vcf,
             vcf_idxs = AnnotateVcfWithTRs.annotated_vcf_idx,
-            sort_output = false,
+            allow_overlaps = false,
             prefix = "~{prefix}.annotated_trs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

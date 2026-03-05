@@ -167,6 +167,7 @@ workflow PALMER {
 		input:
 			vcfs = TruvariCollapse.diploid_vcf,
 			vcf_idxs = TruvariCollapse.diploid_vcf_idx,
+			allow_overlaps = true,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat

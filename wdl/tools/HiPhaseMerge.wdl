@@ -94,6 +94,7 @@ workflow HiPhaseMerge {
         input:
             vcfs = MergeIntegratedVcfs.merged_vcf,
             vcf_idxs = MergeIntegratedVcfs.merged_vcf_idx,
+            allow_overlaps = false,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_integrated
@@ -104,6 +105,7 @@ workflow HiPhaseMerge {
             input:
                 vcfs = select_all(MergeTRGTVcfs.merged_vcf),
                 vcf_idxs = select_all(MergeTRGTVcfs.merged_vcf_idx),
+                allow_overlaps = false,
                 prefix = "~{prefix}.trgt",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_trgt

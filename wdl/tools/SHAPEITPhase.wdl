@@ -96,6 +96,7 @@ workflow SHAPEITPhase {
         input:
             vcfs = FixVariantCollisions.phased_collisionless_vcf,
             vcf_idxs = FixVariantCollisions.phased_collisionless_vcf_idx,
+            allow_overlaps = false,
             prefix = "~{prefix}.prepared",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_shards
@@ -182,6 +183,7 @@ workflow SHAPEITPhase {
             input:
                 vcfs = flatten([Shapeit5Rare.phased_vcf]),
                 vcf_idxs = flatten([Shapeit5Rare.phased_vcf_idx]),
+                allow_overlaps = false,
                 prefix = "~{prefix}.phased.concat",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_shapeit5

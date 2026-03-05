@@ -168,6 +168,7 @@ workflow IntegrateVcfs {
                 input:
                     vcfs = AddFilterSnvIndel.flagged_vcf,
                     vcf_idxs = AddFilterSnvIndel.flagged_vcf_idx,
+                    allow_overlaps = false,
                     prefix = "~{prefix}.~{contig}.snv_indel.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_snv_indel_shards
@@ -262,6 +263,7 @@ workflow IntegrateVcfs {
                 input:
                     vcfs = AddFilterSv.flagged_vcf,
                     vcf_idxs = AddFilterSv.flagged_vcf_idx,
+                    allow_overlaps = false,
                     prefix = "~{prefix}.~{contig}.sv.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_sv_shards
@@ -285,6 +287,7 @@ workflow IntegrateVcfs {
             input:
                 vcfs = [final_snv_indel_vcf_for_contig, final_sv_vcf_for_contig],
                 vcf_idxs = [final_snv_indel_vcf_for_contig_idx, final_sv_vcf_for_contig_idx],
+                allow_overlaps = true,
                 prefix = "~{prefix}.~{contig}.integrated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
@@ -307,7 +310,7 @@ workflow IntegrateVcfs {
         input:
             vcfs = RenameAndFilterVariants.filtered_vcf,
             vcf_idxs = RenameAndFilterVariants.filtered_vcf_idx,
-            sort_output = false,
+            allow_overlaps = false,
             prefix = "~{prefix}.integrated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

@@ -111,6 +111,7 @@ workflow PALMERDiploid {
 		input:
 			vcfs = ConvertPALMERToVcf.vcf,
 			vcf_idxs = ConvertPALMERToVcf.vcf_idx,
+			allow_overlaps = true,
 			prefix = "~{prefix}.concat",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_concat

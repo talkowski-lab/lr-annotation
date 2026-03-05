@@ -32,6 +32,7 @@ workflow SubsetVcfToContigs {
         input:
             vcfs = SubsetVcfToContig.subset_vcf,
             vcf_idxs = SubsetVcfToContig.subset_vcf_idx,
+            allow_overlaps = false,
             prefix = "~{prefix}.subset_contigs",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

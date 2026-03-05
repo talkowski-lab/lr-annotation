@@ -98,6 +98,7 @@ workflow AnnotateSVAnnotate {
     call Helpers.ConcatTsvs as MergeTsvs {
         input:
             tsvs = ExtractAnnotations.annotations_tsv,
+            sort_output = false,
             prefix = "~{prefix}.svannotate_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_annotated
