@@ -1475,7 +1475,8 @@ task MergeBams {
 
         samtools merge \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
-            -f -o ~{prefix}.bam \
+            -f \
+            -o ~{prefix}.bam \
             ~{sep=' ' bams}
         
         samtools index ~{prefix}.bam

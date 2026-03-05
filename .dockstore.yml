@@ -152,6 +152,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CreateDepthProfile
+    primaryDescriptorPath: /wdl/annotation_utils/CreateDepthProfile.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
     filters:
