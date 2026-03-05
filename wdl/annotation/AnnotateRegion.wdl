@@ -85,6 +85,7 @@ workflow AnnotateRegion {
             vcfs = SetUniqueRegion.annotated_vcf,
             vcf_idxs = SetUniqueRegion.annotated_vcf_idx,
             allow_overlaps = false,
+            naive = true,
             prefix = "~{prefix}.region_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf

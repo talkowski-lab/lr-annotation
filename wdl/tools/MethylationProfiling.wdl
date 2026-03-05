@@ -74,8 +74,6 @@ task CpgPileup {
             --min-mapq 1 \
             --min-coverage 10 \
             --model "$PILEUP_MODEL_DIR"/pileup_calling_model.v1.tflite
-
-        gzip ~{prefix}.*.bed
     >>>
 
     output {

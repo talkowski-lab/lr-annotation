@@ -60,6 +60,7 @@ workflow ExtractSampleVcfs {
                 vcfs = SubsetSnvIndel.subset_vcf,
                 vcf_idxs = SubsetSnvIndel.subset_vcf_idx,
                 allow_overlaps = false,
+                naive = true,
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcfs
@@ -70,6 +71,7 @@ workflow ExtractSampleVcfs {
                 vcfs = SubsetSv.subset_vcf,
                 vcf_idxs = SubsetSv.subset_vcf_idx,
                 allow_overlaps = false,
+                naive = true,
                 prefix = "~{prefix}.~{sample_id}.sv",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcfs

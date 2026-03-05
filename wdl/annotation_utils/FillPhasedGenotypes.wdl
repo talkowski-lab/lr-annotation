@@ -59,6 +59,7 @@ workflow FillPhasedGenotypes {
             vcfs = FillGenotypes.filled_vcf,
             vcf_idxs = FillGenotypes.filled_vcf_idx,
             allow_overlaps = false,
+            naive = true,
             prefix = "~{prefix}.filled",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat

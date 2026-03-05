@@ -456,6 +456,7 @@ task ConcatVcfs {
         Array[File] vcfs
         Array[File] vcf_idxs
         Boolean allow_overlaps
+        Boolean naive
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -468,6 +469,7 @@ task ConcatVcfs {
 
         bcftools concat \
             ~{if allow_overlaps then "--allow-overlaps" else ""} \
+            ~{if naive then "--naive" else ""} \
             --file-list ${VCFS_FILE} \
             -Oz -o "~{prefix}.vcf.gz"
         
