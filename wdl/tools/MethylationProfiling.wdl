@@ -43,6 +43,24 @@ task CpgPileup {
         RuntimeAttr? runtime_attr_override
     }
 
+    command <<<
+        set -euo pipefail
+        
+        aligned_bam_to_cpg_scores \
+            --bam ~{bam} \
+            --pileup-mode model \
+            --ref ~{ref_fa} \
+            --output-prefix ~{prefix} \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            --min-coverage 10 \
+            --min-mapq 1
+    >>>
+
+    output {
+        File pileup_bed = "~{prefix}.combined.bed.gz"
+        File pileup_bed_idx = "~{prefix}.combined.bed.gz.tbi"
+    }
+
     RuntimeAttr default_attr = object {
         cpu_cores: 12,
         mem_gb: 48,
@@ -52,7 +70,6 @@ task CpgPileup {
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int threads = select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -61,23 +78,5 @@ task CpgPileup {
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        aligned_bam_to_cpg_scores \
-            --threads ~{threads} \
-            --bam ~{bam} \
-            --ref ~{ref_fa} \
-            --output-prefix ~{prefix} \
-            --min-mapq 1 \
-            --min-coverage 10 \
-            --model "$PILEUP_MODEL_DIR"/pileup_calling_model.v1.tflite
-    >>>
-
-    output {
-        File pileup_bed = "~{prefix}.combined.bed.gz"
-        File pileup_bed_idx = "~{prefix}.combined.bed.gz.tbi"
     }
 }
