@@ -105,10 +105,8 @@ task ConvertLPSTableToAFHistograms {
     command <<<
         set -eou pipefail
 
-        cp ~{lps_tsv} input.tsv.gz
-
         python3 -m str_analysis.convert_multisample_LPS_table_to_allele_frequency_histograms \
-            --input-table input.tsv.gz \
+            --input-table ~{lps_tsv} \
             --no-header
 
         mv *.per_locus_and_motif.*.tsv.gz ~{prefix}.tsv.gz
