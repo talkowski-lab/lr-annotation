@@ -114,7 +114,7 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_concat_tr_vcfs
         }
 
-        call DeduplicateEnvelopedVariants {
+        call DeduplicateOverlappingVariants {
             input:
                 vcf = ConcatTrVcfs.concat_vcf,
                 vcf_idx = ConcatTrVcfs.concat_vcf_idx,
@@ -125,8 +125,8 @@ workflow AnnotateTRs {
 
         call SetTRVariantIds {
             input:
-                vcf = DeduplicateEnvelopedVariants.dedup_vcf,
-                vcf_idx = DeduplicateEnvelopedVariants.dedup_vcf_idx,
+                vcf = DeduplicateOverlappingVariants.dedup_vcf,
+                vcf_idx = DeduplicateOverlappingVariants.dedup_vcf_idx,
                 prefix = "~{prefix}.~{contig}.tr.ids",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_set_tr_ids
@@ -243,7 +243,7 @@ task TagTRVcf {
     }
 }
 
-task DeduplicateEnvelopedVariants {
+task DeduplicateOverlappingVariants {
     input {
         File vcf
         File vcf_idx
@@ -265,7 +265,6 @@ task DeduplicateEnvelopedVariants {
             }' > variants.bed
 
         bedtools intersect \
-            -f 1.0 \
             -wa \
             -wb \
             -a variants.bed \
