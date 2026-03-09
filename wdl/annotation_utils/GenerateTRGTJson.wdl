@@ -64,7 +64,7 @@ task SubsetLpsTsvToContig {
     command <<<
         set -eou pipefail
 
-        zcat ~{tsv} \
+        zcat -f ~{tsv} \
             | awk -F'\t' -v contig="~{contig}" '$1 ~ "^"contig"-"' \
             | gzip -c \
             > ~{prefix}.tsv.gz
