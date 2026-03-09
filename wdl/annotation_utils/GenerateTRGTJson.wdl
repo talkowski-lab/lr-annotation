@@ -107,7 +107,7 @@ task ConvertLPSTableToAFHistograms {
 
         cp ~{lps_tsv} input.tsv.gz
 
-        python3 convert_LPS_table_to_allele_frequency_histograms.py \
+        python3 -m str_analysis.convert_multisample_LPS_table_to_allele_frequency_histograms \
             --input-table input.tsv.gz \
             --no-header
 
