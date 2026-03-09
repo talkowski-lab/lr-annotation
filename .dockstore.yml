@@ -13,6 +13,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateIndelTRs
+    primaryDescriptorPath: /wdl/annotation/AnnotateIndelTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateL1MEAID
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
     filters:
@@ -190,6 +199,15 @@ workflows:
   - subclass: WDL
     name: FillPhasedGenotypes
     primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: GenerateTRGTJson
+    primaryDescriptorPath: /wdl/annotation_utils/GenerateTRGTJson.wdl
     filters:
       branches:
         - main
