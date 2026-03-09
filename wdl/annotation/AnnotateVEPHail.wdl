@@ -8,6 +8,7 @@ workflow AnnotateVEPHail {
     input {
         File vcf
         File vcf_idx
+        Array[String] contigs
         String prefix
         
         String? args_string_vcf
@@ -45,6 +46,9 @@ workflow AnnotateVEPHail {
         RuntimeAttr? runtime_attr_subset_tsv
         RuntimeAttr? runtime_attr_collapse_multiallelics
         RuntimeAttr? runtime_attr_concat_contigs
+        RuntimeAttr? runtime_attr_subset_pre_norm_vcf
+        RuntimeAttr? runtime_attr_extract_coords
+        RuntimeAttr? runtime_attr_restore_alleles
     }
 
     if (defined(args_string_vcf)) {
@@ -114,36 +118,56 @@ workflow AnnotateVEPHail {
     }
 
     if (normalize_vcf) {
-        call Helpers.GetContigsFromTsv {
-            input:
-                tsv = ConcatShards.concatenated_tsv,
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_get_contigs
-        }
+        scatter (contig in contigs) {
+            call Helpers.SubsetVcfToContig as SubsetPreNormVcfToContig {
+                input:
+                    vcf = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
+                    vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx]),
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.pre_norm",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_pre_norm_vcf
+            }
 
-        scatter (contig in GetContigsFromTsv.contigs) {
-            call Helpers.SubsetTsvToContig as SubsetForCollapse {
+            call Helpers.ExtractVcfCoords {
+                input:
+                    vcf = SubsetPreNormVcfToContig.subset_vcf,
+                    vcf_idx = SubsetPreNormVcfToContig.subset_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.coords",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_coords
+            }
+
+            call Helpers.SubsetTsvToContig {
                 input:
                     tsv = ConcatShards.concatenated_tsv,
                     contig = contig,
-                    prefix = "~{prefix}.~{contig}",
+                    prefix = "~{prefix}.~{contig}.vep",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_tsv
-
             }
 
             call Helpers.CollapseMultiallelics {
                 input:
-                    tsv = SubsetForCollapse.subset_tsv,
+                    tsv = SubsetTsvToContig.subset_tsv,
                     prefix = "~{prefix}.~{contig}.collapsed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_collapse_multiallelics
+            }
+
+            call Helpers.RestoreOriginalAlleles {
+                input:
+                    tsv = CollapseMultiallelics.collapsed_tsv,
+                    coords_tsv = ExtractVcfCoords.coords_tsv,
+                    prefix = "~{prefix}.~{contig}.restored",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_restore_alleles
             }
         }
 
         call Helpers.ConcatTsvs as ConcatCollapsed {
             input:
-                tsvs = CollapseMultiallelics.collapsed_tsv,
+                tsvs = RestoreOriginalAlleles.restored_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.vep_annotations.collapsed",
                 docker = utils_docker,

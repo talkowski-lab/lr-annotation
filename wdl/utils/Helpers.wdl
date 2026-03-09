@@ -787,6 +787,47 @@ CODE
     }
 }
 
+task ExtractVcfCoords {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
+            ~{vcf} \
+            > ~{prefix}.tsv
+    >>>
+
+    output {
+        File coords_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task FillGenotypes {
     input {
         File phased_vcf
@@ -1356,6 +1397,64 @@ task RevertSymbolicAlleles {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task RestoreOriginalAlleles {
+    input {
+        File tsv
+        File coords_tsv
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+orig = {}
+with open('~{coords_tsv}', 'r') as f:
+    for line in f:
+        fields = line.rstrip('\n').split('\t')
+        vid = fields[4]
+        if vid != '.':
+            orig[vid] = fields
+
+with open('~{tsv}', 'r') as f, open('~{prefix}.tsv', 'w') as out:
+    for line in f:
+        fields = line.rstrip('\n').split('\t')
+        vid = fields[4]
+        if vid in orig:
+            fields[0] = orig[vid][0]
+            fields[1] = orig[vid][1]
+            fields[2] = orig[vid][2]
+            fields[3] = orig[vid][3]
+        out.write('\t'.join(fields) + '\n')
+CODE
+    >>>
+
+    output {
+        File restored_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsv, "GB") + size(coords_tsv, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
