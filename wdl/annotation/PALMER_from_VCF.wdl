@@ -40,7 +40,7 @@ workflow CallPALMER {
 
         call Aln.AlignGeneric as alignIns{
             input:
-                input_fa = InsToFa.ins_fa,
+                input_fa = InsToFaWithFlanking.ins_fa,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = prefix + "_shard_" + shard_idx,
@@ -59,18 +59,15 @@ workflow CallPALMER {
         }
      }
 
-     call Helpers.MergeVCFs { input: 
+     call Helpers.MergeVcfs { input: 
         vcfs=PALMER.vcf, 
         vcf_idxs = PALMER.vcf_tbi,
         prefix=prefix+"_merged",
         docker=utils_docker}
 
-     File merged_vcf = MergeVCFs.vcf
-     File merged_vcf_idx = MergeVCFs.vcf_tbi
-
     output {
-        File PALMER_calls = PALMER_WGS.calls
-        File PALMER_TSD_reads = PALMER_WGS.TSD_reads
+        File PALMER_vcf = MergeVcfs.merged_vcf
+        File PALMER_vcf_tbi = MergeVcfs.merged_vcf_idx
     }
 }
 
@@ -114,7 +111,7 @@ for line in infile:
         counter+=1
     left_flank = ref_fa.fetch(chrom, max(0,pos-10000), pos)
     right_flank = ref_fa.fetch(chrom, pos, min(pos+10000, chrom_length))
-    print('>%s_%d_%s_%s_%d\n%s' % (chrom, pos, ref, ID, counter, left_flank+ins_seq[1:]+right_flank))
+    outfile.write('>%s_%d_%s_%s_%d\n%s\n' % (chrom, pos, ref, ID, counter, left_flank+ins_seq[1:]+right_flank))
 infile.close()
 outfile.close()
 EOF
@@ -138,7 +135,7 @@ EOF
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
+        docker: "quay.io/ymostovoy/lr-process-mendelian:1.0"
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -203,7 +200,7 @@ task PALMER {
 
     #########################
     RuntimeAttr default_attr = object {
-        cpu_cores:          cpu_num,
+        cpu_cores:          1,
         mem_gb:             4,
         disk_gb:            disk_size,
         boot_disk_gb:       10,
@@ -222,15 +219,3 @@ task PALMER {
         docker:                 select_first([runtime_attr.docker,            default_attr.docker])
     }
 }
-################################################################################################################################################
-
-struct RuntimeAttr {
-    Float? mem_gb
-    Int? cpu_cores
-    Int? disk_gb
-    Int? boot_disk_gb
-    Int? preemptible_tries
-    Int? max_retries
-    String? docker
-}
-
