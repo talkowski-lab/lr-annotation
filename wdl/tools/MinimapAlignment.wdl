@@ -85,16 +85,15 @@ task AlignGeneric {
     command <<<
         set -euo pipefail
 
-        N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
-        N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
-        N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
+        mem=$(grep '^MemTotal' /proc/meminfo | awk '{ print int($2/1000000) }')
+        cpus=$(grep -c '^processor' /proc/cpuinfo | awk '{ print $1 }')
 
         minimap2 \
             -t ${N_THREADS} \
             ~{flags} \
             ~{ref_fa} \
             ~{input_fa} \
-        | samtools sort -@${N_THREADS} -o "~{prefix}.bam"
+        | samtools sort -@ ${cpus} -m ${mem}G -o "~{prefix}.bam"
 
         samtools index "~{prefix}.bam"
         
