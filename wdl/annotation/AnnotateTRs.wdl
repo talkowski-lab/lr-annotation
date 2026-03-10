@@ -66,8 +66,8 @@ workflow AnnotateTRs {
 
             call Helpers.SubsetVcfToSamples as SubsetSamplesTr {
                 input:
-                    vcf = vcf,
-                    vcf_idx = vcf_idx,
+                    vcf = tr_vcfs[i],
+                    vcf_idx = tr_vcf_idxs[i],
                     samples = sample_ids,
                     prefix = "~{prefix}.~{contig}.tr~{i}.subset_samples",
                     docker = utils_docker,
@@ -288,8 +288,6 @@ task DeduplicateOverlappingVariants {
         fi
         
         tabix -p vcf ~{prefix}.vcf.gz
-        
-        rm -f variants.bed ids_to_remove.txt
     >>>
 
     output {

@@ -102,8 +102,12 @@ task RunFilterVcfToTRs {
     command <<<
         set -eou pipefail
 
-        bcftools view -e 'INFO/allele_type="trv"' ~{vcf} -Oz -o ~{prefix}.vcf.gz
-        tabix ~{prefix}.vcf.gz
+        bcftools view \
+            -e 'INFO/allele_type="trv"' \
+            -Oz -o ~{prefix}.filtered.vcf.gz \
+            ~{vcf}
+        
+        tabix ~{prefix}.filtered.vcf.gz
 
         if [ "~{dont_run_trf}" == "true" ]; then
             TRF_ARGS="--dont-run-trf"
