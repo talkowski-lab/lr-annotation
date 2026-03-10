@@ -170,6 +170,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CreateMetadataFile
+    primaryDescriptorPath: /wdl/annotation_utils/CreateMetadataFile.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreatePEDAncestry
     primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
     filters:
