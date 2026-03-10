@@ -28,11 +28,11 @@ workflow CallPALMER {
                 docker = utils_docker
     }
 
-    scatter (shard_idx in range(length(ShardVcfByRecords.sharded_vcfs))) {
+    scatter (shard_idx in range(length(ShardVcfByRecords.shards))) {
         call InsToFaWithFlanking {
             input:
-                vcf = ShardVcfByRecords.sharded_vcfs[shard_idx],
-                vcf_tbi = ShardVcfByRecords.sharded_vcf_tbis[shard_idx],
+                vcf = ShardVcfByRecords.shards[shard_idx],
+                vcf_tbi = ShardVcfByRecords.shard_idxs[shard_idx],
                 ref_fa = ref_fa,
                 flanking_bp = flanking_bp,
                 prefix = prefix + "_shard_" + shard_idx
