@@ -13,8 +13,8 @@ workflows:
       tags:
         - /.*/
 
-    - subclass: WDL
-    name: PALMER_from_VCF.wdl
+  - subclass: WDL
+    name: PALMER_from_VCF
     primaryDescriptorPath: /wdl/annotation/PALMER_from_VCF.wdl
     filters:
       branches:
