@@ -122,7 +122,7 @@ task ConvertLPSTableToAFHistograms {
             --input-table ~{lps_tsv} \
             --no-header
 
-        mv *.per_locus_and_motif.*.tsv.gz ~{prefix}.tsv.gz
+        mv "$(dirname ~{lps_tsv})"/*.per_locus_and_motif.*.tsv.gz ~{prefix}.tsv.gz
     >>>
 
     output {
