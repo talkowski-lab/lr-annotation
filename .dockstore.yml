@@ -13,6 +13,15 @@ workflows:
       tags:
         - /.*/
 
+    - subclass: WDL
+    name: PALMER_from_VCF.wdl
+    primaryDescriptorPath: /wdl/annotation/PALMER_from_VCF.wdl
+    filters:
+      branches:
+        - aou_scaling
+      tags:
+        - /.*/
+
   - subclass: WDL
     name: AnnotateMEDs
     primaryDescriptorPath: /wdl/annotation/AnnotateMEDs.wdl
