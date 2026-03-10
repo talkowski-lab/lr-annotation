@@ -71,6 +71,66 @@ workflow MinimapAlignment {
     }
 }
 
+task AlignGeneric {
+    input {
+        File input_fa
+        String prefix
+        String flags
+        File ref_fa
+        File ref_fai
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
+        N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
+        N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
+
+        minimap2 \
+            -t ${N_THREADS} \
+            ~{flags} \
+            ~{ref_fa} \
+            ~{input_fa} \
+        | samtools sort -@${N_THREADS} -o "~{prefix}.bam"
+
+        samtools index "~{prefix}.bam"
+        
+        samtools view -h "~{prefix}.bam" \
+        | k8 $(which paftools.js) sam2paf \
+            -L \
+            - \
+        > "~{prefix}.paf"
+    >>>
+
+    output {
+        File bamOut = "~{prefix}.bam"
+        File baiOut = "~{prefix}.bam.bai"
+        File pafOut = "~{prefix}.paf"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 3*ceil(size(input_fa, "GB") + size(ref_fa, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task AlignAssembly {
     input {
         File assembly_fa
