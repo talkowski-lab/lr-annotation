@@ -25,7 +25,7 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_set_missing_filters
         RuntimeAttr? runtime_attr_tag_tr_vcf
         RuntimeAttr? runtime_attr_deduplicate_trs
-        RuntimeAttr? runtime_attr_concat_tr_vcfs
+        RuntimeAttr? runtime_attr_priority_merge
         RuntimeAttr? runtime_attr_set_tr_ids
         RuntimeAttr? runtime_attr_annotate_vcf
         RuntimeAttr? runtime_attr_concat_vcf
@@ -101,32 +101,30 @@ workflow AnnotateTRs {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_tag_tr_vcf
             }
+
+            call DeduplicateOverlappingVariants {
+                input:
+                    vcf = TagTRVcf.tagged_vcf,
+                    vcf_idx = TagTRVcf.tagged_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.tr~{i}.dedup",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_deduplicate_trs
+            }
         }
 
-        call Helpers.ConcatVcfs as ConcatTrVcfs {
+        call PriorityMergeTRVcfs {
             input:
-                vcfs = TagTRVcf.tagged_vcf,
-                vcf_idxs = TagTRVcf.tagged_vcf_idx,
-                allow_overlaps = true,
-                naive = false,
-                prefix = "~{prefix}.~{contig}.tr_concat",
+                vcfs = DeduplicateOverlappingVariants.dedup_vcf,
+                vcf_idxs = DeduplicateOverlappingVariants.dedup_vcf_idx,
+                prefix = "~{prefix}.~{contig}.tr_merged",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_tr_vcfs
-        }
-
-        call DeduplicateOverlappingVariants {
-            input:
-                vcf = ConcatTrVcfs.concat_vcf,
-                vcf_idx = ConcatTrVcfs.concat_vcf_idx,
-                prefix = "~{prefix}.~{contig}.tr_dedup",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_deduplicate_trs
+                runtime_attr_override = runtime_attr_priority_merge
         }
 
         call SetTRVariantIds {
             input:
-                vcf = DeduplicateOverlappingVariants.dedup_vcf,
-                vcf_idx = DeduplicateOverlappingVariants.dedup_vcf_idx,
+                vcf = PriorityMergeTRVcfs.merged_vcf,
+                vcf_idx = PriorityMergeTRVcfs.merged_vcf_idx,
                 prefix = "~{prefix}.~{contig}.tr.ids",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_set_tr_ids
@@ -299,6 +297,98 @@ task DeduplicateOverlappingVariants {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 3 * ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task PriorityMergeTRVcfs {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_idxs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        VCF_FILES=(~{sep=' ' vcfs})
+
+        cp "${VCF_FILES[0]}" merged.vcf.gz
+
+        tabix -p vcf merged.vcf.gz
+
+        for vcf_file in "${VCF_FILES[@]:1}"; do
+            # BED of variants currently in the merged set
+            bcftools query \
+                -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
+                merged.vcf.gz \
+                | awk 'BEGIN{OFS="\t"} {print $1, $2, $2+length($4)}' > merged.bed
+
+            # BED of candidate variants
+            bcftools query \
+                -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
+                "$vcf_file" \
+                | awk 'BEGIN{OFS="\t"} {print $1, $2, $2+length($4), $3}' > candidates.bed
+
+            # Keep only candidates with no overlap in the merged set
+            bedtools intersect \
+                -v \
+                -a candidates.bed \
+                -b merged.bed \
+                | cut -f4 > ids_to_add.txt
+
+            if [ -s ids_to_add.txt ]; then
+                bcftools view \
+                    -i "ID=@ids_to_add.txt" \
+                    -Oz -o to_add.vcf.gz \
+                    "$vcf_file"
+                
+                tabix -p vcf to_add.vcf.gz
+
+                bcftools concat \
+                    --allow-overlaps \
+                    merged.vcf.gz to_add.vcf.gz \
+                    | bcftools sort -Oz -o new_merged.vcf.gz
+                
+                tabix -p vcf new_merged.vcf.gz
+
+                mv new_merged.vcf.gz merged.vcf.gz
+
+                mv new_merged.vcf.gz.tbi merged.vcf.gz.tbi
+
+                rm -f to_add.vcf.gz to_add.vcf.gz.tbi
+            fi
+
+            rm -f merged.bed candidates.bed ids_to_add.txt
+        done
+
+        mv merged.vcf.gz ~{prefix}.vcf.gz
+        mv merged.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
+    >>>
+
+    output {
+        File merged_vcf = "~{prefix}.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
