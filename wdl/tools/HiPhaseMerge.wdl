@@ -36,7 +36,7 @@ workflow HiPhaseMerge {
                 input:
                     vcf = phased_vcfs[i],
                     vcf_idx = phased_vcf_idxs[i],
-                    include_args = 'INFO/TRID = "."',
+                    exclude_args = 'INFO/allele_type = "trv"',
                     prefix = "~{prefix}.~{i}.integrated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_integrated
@@ -46,7 +46,7 @@ workflow HiPhaseMerge {
                 input:
                     vcf = phased_vcfs[i],
                     vcf_idx = phased_vcf_idxs[i],
-                    include_args = 'INFO/TRID != "."',
+                    include_args = 'INFO/allele_type = "trv"',
                     prefix = "~{prefix}.~{i}.trgt",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_trgt
@@ -115,8 +115,8 @@ workflow HiPhaseMerge {
     }
 
     output {
-        File hiphase_merged_integrated_vcf = ConcatIntegratedVcfs.concat_vcf
-        File hiphase_merged_integrated_vcf_idx = ConcatIntegratedVcfs.concat_vcf_idx
+        File hiphase_merged_vcf = ConcatIntegratedVcfs.concat_vcf
+        File hiphase_merged_vcf_idx = ConcatIntegratedVcfs.concat_vcf_idx
         File? hiphase_merged_trgt_vcf = ConcatTRGTVcfs.concat_vcf
         File? hiphase_merged_trgt_vcf_idx = ConcatTRGTVcfs.concat_vcf_idx
     }
