@@ -115,8 +115,8 @@ workflow HiPhaseMerge {
     }
 
     output {
-        File hiphase_merged_vcf = ConcatIntegratedVcfs.concat_vcf
-        File hiphase_merged_vcf_idx = ConcatIntegratedVcfs.concat_vcf_idx
+        File hiphase_merged_integrated_vcf = ConcatIntegratedVcfs.concat_vcf
+        File hiphase_merged_integrated_vcf_idx = ConcatIntegratedVcfs.concat_vcf_idx
         File? hiphase_merged_trgt_vcf = ConcatTRGTVcfs.concat_vcf
         File? hiphase_merged_trgt_vcf_idx = ConcatTRGTVcfs.concat_vcf_idx
     }
