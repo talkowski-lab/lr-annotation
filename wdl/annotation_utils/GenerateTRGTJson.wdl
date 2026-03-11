@@ -9,6 +9,8 @@ workflow GenerateTRGTJson {
         Array[String] contigs
         String prefix
 
+        File metadata_tsv
+
         String stranalysis_docker
         String utils_docker
 
@@ -30,6 +32,7 @@ workflow GenerateTRGTJson {
         call ConvertLPSTableToAFHistograms {
             input:
                 lps_tsv = SubsetLpsTsvToContig.subset_tsv,
+                metadata_tsv = metadata_tsv,
                 prefix = "~{prefix}.~{contig}.af_histograms",
                 docker = stranalysis_docker,
                 runtime_attr_override = runtime_attr_convert
@@ -110,6 +113,7 @@ task SubsetLpsTsvToContig {
 task ConvertLPSTableToAFHistograms {
     input {
         File lps_tsv
+        File metadata_tsv
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -120,6 +124,10 @@ task ConvertLPSTableToAFHistograms {
 
         python3 -m str_analysis.convert_multisample_LPS_table_to_allele_frequency_histograms \
             --input-table ~{lps_tsv} \
+            --sample-metadata-tsv ~{metadata_tsv} \
+            --stratify-by-population \
+            --stratify-by-sex \
+            --output-format TSV \
             --no-header
 
         mv "$(dirname ~{lps_tsv})"/*.per_locus_and_motif.*.tsv.gz ~{prefix}.tsv.gz
