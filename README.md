@@ -208,6 +208,10 @@ TODO
 TODO
 
 
+### [MergeTRs](wdl/annotation_utils/MergeTRs.wdl)
+TODO
+
+
 ### [SubsetTRGTToCatalog](wdl/annotation_utils/SubsetTRGTToCatalog.wdl)
 TODO
 

@@ -233,6 +233,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergeTRs
+    primaryDescriptorPath: /wdl/annotation_utils/MergeTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: SubsetTRGTToCatalog
     primaryDescriptorPath: /wdl/annotation_utils/SubsetTRGTToCatalog.wdl
     filters:
