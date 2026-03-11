@@ -182,8 +182,9 @@ task PALMER {
                 --workdir ./
 
         #fix output VCF header (missing SVTYPE definition)
-        bcftools view -h ~{prefix}_integrated.vcf > header.txt
+        bcftools view -h ~{prefix}_integrated.vcf |grep -v '^#CHROM' > header.txt
         echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of SV">' >> header.txt
+        bcftools view -h ~{prefix}_integrated.vcf|tail -n1 >> header.txt
         bcftools reheader -h header.txt ~{prefix}_integrated.vcf > ~{prefix}_integrated_fixed.vcf
         bcftools sort -Oz -o ~{prefix}_integrated.vcf.gz ~{prefix}_integrated_fixed.vcf
         tabix -p vcf ~{prefix}_integrated.vcf.gz
