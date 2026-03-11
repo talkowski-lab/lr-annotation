@@ -1,5 +1,3 @@
-version 1.0
-
 import "../utils/Structs.wdl"
 
 workflow MinimapAlignment {
@@ -89,7 +87,7 @@ task AlignGeneric {
         cpus=$(grep -c '^processor' /proc/cpuinfo | awk '{ print $1 }')
 
         minimap2 \
-            -t ${N_THREADS} \
+            -t ${cpus} \
             ~{flags} \
             ~{ref_fa} \
             ~{input_fa} \
