@@ -68,6 +68,7 @@ task SubsetLpsTsvToContig {
         set -eou pipefail
 
         zcat -f ~{tsv} \
+            | awk 'NF {lines[++n]=$0} END {print lines[n]; for (i=1; i<n; i++) print lines[i]}' \
             | awk -F'\t' -v contig="~{contig}" '
                 BEGIN {
                     if (contig ~ /^chr/) contig = substr(contig,4)
@@ -79,7 +80,7 @@ task SubsetLpsTsvToContig {
                     split(arr[1], parts, "-")
                     chr = parts[1]
                     if (chr ~ /^chr/) chr = substr(chr,4)
-                    if (chr == contig) print
+                    if (chr == contig || chr ~ /^trid/) print
                 }
             ' \
             | gzip -c \
@@ -125,11 +126,10 @@ task ConvertLPSTableToAFHistograms {
         python3 -m str_analysis.convert_multisample_LPS_table_to_allele_frequency_histograms \
             --input-table ~{lps_tsv} \
             --sample-metadata-tsv ~{metadata_tsv} \
-            --stratify-by-population \
-            --stratify-by-sex \
             --output-format TSV \
-            --no-header
-
+            --stratify-by-population \
+            --stratify-by-sex
+        
         mv "$(dirname ~{lps_tsv})"/*.per_locus_and_motif.*.tsv.gz ~{prefix}.tsv.gz
     >>>
 
