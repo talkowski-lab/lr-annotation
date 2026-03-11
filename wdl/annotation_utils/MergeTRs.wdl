@@ -41,7 +41,7 @@ workflow MergeTRs {
                 runtime_attr_override = runtime_attr_subset_contig_tr
         }
 
-        call Helpers.ConcatVcfs as IntegrateVcf {
+        call Helpers.ConcatVcfs as IntegrateVcfs {
             input:
                 vcfs = [SubsetBase.subset_vcf, SubsetTR.subset_vcf],
                 vcf_idxs = [SubsetBase.subset_vcf_idx, SubsetTR.subset_vcf_idx],
