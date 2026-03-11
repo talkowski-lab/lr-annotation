@@ -96,18 +96,11 @@ task AlignGeneric {
         | samtools sort -@ ${cpus} -m ${mem}G -o "~{prefix}.bam"
 
         samtools index "~{prefix}.bam"
-        
-        samtools view -h "~{prefix}.bam" \
-        | k8 $(which paftools.js) sam2paf \
-            -L \
-            - \
-        > "~{prefix}.paf"
     >>>
 
     output {
         File bamOut = "~{prefix}.bam"
         File baiOut = "~{prefix}.bam.bai"
-        File pafOut = "~{prefix}.paf"
     }
 
     RuntimeAttr default_attr = object {
