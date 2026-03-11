@@ -1,3 +1,5 @@
+version 1.0
+
 import "../utils/Structs.wdl"
 
 workflow MinimapAlignment {
@@ -22,7 +24,7 @@ workflow MinimapAlignment {
     }
 
     String workflow_name = "MinimapAlignment"
-    String save_to_dir = where_to_save + "~{workflow_name}/~{sample_id}/"
+    String save_to_dir = where_to_save + workflow_name + "/" + sample_id + "/"
 
     output {
         File minimap_assembled_bam_mat = save_to_dir + basename(AlignMat.bamOut)
