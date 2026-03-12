@@ -18,10 +18,8 @@ workflow ExtractSampleVcfs {
         RuntimeAttr? runtime_attr_extract_sample
         RuntimeAttr? runtime_attr_subset_snv
         RuntimeAttr? runtime_attr_subset_sv
-        RuntimeAttr? runtime_attr_subset_trgt
         RuntimeAttr? runtime_attr_concat_snv
         RuntimeAttr? runtime_attr_concat_sv
-        RuntimeAttr? runtime_attr_concat_trgt
     }
 
     scatter (sample_id in sample_ids) {
@@ -56,17 +54,6 @@ workflow ExtractSampleVcfs {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv
             }
-
-            call Helpers.SubsetVcfByArgs as SubsetTRGT {
-                input:
-                    vcf = ExtractSampleContig.subset_vcf,
-                    vcf_idx = ExtractSampleContig.subset_vcf_idx,
-                    include_args = 'INFO/allele_type = \"trv\"',
-                    extra_args = "--trim-alt-alleles",
-                    prefix = "~{prefix}.~{contig}.~{sample_id}.trgt",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_trgt
-            }
         }
 
         call Helpers.ConcatVcfs as ConcatSnvIndels {
@@ -90,17 +77,6 @@ workflow ExtractSampleVcfs {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_sv
         }
-
-        call Helpers.ConcatVcfs as ConcatTRGT {
-            input:
-                vcfs = SubsetTRGT.subset_vcf,
-                vcf_idxs = SubsetTRGT.subset_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
-                prefix = "~{prefix}.~{sample_id}.trgt",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_trgt
-        }
     }
 
     output {
@@ -108,7 +84,5 @@ workflow ExtractSampleVcfs {
         Array[File] snv_indel_vcf_idxs = ConcatSnvIndels.concat_vcf_idx
         Array[File] sv_vcfs = ConcatSvs.concat_vcf
         Array[File] sv_vcf_idxs = ConcatSvs.concat_vcf_idx
-        Array[File] trgt_vcfs = ConcatTRGT.concat_vcf
-        Array[File] trgt_vcf_idxs = ConcatTRGT.concat_vcf_idx
     }
 }
