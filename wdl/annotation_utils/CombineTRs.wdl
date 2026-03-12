@@ -96,8 +96,8 @@ workflow CombineTRs {
     }
 
     output {
-        File combined_tr_vcf = ConcatVcfs.concat_vcf
-        File combined_tr_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File tr_combined_vcf = ConcatVcfs.concat_vcf
+        File tr_combined_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
