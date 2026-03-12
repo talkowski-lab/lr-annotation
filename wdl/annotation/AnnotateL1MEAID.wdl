@@ -27,6 +27,7 @@ workflow AnnotateL1MEAID {
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_annotate
         RuntimeAttr? runtime_attr_concat_shards_annotations
+        RuntimeAttr? runtime_attr_concat_shards_intact_mei
     }
 
     if (defined(min_length)) {
@@ -115,7 +116,7 @@ workflow AnnotateL1MEAID {
                 tsvs = IntactMEI.filtered_output,
                 prefix = "~{prefix}.intactmei_raw",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_shards_annotations
+                runtime_attr_override = runtime_attr_concat_shards_intact_mei
         }
     }
 
