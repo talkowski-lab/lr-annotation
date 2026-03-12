@@ -109,11 +109,22 @@ workflow AnnotateL1MEAID {
         }
     }
 
+    if (defined(records_per_shard)) {
+        call Helpers.ConcatTsvs as ConcatIntactMEIShards {
+            input:
+                tsvs = IntactMEI.filtered_output,
+                prefix = "~{prefix}.intactmei_raw",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_shards_annotations
+        }
+    }
+
     File final_annotations_tsv = select_first([ConcatAnnotationShards.concatenated_tsv, GenerateAnnotationTable.annotations_tsv[0]])
+    File final_intactmei_raw_tsv = select_first([ConcatIntactMEIShards.concatenated_tsv, IntactMEI.filtered_output[0]])
 
     output {
         File annotations_tsv_l1meaid = final_annotations_tsv
-        File raw_output_intact_mei = IntactMEI.filtered_output
+        File raw_output_intact_mei = final_intactmei_raw_tsv
     }
 }
 
