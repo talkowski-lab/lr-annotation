@@ -21,7 +21,6 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_subset_samples_base
         RuntimeAttr? runtime_attr_subset_samples_tr
         RuntimeAttr? runtime_attr_check_sample_consistency
-        RuntimeAttr? runtime_attr_set_tr_ids
         RuntimeAttr? runtime_attr_annotate_vcf
         RuntimeAttr? runtime_attr_concat_vcf
     }
@@ -78,21 +77,12 @@ workflow AnnotateTRs {
                 runtime_attr_override = runtime_attr_check_sample_consistency
         }
 
-        call SetTRVariantIds {
-            input:
-                vcf = SubsetSamplesTr.subset_vcf,
-                vcf_idx = SubsetSamplesTr.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.tr_renamed",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_set_tr_ids
-        }
-
         call AnnotateVcfWithTRs {
             input:
                 vcf = SubsetSamplesBase.subset_vcf,
                 vcf_idx = SubsetSamplesBase.subset_vcf_idx,
-                tr_vcf = SetTRVariantIds.renamed_vcf,
-                tr_vcf_idx = SetTRVariantIds.renamed_vcf_idx,
+                tr_vcf = SubsetSamplesTr.subset_vcf,
+                tr_vcf_idx = SubsetSamplesTr.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.merged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_vcf
@@ -113,72 +103,6 @@ workflow AnnotateTRs {
     output {
         File tr_annotated_vcf = ConcatVcfs.concat_vcf
         File tr_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
-    }
-}
-
-task SetTRVariantIds {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-from pysam import VariantFile
-from collections import defaultdict
-
-vcf_in = VariantFile("~{vcf}")
-id_counts = defaultdict(int)
-for record in vcf_in:
-    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
-    id_counts[new_id] += 1
-vcf_in.close()
-
-vcf_in = VariantFile("~{vcf}")
-vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
-id_seen = defaultdict(int)
-for record in vcf_in:
-    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
-    if id_counts[new_id] > 1:
-        id_seen[new_id] += 1
-        record.id = f"{new_id}_{id_seen[new_id]}"
-    else:
-        record.id = new_id
-    vcf_out.write(record)
-vcf_in.close()
-vcf_out.close()
-CODE
-        
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File renamed_vcf = "~{prefix}.vcf.gz"
-        File renamed_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
