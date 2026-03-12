@@ -41,7 +41,7 @@ workflow AnnotateIndelTRs {
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.filtered_trs",
+                prefix = "~{prefix}.~{contig}.tr_annotations",
                 min_tandem_repeat_length = min_tandem_repeat_length,
                 min_repeats = min_repeats,
                 min_repeat_unit_length = min_repeat_unit_length,
@@ -54,15 +54,13 @@ workflow AnnotateIndelTRs {
         input:
             tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
             sort_output = false,
-            preserve_header = false,
-            compressed_tsvs = false,
             prefix = "~{prefix}.tr_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File tr_annotations_tsv = MergeAnnotations.concatenated_tsv
+        File annotations_tsv_trs = MergeAnnotations.concatenated_tsv
     }
 }
 
@@ -104,11 +102,11 @@ task RunFilterVcfToTRs {
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t1\n' \
             ~{prefix}.tandem_repeats.vcf.gz \
-            > ~{prefix}.tr_annotations.tsv
+            > ~{prefix}.tsv
     >>>
 
     output {
-        File tr_annotations_tsv = "~{prefix}.tr_annotations.tsv"
+        File tr_annotations_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {

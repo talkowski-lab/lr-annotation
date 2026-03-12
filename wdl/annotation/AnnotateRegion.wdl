@@ -115,7 +115,7 @@ task LabelVariantRegions {
         # Add REGION header if not already present
         touch header.lines
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=REGION'; then
-            echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context (e.g. SIMPLE_REPEAT, SEG_DUP, REPEAT_MASKER). UNIQUE if no region overlaps by the minimum coverage threshold.">' \
+            echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context.">' \
                 > header.lines
         fi
         bcftools annotate \
@@ -196,7 +196,7 @@ task SetUniqueRegion {
         # Annotate any variants without INFO/REGION as UNIQUE
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
-            -e 'INFO/REGION!="."' \
+            -e 'INFO/REGION != "."' \
             ~{vcf} \
         | awk '{print $0"\tUS"}' \
         | bgzip -c > unique_annot.txt.gz

@@ -361,7 +361,8 @@ task PriorityMergeTRVcfs {
 
                 bcftools concat \
                     --allow-overlaps \
-                    merged.vcf.gz to_add.vcf.gz \
+                    merged.vcf.gz \
+                    to_add.vcf.gz \
                     | bcftools sort -Oz -o new_merged.vcf.gz
 
                 tabix -p vcf new_merged.vcf.gz

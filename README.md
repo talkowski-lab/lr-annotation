@@ -349,17 +349,21 @@ TODO
 - `SOURCE`: Source of call, which is one of the below.
 	- `DeepVariant`: SNV or indel call made by the DeepVariant pipeline.
 	- `HPRC_SV_Integration`: Structural variant call made by the HPRC SV Integration pipeline.
-	- `TRGT`: Tandem repeat call made by TRGT.
+	- `TRGT`: Tandem repeat loci from the TRGT v1.0.1 catalog.
+	- `Vamos`: Tandem repeat loci from the Vamos v2.1 catalog.
+- `TR_OVERLAPPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`. 
+- `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with `TR_OVERLAPPED` flag. 
 - `ORIGIN`: Origin of duplicated sequence for duplications and NUMTs.
 - `SUB_FAMILY`: Sub-family for MEI calls.
-- `TRID`: TR identifier for TR calls, as well as non-TR calls that that are completely enveloped by a TR call. 
+- `dbGaP_ID`: Variant ID from dbGaP for matched variants.
+- `REGION`: Genomic region, which is one of `SR` (for simple repeats), `SD` (for segmental duplications), `RM` (for RepeatMasker annotated regions) or `US` (for unique sequences, or more simply, none of the previous regions).
 - Functional Annotations.
 	- `vep`: Annotations from the Variant Effect Predictor (VEP).
 	- `PREDICTED_`: Annotations from SVAnnotate, which are all prefixed by `PREDICTED_`.
 - gnomAD_V4 Benchmarking.
 	- `gnomAD_V4_match_type`: Method for generating match, which is one of the below.
 		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
-		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity. 
+		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity.
 		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
 	- `gnomAD_V4_match_ID`: Variant ID of matched variant.
 	- `gnomAD_V4_match_source`: Source of matched variant, which is one of the below.
@@ -373,10 +377,16 @@ TODO
 	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
 	- `MC_allele`: Motif count per-allele (multiallelic sites only).
 	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
+- VRS Annotations: As described in the [VRS documentation](https://vrs.ga4gh.org/en/stable/)
+	- `VRS_Allele_IDs`.
+	- `VRS_Starts`.
+	- `VRS_Ends`.
+	- `VRS_States`.
+	- `VRS_Lengths`.
+	- `VRS_RepeatSubunitLengths`.
 - Filters.
 	- `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has  `INFO/allele_length ≥ 50`.
 	- `SMALL_SV`: Variant with `SOURCE = "HPRC_SV_Integration"` that has `INFO/allele_length < 50`.
-	- `TRGT_OVERLAPPED`: Variant with `SOURCE != "TRGT"` that is completely enveloped by a call with `SOURCE = "TRGT"`. 
 
 
 
