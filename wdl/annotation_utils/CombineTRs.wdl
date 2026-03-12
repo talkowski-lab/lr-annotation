@@ -39,7 +39,6 @@ workflow CombineTRs {
                     vcf = tr_vcfs[i],
                     vcf_idx = tr_vcf_idxs[i],
                     contig = contig,
-                    extra_args = "--min-ac 1",
                     prefix = "~{prefix}.~{contig}.tr~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_contig
@@ -96,8 +95,8 @@ workflow CombineTRs {
     }
 
     output {
-        File tr_combined_vcf = ConcatVcfs.concat_vcf
-        File tr_combined_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File trgt_combined_vcf = ConcatVcfs.concat_vcf
+        File trgt_combined_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
