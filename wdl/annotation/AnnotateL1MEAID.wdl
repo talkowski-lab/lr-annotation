@@ -113,6 +113,7 @@ workflow AnnotateL1MEAID {
 
     output {
         File annotations_tsv_l1meaid = final_annotations_tsv
+        File raw_output_intact_mei = IntactMEI.filtered_output
     }
 }
 
