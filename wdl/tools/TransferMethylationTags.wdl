@@ -73,7 +73,7 @@ with pysam.AlignmentFile("~{unaligned_bam}", "rb", check_sq=False) as ubam:
         except KeyError:
             pass # Skip reads that don't have methylation tags
 
-# 2Iterate over the subset aligned BAM, add tags and write out
+# Iterate over the subset aligned BAM, add tags and write out
 with pysam.AlignmentFile("subset_aligned.bam", "rb") as abam:
     with pysam.AlignmentFile("~{prefix}.tagged.unsorted.bam", "wb", header=abam.header) as outbam:
         for read in abam:

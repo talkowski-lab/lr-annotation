@@ -22,6 +22,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateGQMetrics
+    primaryDescriptorPath: /wdl/annotation/AnnotateGQMetrics.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateL1MEAID
     primaryDescriptorPath: /wdl/annotation/AnnotateL1MEAID.wdl
     filters:
