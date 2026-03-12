@@ -104,10 +104,10 @@ task RunFilterVcfToTRs {
 
         bcftools view \
             -e 'INFO/allele_type="trv"' \
-            -Oz -o ~{prefix}.filtered.vcf.gz \
+            -Oz -o filtered.vcf.gz \
             ~{vcf}
         
-        tabix ~{prefix}.filtered.vcf.gz
+        tabix filtered.vcf.gz
 
         if [ "~{dont_run_trf}" == "true" ]; then
             TRF_ARGS="--dont-run-trf"
@@ -124,12 +124,10 @@ task RunFilterVcfToTRs {
             --write-tsv \
             ~{if dont_allow_interruptions then "--dont-allow-interruptions" else ""} \
             $TRF_ARGS \
-            ~{prefix}.vcf.gz
+            filtered.vcf.gz
     >>>
 
     output {
-        File filtered_vcf = "~{prefix}.vcf.gz"
-        File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
         File tr_tsv = "~{prefix}.tandem_repeats.tsv.gz"
     }
 
