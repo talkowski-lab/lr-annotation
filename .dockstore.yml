@@ -143,6 +143,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CombineTRs
+    primaryDescriptorPath: /wdl/annotation_utils/CombineTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: ConcatenateMosDepth
     primaryDescriptorPath: /wdl/annotation_utils/ConcatenateMosDepth.wdl
     filters:
@@ -226,15 +235,6 @@ workflows:
   - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: MergeTRs
-    primaryDescriptorPath: /wdl/annotation_utils/MergeTRs.wdl
     filters:
       branches:
         - main

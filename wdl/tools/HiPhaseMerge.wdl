@@ -12,7 +12,6 @@ workflow HiPhaseMerge {
         String prefix
 
         Boolean merge_trgt
-
         String merge_args = "--merge id"
 
         File ref_fa
