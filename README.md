@@ -303,6 +303,11 @@ TODO
 TODO
 
 
+### [TransferMethylationTags](wdl/tools/TransferMethylationTags.wdl)
+TODO
+
+
+
 ### [TRGT](wdl/tools/TRGT.wdl)
 This workflow leverages [TRGT](https://github.com/PacificBiosciences/trgt) in order to genotype short-tandem repeats. 
 
@@ -353,6 +358,7 @@ TODO
 	- `Vamos`: Tandem repeat loci from the Vamos v2.1 catalog.
 - `TR_OVERLAPPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`. 
 - `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with `TR_OVERLAPPED` flag. 
+- `TR_PARSED`: Flag indicating a variant with `allele_type != "trv"` is flagged as a tandem repeat by the `AnnotateIndelTRs` workflow.
 - `ORIGIN`: Origin of duplicated sequence for duplications and NUMTs.
 - `SUB_FAMILY`: Sub-family for MEI calls.
 - `dbGaP_ID`: Variant ID from dbGaP for matched variants.
