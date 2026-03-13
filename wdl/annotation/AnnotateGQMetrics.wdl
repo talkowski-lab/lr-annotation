@@ -100,14 +100,17 @@ task GenerateGQAnnotationTsv {
         FILTER="~{gq_variant_filter}"
         FILTER_ARGS=""
         if [ -n "$FILTER" ] && [ "$FILTER" != "." ] && [ "$FILTER" != "None" ]; then
-            FILTER_ARGS="-i $FILTER"
+            echo "$FILTER" > filter.txt
+            FILTER_ARGS="-i @filter.txt"
         fi
 
         bcftools view $FILTER_ARGS -Ov "~{vcf}" | python3 - <<'EOF'
+import json
 import pysam
 
 field = "~{gq_field}"
-bins = ~{write_json(gq_bins)}
+with open("~{write_json(gq_bins)}") as _f:
+    bins = json.load(_f)
 larger_flag = ~{true="True" false="False" gq_larger_field}
 prefix = "~{prefix}"
 
@@ -246,7 +249,7 @@ task ApplyGQAnnotations {
         done
 
         mv "$current_vcf" ~{prefix}.vcf.gz
-        
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
