@@ -143,6 +143,15 @@ workflows:
   # Annotation Utilities
   # --------------------
   - subclass: WDL
+    name: AddEndTRs
+    primaryDescriptorPath: /wdl/annotation_utils/AddEndTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateAlleleType
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateAlleleType.wdl
     filters:

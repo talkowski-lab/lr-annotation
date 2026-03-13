@@ -168,6 +168,10 @@ Inputs:
 
 
 ## Annotation Utilities
+### [AddEndTRs](wdl/annotation_utils/AddEndTRs.wdl)
+TODO
+
+
 ### [AnnotateAlleleType](wdl/annotation_utils/AnnotateAlleleType.wdl)
 TODO
 
