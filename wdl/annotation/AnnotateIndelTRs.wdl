@@ -61,7 +61,7 @@ workflow AnnotateIndelTRs {
     }
 
     output {
-        File annotations_tsv_trs = MergeAnnotations.concatenated_tsv
+        File annotations_tsv_trs = ConcatTsvs.concatenated_tsv
     }
 }
 
