@@ -30,6 +30,7 @@ workflow AnnotateIndelTRs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
+                extra_args = "-e 'INFO/allele_type=\"trv\" || INFO/TR_OVERLAPPED=1'",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -81,13 +82,6 @@ task RunFilterVcfToTRs {
     command <<<
         set -eou pipefail
 
-        bcftools view \
-            -e 'INFO/allele_type="trv"' \
-            -Oz -o filtered.vcf.gz \
-            ~{vcf}
-        
-        tabix filtered.vcf.gz
-
         python3 -m str_analysis.filter_vcf_to_tandem_repeats catalog \
             -R ~{ref_fa} \
             --output-prefix ~{prefix} \
@@ -97,7 +91,7 @@ task RunFilterVcfToTRs {
             --write-vcf \
             --trf-executable-path $(which trf) \
             --trf-threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
-            filtered.vcf.gz
+            ~{vcf}
 
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t1\n' \
