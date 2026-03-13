@@ -72,6 +72,10 @@ Inputs:
 TODO
 
 
+### [AnnotateGQMetrics](wdl/annotation/AnnotateGQMetrics.wdl)
+TODO
+
+
 ### [AnnotateIndelTRs](wdl/annotation/AnnotateIndelTRs.wdl)
 TODO
 

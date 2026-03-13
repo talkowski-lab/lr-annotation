@@ -18,7 +18,8 @@ workflow AnnotateGQMetrics {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_generate_tsv
+        RuntimeAttr? runtime_attr_apply_annotations
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -28,32 +29,47 @@ workflow AnnotateGQMetrics {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}",
+                prefix = prefix + "." + contig,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call AnnotateGQMetricsTask {
+        scatter (i in range(length(gq_fields))) {
+            call GenerateGQAnnotationTsv {
+                input:
+                    vcf = SubsetVcfToContig.subset_vcf,
+                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    gq_field = gq_fields[i],
+                    gq_bins = gq_bins[i],
+                    gq_variant_filter = gq_variant_filters[i],
+                    gq_larger_field = gq_larger_field[i],
+                    prefix = prefix + "." + contig + "." + gq_fields[i],
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_generate_tsv
+            }
+        }
+
+        call ApplyGQAnnotations {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.gq_annotated",
-                gq_fields = gq_fields,
-                gq_bins = gq_bins,
-                gq_variant_filters = gq_variant_filters,
-                gq_larger_field = gq_larger_field,
+                annotation_tsvs = GenerateGQAnnotationTsv.annotation_tsv,
+                annotation_tsv_idxs = GenerateGQAnnotationTsv.annotation_tsv_idx,
+                header_files = GenerateGQAnnotationTsv.header_file,
+                col_spec_files = GenerateGQAnnotationTsv.col_spec_file,
+                prefix = prefix + "." + contig + ".gq_annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+                runtime_attr_override = runtime_attr_apply_annotations
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = AnnotateGQMetricsTask.annotated_vcf,
-            vcf_idxs = AnnotateGQMetricsTask.annotated_vcf_idx,
+            vcfs = ApplyGQAnnotations.annotated_vcf,
+            vcf_idxs = ApplyGQAnnotations.annotated_vcf_idx,
             allow_overlaps = false,
             naive = true,
-            prefix = "~{prefix}.gq_annotated",
+            prefix = prefix + ".gq_annotated",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf
     }
@@ -64,16 +80,15 @@ workflow AnnotateGQMetrics {
     }
 }
 
-task AnnotateGQMetricsTask {
+task GenerateGQAnnotationTsv {
     input {
         File vcf
         File vcf_idx
+        String gq_field
+        Array[Int] gq_bins
+        String gq_variant_filter
+        Boolean gq_larger_field
         String prefix
-
-        Array[String] gq_fields
-        Array[Array[Int]] gq_bins
-        Array[String] gq_variant_filters
-        Array[Boolean] gq_larger_field
 
         String docker
         RuntimeAttr? runtime_attr_override
@@ -82,141 +97,157 @@ task AnnotateGQMetricsTask {
     command <<<
         set -euo pipefail
 
-        # 1. Provide array variables to bash via file writes
-        cat ~{write_lines(gq_fields)} > fields.txt
-        cat ~{write_lines(gq_variant_filters)} > filters.txt
-        cat ~{write_lines(gq_larger_field)} > larger.txt
-        cat ~{write_json(gq_bins)} > bins.json
+        FILTER="~{gq_variant_filter}"
+        FILTER_ARGS=""
+        if [ -n "$FILTER" ] && [ "$FILTER" != "." ] && [ "$FILTER" != "None" ]; then
+            FILTER_ARGS="-i $FILTER"
+        fi
 
-        # 2. Setup standard boilerplate python script to calculate metric aggregates per field
-        cat << 'EOF' > process_field.py
-        import sys
-        import json
+        bcftools view $FILTER_ARGS -Ov "~{vcf}" | python3 - <<'EOF'
+import pysam
 
-        field = sys.argv[1]
-        larger_flag = sys.argv[2].lower() == 'true'
-        bin_idx = int(sys.argv[3])
+field = "~{gq_field}"
+bins = ~{write_json(gq_bins)}
+larger_flag = ~{true="True" false="False" gq_larger_field}
+prefix = "~{prefix}"
 
-        with open("bins.json") as f:
-            all_bins = json.load(f)
-        bins = all_bins[bin_idx]
+# Build and write header lines
+bin_edges_str = "0|" + "|".join(map(str, bins))
+col_names = [f"{field}_hist_all_bin_freq", f"{field}_hist_alt_bin_freq"]
+header_lines = [
+    f'##INFO=<ID={field}_hist_all_bin_freq,Number=1,Type=String,Description="Histogram for {field} in all individuals; bin edges are: {bin_edges_str}">',
+    f'##INFO=<ID={field}_hist_alt_bin_freq,Number=1,Type=String,Description="Histogram for {field} in heterozygous/alt individuals; bin edges are: {bin_edges_str}">',
+]
+if larger_flag:
+    col_names += [f"{field}_hist_all_n_larger", f"{field}_hist_alt_n_larger"]
+    header_lines += [
+        f'##INFO=<ID={field}_hist_all_n_larger,Number=1,Type=Integer,Description="Count of all genotypes with {field} > {bins[-1]}">',
+        f'##INFO=<ID={field}_hist_alt_n_larger,Number=1,Type=Integer,Description="Count of alt genotypes with {field} > {bins[-1]}">',
+    ]
 
-        # Define VCF-compliant Headers (Number=A means it expects a comma-separated list of values, one per ALT)
-        header = f'##INFO=<ID={field}_hist_all_bin_freq,Number=A,Type=String,Description="Histogram for {field} all individuals; bin edges are: 0|{"|".join(map(str, bins))}">\n'
-        header += f'##INFO=<ID={field}_hist_alt_bin_freq,Number=A,Type=String,Description="Histogram for {field} in heterozygous/alt individuals; bin edges are: 0|{"|".join(map(str, bins))}">\n'
-        if larger_flag:
-            header += f'##INFO=<ID={field}_hist_all_n_larger,Number=A,Type=Integer,Description="Count of all genotypes with {field} larger than {bins[-1]}">\n'
-            header += f'##INFO=<ID={field}_hist_alt_n_larger,Number=A,Type=Integer,Description="Count of alt genotypes with {field} larger than {bins[-1]}">\n'
+with open(f"{prefix}.header.txt", "w") as f:
+    f.write("\n".join(header_lines) + "\n")
 
-        with open(f"header_{bin_idx}.txt", "w") as f:
-            f.write(header)
+# Column spec for bcftools annotate: match by CHROM/POS/REF/ALT, update ID, then INFO fields
+col_spec = "CHROM,POS,REF,ALT,~ID," + ",".join(f"INFO/{c}" for c in col_names)
+with open(f"{prefix}.col_spec.txt", "w") as f:
+    f.write(col_spec)
 
-        with open(f"cols_{bin_idx}.txt", "w") as f:
-            cols = f"CHROM,POS,REF,ALT,INFO/{field}_hist_all_bin_freq,INFO/{field}_hist_alt_bin_freq"
-            if larger_flag:
-                 cols += f",INFO/{field}_hist_all_n_larger,INFO/{field}_hist_alt_n_larger"
-            f.write(cols)
+def get_bin_index(val, bins):
+    for j, b in enumerate(bins):
+        if val <= b:
+            return j
+    return len(bins)
 
-        out_file = open(f"annots_{bin_idx}.tsv", "w")
-        for line in sys.stdin:
-            parts = line.strip('\n').split('\t')
-            if len(parts) < 4: continue
-            chrom, pos, ref, alt = parts[:4]
-            samples = parts[4:]
-            
-            counts_all = [0] * (len(bins) + 1)
-            counts_alt = [0] * (len(bins) + 1)
-            
-            for sample in samples:
-                if '|' not in sample: continue
-                gt_str, val_str = sample.split('|', 1)
-                
-                # Check missing/uncalled
-                if val_str == '.' or val_str == '': continue
-                try:
-                    val = float(val_str)
-                except ValueError:
+vcf_in = pysam.VariantFile("-", "r")
+with open(f"{prefix}.tsv", "w") as out:
+    for record in vcf_in:
+        counts_all = [0] * (len(bins) + 1)
+        counts_alt = [0] * (len(bins) + 1)
+
+        for sample_data in record.samples.values():
+            val = sample_data.get(field)
+            if val is None:
+                continue
+            if isinstance(val, tuple):
+                if not val or val[0] is None:
                     continue
-                
-                # Exclude purely REF or purely missing GTs
-                is_alt = False
-                for a in gt_str.replace('|', '/').split('/'):
-                    if a != '.' and a != '0':
-                        is_alt = True
-                        break
-                
-                # Determine bin
-                b_idx = len(bins)
-                for j, b in enumerate(bins):
-                    if val <= b:
-                        b_idx = j
-                        break
-                
-                counts_all[b_idx] += 1
-                if is_alt:
-                    counts_alt[b_idx] += 1
-                    
-            all_str = "|".join(map(str, counts_all))
-            alt_str = "|".join(map(str, counts_alt))
-            
-            # Replicate values per ALT allele sequentially to appease the Number=A configuration requested.
-            num_alts = len(alt.split(','))
-            out_all = ",".join([all_str] * num_alts)
-            out_alt = ",".join([alt_str] * num_alts)
-            
-            out_row = [chrom, pos, ref, alt, out_all, out_alt]
-            
-            # Evaluate extra requirements dynamically
-            if larger_flag:
-                val_all_larger = str(counts_all[-1])
-                val_alt_larger = str(counts_alt[-1])
-                out_row.extend([",".join([val_all_larger] * num_alts), ",".join([val_alt_larger] * num_alts)])
-                
-            out_file.write("\t".join(out_row) + "\n")
-        out_file.close()
-        EOF
+                val = val[0]
+            val = float(val)
 
-        cp ~{vcf} current.vcf.gz
-        cp ~{vcf_idx} current.vcf.gz.tbi
+            gt = sample_data.get("GT")
+            is_alt = gt is not None and any(a is not None and a > 0 for a in gt)
 
-        NUM_FIELDS=$(wc -l < fields.txt)
+            b_idx = get_bin_index(val, bins)
+            counts_all[b_idx] += 1
+            if is_alt:
+                counts_alt[b_idx] += 1
 
-        # 3. Iterate through arrays mapping Python evaluation sequentially
-        for i in $(seq 0 $((NUM_FIELDS - 1))); do
-            FIELD=$(sed -n "$((i+1))p" fields.txt)
-            FILTER=$(sed -n "$((i+1))p" filters.txt)
-            LARGER=$(sed -n "$((i+1))p" larger.txt)
-            
-            FILTER_ARGS=""
-            if [ -n "$FILTER" ] && [ "$FILTER" != "." ] && [ "$FILTER" != "None" ]; then
-                FILTER_ARGS="-i '${FILTER}'"
-            fi
-            
-            # Conditionally supply bcftools expression filtering
-            if [ -n "$FILTER_ARGS" ]; then
-                bcftools query $FILTER_ARGS -f "%CHROM\t%POS\t%REF\t%ALT[\t%GT|%${FIELD}]\n" current.vcf.gz | \
-                    python process_field.py "$FIELD" "$LARGER" "$i"
-            else
-                bcftools query -f "%CHROM\t%POS\t%REF\t%ALT[\t%GT|%${FIELD}]\n" current.vcf.gz | \
-                    python process_field.py "$FIELD" "$LARGER" "$i"
-            fi
-                
-            bgzip -c annots_${i}.tsv > annots_${i}.tsv.gz
-            tabix -s1 -b2 -e2 annots_${i}.tsv.gz
-            
-            COLS=$(cat cols_${i}.txt)
-            
-            # Incrementally annotate file 
-            bcftools annotate -a annots_${i}.tsv.gz -h header_${i}.txt -c "$COLS" \
-                -Oz -o next.vcf.gz current.vcf.gz
-            
-            tabix -p vcf next.vcf.gz
-            mv next.vcf.gz current.vcf.gz
-            mv next.vcf.gz.tbi current.vcf.gz.tbi
+        vid = record.id if record.id else "."
+        row = [
+            record.chrom, str(record.pos), record.ref,
+            ",".join(record.alts) if record.alts else ".",
+            vid,
+            "|".join(map(str, counts_all)),
+            "|".join(map(str, counts_alt)),
+        ]
+        if larger_flag:
+            row += [str(counts_all[-1]), str(counts_alt[-1])]
+
+        out.write("\t".join(row) + "\n")
+EOF
+
+        bgzip -c "~{prefix}.tsv" > "~{prefix}.tsv.gz"
+        tabix -s1 -b2 -e2 "~{prefix}.tsv.gz"
+    >>>
+
+    output {
+        File annotation_tsv = "~{prefix}.tsv.gz"
+        File annotation_tsv_idx = "~{prefix}.tsv.gz.tbi"
+        File header_file = "~{prefix}.header.txt"
+        File col_spec_file = "~{prefix}.col_spec.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ApplyGQAnnotations {
+    input {
+        File vcf
+        File vcf_idx
+        Array[File] annotation_tsvs
+        Array[File] annotation_tsv_idxs
+        Array[File] header_files
+        Array[File] col_spec_files
+        String prefix
+
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        annotation_tsvs=(~{sep=' ' annotation_tsvs})
+        header_files=(~{sep=' ' header_files})
+        col_spec_files=(~{sep=' ' col_spec_files})
+
+        current_vcf="~{vcf}"
+        for i in "${!annotation_tsvs[@]}"; do
+            col_spec=$(cat "${col_spec_files[$i]}")
+
+            bcftools annotate \
+                -a "${annotation_tsvs[$i]}" \
+                -h "${header_files[$i]}" \
+                -c "$col_spec" \
+                -Oz -o "temp_${i}.vcf.gz" \
+                "$current_vcf"
+
+            current_vcf="temp_${i}.vcf.gz"
         done
 
-        mv current.vcf.gz ~{prefix}.vcf.gz
-        mv current.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
+        mv "$current_vcf" ~{prefix}.vcf.gz
+        
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
