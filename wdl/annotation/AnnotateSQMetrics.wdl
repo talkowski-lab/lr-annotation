@@ -67,19 +67,23 @@ task CalculateSiteMetrics {
     command <<<
         set -euo pipefail
 
+        bcftools annotate \
+            -x INFO/AS_pab_max,INFO/AS_VarDP,INFO/Inbreeding_coeff,INFO/HWE \
+            -Oz -o stripped.vcf.gz \
+            "~{vcf}"
+        tabix -p vcf stripped.vcf.gz
+
         python3 <<CODE
 import pysam
 import scipy.stats as stats
 
-vcf_in = pysam.VariantFile("~{vcf}")
+vcf_in = pysam.VariantFile("stripped.vcf.gz")
 
-# Initialize new INFO headers
 vcf_in.header.info.add("AS_pab_max", "1", "Float", "Allele-specific max p-value for binomial test of allele balance (expected 0.5)")
 vcf_in.header.info.add("AS_VarDP", "1", "Integer", "Allele-specific depth over variant genotypes")
 vcf_in.header.info.add("Inbreeding_coeff", "1", "Float", "Inbreeding coefficient from Hardy-Weinberg expectation")
 vcf_in.header.info.add("HWE", "1", "Float", "Hardy-Weinberg equilibrium p-value")
 
-# Write directly to bgzipped VCF
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=vcf_in.header)
 
 for rec in vcf_in:

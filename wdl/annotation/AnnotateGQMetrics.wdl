@@ -98,13 +98,14 @@ task GenerateGQAnnotationTsv {
         set -euo pipefail
 
         FILTER="~{gq_variant_filter}"
-        FILTER_ARGS=""
+        INPUT_VCF="~{vcf}"
         if [ -n "$FILTER" ] && [ "$FILTER" != "." ] && [ "$FILTER" != "None" ]; then
-            echo "$FILTER" > filter.txt
-            FILTER_ARGS="-i @filter.txt"
+            bcftools view -i "$FILTER" -Oz -o filtered.vcf.gz "~{vcf}"
+            tabix -p vcf filtered.vcf.gz
+            INPUT_VCF="filtered.vcf.gz"
         fi
 
-        cat > script.py << 'PYEOF'
+        python3 <<CODE
 import json
 import pysam
 
@@ -139,7 +140,8 @@ def get_bin_index(val):
             return j
     return len(bins)
 
-vcf_in = pysam.VariantFile("-", "r")
+vcf_in = pysam.VariantFile("$INPUT_VCF")
+
 with open(f"{prefix}.tsv", "w") as out:
     for record in vcf_in:
         counts_all = [0] * (len(bins) + 1)
@@ -173,9 +175,8 @@ with open(f"{prefix}.tsv", "w") as out:
             row += [str(counts_all[-1]), str(counts_alt[-1])]
 
         out.write("\t".join(row) + "\n")
-PYEOF
+CODE
 
-        bcftools view $FILTER_ARGS -Ov "~{vcf}" | python3 script.py
         bgzip "~{prefix}.tsv"
         tabix -s1 -b2 -e2 "~{prefix}.tsv.gz"
     >>>
