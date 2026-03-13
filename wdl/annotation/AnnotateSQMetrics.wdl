@@ -68,7 +68,7 @@ task CalculateSiteMetrics {
         set -euo pipefail
 
         bcftools annotate \
-            -x INFO/AS_pab_max,INFO/AS_VarDP,INFO/Inbreeding_coeff,INFO/HWE \
+            -x INFO/AS_pab_max,INFO/AS_VarDP,INFO/AS_QUALapprox,INFO/AS_QD,INFO/inbreeding_coeff,INFO/HWE \
             -Oz -o stripped.vcf.gz \
             "~{vcf}"
         tabix -p vcf stripped.vcf.gz
@@ -81,7 +81,9 @@ vcf_in = pysam.VariantFile("stripped.vcf.gz")
 
 vcf_in.header.info.add("AS_pab_max", "1", "Float", "Allele-specific max p-value for binomial test of allele balance (expected 0.5)")
 vcf_in.header.info.add("AS_VarDP", "1", "Integer", "Allele-specific depth over variant genotypes")
-vcf_in.header.info.add("Inbreeding_coeff", "1", "Float", "Inbreeding coefficient from Hardy-Weinberg expectation")
+vcf_in.header.info.add("AS_QUALapprox", "1", "Integer", "Allele-specific sum of PL[0] values; used to approximate the QUAL score")
+vcf_in.header.info.add("AS_QD", "1", "Float", "Allele-specific variant call confidence normalized by depth of sample reads supporting a variant")
+vcf_in.header.info.add("inbreeding_coeff", "1", "Float", "Inbreeding coefficient from Hardy-Weinberg expectation")
 vcf_in.header.info.add("HWE", "1", "Float", "Hardy-Weinberg equilibrium p-value")
 
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=vcf_in.header)
@@ -93,6 +95,7 @@ for rec in vcf_in:
         continue
 
     vardp = 0
+    qualapprox = 0
     pabs = []
     n_ref = n_het = n_alt = 0
 
@@ -115,6 +118,9 @@ for rec in vcf_in:
             dp = sample.get('DP')
             if dp is not None:
                 vardp += dp
+            pl = sample.get('PL')
+            if pl and len(pl) > 0 and pl[0] is not None:
+                qualapprox += pl[0]
 
         # AS_pab_max: binomial test on AD for heterozygotes
         if n_alts == 1 and 'AD' in sample:
@@ -127,6 +133,10 @@ for rec in vcf_in:
     # Set site-level metrics only when data is available
     if vardp > 0:
         rec.info['AS_VarDP'] = vardp
+    if qualapprox > 0:
+        rec.info['AS_QUALapprox'] = qualapprox
+    if vardp > 0 and qualapprox > 0:
+        rec.info['AS_QD'] = qualapprox / vardp
     if pabs:
         rec.info['AS_pab_max'] = max(pabs)
 
@@ -138,7 +148,7 @@ for rec in vcf_in:
 
         # Inbreeding coefficient: 1 - (observed hets / expected hets)
         if e_het > 0:
-            rec.info['Inbreeding_coeff'] = 1.0 - (n_het / e_het)
+            rec.info['inbreeding_coeff'] = 1.0 - (n_het / e_het)
 
         # HWE p-value via chi-square goodness of fit
         e_ref = (p ** 2) * n_tot
