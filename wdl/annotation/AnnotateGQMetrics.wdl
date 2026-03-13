@@ -104,17 +104,16 @@ task GenerateGQAnnotationTsv {
             FILTER_ARGS="-i @filter.txt"
         fi
 
-        bcftools view $FILTER_ARGS -Ov "~{vcf}" | python3 - <<'EOF'
+        cat > script.py << 'PYEOF'
 import json
 import pysam
 
 field = "~{gq_field}"
-with open("~{write_json(gq_bins)}") as _f:
-    bins = json.load(_f)
+with open("~{write_json(gq_bins)}") as f:
+    bins = json.load(f)
 larger_flag = ~{true="True" false="False" gq_larger_field}
 prefix = "~{prefix}"
 
-# Build and write header lines
 bin_edges_str = "0|" + "|".join(map(str, bins))
 col_names = [f"{field}_hist_all_bin_freq", f"{field}_hist_alt_bin_freq"]
 header_lines = [
@@ -131,12 +130,10 @@ if larger_flag:
 with open(f"{prefix}.header.txt", "w") as f:
     f.write("\n".join(header_lines) + "\n")
 
-# Column spec for bcftools annotate: match by CHROM/POS/REF/ALT, update ID, then INFO fields
-col_spec = "CHROM,POS,REF,ALT,~ID," + ",".join(f"INFO/{c}" for c in col_names)
 with open(f"{prefix}.col_spec.txt", "w") as f:
-    f.write(col_spec)
+    f.write("CHROM,POS,REF,ALT,~ID," + ",".join(f"INFO/{c}" for c in col_names))
 
-def get_bin_index(val, bins):
+def get_bin_index(val):
     for j, b in enumerate(bins):
         if val <= b:
             return j
@@ -156,21 +153,19 @@ with open(f"{prefix}.tsv", "w") as out:
                 if not val or val[0] is None:
                     continue
                 val = val[0]
-            val = float(val)
 
             gt = sample_data.get("GT")
             is_alt = gt is not None and any(a is not None and a > 0 for a in gt)
 
-            b_idx = get_bin_index(val, bins)
+            b_idx = get_bin_index(float(val))
             counts_all[b_idx] += 1
             if is_alt:
                 counts_alt[b_idx] += 1
 
-        vid = record.id if record.id else "."
         row = [
             record.chrom, str(record.pos), record.ref,
             ",".join(record.alts) if record.alts else ".",
-            vid,
+            record.id if record.id else ".",
             "|".join(map(str, counts_all)),
             "|".join(map(str, counts_alt)),
         ]
@@ -178,9 +173,10 @@ with open(f"{prefix}.tsv", "w") as out:
             row += [str(counts_all[-1]), str(counts_alt[-1])]
 
         out.write("\t".join(row) + "\n")
-EOF
+PYEOF
 
-        bgzip -c "~{prefix}.tsv" > "~{prefix}.tsv.gz"
+        bcftools view $FILTER_ARGS -Ov "~{vcf}" | python3 script.py
+        bgzip "~{prefix}.tsv"
         tabix -s1 -b2 -e2 "~{prefix}.tsv.gz"
     >>>
 

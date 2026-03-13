@@ -45,7 +45,10 @@ RUN wget -q https://github.com/shenwei356/seqkit/releases/download/v${SEQKIT_VER
 
 # Install python
 RUN python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir "truvari>=5.0.0"
+    python3 -m pip install --no-cache-dir \
+        "truvari>=5.0.0" \
+        pysam \
+        scipy
 
 # Copy helper scripts
 COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/symbalts.py

@@ -17,7 +17,6 @@ workflow AnnotateSQMetrics {
         RuntimeAttr? runtime_attr_concat
     }
 
-    # Scatter by contig utilizing existing helper tasks
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
@@ -39,7 +38,6 @@ workflow AnnotateSQMetrics {
         }
     }
 
-    # Gather via standard concatenation
     call Helpers.ConcatVcfs as MergeAnnotatedVcfs {
         input:
             vcfs = CalculateSiteMetrics.annotated_vcf,
