@@ -68,24 +68,26 @@ with pysam.AlignmentFile("~{unaligned_bam}", "rb", check_sq=False) as ubam:
     for read in ubam:
         try:
             mm = read.get_tag('MM')
-            ml = read.get_tag('ML')
+            ml = list(read.get_tag('ML'))
             tags_dict[read.query_name] = (mm, ml)
         except KeyError:
             pass # Skip reads that don't have methylation tags
 
 # Iterate over the subset aligned BAM, add tags and write out
 with pysam.AlignmentFile("subset_aligned.bam", "rb") as abam:
-    with pysam.AlignmentFile("~{prefix}.tagged.unsorted.bam", "wb", header=abam.header) as outbam:
+    with pysam.AlignmentFile("~{prefix}.unsorted.bam", "wb", header=abam.header) as outbam:
         for read in abam:
+            # if read.is_supplementary or read.is_secondary:
+            #     continue
             if read.query_name in tags_dict:
                 mm, ml = tags_dict[read.query_name]
-                read.set_tag('MM', mm, value_type='Z') # Z = String,
-                read.set_tag('ML', ml, value_type='B') # B = Integer Array
+                read.set_tag('MM', mm, value_type='Z')
+                read.set_tag('ML', ml, value_type='B')
                 outbam.write(read)
 CODE
 
         echo "Sorting and indexing..."
-        samtools sort -@ 4 -o "~{prefix}.bam" "~{prefix}.tagged.unsorted.bam"
+        samtools sort -@ 4 -o "~{prefix}.bam" "~{prefix}.unsorted.bam"
         samtools index -@ 4 "~{prefix}.bam"
     >>>
 
