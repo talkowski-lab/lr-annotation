@@ -97,7 +97,7 @@ task GenerateGQAnnotationTsv {
     command <<<
         set -euo pipefail
 
-        FILTER="~{gq_variant_filter}"
+        FILTER='~{gq_variant_filter}'
         INPUT_VCF="~{vcf}"
         if [ -n "$FILTER" ] && [ "$FILTER" != "." ] && [ "$FILTER" != "None" ]; then
             bcftools view -i "$FILTER" -Oz -o filtered.vcf.gz "~{vcf}"
