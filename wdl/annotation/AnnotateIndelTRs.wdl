@@ -19,7 +19,7 @@ workflow AnnotateIndelTRs {
         String stranalysis_docker
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_concat
     }
@@ -33,7 +33,7 @@ workflow AnnotateIndelTRs {
                 extra_args = "-e 'INFO/allele_type=\"trv\" || INFO/TR_OVERLAPPED=1'",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+                runtime_attr_override = runtime_attr_subset
         }
 
         call RunFilterVcfToTRs {
@@ -51,7 +51,7 @@ workflow AnnotateIndelTRs {
         }
     }
 
-    call Helpers.ConcatTsvs as MergeAnnotations {
+    call Helpers.ConcatTsvs {
         input:
             tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
             sort_output = false,
