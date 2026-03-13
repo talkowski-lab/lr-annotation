@@ -76,6 +76,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateSQMetrics
+    primaryDescriptorPath: /wdl/annotation/AnnotateSQMetrics.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateSVAN
     primaryDescriptorPath: /wdl/annotation/AnnotateSVAN.wdl
     filters:

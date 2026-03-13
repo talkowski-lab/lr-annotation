@@ -109,6 +109,10 @@ Inputs:
 TODO
 
 
+### [AnnotateSQMetrics](wdl/annotation/AnnotateSQMetrics.wdl)
+TODO
+
+
 ### [AnnotateSVAN](wdl/annotation/AnnotateSVAN.wdl)
 This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It involves running  Tandem Repeat Finder (TRF) on the inserted or deleted sequence for each SV in the input VCF.
 
