@@ -59,6 +59,7 @@ task TransferTags {
 
         echo "Transferring MM and ML tags..."
         python3 <<CODE
+import array
 import pysam
 
 tags_dict = {}
@@ -81,8 +82,8 @@ with pysam.AlignmentFile("subset_aligned.bam", "rb") as abam:
             #     continue
             if read.query_name in tags_dict:
                 mm, ml = tags_dict[read.query_name]
-                read.set_tag('MM', mm, value_type='Z')
-                read.set_tag('ML', ml, value_type='B')
+                read.set_tag('MM', mm)
+                read.set_tag('ML', array.array('B', ml))
                 outbam.write(read)
 CODE
 
