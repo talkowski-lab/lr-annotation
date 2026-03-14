@@ -335,10 +335,6 @@ Inputs:
 TODO
 
 
-### [TRGTMerge](wdl/tools/TRGTMerge.wdl)
-TODO
-
-
 ### [TruvariRemap](wdl/tools/TruvariRemap.wdl)
 TODO
 

@@ -443,15 +443,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: TRGTMerge
-    primaryDescriptorPath: /wdl/tools/TRGTMerge.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: TruvariRemap
     primaryDescriptorPath: /wdl/tools/TruvariRemap.wdl
     filters:
