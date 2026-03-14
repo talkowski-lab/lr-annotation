@@ -29,7 +29,7 @@ workflow ExtractSampleVcfs {
                 vcf = cohort_vcf,
                 vcf_idx = cohort_vcf_idx,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}.~{ValidateSamples.status}",
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig
         }
