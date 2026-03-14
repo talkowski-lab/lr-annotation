@@ -68,7 +68,7 @@ task CalculateSiteMetrics {
         set -euo pipefail
 
         bcftools annotate \
-            -x INFO/AS_pab_max,INFO/AS_VarDP,INFO/AS_QUALapprox,INFO/AS_QD,INFO/inbreeding_coeff,INFO/HWE \
+            -x INFO/AS_VarDP,INFO/AS_QUALapprox,INFO/AS_QD,INFO/inbreeding_coeff,INFO/HWE \
             -Oz -o stripped.vcf.gz \
             "~{vcf}"
         tabix -p vcf stripped.vcf.gz
@@ -79,82 +79,102 @@ import scipy.stats as stats
 
 vcf_in = pysam.VariantFile("stripped.vcf.gz")
 
-vcf_in.header.info.add("AS_pab_max", "1", "Float", "Allele-specific max p-value for binomial test of allele balance (expected 0.5)")
-vcf_in.header.info.add("AS_VarDP", "1", "Integer", "Allele-specific depth over variant genotypes")
-vcf_in.header.info.add("AS_QUALapprox", "1", "Integer", "Allele-specific sum of PL[0] values; used to approximate the QUAL score")
-vcf_in.header.info.add("AS_QD", "1", "Float", "Allele-specific variant call confidence normalized by depth of sample reads supporting a variant")
-vcf_in.header.info.add("inbreeding_coeff", "1", "Float", "Inbreeding coefficient from Hardy-Weinberg expectation")
+vcf_in.header.info.add("AS_QUALapprox", "A", "Integer", "Allele-specific sum of PL[0] values; used to approximate the QUAL score")
+vcf_in.header.info.add("AS_QD", "A", "Float", "Allele-specific variant call confidence normalized by depth of sample reads supporting a variant")
+vcf_in.header.info.add("AS_VarDP", "A", "Integer", "Allele-specific depth over variant genotypes (does not include depth of reference samples)")
+vcf_in.header.info.add("inbreeding_coeff", "A", "Float", "Inbreeding coefficient, the excess heterozygosity at a variant site, computed as 1 - (the number of heterozygous genotypes)/(the number of heterozygous genotypes expected under Hardy-Weinberg equilibrium)")
 vcf_in.header.info.add("HWE", "1", "Float", "Hardy-Weinberg equilibrium p-value")
 
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=vcf_in.header)
 
 for rec in vcf_in:
-    # Skip multiallelics
-    if len(rec.alts) != 1:
+    if not rec.alts:
         vcf_out.write(rec)
         continue
 
-    vardp = 0
-    qualapprox = 0
-    pabs = []
-    n_ref = n_het = n_alt = 0
+    n_alt_alleles = len(rec.alts)
+    as_vardp = [0] * n_alt_alleles
+    as_qualapprox = [0] * n_alt_alleles
+    n_ref_per_allele = [0] * n_alt_alleles
+    n_het_per_allele = [0] * n_alt_alleles
+    n_alt_per_allele = [0] * n_alt_alleles
+    n_ref_site = n_het_site = n_alt_site = 0
 
     for sample in rec.samples.values():
         gt = sample.get('GT')
         if not gt or None in gt:
             continue
 
-        # Count alt alleles to classify genotype (handles phased and unphased)
-        n_alts = sum(gt)
-        if n_alts == 0:
-            n_ref += 1
-        elif n_alts == 1:
-            n_het += 1
-        elif n_alts == 2:
-            n_alt += 1
+        n_non_ref = sum(1 for allele in gt if allele is not None and allele > 0)
+        if n_non_ref == 0:
+            n_ref_site += 1
+        elif n_non_ref == 1:
+            n_het_site += 1
+        else:
+            n_alt_site += 1
 
-        # AS_VarDP: sum DP across variant carriers
-        if n_alts > 0:
-            dp = sample.get('DP')
-            if dp is not None:
-                vardp += dp
-            pl = sample.get('PL')
-            if pl and len(pl) > 0 and pl[0] is not None:
-                qualapprox += pl[0]
+        pl = sample.get('PL')
+        hom_ref_pl = None
+        if pl and len(pl) > 0 and pl[0] is not None:
+            hom_ref_pl = int(pl[0])
 
-        # AS_pab_max: binomial test on AD for heterozygotes
-        if n_alts == 1 and 'AD' in sample:
-            ad = sample['AD']
-            if ad and len(ad) == 2 and ad[0] is not None and ad[1] is not None:
-                total_ad = ad[0] + ad[1]
-                if total_ad > 0:
-                    pabs.append(stats.binomtest(ad[1], total_ad, 0.5).pvalue)
+        dp = sample.get('DP')
 
-    # Set site-level metrics only when data is available
-    if vardp > 0:
-        rec.info['AS_VarDP'] = vardp
-    if qualapprox > 0:
-        rec.info['AS_QUALapprox'] = qualapprox
-    if vardp > 0 and qualapprox > 0:
-        rec.info['AS_QD'] = qualapprox / vardp
-    if pabs:
-        rec.info['AS_pab_max'] = max(pabs)
+        for allele_idx in range(1, n_alt_alleles + 1):
+            allele_i = allele_idx - 1
+            n_copies = sum(1 for allele in gt if allele == allele_idx)
 
-    n_tot = n_ref + n_het + n_alt
+            if n_copies == 0:
+                n_ref_per_allele[allele_i] += 1
+            elif n_copies == 1:
+                n_het_per_allele[allele_i] += 1
+            else:
+                n_alt_per_allele[allele_i] += 1
+
+            if n_copies > 0:
+                if dp is not None:
+                    as_vardp[allele_i] += int(dp)
+                if hom_ref_pl is not None:
+                    as_qualapprox[allele_i] += hom_ref_pl
+
+    rec.info['AS_VarDP'] = tuple(as_vardp)
+    rec.info['AS_QUALapprox'] = tuple(as_qualapprox)
+    rec.info['AS_QD'] = tuple(
+        round(as_qualapprox[i] / as_vardp[i], 6) if as_vardp[i] > 0 else 0.0
+        for i in range(n_alt_alleles)
+    )
+
+    inbreeding_coeff = []
+    for i in range(n_alt_alleles):
+        n_ref_allele = n_ref_per_allele[i]
+        n_het_allele = n_het_per_allele[i]
+        n_alt_allele = n_alt_per_allele[i]
+        n_tot_allele = n_ref_allele + n_het_allele + n_alt_allele
+
+        if n_tot_allele == 0:
+            inbreeding_coeff.append(0.0)
+            continue
+
+        p_allele = (2.0 * n_ref_allele + n_het_allele) / (2.0 * n_tot_allele)
+        q_allele = 1.0 - p_allele
+        e_het_allele = 2.0 * p_allele * q_allele * n_tot_allele
+
+        if e_het_allele > 0:
+            inbreeding_coeff.append(round(1.0 - (n_het_allele / e_het_allele), 6))
+        else:
+            inbreeding_coeff.append(0.0)
+
+    rec.info['inbreeding_coeff'] = tuple(inbreeding_coeff)
+
+    n_tot = n_ref_site + n_het_site + n_alt_site
     if n_tot > 0:
-        p = (2.0 * n_ref + n_het) / (2.0 * n_tot)
+        p = (2.0 * n_ref_site + n_het_site) / (2.0 * n_tot)
         q = 1.0 - p
         e_het = 2.0 * p * q * n_tot
-
-        # Inbreeding coefficient: 1 - (observed hets / expected hets)
-        if e_het > 0:
-            rec.info['inbreeding_coeff'] = 1.0 - (n_het / e_het)
-
-        # HWE p-value via chi-square goodness of fit
         e_ref = (p ** 2) * n_tot
         e_alt = (q ** 2) * n_tot
-        chisq = sum(((o - e) ** 2) / e for o, e in zip([n_ref, n_het, n_alt], [e_ref, e_het, e_alt]) if e > 0)
-        rec.info['HWE'] = stats.chi2.sf(chisq, 1)
+        chisq = sum(((o - e) ** 2) / e for o, e in zip([n_ref_site, n_het_site, n_alt_site], [e_ref, e_het, e_alt]) if e > 0)
+        rec.info['HWE'] = round(float(stats.chi2.sf(chisq, 1)), 6)
 
     vcf_out.write(rec)
 

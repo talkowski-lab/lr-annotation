@@ -157,7 +157,10 @@ with open(f"{prefix}.tsv", "w") as out:
                 val = val[0]
 
             gt = sample_data.get("GT")
-            is_alt = gt is not None and any(a is not None and a > 0 for a in gt)
+            alt_allele_count = 0
+            if gt is not None:
+                alt_allele_count = sum(1 for a in gt if a is not None and a > 0)
+            is_alt = alt_allele_count > 0
 
             b_idx = get_bin_index(float(val))
             counts_all[b_idx] += 1
