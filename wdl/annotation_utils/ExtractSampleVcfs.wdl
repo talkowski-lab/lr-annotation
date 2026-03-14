@@ -23,66 +23,41 @@ workflow ExtractSampleVcfs {
     }
 
     scatter (sample_id in sample_ids) {
-        scatter (contig in contigs) {
-            call Helpers.ExtractSample as ExtractSampleContig {
-                input:
-                    vcf = cohort_vcf,
-                    vcf_idx = cohort_vcf_idx,
-                    sample = sample_id,
-                    extra_args = "--regions ~{contig}",
-                    prefix = "~{prefix}.~{contig}.~{sample_id}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_extract_sample
-            }
-
-            call Helpers.SubsetVcfByArgs as SubsetSnvIndel {
-                input:
-                    vcf = ExtractSampleContig.subset_vcf,
-                    vcf_idx = ExtractSampleContig.subset_vcf_idx,
-                    include_args = 'abs(INFO/allele_length) < ~{min_sv_length} && INFO/SOURCE = \"DeepVariant\"',
-                    prefix = "~{prefix}.~{contig}.~{sample_id}.snv",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_snv
-            }
-
-            call Helpers.SubsetVcfByArgs as SubsetSv {
-                input:
-                    vcf = ExtractSampleContig.subset_vcf,
-                    vcf_idx = ExtractSampleContig.subset_vcf_idx,
-                    include_args = 'abs(INFO/allele_length) >= ~{min_sv_length} && INFO/SOURCE = \"HPRC_SV_Integration\"',
-                    prefix = "~{prefix}.~{contig}.~{sample_id}.sv",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_sv
-            }
+        call Helpers.ExtractSample {
+            input:
+                vcf = cohort_vcf,
+                vcf_idx = cohort_vcf_idx,
+                sample = sample_id,
+                prefix = "~{prefix}.~{sample_id}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_sample
         }
 
-        call Helpers.ConcatVcfs as ConcatSnvIndels {
+        call Helpers.SubsetVcfByArgs as SubsetSnvIndel {
             input:
-                vcfs = SubsetSnvIndel.subset_vcf,
-                vcf_idxs = SubsetSnvIndel.subset_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
+                vcf = ExtractSample.subset_vcf,
+                vcf_idx = ExtractSample.subset_vcf_idx,
+                include_args = 'abs(INFO/allele_length) < ~{min_sv_length} && INFO/SOURCE = \"DeepVariant\"',
                 prefix = "~{prefix}.~{sample_id}.snv",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_snv
+                runtime_attr_override = runtime_attr_subset_snv
         }
 
-        call Helpers.ConcatVcfs as ConcatSvs {
+        call Helpers.SubsetVcfByArgs as SubsetSv {
             input:
-                vcfs = SubsetSv.subset_vcf,
-                vcf_idxs = SubsetSv.subset_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
+                vcf = ExtractSample.subset_vcf,
+                vcf_idx = ExtractSample.subset_vcf_idx,
+                include_args = 'abs(INFO/allele_length) >= ~{min_sv_length} && INFO/SOURCE = \"HPRC_SV_Integration\"',
                 prefix = "~{prefix}.~{sample_id}.sv",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_sv
+                runtime_attr_override = runtime_attr_subset_sv
         }
     }
 
     output {
-        Array[File] snv_indel_vcfs = ConcatSnvIndels.concat_vcf
-        Array[File] snv_indel_vcf_idxs = ConcatSnvIndels.concat_vcf_idx
-        Array[File] sv_vcfs = ConcatSvs.concat_vcf
-        Array[File] sv_vcf_idxs = ConcatSvs.concat_vcf_idx
+        Array[File] snv_indel_vcfs = SubsetSnvIndel.subset_vcf
+        Array[File] snv_indel_vcf_idxs = SubsetSnvIndel.subset_vcf_idx
+        Array[File] sv_vcfs = SubsetSv.subset_vcf
+        Array[File] sv_vcf_idxs = SubsetSv.subset_vcf_idx
     }
 }
