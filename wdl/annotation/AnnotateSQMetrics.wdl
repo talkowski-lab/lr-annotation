@@ -95,6 +95,8 @@ for rec in vcf_in:
     n_alt_alleles = len(rec.alts)
     as_vardp = [0] * n_alt_alleles
     as_qualapprox = [0] * n_alt_alleles
+    as_qd_sum = [0.0] * n_alt_alleles
+    as_qd_n = [0] * n_alt_alleles
     n_ref_per_allele = [0] * n_alt_alleles
     n_het_per_allele = [0] * n_alt_alleles
     n_alt_per_allele = [0] * n_alt_alleles
@@ -119,6 +121,7 @@ for rec in vcf_in:
             hom_ref_pl = int(pl[0])
 
         dp = sample.get('DP')
+        ad = sample.get('AD')
 
         for allele_idx in range(1, n_alt_alleles + 1):
             allele_i = allele_idx - 1
@@ -136,11 +139,14 @@ for rec in vcf_in:
                     as_vardp[allele_i] += int(dp)
                 if hom_ref_pl is not None:
                     as_qualapprox[allele_i] += hom_ref_pl
+                    if ad and len(ad) > allele_idx and ad[allele_idx] is not None and ad[allele_idx] > 0:
+                        as_qd_sum[allele_i] += hom_ref_pl / float(ad[allele_idx])
+                        as_qd_n[allele_i] += 1
 
     rec.info['AS_VarDP'] = tuple(as_vardp)
     rec.info['AS_QUALapprox'] = tuple(as_qualapprox)
     rec.info['AS_QD'] = tuple(
-        round(as_qualapprox[i] / as_vardp[i], 6) if as_vardp[i] > 0 else 0.0
+        round(as_qd_sum[i] / as_qd_n[i], 6) if as_qd_n[i] > 0 else 0.0
         for i in range(n_alt_alleles)
     )
 
