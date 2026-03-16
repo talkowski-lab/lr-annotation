@@ -52,17 +52,18 @@ workflow TruvariRemap {
         }
     }
 
-    call Helpers.ConcatTsvs {
+    call Helpers.ConcatVcfs {
         input:
-            tsvs = InsRemap.annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.remap_annotations",
+            vcfs = InsRemap.annotated_vcf,
+            vcf_idxs = InsRemap.annotated_vcf_tbi,
+            prefix = "~{prefix}.remap",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File annotations_tsv_remap = ConcatTsvs.concatenated_tsv
+        File annotated_vcf = ConcatVcfs.concat_vcf
+        File annotated_vcf_tbi = ConcatVcfs.concat_vcf_idx
     }
 }
 
@@ -105,15 +106,12 @@ task InsRemap {
             --cov-threshold ~{cov_threshold} \
             ~{vcf}
 
-        bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/remap_classification\t%INFO/remap_coords\t%INFO/remap_ori\t%INFO/remap_perc\n' \
-            ~{prefix}.vcf.gz \
-        | awk -F'\t' '($6 != "." || $7 != "." || $8 != "." || $9 != ".")' \
-        > ~{prefix}.tsv
+        tabix ~{prefix}.vcf.gz
     >>>
     
     output {
-        File annotations_tsv = "~{prefix}.tsv"
+        File annotated_vcf = "~{prefix}.vcf.gz"
+        File annotated_vcf_tbi = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
