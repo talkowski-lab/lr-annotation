@@ -1,0 +1,137 @@
+version 1.0
+
+import "../utils/Structs.wdl"
+import "../utils/Helpers.wdl" as Helpers
+
+workflow TruvariRemap {
+    input {
+        File vcf
+        File vcf_idx
+        Array[String] contigs
+        String prefix
+
+        File ref_fa
+        Array[File] ref_bwa_indices
+
+        Int min_length
+        Int max_length
+        Int mm2_threshold
+        Float cov_threshold
+
+        String utils_docker
+
+        RuntimeAttr? runtime_attr_subset_contig
+        RuntimeAttr? runtime_attr_ins_remap
+        RuntimeAttr? runtime_attr_concat
+    }
+
+    scatter (contig in contigs) {
+        call Helpers.SubsetVcfToContig {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                contig = contig,
+                extra_args = "-G -i 'INFO/SVTYPE==\"INS\"'",
+                prefix = "~{prefix}.~{contig}.ins",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_contig
+        }
+
+        call InsRemap {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                ref_fa = ref_fa,
+                ref_bwa_indices = ref_bwa_indices,
+                min_length = min_length,
+                max_length = max_length,
+                mm2_threshold = mm2_threshold,
+                cov_threshold = cov_threshold,
+                prefix = "~{prefix}.~{contig}.remapped",
+                runtime_attr_override = runtime_attr_ins_remap
+        }
+    }
+
+    call Helpers.ConcatTsvs {
+        input:
+            tsvs = InsRemap.annotations_tsv,
+            sort_output = false,
+            prefix = "~{prefix}.remap_annotations",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat
+    }
+
+    output {
+        File annotations_tsv_remap = ConcatTsvs.concatenated_tsv
+    }
+}
+
+task InsRemap {
+    input {
+        File vcf
+        File vcf_idx
+        File ref_fa
+        Array[File] ref_bwa_indices
+        Int min_length
+        Int max_length
+        Int mm2_threshold
+        Float cov_threshold
+        String prefix
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
+        N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
+        N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
+
+        mkdir ref_files
+        mv ~{ref_fa} ref_files/
+        for x in ~{sep=' ' ref_bwa_indices}; do
+            mv $x ref_files/
+        done
+
+        ref_fa_basename=$(basename ~{ref_fa})
+
+        truvari anno remap \
+            -r ref_files/$ref_fa_basename \
+            -o ~{prefix}.vcf.gz \
+            --min-length ~{min_length} \
+            --max-length ~{max_length} \
+            --mm2-threshold ~{mm2_threshold} \
+            --threads ${N_THREADS} \
+            --cov-threshold ~{cov_threshold} \
+            ~{vcf}
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/remap_classification\t%INFO/remap_coords\t%INFO/remap_ori\t%INFO/remap_perc\n' \
+            ~{prefix}.vcf.gz \
+        | awk -F'\t' '($6 != "." || $7 != "." || $8 != "." || $9 != ".")' \
+        > ~{prefix}.tsv
+    >>>
+    
+    output {
+        File annotations_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 16,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(ref_bwa_indices, "GB")) + 25,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: "quay.io/ymostovoy/lr-remap:latest"
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
