@@ -1,7 +1,7 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
-import "../tools/RepeatMasker.wdl"
+import "../tools/RepeatMasker.wdl" as RM
 import "../utils/Structs.wdl"
 
 workflow AnnotateL1MEAID {
@@ -62,7 +62,7 @@ workflow AnnotateL1MEAID {
     Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [vcf_idx_to_shard]])
 
     scatter (shard_idx in range(length(vcfs_to_process))) {
-        call RepeatMasker.RepeatMasker {
+        call RM.RepeatMasker as RunRepeatMaskerWorkflow {
             input:
                 vcf = vcfs_to_process[shard_idx],
                 vcf_idx = vcf_idxs_to_process[shard_idx],
@@ -75,8 +75,8 @@ workflow AnnotateL1MEAID {
 
         call L1MEAID {
             input:
-                rm_fa = RepeatMasker.rm_fa,
-                rm_out = RepeatMasker.rm_out,
+                rm_fa = RunRepeatMaskerWorkflow.rm_fa,
+                rm_out = RunRepeatMaskerWorkflow.rm_out,
                 prefix = "~{prefix}.shard_~{shard_idx}.l1meaid",
                 docker = l1meaid_docker,
                 runtime_attr_override = runtime_attr_limeaid
@@ -264,9 +264,10 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             ref = full_id_parts[1].split('_')[0]
             alt = parts[1]
             subfam = parts[4]
+            mei_len = parts[3]
             key = (chrom, pos, ref, alt)
             if key in vcf_lookup:
-                f_out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{vcf_lookup[key]}\t{me_type}\t{subfam}\n")
+                f_out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{vcf_lookup[key]}\t{me_type}\t{subfam}\t{mei_len}\n")
 EOF
     >>>
 

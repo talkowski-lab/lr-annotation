@@ -27,7 +27,7 @@ workflow RepeatMasker {
             runtime_attr_override = runtime_attr_ins_to_fa
     }
 
-    call RepeatMasker {
+    call RunRepeatMasker {
         input:
             fa = INSToFa.ins_fa,
             prefix = "~{prefix}.rm",
@@ -36,7 +36,7 @@ workflow RepeatMasker {
     }
 
     output {
-        File rm_out = RepeatMasker.rm_out
+        File rm_out = RunRepeatMasker.rm_out
         File rm_fa = INSToFa.ins_fa
     }
 }
@@ -87,7 +87,7 @@ task INSToFa {
     }
 }
 
-task RepeatMasker {
+task RunRepeatMasker {
     input {
         File fa
         String prefix

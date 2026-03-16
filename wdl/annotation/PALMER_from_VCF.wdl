@@ -281,23 +281,27 @@ import pysam
 
 
 TRANSFER_FIELDS = OrderedDict([
-    ("ORIENTATION", ("String", "Insertion orientation")),
-    ("POLYA", ("Integer", "polyA tail size")),
-    ("TSD5", ("Integer", "5' TSD size")),
-    ("TSD3", ("Integer", "3' TSD size")),
-    ("TRANSD", ("Integer", "Predicted 3' transduction size")),
-    ("INV5", ("String", "Has 5' inverted sequence")),
-    ("INV5_START", ("Integer", "Start position of 5' inverted sequence")),
-    ("INV5_END", ("Integer", "End position of 5' inverted sequence")),
-    ("START_INVAR", ("Integer", "Average start position within insertion sequence")),
-    ("END_INVAR", ("Integer", "Average end position within insertion sequence")),
-    ("TSD5_SEQ", ("String", "5' TSD sequence (NA if unavailable)")),
-    ("TSD3_SEQ", ("String", "3' TSD sequence (NA if unavailable)")),
-    ("TRANSD_READ", ("String", "Predicted transduction sequence (NA if unavailable)")),
-    ("JUNC_26MER", ("String", "Unique 26-mer at 5' junction (NA if unavailable)")),
-    ("PALMER_MEI_LEN", ("Integer", "Length of PALMER INS_SEQ annotation")),
+    ("PALMER_MEI_TYPE", ("SUBTYPE", "String", "PALMER MEI subtype")),
+    ("ORIENTATION", ("ORIENTATION", "String", "Insertion orientation")),
+    ("POLYA", ("POLYA", "Integer", "polyA tail size")),
+    ("TSD5", ("TSD5", "Integer", "5' TSD size")),
+    ("TSD3", ("TSD3", "Integer", "3' TSD size")),
+    ("TRANSD", ("TRANSD", "Integer", "Predicted 3' transduction size")),
+    ("INV5", ("INV5", "String", "Has 5' inverted sequence")),
+    ("INV5_START", ("INV5_START", "Integer", "Start position of 5' inverted sequence")),
+    ("INV5_END", ("INV5_END", "Integer", "End position of 5' inverted sequence")),
+    ("START_INVAR", ("START_INVAR", "Integer", "Average start position within insertion sequence")),
+    ("END_INVAR", ("END_INVAR", "Integer", "Average end position within insertion sequence")),
+    ("TSD5_SEQ", ("TSD5_SEQ", "String", "5' TSD sequence (NA if unavailable)")),
+    ("TSD3_SEQ", ("TSD3_SEQ", "String", "3' TSD sequence (NA if unavailable)")),
+    ("TRANSD_READ", ("TRANSD_READ", "String", "Predicted transduction sequence (NA if unavailable)")),
+    ("JUNC_26MER", ("JUNC_26MER", "String", "Unique 26-mer at 5' junction (NA if unavailable)")),
+    ("PALMER_MEI_LEN", ("INS_SEQ", "Integer", "Length of PALMER INS_SEQ annotation")),
 ])
-
+MULTI_MEI_FIELD = (
+    "PALMER_multi_MEI",
+    ("String", "Multiple PALMER calls detected for this insertion; other PALMER INFO annotations were not transferred"),
+)
 
 def normalize_scalar(value):
     if isinstance(value, tuple):
@@ -313,6 +317,13 @@ def is_missing(value):
     return value is None or value == "." or value == ""
 
 
+def get_subtype_label(record):
+    subtype = normalize_scalar(record.info.get("SUBTYPE"))
+    if not is_missing(subtype) and subtype != "NA":
+        return str(subtype)
+    return "UNKNOWN"
+
+
 header_to_key = {}
 with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
     for raw_line in map_handle:
@@ -323,7 +334,7 @@ with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
         pos = int(pos_str)
         header_to_key[fasta_name] = (chrom, pos, variant_id, ref.upper(), alt.upper())
 
-palmer_annotations = {}
+palmer_annotation_candidates = {}
 palmer_vcf = pysam.VariantFile("~{palmer_vcf}")
 for record in palmer_vcf:
     if "PASS" not in set(record.filter.keys()):
@@ -336,10 +347,10 @@ for record in palmer_vcf:
         continue
 
     annotation = {}
-    for field in TRANSFER_FIELDS:
+    for field, (source_field, _field_type, _description) in TRANSFER_FIELDS.items():
         if field == "PALMER_MEI_LEN":
             continue
-        value = normalize_scalar(record.info.get(field))
+        value = normalize_scalar(record.info.get(source_field))
         if is_missing(value) or value == "NA":
             continue
         annotation[field] = value
@@ -348,26 +359,45 @@ for record in palmer_vcf:
     if not is_missing(ins_seq) and ins_seq != "NA":
         annotation["PALMER_MEI_LEN"] = len(str(ins_seq))
 
-    existing = palmer_annotations.get(key)
-    if existing is None:
-        palmer_annotations[key] = annotation
-    elif existing != annotation:
-        raise RuntimeError(
-            "Conflicting PALMER annotations for variant key "
-            + "|".join(str(x) for x in key)
-        )
+    candidate_info = palmer_annotation_candidates.setdefault(
+        key,
+        {"annotations": [], "subtypes": []},
+    )
+    if annotation not in candidate_info["annotations"]:
+        candidate_info["annotations"].append(annotation)
+        candidate_info["subtypes"].append(get_subtype_label(record))
 
 palmer_vcf.close()
 
+palmer_annotations = {}
+multi_mei_count = 0
+for key, candidate_info in palmer_annotation_candidates.items():
+    annotations = candidate_info["annotations"]
+    if len(annotations) <= 1:
+        if annotations:
+            palmer_annotations[key] = annotations[0]
+        continue
+
+    palmer_annotations[key] = {
+        MULTI_MEI_FIELD[0]: tuple(candidate_info["subtypes"])
+    }
+    multi_mei_count += 1
+
 original_vcf = pysam.VariantFile("~{original_vcf}")
 header = original_vcf.header.copy()
-for field, (field_type, description) in TRANSFER_FIELDS.items():
+for field, (_source_field, field_type, description) in TRANSFER_FIELDS.items():
     if field not in header.info:
         header.add_line(
             f'##INFO=<ID={field},Number=1,Type={field_type},Description="{description}">'
         )
+multi_field, (multi_field_type, multi_field_description) = MULTI_MEI_FIELD
+if multi_field not in header.info:
+    header.add_line(
+        f'##INFO=<ID={multi_field},Number=.,Type={multi_field_type},Description="{multi_field_description}">'
+    )
 
 annotated_count = 0
+multi_mei_annotated_count = 0
 with pysam.VariantFile("~{prefix}.palmer_annotated.vcf", "w", header=header) as out_vcf:
     for record in original_vcf:
         matches = []
@@ -389,6 +419,8 @@ with pysam.VariantFile("~{prefix}.palmer_annotated.vcf", "w", header=header) as 
             for field, value in annotation.items():
                 record.info[field] = value
             annotated_count += 1
+            if multi_field in annotation:
+                multi_mei_annotated_count += 1
 
         out_vcf.write(record)
 
@@ -396,6 +428,8 @@ original_vcf.close()
 
 with open("~{prefix}.palmer_annotation_summary.txt", "w", encoding="utf-8") as summary:
     summary.write(f"annotated_records\t{annotated_count}\n")
+    summary.write(f"annotated_multi_mei_records\t{multi_mei_annotated_count}\n")
+    summary.write(f"palmer_multi_mei_source_keys\t{multi_mei_count}\n")
     summary.write(f"palmer_records_with_source_key\t{len(palmer_annotations)}\n")
 EOF
 
