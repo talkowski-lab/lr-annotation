@@ -196,7 +196,12 @@ if 'SOURCE' not in header.info:
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=header)
 for record in vcf_in:
     record.info['allele_type'] = 'trv'
-    record.info['SOURCE'] = lookup.get(record.info.get('TRID'))
+    trid = record.info.get('TRID')
+    if trid is not None:
+        trid_key = ','.join(trid) if isinstance(trid, tuple) else trid
+        source = lookup.get(trid_key)
+        if source:
+            record.info['SOURCE'] = source
     vcf_out.write(record)
 
 vcf_in.close()
