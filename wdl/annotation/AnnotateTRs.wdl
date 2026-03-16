@@ -178,14 +178,13 @@ for cat_file, cat_id in zip(catalog_files, catalog_ids_list):
     with open(cat_file, 'r') as f:
         for line in f:
             parts = line.strip().split('\t')
-            chrom, pos, end = parts[0], int(parts[1]), int(parts[2])
             trid = None
             for field in parts[3].split(';'):
                 if field.startswith('ID='):
                     trid = field[3:]
                     break
             if trid:
-                lookup[(chrom, pos, end, trid)] = cat_id
+                lookup[trid] = cat_id
 
 vcf_in = VariantFile("~{vcf}")
 header = vcf_in.header.copy()
@@ -197,11 +196,7 @@ if 'SOURCE' not in header.info:
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=header)
 for record in vcf_in:
     record.info['allele_type'] = 'trv'
-    end = record.info.get('END')
-    trid = record.info.get('TRID')
-    source = lookup.get((record.chrom, record.pos, end, trid))
-    if source:
-        record.info['SOURCE'] = source
+    record.info['SOURCE'] = lookup.get(record.info.get('TRID'))
     vcf_out.write(record)
 
 vcf_in.close()
