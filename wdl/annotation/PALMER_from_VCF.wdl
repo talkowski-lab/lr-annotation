@@ -12,7 +12,7 @@ workflow CallPALMER {
         File ref_fai
         String prefix
         String mode
-        String MEI_type
+        Array[String] MEI_types = ["ALU","LINE","SVA"]
         String utils_docker="us-central1-docker.pkg.dev/talkowski-training/kj-development/utils:kj_V9"
 
         Int records_per_shard = 50000
@@ -48,21 +48,27 @@ workflow CallPALMER {
                 flags = "-ayYL --MD -x asm5"
         }
 
-        call PALMER {
-            input:
-                bam = alignIns.bamOut,
-                bai = alignIns.baiOut,
-                ref_fa = ref_fa,
-                prefix = prefix,
-                mode = mode,
-                MEI_type = MEI_type,
+        scatter (mei_type in MEI_types) {
+            call PALMER {
+                input:
+                    bam = alignIns.bamOut,
+                    bai = alignIns.baiOut,
+                    ref_fa = ref_fa,
+                    prefix = "~{prefix}_shard_~{shard_idx}_~{mei_type}",
+                    mode = mode,
+                    MEI_type = mei_type,
+            }
         }
-     }
+    }
+
+    Array[File] palmer_vcfs = flatten(PALMER.vcf)
+    Array[File] palmer_vcf_idxs = flatten(PALMER.vcf_tbi)
+    Array[File] palmer_tsd_reads = flatten(PALMER.TSD_reads)
 
     call Helpers.MergeVcfs { 
         input: 
-            vcfs=PALMER.vcf, 
-            vcf_idxs = PALMER.vcf_tbi,
+            vcfs=palmer_vcfs, 
+            vcf_idxs = palmer_vcf_idxs,
             prefix=prefix+"_merged",
             docker=utils_docker,
             extra_args="--force-samples"
@@ -70,7 +76,7 @@ workflow CallPALMER {
 
     call Helpers.ConcatTsvs as ConcatTSDReads {
         input:
-            tsvs = PALMER.TSD_reads,
+            tsvs = palmer_tsd_reads,
             prefix = prefix + "_TSD_reads",
             docker = utils_docker,
             preserve_header = true,
@@ -90,6 +96,7 @@ workflow CallPALMER {
             original_vcf_idx = vcf_tbi,
             palmer_vcf = MergeVcfs.merged_vcf,
             palmer_vcf_idx = MergeVcfs.merged_vcf_idx,
+            palmer_tsd_reads = ConcatTSDReads.concatenated_tsv,
             ins_variant_keys = ConcatInsVariantKeys.concatenated_tsv,
             prefix = prefix
     }
@@ -219,11 +226,52 @@ task PALMER {
                 --chr ALL \
                 --workdir ./
 
+        python3 <<EOF
+import csv
+
+mei_type = "~{MEI_type}"
+cluster_prefix = f"{mei_type}_"
+
+
+def prefix_text_table(path):
+    rows = []
+    with open(path, "r", encoding="utf-8") as src:
+        reader = csv.reader(src, delimiter="\t")
+        for row in reader:
+            if not row:
+                rows.append(row)
+                continue
+            if row[0] != "cluster_id":
+                row[0] = cluster_prefix + row[0]
+            rows.append(row)
+
+    with open(path, "w", encoding="utf-8", newline="") as dst:
+        writer = csv.writer(dst, delimiter="\t")
+        writer.writerows(rows)
+
+
+vcf_in = "~{prefix}_integrated.vcf"
+vcf_out = "~{prefix}_integrated_namespaced.vcf"
+with open(vcf_in, "r", encoding="utf-8") as src, open(vcf_out, "w", encoding="utf-8") as dst:
+    for line in src:
+        if line.startswith("#"):
+            dst.write(line)
+            continue
+        fields = line.rstrip("\n").split("\t")
+        if len(fields) > 2 and fields[2] not in (".", ""):
+            fields[2] = cluster_prefix + fields[2]
+        dst.write("\t".join(fields) + "\n")
+
+prefix_text_table("~{prefix}_TSD_reads_output.txt")
+prefix_text_table("~{prefix}_calls.txt")
+prefix_text_table("~{prefix}_all_reads_output.txt")
+EOF
+
         #fix output VCF header (missing SVTYPE definition)
-        bcftools view -h ~{prefix}_integrated.vcf |grep -v '^#CHROM' > header.txt
+        bcftools view -h ~{prefix}_integrated_namespaced.vcf |grep -v '^#CHROM' > header.txt
         echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of SV">' >> header.txt
-        bcftools view -h ~{prefix}_integrated.vcf|tail -n1 >> header.txt
-        bcftools reheader -h header.txt ~{prefix}_integrated.vcf > ~{prefix}_integrated_fixed.vcf
+        bcftools view -h ~{prefix}_integrated_namespaced.vcf|tail -n1 >> header.txt
+        bcftools reheader -h header.txt ~{prefix}_integrated_namespaced.vcf > ~{prefix}_integrated_fixed.vcf
         bcftools sort -Oz -o ~{prefix}_integrated.vcf.gz ~{prefix}_integrated_fixed.vcf
         tabix -p vcf ~{prefix}_integrated.vcf.gz
 
@@ -265,6 +313,7 @@ task AnnotateOriginalVcfWithPALMER {
         File original_vcf_idx
         File palmer_vcf
         File palmer_vcf_idx
+        File palmer_tsd_reads
         File ins_variant_keys
         String prefix
 
@@ -334,16 +383,31 @@ with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
         pos = int(pos_str)
         header_to_key[fasta_name] = (chrom, pos, variant_id, ref.upper(), alt.upper())
 
+cluster_to_source_names = {}
+with open("~{palmer_tsd_reads}", "r", encoding="utf-8") as tsd_handle:
+    for raw_line in tsd_handle:
+        raw_line = raw_line.rstrip("\n")
+        if not raw_line or raw_line.startswith("cluster_id\t"):
+            continue
+        fields = raw_line.split("\t")
+        if len(fields) < 2:
+            continue
+        cluster_id = fields[0]
+        source_name = fields[1]
+        cluster_to_source_names.setdefault(cluster_id, set()).add(source_name)
+
 palmer_annotation_candidates = {}
 palmer_vcf = pysam.VariantFile("~{palmer_vcf}")
 for record in palmer_vcf:
     if "PASS" not in set(record.filter.keys()):
         continue
-    source_name = normalize_scalar(record.info.get("TSD_READ"))
-    if is_missing(source_name) or source_name == "NA":
-        continue
-    key = header_to_key.get(source_name)
-    if key is None:
+    representative_source_name = normalize_scalar(record.info.get("TSD_READ"))
+    source_names = set()
+    if record.id is not None and record.id != ".":
+        source_names.update(cluster_to_source_names.get(record.id, set()))
+    if not is_missing(representative_source_name) and representative_source_name != "NA":
+        source_names.add(representative_source_name)
+    if not source_names:
         continue
 
     annotation = {}
@@ -359,13 +423,17 @@ for record in palmer_vcf:
     if not is_missing(ins_seq) and ins_seq != "NA":
         annotation["PALMER_MEI_LEN"] = len(str(ins_seq))
 
-    candidate_info = palmer_annotation_candidates.setdefault(
-        key,
-        {"annotations": [], "subtypes": []},
-    )
-    if annotation not in candidate_info["annotations"]:
-        candidate_info["annotations"].append(annotation)
-        candidate_info["subtypes"].append(get_subtype_label(record))
+    for source_name in source_names:
+        key = header_to_key.get(source_name)
+        if key is None:
+            continue
+        candidate_info = palmer_annotation_candidates.setdefault(
+            key,
+            {"annotations": [], "subtypes": []},
+        )
+        if annotation not in candidate_info["annotations"]:
+            candidate_info["annotations"].append(annotation)
+            candidate_info["subtypes"].append(get_subtype_label(record))
 
 palmer_vcf.close()
 
@@ -448,7 +516,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 3 * ceil(size(original_vcf, "GB") + size(palmer_vcf, "GB") + size(ins_variant_keys, "GB")) + 20,
+        disk_gb: 3 * ceil(size(original_vcf, "GB") + size(palmer_vcf, "GB") + size(palmer_tsd_reads, "GB") + size(ins_variant_keys, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0,
