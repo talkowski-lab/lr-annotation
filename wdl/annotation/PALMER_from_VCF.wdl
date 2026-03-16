@@ -326,6 +326,8 @@ with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
 palmer_annotations = {}
 palmer_vcf = pysam.VariantFile("~{palmer_vcf}")
 for record in palmer_vcf:
+    if "PASS" not in set(record.filter.keys()):
+        continue
     source_name = normalize_scalar(record.info.get("TSD_READ"))
     if is_missing(source_name) or source_name == "NA":
         continue
