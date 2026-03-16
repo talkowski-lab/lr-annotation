@@ -23,6 +23,17 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: TruvariRemap
+    primaryDescriptorPath: /wdl/tools/TruvariRemap.wdl
+    filters:
+      branches:
+        - main
+        - aou_scaling
+      tags:
+        - /.*/
+
+
+  - subclass: WDL
     name: AnnotateMEDs
     primaryDescriptorPath: /wdl/annotation/AnnotateMEDs.wdl
     filters:
