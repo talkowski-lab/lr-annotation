@@ -400,6 +400,8 @@ annotated_count = 0
 multi_mei_annotated_count = 0
 with pysam.VariantFile("~{prefix}.palmer_annotated.vcf", "w", header=header) as out_vcf:
     for record in original_vcf:
+        record = record.copy()
+        record.translate(header)
         matches = []
         record_id = record.id if record.id is not None else "."
         if record.alts:
