@@ -35,7 +35,7 @@ workflow CallPALMER {
                 vcf_tbi = ShardVcfByRecords.shard_idxs[shard_idx],
                 ref_fa = ref_fa,
                 flanking_bp = flanking_bp,
-                prefix = prefix + "_shard_" + shard_idx
+                prefix = "~{prefix}_shard_~{shard_idx}"
         }
 
         call Aln.AlignGeneric as alignIns{
@@ -43,7 +43,7 @@ workflow CallPALMER {
                 input_fa = InsToFaWithFlanking.ins_fa,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = prefix + "_shard_" + shard_idx,
+                prefix = "~{prefix}_shard_~{shard_idx}",
                 docker = "us.gcr.io/broad-dsp-lrma/lr-align:0.1.28",
                 flags = "-ayYL --MD -x asm5"
         }
@@ -59,15 +59,37 @@ workflow CallPALMER {
         }
      }
 
-     call Helpers.MergeVcfs { input: 
-        vcfs=PALMER.vcf, 
-        vcf_idxs = PALMER.vcf_tbi,
-        prefix=prefix+"_merged",
-        docker=utils_docker}
+    call Helpers.MergeVcfs { 
+        input: 
+            vcfs=PALMER.vcf, 
+            vcf_idxs = PALMER.vcf_tbi,
+            prefix=prefix+"_merged",
+            docker=utils_docker,
+            extra_args="--force-samples"
+    }
+
+    call Helpers.ConcatTsvs as ConcatTSDReads {
+        input:
+            tsvs = PALMER.TSD_reads,
+            prefix = prefix + "_TSD_reads",
+            docker = utils_docker,
+            preserve_header = true,
+            skip_sort = true
+    }
+
+    call Helpers.ConcatFiles as ConcatINSFastas {
+        input:
+            files = InsToFaWithFlanking.ins_fa,
+            prefix = prefix + "_ins_alt_seqs",
+            extension = "fa",
+            docker = utils_docker
+    }
 
     output {
         File PALMER_vcf = MergeVcfs.merged_vcf
         File PALMER_vcf_tbi = MergeVcfs.merged_vcf_idx
+        File TSD_reads = ConcatTSDReads.concatenated_tsv
+        File ins_fasta = ConcatINSFastas.concatenated_file
     }
 }
 
@@ -95,6 +117,7 @@ from pysam import FastaFile
 ref_fa = FastaFile("~{ref_fa}")
 infile = open("~{prefix}.tmp.txt", "r")
 outfile = open("~{prefix}.fa", "w")
+flanking_bp = ~{flanking_bp}
 
 prev_chrom = ''
 counter=0 #counter is to guarantee that no seqs have identical names in the output fasta
@@ -109,8 +132,8 @@ for line in infile:
         chrom_length = ref_fa.get_reference_length(chrom)
     else:
         counter+=1
-    left_flank = ref_fa.fetch(chrom, max(0,pos-10000), pos)
-    right_flank = ref_fa.fetch(chrom, pos, min(pos+10000, chrom_length))
+    left_flank = ref_fa.fetch(chrom, max(0, pos-flanking_bp), pos)
+    right_flank = ref_fa.fetch(chrom, pos, min(pos+flanking_bp, chrom_length))
     outfile.write('>%s_%d_%s_%s_%d\n%s\n' % (chrom, pos, ref, ID, counter, left_flank+ins_seq[1:]+right_flank))
 infile.close()
 outfile.close()
