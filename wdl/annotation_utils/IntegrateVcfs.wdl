@@ -340,9 +340,12 @@ task SplitMultiallelics {
 
         python3 <<CODE
 import pysam
-import sys
 
 vcf_in = pysam.VariantFile("~{vcf}")
+
+r_fields = [k for k, v in vcf_in.header.formats.items() if v.number == 'R']
+g_fields = [k for k, v in vcf_in.header.formats.items() if v.number == 'G']
+
 vcf_out = pysam.VariantFile("temp.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
@@ -360,18 +363,29 @@ for record in vcf_in:
         new_rec.alts = (parts[3],)
         new_rec.id = ids[i]
         target_allele_idx = i + 1
+
+        t = target_allele_idx
+        g_idx = (0, t * (t + 1) // 2, t * (t + 1) // 2 + t)
         
         for sample in record.samples:
+            # Remap GT
             old_gt = record.samples[sample]['GT']
-            new_gt = []
-            for allele in old_gt:
-                if allele is None:
-                    new_gt.append(None)
-                elif allele == target_allele_idx:
-                    new_gt.append(1)
-                else:
-                    new_gt.append(0)
-            new_rec.samples[sample]['GT'] = tuple(new_gt)
+            new_rec.samples[sample]['GT'] = tuple(
+                None if allele is None else (1 if allele == target_allele_idx else 0)
+                for allele in old_gt
+            )
+
+            # Subset Number=R fields
+            for field in r_fields:
+                val = record.samples[sample][field]
+                if val is not None:
+                    new_rec.samples[sample][field] = (val[0], val[target_allele_idx])
+
+            # Subset Number=G fields
+            for field in g_fields:
+                val = record.samples[sample][field]
+                if val is not None:
+                    new_rec.samples[sample][field] = tuple(val[j] for j in g_idx)
         
         vcf_out.write(new_rec)
 
