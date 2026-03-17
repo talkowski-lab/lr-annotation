@@ -365,7 +365,7 @@ TODO
 - `SOURCE`: Source of call, which is one of the below.
 	- `DeepVariant`: SNV or indel call made by the DeepVariant pipeline.
 	- `HPRC_SV_Integration`: Structural variant call made by the HPRC SV Integration pipeline.
-	- `TRGT`: Tandem repeat loci from the TRGT v1.0.1 catalog.
+	- `TRExplorer`: Tandem repeat loci from the TRExplorer v1.0.1 catalog.
 	- `Vamos`: Tandem repeat loci from the Vamos v2.1 catalog.
 - `TR_OVERLAPPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`. 
 - `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with `TR_OVERLAPPED` flag. 

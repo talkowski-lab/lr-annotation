@@ -15,11 +15,16 @@ workflow AnnotateGQMetrics {
         Array[String] gq_variant_filters
         Array[Boolean] gq_larger_field
 
+        Boolean ab_annotation
+        Array[Float] ab_bins
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_generate_tsv
         RuntimeAttr? runtime_attr_apply_annotations
+        RuntimeAttr? runtime_attr_generate_ab_tsv
+        RuntimeAttr? runtime_attr_apply_ab_annotations
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -61,12 +66,40 @@ workflow AnnotateGQMetrics {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_apply_annotations
         }
+
+        if (ab_annotation) {
+            call GenerateABAnnotationTsv {
+                input:
+                    vcf = SubsetVcfToContig.subset_vcf,
+                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    ab_bins = ab_bins,
+                    prefix = prefix + "." + contig + ".ab_hist_alt",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_generate_ab_tsv
+            }
+
+            call ApplyGQAnnotations as ApplyABAnnotation {
+                input:
+                    vcf = ApplyGQAnnotations.annotated_vcf,
+                    vcf_idx = ApplyGQAnnotations.annotated_vcf_idx,
+                    annotation_tsvs = [GenerateABAnnotationTsv.annotation_tsv],
+                    annotation_tsv_idxs = [GenerateABAnnotationTsv.annotation_tsv_idx],
+                    header_files = [GenerateABAnnotationTsv.header_file],
+                    col_spec_files = [GenerateABAnnotationTsv.col_spec_file],
+                    prefix = prefix + "." + contig + ".ab_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_apply_ab_annotations
+            }
+        }
+
+        File contig_final_vcf = select_first([ApplyABAnnotation.annotated_vcf, ApplyGQAnnotations.annotated_vcf])
+        File contig_final_vcf_idx = select_first([ApplyABAnnotation.annotated_vcf_idx, ApplyGQAnnotations.annotated_vcf_idx])
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = ApplyGQAnnotations.annotated_vcf,
-            vcf_idxs = ApplyGQAnnotations.annotated_vcf_idx,
+            vcfs = contig_final_vcf,
+            vcf_idxs = contig_final_vcf_idx,
             allow_overlaps = false,
             naive = true,
             prefix = prefix + ".gq_annotated",
@@ -256,6 +289,108 @@ task ApplyGQAnnotations {
     output {
         File annotated_vcf = "~{prefix}.vcf.gz"
         File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task GenerateABAnnotationTsv {
+    input {
+        File vcf
+        File vcf_idx
+        Array[Float] ab_bins
+        String prefix
+
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import json
+import pysam
+
+with open("~{write_json(ab_bins)}") as f:
+    bins = json.load(f)
+prefix = "~{prefix}"
+
+bin_edges_str = "0.0|" + "|".join(map(str, bins))
+header_line = f'##INFO=<ID=ab_hist_alt_bin_freq,Number=1,Type=String,Description="Histogram for allele balance in heterozygous individuals; bin edges are: {bin_edges_str}">'
+
+with open(f"{prefix}.header.txt", "w") as f:
+    f.write(header_line + "\n")
+
+with open(f"{prefix}.col_spec.txt", "w") as f:
+    f.write("CHROM,POS,REF,ALT,~ID,INFO/ab_hist_alt_bin_freq")
+
+def get_bin_index(val):
+    for j, b in enumerate(bins):
+        if val <= b:
+            return j
+    return len(bins)
+
+vcf_in = pysam.VariantFile("~{vcf}")
+
+with open(f"{prefix}.tsv", "w") as out:
+    for record in vcf_in:
+        counts_alt = [0] * (len(bins) + 1)
+
+        for sample_data in record.samples.values():
+            gt = sample_data.get("GT")
+            if gt is None or None in gt or len(gt) != 2:
+                continue
+            if sorted(gt) != [0, 1]:
+                continue
+
+            ad = sample_data.get("AD")
+            if ad is None or len(ad) < 2 or ad[0] is None or ad[1] is None:
+                continue
+            total = ad[0] + ad[1]
+            if total == 0:
+                continue
+
+            ab = ad[0] / float(total)
+            counts_alt[get_bin_index(ab)] += 1
+
+        row = [
+            record.chrom, str(record.pos), record.ref,
+            ",".join(record.alts) if record.alts else ".",
+            record.id if record.id else ".",
+            "|".join(map(str, counts_alt)),
+        ]
+        out.write("\t".join(row) + "\n")
+CODE
+
+        bgzip "~{prefix}.tsv"
+        tabix -s1 -b2 -e2 "~{prefix}.tsv.gz"
+    >>>
+
+    output {
+        File annotation_tsv = "~{prefix}.tsv.gz"
+        File annotation_tsv_idx = "~{prefix}.tsv.gz.tbi"
+        File header_file = "~{prefix}.header.txt"
+        File col_spec_file = "~{prefix}.col_spec.txt"
     }
 
     RuntimeAttr default_attr = object {
