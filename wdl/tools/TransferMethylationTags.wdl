@@ -127,9 +127,10 @@ task TransferTagsToContig {
         samtools view \
             -h \
             -b \
+            -o contig_aligned.bam \
+            -@ 1 \
             ~{aligned_bam} \
             ~{contig} \
-            -o contig_aligned.bam
 
         python3 <<CODE
 import array
@@ -158,9 +159,10 @@ CODE
 
         samtools sort \
             -o "~{prefix}.bam" \
+            -@ 1 \
             "~{prefix}.unsorted.bam"
 
-        samtools index "~{prefix}.bam"
+        samtools index -@ 1 "~{prefix}.bam"
     >>>
 
     output {
@@ -169,10 +171,10 @@ CODE
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
+        cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 2 * ceil(0.2 * size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
-        boot_disk_gb: 10,
+        disk_gb: ceil(size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
+        boot_disk_gb: 25,
         preemptible_tries: 2,
         max_retries: 0
     }
