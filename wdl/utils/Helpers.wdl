@@ -1576,6 +1576,7 @@ task SubsetTsvToContig {
     input {
         File tsv
         String contig
+        Boolean compressed_tsv = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1584,7 +1585,11 @@ task SubsetTsvToContig {
     command <<<
         set -euo pipefail
 
-        awk -v contig="~{contig}" '$1 == contig' ~{tsv} > ~{prefix}.tsv
+        if [ "~{compressed_tsv}" == "true" ]; then
+            gzip -dc ~{tsv} | awk -v contig="~{contig}" '$1 == contig' > ~{prefix}.tsv
+        else
+            awk -v contig="~{contig}" '$1 == contig' ~{tsv} > ~{prefix}.tsv
+        fi
     >>>
 
     output {

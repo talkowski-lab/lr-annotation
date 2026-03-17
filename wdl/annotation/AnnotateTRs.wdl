@@ -98,6 +98,7 @@ workflow AnnotateTRs {
                 input:
                     tsv = tr_catalogs[i],
                     contig = contig,
+                    compressed_tsv = true,
                     prefix = "~{prefix}.~{contig}.catalog~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_catalog
