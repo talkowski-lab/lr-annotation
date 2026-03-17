@@ -39,7 +39,7 @@ workflow HiPhase {
         input:
             vcf = sv_vcf,
             vcf_idx = sv_vcf_idx,
-            prefix = "~{prefix}.~{contig}.preprocessed",
+            prefix = "~{prefix}.preprocessed",
             runtime_attr_override = runtime_attr_preprocess_vcf
     }
 
