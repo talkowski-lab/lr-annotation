@@ -91,12 +91,12 @@ CODE
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
-        disk_gb: 30,
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 25,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 1
+        preemptible_tries: 2,
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -124,15 +124,13 @@ task TransferTagsToContig {
     command <<<
         set -euo pipefail
 
-        echo "Subsetting aligned BAM to ~{contig}..."
         samtools view \
-            -h -b \
-            -@ 3 \
+            -h \
+            -b \
             ~{aligned_bam} \
             ~{contig} \
             -o contig_aligned.bam
 
-        echo "Transferring MM and ML tags to ~{contig}..."
         python3 <<CODE
 import array
 import gzip
@@ -158,9 +156,11 @@ with pysam.AlignmentFile("contig_aligned.bam", "rb") as abam:
             outbam.write(read)
 CODE
 
-        echo "Sorting and indexing..."
-        samtools sort -@ 3 -o "~{prefix}.bam" "~{prefix}.unsorted.bam"
-        samtools index -@ 3 "~{prefix}.bam"
+        samtools sort \
+            -o "~{prefix}.bam" \
+            "~{prefix}.unsorted.bam"
+
+        samtools index "~{prefix}.bam"
     >>>
 
     output {
@@ -169,12 +169,12 @@ CODE
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 64,
-        disk_gb: ceil(size(aligned_bam, "GB") * 0.15) * 2 + ceil(size(tags_tsvs, "GB")) + 30,
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(0.2 * size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 1
+        preemptible_tries: 2,
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
