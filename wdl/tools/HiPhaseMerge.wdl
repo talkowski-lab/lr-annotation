@@ -55,7 +55,7 @@ workflow HiPhaseMerge {
                 input:
                     vcf = SubsetIntegrated.subset_vcf,
                     vcf_idx = SubsetIntegrated.subset_vcf_idx,
-                    drop_fields = "FORMAT/AD, FORMAT/PL",
+                    drop_fields = "FORMAT/AD,FORMAT/PL",
                     prefix = "~{prefix}.~{i}.integrated.no_ad",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_drop_fields
