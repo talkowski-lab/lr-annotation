@@ -91,7 +91,6 @@ import pysam
 
 phased_in = pysam.VariantFile("~{phased_vcf}")
 unphased_in = pysam.VariantFile("~{unphased_vcf}")
-out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 
 NULL_GT = [(None, None), (None, 0), (0, None), (0, ), (None, ), None]
 
@@ -100,6 +99,8 @@ for key in unphased_in.header.formats:
     if key not in phased_in.header.formats:
         phased_in.header.add_record(unphased_in.header.formats[key].record)
         extra_fmt_keys.append(key)
+
+out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 
 for record in phased_in:
     match = None
