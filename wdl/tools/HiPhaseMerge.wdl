@@ -21,6 +21,7 @@ workflow HiPhaseMerge {
 
         RuntimeAttr? runtime_attr_subset_trgt
         RuntimeAttr? runtime_attr_subset_integrated
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_fix_al_header
         RuntimeAttr? runtime_attr_merge_trgt
         RuntimeAttr? runtime_attr_merge_integrated
@@ -50,6 +51,16 @@ workflow HiPhaseMerge {
                     runtime_attr_override = runtime_attr_subset_trgt
             }
 
+            call Helpers.DropVcfFields {
+                input:
+                    vcf = SubsetIntegrated.subset_vcf,
+                    vcf_idx = SubsetIntegrated.subset_vcf_idx,
+                    drop_fields = "FORMAT/AD",
+                    prefix = "~{prefix}.~{i}.integrated.no_ad",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_fields
+            }
+
             call FixALHeader {
                 input:
                     vcf = SubsetTRGT.subset_vcf,
@@ -64,7 +75,7 @@ workflow HiPhaseMerge {
     scatter (contig in contigs) {
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
             input:
-                vcfs = select_first([SubsetIntegrated.subset_vcf, phased_vcfs]),
+                vcfs = select_first([DropVcfFields.dropped_vcf, phased_vcfs]),
                 vcf_idxs = select_first([SubsetIntegrated.subset_vcf_idx, phased_vcf_idxs]),
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
@@ -132,10 +143,17 @@ task FixALHeader {
     command <<<
         set -euo pipefail
 
-        bcftools view -h ~{vcf} | sed 's/^##FORMAT=<ID=AL,.*$/##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">/' > new_header.txt
+        bcftools view \
+            -h \
+            ~{vcf} \
+        | sed 's/^##FORMAT=<ID=AL,.*$/##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">/' \
+            > new_header.txt
 
-        bcftools reheader -h new_header.txt ~{vcf} \
-            | bcftools view -Oz -o ~{prefix}.vcf.gz
+        bcftools reheader \
+            -h new_header.txt \
+            ~{vcf} \
+        | bcftools view \
+            -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
