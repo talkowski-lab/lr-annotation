@@ -128,7 +128,7 @@ task TransferTagsToContig {
             -h \
             -b \
             -o contig_aligned.bam \
-            -@ 1 \
+            -@ 3 \
             ~{aligned_bam} \
             ~{contig} \
 
@@ -159,10 +159,10 @@ CODE
 
         samtools sort \
             -o "~{prefix}.bam" \
-            -@ 1 \
+            -@ 3 \
             "~{prefix}.unsorted.bam"
 
-        samtools index -@ 1 "~{prefix}.bam"
+        samtools index -@ 3 "~{prefix}.bam"
     >>>
 
     output {
@@ -173,15 +173,15 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 32,
-        disk_gb: ceil(size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
+        disk_gb: 2 * ceil(size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
         boot_disk_gb: 25,
         preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        cpu: 4
+        memory: 32 + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
