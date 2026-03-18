@@ -76,7 +76,7 @@ workflow HiPhaseMerge {
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
             input:
                 vcfs = select_first([DropVcfFields.dropped_vcf, phased_vcfs]),
-                vcf_idxs = select_first([SubsetIntegrated.subset_vcf_idx, phased_vcf_idxs]),
+                vcf_idxs = select_first([DropVcfFields.dropped_vcf_idx, phased_vcf_idxs]),
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
                 extra_args = merge_args,
