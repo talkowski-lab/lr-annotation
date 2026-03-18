@@ -53,7 +53,7 @@ workflow AnnotateIndelTRs {
     call Helpers.ConcatTsvs {
         input:
             tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
-            sort_output = false,
+            skip_sort = true,
             prefix = "~{prefix}.tr_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
