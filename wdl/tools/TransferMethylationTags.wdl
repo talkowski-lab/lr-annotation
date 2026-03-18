@@ -171,8 +171,8 @@ CODE
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 8,
+        cpu_cores: 4,
+        mem_gb: 32,
         disk_gb: ceil(size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
         boot_disk_gb: 25,
         preemptible_tries: 2,
