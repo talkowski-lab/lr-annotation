@@ -378,13 +378,13 @@ for record in vcf_in:
             # Subset Number=R fields
             for field in r_fields:
                 val = record.samples[sample][field]
-                if val is not None:
+                if val is not None and len(val) > target_allele_idx:
                     new_rec.samples[sample][field] = (val[0], val[target_allele_idx])
 
             # Subset Number=G fields
             for field in g_fields:
                 val = record.samples[sample][field]
-                if val is not None:
+                if val is not None and len(val) > max(g_idx):
                     new_rec.samples[sample][field] = tuple(val[j] for j in g_idx)
         
         vcf_out.write(new_rec)
