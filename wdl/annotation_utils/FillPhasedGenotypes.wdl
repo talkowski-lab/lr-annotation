@@ -88,13 +88,18 @@ task FillGenotypes {
 
         python3 <<CODE
 import pysam
-import sys
 
 phased_in = pysam.VariantFile("~{phased_vcf}")
 unphased_in = pysam.VariantFile("~{unphased_vcf}")
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 
 NULL_GT = [(None, None), (None, 0), (0, None), (0, ), (None, ), None]
+
+extra_fmt_keys = []
+for key in unphased_in.header.formats:
+    if key not in phased_in.header.formats:
+        phased_in.header.add_record(unphased_in.header.formats[key].record)
+        extra_fmt_keys.append(key)
 
 for record in phased_in:
     match = None
@@ -118,6 +123,13 @@ for record in phased_in:
                             record.samples[sample][fmt_key] = match.samples[sample][fmt_key]
                         except Exception:
                             pass
+            
+            for fmt_key in extra_fmt_keys:
+                if fmt_key in match.samples[sample]:
+                    try:
+                        record.samples[sample][fmt_key] = match.samples[sample][fmt_key]
+                    except Exception:
+                        pass
     out.write(record)
 
 out.close()
