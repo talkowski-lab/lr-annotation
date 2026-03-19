@@ -354,13 +354,13 @@ task AnnotateVcfWithTRs {
         rm -f overlaps.bed
 
         cat <<EOF > new_header.txt
-##INFO=<ID=TR_OVERLAPPED,Number=0,Type=Flag,Description="Variant enveloped by tandem repeat">
+##INFO=<ID=TR_ENVELOPED,Number=0,Type=Flag,Description="Variant enveloped by tandem repeat">
 ##INFO=<ID=TRID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
 EOF
 
         bcftools annotate \
             -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/TR_OVERLAPPED,INFO/TRID \
+            -c CHROM,POS,REF,ALT,~ID,INFO/TR_ENVELOPED,INFO/TRID \
             -h new_header.txt \
             -Oz -o vcf_annotated.vcf.gz \
             ~{vcf}

@@ -30,7 +30,7 @@ workflow AnnotateIndelTRs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                extra_args = "-e 'INFO/allele_type=\"trv\" || INFO/TR_OVERLAPPED=1'",
+                extra_args = "-e 'INFO/allele_type=\"trv\" || INFO/TR_ENVELOPED=1'",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
