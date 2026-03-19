@@ -50,8 +50,8 @@ workflow AnnotateSQMetrics {
     }
 
     output {
-        File site_quality_annotated_vcf = MergeAnnotatedVcfs.concat_vcf
-        File site_quality_annotated_vcf_idx = MergeAnnotatedVcfs.concat_vcf_idx
+        File sq_annotated_vcf = MergeAnnotatedVcfs.concat_vcf
+        File sq_annotated_vcf_idx = MergeAnnotatedVcfs.concat_vcf_idx
     }
 }
 
