@@ -258,6 +258,10 @@ TODO
 TODO
 
 
+### [Kanpig](wdl/tools/Kanpig.wdl)
+TODO
+
+
 ### [LRCNVs](wdl/tools/LRCNVs.wdl)
 TODO
 

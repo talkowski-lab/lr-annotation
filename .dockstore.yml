@@ -335,6 +335,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: Kanpig
+    primaryDescriptorPath: /wdl/tools/Kanpig.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: LRCNVs
     primaryDescriptorPath: /wdl/tools/LRCNVs.wdl
     filters:
