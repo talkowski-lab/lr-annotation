@@ -44,6 +44,7 @@ workflow TRGTLPS {
         input:
             tsvs = RunTRGTLPS.lps_tsv,
             sort_output = false,
+            preserve_header = true,
             prefix = "~{prefix}.concat",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat
