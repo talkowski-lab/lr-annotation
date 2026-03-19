@@ -68,19 +68,23 @@ task SubsetLpsTsvToContig {
         set -eou pipefail
 
         zcat -f ~{tsv} \
-            | awk 'NF {lines[++n]=$0} END {print lines[n]; for (i=1; i<n; i++) print lines[i]}' \
             | awk -F'\t' -v contig="~{contig}" '
                 BEGIN {
-                    if (contig ~ /^chr/) contig = substr(contig,4)
+                    if (contig ~ /^chr/) contig = substr(contig, 4)
                 }
 
                 {
-                    first = $1
-                    split(first, arr, ",")
+                    split($1, arr, ",")
                     split(arr[1], parts, "-")
                     chr = parts[1]
-                    if (chr ~ /^chr/) chr = substr(chr,4)
-                    if (chr == contig || chr ~ /^trid/) print
+                    if (chr ~ /^chr/) chr = substr(chr, 4)
+                    if (chr ~ /^trid/) header = $0
+                    else if (chr == contig) data[++n] = $0
+                }
+
+                END {
+                    print header
+                    for (i = 1; i <= n; i++) print data[i]
                 }
             ' \
             | gzip -c \
