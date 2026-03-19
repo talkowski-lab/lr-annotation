@@ -33,15 +33,18 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `genetic_maps_tsv`: [Maps for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/genetic_map_b38.tsv) from the [GLIMPSE references](https://github.com/odelaneau/GLIMPSE/tree/master/maps/genetic_maps.b38).
 - `gnomad_sv_vcf`: [gnomAD V4 structural variants](gs://gcp-public-data--gnomad/release/4.1/genome_sv/gnomad.v4.1.sv.sites.vcf.gz) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
 - `gnomad_sv_vcf_idx`: Index for `gnomad_sv_vcf`.
+- `gnomad_tr_json`: [gnomAD V4 tandem repeats](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variant_catalog_without_offtargets.GRCh38.json) from the [str-analysis references](https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json).
 - `gnomad_vcfs`: [gnomAD V4 short variants](gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
 - `gnomad_vcf_idxs`: Indexes for `gnomad_vcfs`.
-- `mei_catalog`: [Loci for GRCh38](gs://todo) is a combination of ALU and LINE loci from [RepeatMasker](https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema) and SVA loci from [van Bree et al](https://genome.cshlp.org/content/suppl/2022/03/24/gr.275515.121.DC1).
+- `mei_catalog`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/meis_hg38.tsv) is a combination of ALU and LINE loci from [RepeatMasker](https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema) and SVA loci from [van Bree et al](https://genome.cshlp.org/content/suppl/2022/03/24/gr.275515.121.DC1).
 - `mei_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 - `mei_fa_indices`: BWA and Minimap indices for `mei_fa`.
 - `noncoding_bed`: [Panel for GRCh38](gs://gcp-public-data--broad-references/hg38/v0/sv-resources/resources/v1/noncoding.sort.hg38.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `par_bed`: [Panel for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/hg38.par.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
+- `ploidy_bed_female`: [Panel for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/grch38_female.bed) from the [Kanpig references](https://broadinstitute.github.io/gatk-sv/docs/resources).
+- `ploidy_bed_male`: [Panel for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/grch38_male.bed) from the [Kanpig references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `ref_dict`: Sequence dictionary for `ref_fa`.
-- `ref_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/hg38.no_alt.fa) from the [PAV references](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC2/technical/reference/20200513_hg38_NoALT/).
+- `ref_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/hg38.no_alt.fa) from the [PAV references](https://github.com/ACEnglish/kanpig/tree/main/ploidy_beds).
 - `ref_fai`: Index for `ref_fa`.
 - `ref_fa_bwa_indices`: BWA indices for `ref_fa`.
 - `ref_fa_indices`: BWA and Minimap indices for `ref_fa`.
@@ -52,7 +55,6 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `seg_dup_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SegDup.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `simple_repeat_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SimpRep.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `seqrepo_tar`: [Sequence repository v2024-12-20 for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/seqrepo_2024-12-20.tar.gz) from the [latest release of seqrepo](https://github.com/biocommons/biocommons.seqrepo).
-- `top_level_fa`: [Release 76 sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GRCh38.dna.toplevel.chr.fa.gz) from [Ensemble](https://ftp.ensembl.org/pub/release-76/fasta/homo_sapiens/dna/Homo_sapiens.GRCh38.dna.toplevel.fa.gz).
 - `vntr_bed`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 
 
@@ -144,7 +146,6 @@ This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://use
 Inputs:
 - `ref_fa`.
 - `ref_vep_cache`.
-- `top_level_fa`.
 
 
 ### [AnnotateVRS](wdl/annotation/AnnotateVRS.wdl)

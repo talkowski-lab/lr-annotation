@@ -57,10 +57,8 @@ workflow Kanpig {
     }
 
     output {
-        Array[File] sample_vcfs = RunKanpig.regenotyped_vcf
-        Array[File] sample_vcf_idxs = RunKanpig.regenotyped_vcf_idx
-        File regenotyped_cohort_vcf = MergeVcfs.merged_vcf
-        File regenotyped_cohort_vcf_idx = MergeVcfs.merged_vcf_idx
+        File kanpig_regenotyped_vcf = MergeVcfs.merged_vcf
+        File kanpig_regenotyped_vcf_idx = MergeVcfs.merged_vcf_idx
     }
 }
 
