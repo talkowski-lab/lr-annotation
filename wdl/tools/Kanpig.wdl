@@ -12,7 +12,7 @@ workflow Kanpig {
         Array[String] sample_ids
         Array[File] bams
         Array[File] bais
-        Array[String] sexes  # "M" or "F" per sample, for ploidy selection
+        Array[String] sexes  # "M" or "F" per sample, used to select ploidy bed
         String prefix
 
         File ref_fa
@@ -30,6 +30,8 @@ workflow Kanpig {
     }
 
     scatter (i in range(length(sample_ids))) {
+        File ploidy_bed = if sexes[i] == "M" then ploidy_bed_male else ploidy_bed_female
+
         call RunKanpig {
             input:
                 cohort_vcf = cohort_vcf,
@@ -37,9 +39,7 @@ workflow Kanpig {
                 bam = bams[i],
                 bai = bais[i],
                 sample_id = sample_ids[i],
-                sex = sexes[i],
-                ploidy_bed_male = ploidy_bed_male,
-                ploidy_bed_female = ploidy_bed_female,
+                ploidy_bed = ploidy_bed,
                 kanpig_params = kanpig_params,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
@@ -73,9 +73,7 @@ task RunKanpig {
         File bam
         File bai
         String sample_id
-        String sex
-        File ploidy_bed_male
-        File ploidy_bed_female
+        File ploidy_bed
         String kanpig_params
         File ref_fa
         File ref_fai
@@ -94,7 +92,7 @@ task RunKanpig {
             --sizemin 10 \
             ~{kanpig_params} \
             --reference ~{ref_fa} \
-            --ploidy-bed ~{if sex == "M" then ploidy_bed_male else ploidy_bed_female} \
+            --ploidy-bed ~{ploidy_bed} \
             --input ~{cohort_vcf} \
             --reads ~{bam} \
             --sample ~{sample_id} \
@@ -103,6 +101,7 @@ task RunKanpig {
         bcftools sort \
             -Oz -o ~{prefix}.kanpig.vcf.gz \
             ~{prefix}.kanpig.vcf
+        
         rm ~{prefix}.kanpig.vcf
 
         tabix -p vcf ~{prefix}.kanpig.vcf.gz

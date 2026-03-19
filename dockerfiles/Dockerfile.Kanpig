@@ -1,0 +1,32 @@
+FROM ubuntu:22.04
+
+MAINTAINER Karan Jaisingh
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    bcftools \
+    tabix \
+    curl \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Build kanpig
+ENV KANPIG_VERSION="2.0.2"
+RUN wget -q https://github.com/ACEnglish/kanpig/archive/refs/tags/v${KANPIG_VERSION}.tar.gz \
+    && tar xzf v${KANPIG_VERSION}.tar.gz \
+    && rm v${KANPIG_VERSION}.tar.gz \
+    && cd kanpig-${KANPIG_VERSION} \
+    && cargo build --release \
+    && mv target/release/kanpig /usr/local/bin/ \
+    && cd .. \
+    && rm -rf kanpig-${KANPIG_VERSION}
+
+WORKDIR /app
+
+CMD ["/bin/bash"]
