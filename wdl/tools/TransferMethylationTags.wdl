@@ -14,7 +14,10 @@ workflow TransferMethylationTags {
         String utils_docker
 
         RuntimeAttr? runtime_attr_extract_tags
+        RuntimeAttr? runtime_attr_merge_tags
+        RuntimeAttr? runtime_attr_extract_contig
         RuntimeAttr? runtime_attr_transfer_tags
+        RuntimeAttr? runtime_attr_sort_contig
         RuntimeAttr? runtime_attr_merge_bams
     }
 
@@ -27,23 +30,49 @@ workflow TransferMethylationTags {
         }
     }
 
+    call Helpers.ConcatTsvs as MergeTagsTsvs {
+        input:
+            tsvs = ExtractMethylationTags.tags_tsv,
+            sort_output = false,
+            compressed_tsvs = true,
+            compressed_output = true,
+            prefix = "~{prefix}.all.tags",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_merge_tags
+    }
+
     scatter (contig in contigs) {
-        call TransferTagsToContig {
+        call ExtractContigBam {
             input:
                 aligned_bam = aligned_bam,
                 aligned_bai = aligned_bai,
                 contig = contig,
-                tags_tsvs = ExtractMethylationTags.tags_tsv,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_contig
+        }
+
+        call TransferTagsToContig {
+            input:
+                contig_bam = ExtractContigBam.contig_bam,
+                tags_tsv = MergeTagsTsvs.concatenated_tsv,
                 prefix = "~{prefix}.~{contig}.tagged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_transfer_tags
+        }
+
+        call SortIndexBam {
+            input:
+                unsorted_bam = TransferTagsToContig.tagged_unsorted_bam,
+                prefix = "~{prefix}.~{contig}.sorted",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_sort_contig
         }
     }
 
     call Helpers.MergeBams {
         input:
-            bams = TransferTagsToContig.tagged_bam,
-            bais = TransferTagsToContig.tagged_bai,
+            bams = SortIndexBam.tagged_bam,
+            bais = SortIndexBam.tagged_bai,
             prefix = "~{prefix}.tagged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_bams
@@ -110,13 +139,11 @@ CODE
     }
 }
 
-task TransferTagsToContig {
+task ExtractContigBam {
     input {
         File aligned_bam
         File aligned_bai
         String contig
-        Array[File] tags_tsvs
-        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -125,29 +152,71 @@ task TransferTagsToContig {
         set -euo pipefail
 
         samtools view \
+            --threads 3 \
             -h \
             -b \
             -o contig_aligned.bam \
-            -@ 3 \
             ~{aligned_bam} \
-            ~{contig} \
+            ~{contig}
+    >>>
+
+    output {
+        File contig_bam = "contig_aligned.bam"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: ceil(size(aligned_bam, "GB")) + 15,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: 4
+        memory: 8 + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task TransferTagsToContig {
+    input {
+        File contig_bam
+        File tags_tsv
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
 
         python3 <<CODE
 import array
 import gzip
 import pysam
 
-with open("~{write_lines(tags_tsvs)}") as f:
-    tsv_paths = f.read().strip().split('\n')
+# First pass: collect the read names present in this contig - only load relevant tags
+contig_read_names = set()
+with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
+    for read in abam:
+        contig_read_names.add(read.query_name)
 
+# Second pass: stream through merged tags, keeping only contig reads
 tags_dict = {}
-for tsv_path in tsv_paths:
-    with gzip.open(tsv_path, 'rt') as f:
-        for line in f:
-            read_name, mm, ml_str = line.rstrip('\n').split('\t')
+with gzip.open("~{tags_tsv}", 'rt') as f:
+    for line in f:
+        read_name, mm, ml_str = line.rstrip('\n').split('\t')
+        if read_name in contig_read_names:
             tags_dict[read_name] = (mm, [int(v) for v in ml_str.split(',')])
 
-with pysam.AlignmentFile("contig_aligned.bam", "rb") as abam:
+# Third pass: stream through contig BAM, adding tags where relevant
+with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
     with pysam.AlignmentFile("~{prefix}.unsorted.bam", "wb", header=abam.header) as outbam:
         for read in abam:
             if read.query_name in tags_dict:
@@ -156,13 +225,49 @@ with pysam.AlignmentFile("contig_aligned.bam", "rb") as abam:
                 read.set_tag('ML', array.array('B', ml))
             outbam.write(read)
 CODE
+    >>>
+
+    output {
+        File tagged_unsorted_bam = "~{prefix}.unsorted.bam"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(contig_bam, "GB")) + ceil(size(tags_tsv, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: 1
+        memory: 8 + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SortIndexBam {
+    input {
+        File unsorted_bam
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
 
         samtools sort \
+            --threads 3 \
             -o "~{prefix}.bam" \
-            -@ 3 \
-            "~{prefix}.unsorted.bam"
+            ~{unsorted_bam}
 
-        samtools index -@ 3 "~{prefix}.bam"
+        samtools index --threads 3 "~{prefix}.bam"
     >>>
 
     output {
@@ -172,16 +277,16 @@ CODE
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 32,
-        disk_gb: 2 * ceil(size(aligned_bam, "GB") + size(tags_tsvs, "GB")) + 10,
-        boot_disk_gb: 25,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(unsorted_bam, "GB")) + 10,
+        boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: 4
-        memory: 32 + " GiB"
+        memory: 8 + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker

@@ -389,6 +389,7 @@ task ConcatTsvs {
         Boolean sort_output
         Boolean preserve_header = false
         Boolean compressed_tsvs = false
+        Boolean compressed_output = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -397,7 +398,7 @@ task ConcatTsvs {
     command <<<
         set -euo pipefail
 
-        # Handle compression command
+        # Handle input compression state
         if [ "~{compressed_tsvs}" == "true" ]; then
             CAT_CMD="gunzip -c"
         else
@@ -425,10 +426,15 @@ task ConcatTsvs {
         else
             mv combined_raw.tsv ~{prefix}.tsv
         fi
+
+        # Handle output compression state
+        if [ "~{compressed_output}" == "true" ]; then
+            gzip -1 "~{prefix}.tsv"
+        fi
     >>>
 
     output {
-        File concatenated_tsv = "~{prefix}.tsv"
+        File concatenated_tsv = if compressed_output then "~{prefix}.tsv.gz" else "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
