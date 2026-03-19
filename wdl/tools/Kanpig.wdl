@@ -3,8 +3,6 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-# Re-genotypes all sites in a cohort-level VCF for each sample using kanpig,
-# then merges the per-sample VCFs into a new cohort-level VCF.
 workflow Kanpig {
     input {
         File cohort_vcf
@@ -12,7 +10,7 @@ workflow Kanpig {
         Array[String] sample_ids
         Array[File] bams
         Array[File] bais
-        Array[String] sexes  # "M" or "F" per sample, used to select ploidy bed
+        Array[String] sexes
         String prefix
 
         File ref_fa
