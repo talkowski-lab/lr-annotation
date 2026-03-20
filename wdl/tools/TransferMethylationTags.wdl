@@ -157,6 +157,8 @@ task ExtractContigBam {
     command <<<
         set -euo pipefail
 
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+
         samtools view \
             --threads 3 \
             -h \
