@@ -11,7 +11,7 @@ workflow AnnotateGnomADSTR {
         String prefix
 
         File gnomad_tr_json
-        Float min_reciprocal_overlap = 0.66
+        Float min_reciprocal_overlap = 0.7
 
         String utils_docker
 
@@ -75,7 +75,7 @@ task AnnotateGnomADSTRLoci {
     command <<<
         set -euo pipefail
 
-        # Convert JSON catalog to BED (0-based half-open, one region per line)
+        # Convert JSON catalog to BED
         python3 <<PYCODE
 import json
 
@@ -87,22 +87,18 @@ with open("catalog.bed", "w") as out:
         if not entry or not entry.get("LocusId"):
             continue
         locus_id = entry["LocusId"]
-        raw_regions = entry.get("ReferenceRegion")
-        if not raw_regions:
+        region_str = entry.get("MainReferenceRegion")
+        if not region_str:
             continue
-        regions = raw_regions if isinstance(raw_regions, list) else [raw_regions]
-        raw_units = entry.get("RepeatUnit", "")
-        units = raw_units if isinstance(raw_units, list) else [raw_units]
-        for i, region_str in enumerate(regions):
-            repeat_unit = units[i] if i < len(units) else units[0]
-            chrom, coords = region_str.rsplit(":", 1)
-            start_str, end_str = coords.split("-")
-            out.write(f"{chrom}\t{start_str}\t{end_str}\t{locus_id}\t{repeat_unit}\n")
+        repeat_unit = entry.get("RepeatUnit", "")
+        chrom, coords = region_str.rsplit(":", 1)
+        start_str, end_str = coords.split("-")
+        out.write(f"{chrom}\t{start_str}\t{end_str}\t{locus_id}\t{repeat_unit}\n")
 PYCODE
 
         sort -k1,1 -k2,2n catalog.bed > catalog.sorted.bed
 
-        # Extract variants to BED
+        # Extract VCF variants to BED
         bcftools query \
             -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/MOTIFS\n' \
             ~{vcf} \
