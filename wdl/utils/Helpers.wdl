@@ -1778,6 +1778,7 @@ task SubsetVcfToSamples {
         File vcf
         File vcf_idx
         Array[String] samples
+        Boolean filter_to_sample = true
         String? extra_args
         String prefix
         String docker
@@ -1796,7 +1797,7 @@ EOF
             ~{vcf} \
         | bcftools view \
             --samples-file samples.txt \
-            --min-ac 1 \
+            ~{if filter_to_sample then "--min-ac 1" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
             -Oz -o ~{prefix}.vcf.gz
         

@@ -18,11 +18,13 @@ workflow Kanpig {
         File ploidy_bed_male
         File ploidy_bed_female
 
+        String merge_args = "--merge id"
         String kanpig_params = "--neighdist 500 --gpenalty 0.04 --hapsim 0.97"
 
         String kanpig_docker
         String utils_docker
 
+        RuntimeAttr? runtime_attr_subset_to_sample
         RuntimeAttr? runtime_attr_run_kanpig
         RuntimeAttr? runtime_attr_merge_vcfs
     }
@@ -30,10 +32,21 @@ workflow Kanpig {
     scatter (i in range(length(sample_ids))) {
         File ploidy_bed = if sexes[i] == "M" then ploidy_bed_male else ploidy_bed_female
 
+        call Helpers.SubsetVcfToSamples {
+            input:
+                vcf = cohort_vcf,
+                vcf_idx = cohort_vcf_idx,
+                samples = [sample_ids[i]],
+                filter_to_sample = false,
+                prefix = sample_ids[i] + ".subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_to_sample
+        }
+
         call RunKanpig {
             input:
-                cohort_vcf = cohort_vcf,
-                cohort_vcf_idx = cohort_vcf_idx,
+                input_vcf = SubsetVcfToSamples.subset_vcf,
+                input_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
                 bam = bams[i],
                 bai = bais[i],
                 sample_id = sample_ids[i],
@@ -52,6 +65,7 @@ workflow Kanpig {
             vcfs = RunKanpig.regenotyped_vcf,
             vcf_idxs = RunKanpig.regenotyped_vcf_idx,
             prefix = prefix,
+            extra_args = merge_args,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }
@@ -64,8 +78,8 @@ workflow Kanpig {
 
 task RunKanpig {
     input {
-        File cohort_vcf
-        File cohort_vcf_idx
+        File input_vcf
+        File input_vcf_idx
         File bam
         File bai
         String sample_id
@@ -89,7 +103,7 @@ task RunKanpig {
             ~{kanpig_params} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
-            --input ~{cohort_vcf} \
+            --input ~{input_vcf} \
             --reads ~{bam} \
             --sample ~{sample_id} \
             --out ~{prefix}.kanpig.vcf
@@ -111,7 +125,7 @@ task RunKanpig {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 16,
-        disk_gb: ceil(size(bam, "GB")) * 2 + ceil(size(cohort_vcf, "GB")) + 20,
+        disk_gb: ceil(size(bam, "GB")) * 2 + ceil(size(input_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 1
