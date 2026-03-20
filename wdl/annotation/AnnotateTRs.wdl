@@ -344,7 +344,11 @@ task AnnotateVcfWithTRs {
         rm -f tr.bed vcf.bed
 
         awk 'BEGIN{OFS="\t"} {
-            print $1, $2, $5, $6, $4, "1", $10
+            key = $1"\t"$2"\t"$5"\t"$6
+            if (!(key in seen)) {
+                seen[key] = 1
+                print $1, $2, $5, $6, $4, "1", $10
+            }
         }' overlaps.bed \
             | sort -k1,1 -k2,2n \
             | bgzip -c > annotations.tsv.gz
