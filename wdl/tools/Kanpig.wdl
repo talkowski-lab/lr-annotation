@@ -38,7 +38,7 @@ workflow Kanpig {
                 vcf_idx = cohort_vcf_idx,
                 samples = [sample_ids[i]],
                 filter_to_sample = false,
-                prefix = sample_ids[i] + ".subset",
+                prefix = "~{prefix}.~{sample_ids[i]}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_to_sample
         }
@@ -54,7 +54,7 @@ workflow Kanpig {
                 kanpig_params = kanpig_params,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = sample_ids[i],
+                prefix = "~{prefix}.~{sample_ids[i]}.kanpig",
                 docker = kanpig_docker,
                 runtime_attr_override = runtime_attr_run_kanpig
         }
@@ -116,17 +116,17 @@ task RunKanpig {
             --out ~{prefix}.kanpig.vcf
 
         bcftools sort \
-            -Oz -o ~{prefix}.kanpig.vcf.gz \
+            -Oz -o ~{prefix}.vcf.gz \
             ~{prefix}.kanpig.vcf
         
         rm ~{prefix}.kanpig.vcf
 
-        tabix -p vcf ~{prefix}.kanpig.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File regenotyped_vcf = "~{prefix}.kanpig.vcf.gz"
-        File regenotyped_vcf_idx = "~{prefix}.kanpig.vcf.gz.tbi"
+        File regenotyped_vcf = "~{prefix}.vcf.gz"
+        File regenotyped_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
