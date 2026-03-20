@@ -92,8 +92,15 @@ task RunKanpig {
         RuntimeAttr? runtime_attr_override
     }
 
+    parameter_meta {
+        bam: { localization_optional: true }
+        bai: { localization_optional: true }
+    }
+
     command <<<
         set -euo pipefail
+
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 
         nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 
@@ -125,7 +132,7 @@ task RunKanpig {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 16,
-        disk_gb: ceil(size(bam, "GB")) * 2 + ceil(size(input_vcf, "GB")) + 20,
+        disk_gb: ceil(size(input_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 1
