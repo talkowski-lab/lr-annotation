@@ -13,9 +13,6 @@ workflow TransferMethylationTags {
 
         String utils_docker
 
-        Boolean localize_reads = false
-
-        RuntimeAttr? runtime_attr_localize_bam
         RuntimeAttr? runtime_attr_extract_tags
         RuntimeAttr? runtime_attr_merge_tags
         RuntimeAttr? runtime_attr_extract_contig
@@ -23,19 +20,6 @@ workflow TransferMethylationTags {
         RuntimeAttr? runtime_attr_sort_contig
         RuntimeAttr? runtime_attr_merge_bams
     }
-
-    if (localize_reads) {
-        call LocalizeBam {
-            input:
-                input_bam = aligned_bam,
-                input_bai = aligned_bai,
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_localize_bam
-        }
-    }
-
-    File aligned_bam_ = select_first([LocalizeBam.bam, aligned_bam])
-    File aligned_bai_ = select_first([LocalizeBam.bai, aligned_bai])
 
     scatter (path in unaligned_bam_paths) {
         call ExtractMethylationTags {
@@ -60,8 +44,8 @@ workflow TransferMethylationTags {
     scatter (contig in contigs) {
         call ExtractContigBam {
             input:
-                aligned_bam = aligned_bam_,
-                aligned_bai = aligned_bai_,
+                aligned_bam = aligned_bam,
+                aligned_bai = aligned_bai,
                 contig = contig,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_contig
@@ -100,45 +84,6 @@ workflow TransferMethylationTags {
     }
 }
 
-
-task LocalizeBam {
-    input {
-        File input_bam
-        File input_bai
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        cp ~{input_bam} localized.bam
-        cp ~{input_bai} localized.bam.bai
-    >>>
-
-    output {
-        File bam = "localized.bam"
-        File bai = "localized.bam.bai"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: ceil(size(input_bam, "GB")) + 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
 
 task ExtractMethylationTags {
     input {
