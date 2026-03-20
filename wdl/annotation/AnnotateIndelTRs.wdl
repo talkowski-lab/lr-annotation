@@ -12,6 +12,8 @@ workflow AnnotateIndelTRs {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Int min_tandem_repeat_length = 9
         Int min_repeats = 3
         Int min_repeat_unit_length = 1
@@ -20,6 +22,7 @@ workflow AnnotateIndelTRs {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_filter
         RuntimeAttr? runtime_attr_concat
     }
@@ -35,24 +38,41 @@ workflow AnnotateIndelTRs {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call RunFilterVcfToTRs {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                ref_fa = ref_fa,
-                ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.tr_annotations",
-                min_tandem_repeat_length = min_tandem_repeat_length,
-                min_repeats = min_repeats,
-                min_repeat_unit_length = min_repeat_unit_length,
-                docker = stranalysis_docker,
-                runtime_attr_override = runtime_attr_filter
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = SubsetVcfToContig.subset_vcf,
+                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
+        }
+
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
+
+        scatter (shard_idx in range(length(vcfs_to_process))) {
+            call RunFilterVcfToTRs {
+                input:
+                    vcf = vcfs_to_process[shard_idx],
+                    vcf_idx = vcf_idxs_to_process[shard_idx],
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.shard_~{shard_idx}.tr_annotations",
+                    min_tandem_repeat_length = min_tandem_repeat_length,
+                    min_repeats = min_repeats,
+                    min_repeat_unit_length = min_repeat_unit_length,
+                    docker = stranalysis_docker,
+                    runtime_attr_override = runtime_attr_filter
+            }
         }
     }
 
     call Helpers.ConcatTsvs {
         input:
-            tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
+            tsvs = flatten(RunFilterVcfToTRs.tr_annotations_tsv),
             skip_sort = true,
             prefix = "~{prefix}.tr_annotations",
             docker = utils_docker,
