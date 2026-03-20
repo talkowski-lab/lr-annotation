@@ -101,6 +101,7 @@ task RunKanpig {
         set -euo pipefail
 
         export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 
         nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 
