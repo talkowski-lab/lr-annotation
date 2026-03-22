@@ -35,7 +35,7 @@ workflow AnnotateIndelTRs {
                 contig = contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+                runtime_attr_override = select_first([runtime_attr_subset, object {}])
         }
 
         if (defined(records_per_shard)) {
@@ -46,7 +46,7 @@ workflow AnnotateIndelTRs {
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_shard
+                    runtime_attr_override = select_first([runtime_attr_shard, object {}])
             }
         }
 
@@ -65,7 +65,7 @@ workflow AnnotateIndelTRs {
                     min_repeats = min_repeats,
                     min_repeat_unit_length = min_repeat_unit_length,
                     docker = stranalysis_docker,
-                    runtime_attr_override = runtime_attr_filter
+                    runtime_attr_override = select_first([runtime_attr_filter, object {}])
             }
         }
     }
@@ -76,7 +76,7 @@ workflow AnnotateIndelTRs {
             skip_sort = true,
             prefix = "~{prefix}.tr_annotations",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+                runtime_attr_override = select_first([runtime_attr_concat, object {}])
     }
 
     output {
