@@ -29,6 +29,7 @@ workflow Kanpig {
         RuntimeAttr? runtime_attr_swap_samples
         RuntimeAttr? runtime_attr_subset_to_sample
         RuntimeAttr? runtime_attr_run_kanpig
+        RuntimeAttr? runtime_attr_merge_genotypes
         RuntimeAttr? runtime_attr_merge_vcfs
     }
 
@@ -76,12 +77,23 @@ workflow Kanpig {
                 docker = kanpig_docker,
                 runtime_attr_override = runtime_attr_run_kanpig
         }
+
+        call MergeGenotypes {
+            input:
+                base_vcf = SubsetVcfToSamples.subset_vcf,
+                base_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
+                kanpig_vcf = RunKanpig.regenotyped_vcf,
+                kanpig_vcf_idx = RunKanpig.regenotyped_vcf_idx,
+                prefix = "~{prefix}.~{sample_ids[i]}.merged",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_genotypes
+        }
     }
 
     call Helpers.MergeVcfs {
         input:
-            vcfs = RunKanpig.regenotyped_vcf,
-            vcf_idxs = RunKanpig.regenotyped_vcf_idx,
+            vcfs = MergeGenotypes.merged_vcf,
+            vcf_idxs = MergeGenotypes.merged_vcf_idx,
             prefix = prefix,
             extra_args = merge_args,
             docker = utils_docker,
@@ -124,15 +136,14 @@ task RunKanpig {
         nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 
         kanpig gt \
-            --threads "${nproc}" \
-            --sizemin 10 \
-            ~{kanpig_params} \
+            --input ~{input_vcf} \
+            --out ~{prefix}.kanpig.vcf \
+            --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
-            --input ~{input_vcf} \
-            --reads ~{bam} \
+            --threads "${nproc}" \
             --sample ~{sample_id} \
-            --out ~{prefix}.kanpig.vcf
+            ~{kanpig_params}
 
         bcftools sort \
             -Oz -o ~{prefix}.vcf.gz \
@@ -155,6 +166,101 @@ task RunKanpig {
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeGenotypes {
+    input {
+        File base_vcf
+        File base_vcf_idx
+        File kanpig_vcf
+        File kanpig_vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
+base_vcf = pysam.VariantFile("~{base_vcf}")
+
+header = base_vcf.header.copy()
+if 'DP' not in header.formats:
+    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
+if 'AD' not in header.formats:
+    header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">')
+if 'GQ' not in header.formats:
+    header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">')
+
+out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
+sample = list(base_vcf.header.samples)[0]
+
+def is_non_ref(gt):
+    return any(a is not None and a > 0 for a in gt)
+
+def is_missing(gt):
+    return any(a is None for a in gt)
+
+for rec in base_vcf:
+    base_gt = rec.samples[sample]['GT']
+    kp_rec = next(
+        r for r in kp_vcf.fetch(rec.chrom, rec.pos - 1, rec.pos)
+        if r.ref == rec.ref and r.alts == rec.alts and r.id == rec.id
+    )
+    kp_gt = kp_rec.samples[sample]['GT']
+
+    # Only update genotypes that are ref/missing in the base VCF
+    if not is_non_ref(base_gt):
+        # Missing in base and non-ref in kanpig → set to kanpig
+        if is_missing(base_gt) and not is_missing(kp_gt):
+            rec.samples[sample]['GT'] = kp_gt
+        
+        if not is_missing(kp_gt):
+            # Ref in kanpig → update DP/AD/GQ to kanpig
+            for field in ['DP', 'AD', 'GQ']:
+                rec.samples[sample][field] = kp_rec.samples[sample][field]
+        else:
+            # Missing in kanpig → clear DP/AD/GQ
+            for field in ['DP', 'AD', 'GQ']:
+                rec.samples[sample][field] = None
+    
+    out.write(rec)
+
+base_vcf.close()
+kp_vcf.close()
+out.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File merged_vcf = "~{prefix}.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(base_vcf, "GB") + size(kanpig_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
