@@ -24,18 +24,36 @@ workflow Kanpig {
         String kanpig_docker
         String utils_docker
 
+        File? swap_samples
+
+        RuntimeAttr? runtime_attr_swap_samples
         RuntimeAttr? runtime_attr_subset_to_sample
         RuntimeAttr? runtime_attr_run_kanpig
         RuntimeAttr? runtime_attr_merge_vcfs
     }
+
+    if (defined(swap_samples)) {
+        call Helpers.SwapSampleIds {
+            input:
+                vcf = cohort_vcf,
+                vcf_idx = cohort_vcf_idx,
+                sample_swap_list = select_first([swap_samples]),
+                prefix = prefix + ".swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap_samples
+        }
+    }
+
+    File final_cohort_vcf = select_first([SwapSampleIds.swapped_vcf, cohort_vcf])
+    File final_cohort_vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, cohort_vcf_idx])
 
     scatter (i in range(length(sample_ids))) {
         File ploidy_bed = if sexes[i] == "M" then ploidy_bed_male else ploidy_bed_female
 
         call Helpers.SubsetVcfToSamples {
             input:
-                vcf = cohort_vcf,
-                vcf_idx = cohort_vcf_idx,
+                vcf = final_cohort_vcf,
+                vcf_idx = final_cohort_vcf_idx,
                 samples = [sample_ids[i]],
                 filter_to_sample = false,
                 prefix = "~{prefix}.~{sample_ids[i]}.subset",
