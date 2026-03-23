@@ -214,7 +214,7 @@ def is_non_ref(gt):
     return any(a is not None and a > 0 for a in gt)
 
 def is_missing(gt):
-    return any(a is None for a in gt)
+    return all(a is None for a in gt)
 
 for rec in base_vcf:
     base_gt = rec.samples[sample]['GT']
