@@ -38,8 +38,7 @@ workflow AnnotateTRs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                extra_args = "--min-ac 1",
-                prefix = "~{prefix}.~{contig}.integrated",
+                prefix = "~{prefix}.~{contig}.base",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig_base
         }
@@ -49,7 +48,7 @@ workflow AnnotateTRs {
                 vcf = SubsetContigBase.subset_vcf,
                 vcf_idx = SubsetContigBase.subset_vcf_idx,
                 samples = sample_ids,
-                prefix = "~{prefix}.~{contig}.integrated_subset",
+                prefix = "~{prefix}.~{contig}.base_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_samples_base
         }
@@ -59,7 +58,6 @@ workflow AnnotateTRs {
                 vcf = tr_vcf,
                 vcf_idx = tr_vcf_idx,
                 contig = contig,
-                extra_args = "--min-ac 1",
                 prefix = "~{prefix}.~{contig}.tr",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig_tr

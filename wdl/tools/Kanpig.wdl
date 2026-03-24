@@ -226,7 +226,7 @@ for rec in base_vcf:
     kp_gt = kp_rec.samples[sample]['GT']
 
     # Ref/missing in base and ref in kanpig → set FORMAT fields to kanpig
-    if not is_non_ref(ref_gt) and not is_non_ref(kp_gt) and not is_missing(kp_gt):
+    if not is_non_ref(base_gt) and not is_non_ref(kp_gt) and not is_missing(kp_gt):
         for field in ['GT', 'AD', 'GQ', 'DP']:
             val = kp_rec.samples[sample][field]
             if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
