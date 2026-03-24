@@ -94,7 +94,7 @@ workflow Kanpig {
     call Helpers.MergeVcfs as MergeRaw {
         input:
             vcfs = RunKanpig.regenotyped_vcf,
-            vcf_idxs = RunKanpig.regenotyped_vcf,
+            vcf_idxs = RunKanpig.regenotyped_vcf_idx,
             prefix = "~{prefix}.kanpig_raw",
             extra_args = merge_args,
             docker = utils_docker,
