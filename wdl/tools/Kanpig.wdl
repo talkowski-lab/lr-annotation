@@ -234,10 +234,13 @@ for rec in base_vcf:
         if not is_missing(kp_gt):
             # Ref in kanpig → update DP/AD/GQ to kanpig
             for field in ['AD', 'GQ', 'DP']:
-                rec.samples[sample][field] = kp_rec.samples[sample][field]
+                val = kp_rec.samples[sample][field]
+                if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
+                    continue
+                rec.samples[sample][field] = val
         else:
-            # Missing in kanpig → clear DP/AD/GQ
-            for field in ['AD', 'GQ', 'DP']:
+            # Missing in kanpig → clear GQ/DP
+            for field in ['GQ', 'DP']:
                 rec.samples[sample][field] = None
     
     out.write(rec)
