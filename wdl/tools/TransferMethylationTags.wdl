@@ -272,7 +272,7 @@ task SortIndexBam {
         set -euo pipefail
 
         samtools sort \
-            --threads 3 \
+            -@ 3 \
             -o "~{prefix}.bam" \
             ~{unsorted_bam}
 
