@@ -225,23 +225,13 @@ for rec in base_vcf:
     )
     kp_gt = kp_rec.samples[sample]['GT']
 
-    # Only update genotypes that are ref/missing in the base VCF
-    if not is_non_ref(base_gt):
-        # Missing in base and non-ref in kanpig → set to kanpig
-        if is_missing(base_gt) and not is_missing(kp_gt):
-            rec.samples[sample]['GT'] = kp_gt
-        
-        if not is_missing(kp_gt):
-            # Ref in kanpig → update DP/AD/GQ to kanpig
-            for field in ['AD', 'GQ', 'DP']:
-                val = kp_rec.samples[sample][field]
-                if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
-                    continue
-                rec.samples[sample][field] = val
-        else:
-            # Missing in kanpig → clear GQ/DP
-            for field in ['GQ', 'DP']:
-                rec.samples[sample][field] = None
+    # Ref/missing in base and ref in kanpig → set FORMAT fields to kanpig
+    if not is_non_ref(ref_gt) and not is_non_ref(kp_gt) and not is_missing(kp_gt):
+        for field in ['GT', 'AD', 'GQ', 'DP']:
+            val = kp_rec.samples[sample][field]
+            if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
+                continue
+            rec.samples[sample][field] = val
     
     out.write(rec)
 
