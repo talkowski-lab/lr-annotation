@@ -200,12 +200,12 @@ kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
 base_vcf = pysam.VariantFile("~{base_vcf}")
 
 header = base_vcf.header.copy()
-if 'DP' not in header.formats:
-    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
 if 'AD' not in header.formats:
     header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">')
 if 'GQ' not in header.formats:
     header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">')
+if 'DP' not in header.formats:
+    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
 sample = list(base_vcf.header.samples)[0]
@@ -217,6 +217,7 @@ def is_missing(gt):
     return all(a is None for a in gt)
 
 for rec in base_vcf:
+    rec.translate(out.header)
     base_gt = rec.samples[sample]['GT']
     kp_rec = next(
         r for r in kp_vcf.fetch(rec.chrom, rec.pos - 1, rec.pos)
@@ -232,11 +233,11 @@ for rec in base_vcf:
         
         if not is_missing(kp_gt):
             # Ref in kanpig → update DP/AD/GQ to kanpig
-            for field in ['DP', 'AD', 'GQ']:
+            for field in ['AD', 'GQ', 'DP']:
                 rec.samples[sample][field] = kp_rec.samples[sample][field]
         else:
             # Missing in kanpig → clear DP/AD/GQ
-            for field in ['DP', 'AD', 'GQ']:
+            for field in ['AD', 'GQ', 'DP']:
                 rec.samples[sample][field] = None
     
     out.write(rec)
