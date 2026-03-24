@@ -51,7 +51,7 @@ workflow GenerateTRGTJson {
     }
 
     output {
-        File af_histograms_tsv = ConcatTsvs.concatenated_tsv
+        File trgt_histograms_tsv = ConcatTsvs.concatenated_tsv
     }
 }
 
