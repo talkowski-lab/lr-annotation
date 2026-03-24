@@ -131,9 +131,9 @@ CODE
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        cpu: 1
+        memory: 4 + " GiB"
+        disks: "local-disk " + 400 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -185,7 +185,7 @@ task ExtractContigBam {
     runtime {
         cpu: 4
         memory: 8 + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        disks: "local-disk " + 25 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -210,13 +210,13 @@ import array
 import gzip
 import pysam
 
-# First pass: collect the read names present in this contig - only load relevant tags
+# First pass: collect the read names present in this contig to only load relevant tags
 contig_read_names = set()
 with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
     for read in abam:
         contig_read_names.add(read.query_name)
 
-# Second pass: stream through merged tags, keeping only contig reads
+# Second pass: stream through tags to only keep contig reads
 tags_dict = {}
 with gzip.open("~{tags_tsv}", 'rt') as f:
     for line in f:
@@ -224,7 +224,7 @@ with gzip.open("~{tags_tsv}", 'rt') as f:
         if read_name in contig_read_names:
             tags_dict[read_name] = (mm, [int(v) for v in ml_str.split(',')])
 
-# Third pass: stream through contig BAM, adding tags where relevant
+# Third pass: stream through contig BAM to add tags for matched reads
 with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
     with pysam.AlignmentFile("~{prefix}.unsorted.bam", "wb", header=abam.header) as outbam:
         for read in abam:
