@@ -30,7 +30,8 @@ workflow Kanpig {
         RuntimeAttr? runtime_attr_subset_to_sample
         RuntimeAttr? runtime_attr_run_kanpig
         RuntimeAttr? runtime_attr_merge_genotypes
-        RuntimeAttr? runtime_attr_merge_vcfs
+        RuntimeAttr? runtime_attr_merge_raw_vcfs
+        RuntimeAttr? runtime_attr_merge_processed_vcfs
     }
 
     if (defined(swap_samples)) {
@@ -39,7 +40,7 @@ workflow Kanpig {
                 vcf = cohort_vcf,
                 vcf_idx = cohort_vcf_idx,
                 sample_swap_list = select_first([swap_samples]),
-                prefix = prefix + ".swapped",
+                prefix = "~{prefix}.swapped",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_swap_samples
         }
@@ -84,25 +85,37 @@ workflow Kanpig {
                 base_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
                 kanpig_vcf = RunKanpig.regenotyped_vcf,
                 kanpig_vcf_idx = RunKanpig.regenotyped_vcf_idx,
-                prefix = "~{prefix}.~{sample_ids[i]}.merged",
+                prefix = "~{prefix}.~{sample_ids[i]}.kanpig_merged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_genotypes
         }
     }
 
-    call Helpers.MergeVcfs {
+    call Helpers.MergeVcfs as MergeRaw {
+        input:
+            vcfs = RunKanpig.regenotyped_vcf,
+            vcf_idxs = RunKanpig.regenotyped_vcf,
+            prefix = "~{prefix}.kanpig_raw",
+            extra_args = merge_args,
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_merge_raw_vcfs
+    }
+
+    call Helpers.MergeVcfs as MergeProcessed {
         input:
             vcfs = MergeGenotypes.merged_vcf,
             vcf_idxs = MergeGenotypes.merged_vcf_idx,
-            prefix = prefix,
+            prefix = "~{prefix}.kanpig_merged",
             extra_args = merge_args,
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_vcfs
+            runtime_attr_override = runtime_attr_merge_processed_vcfs
     }
 
     output {
-        File kanpig_regenotyped_vcf = MergeVcfs.merged_vcf
-        File kanpig_regenotyped_vcf_idx = MergeVcfs.merged_vcf_idx
+        File kanpig_raw_vcf = MergeRaw.merged_vcf
+        File kanpig_raw_vcf_idx = MergeRaw.merged_vcf_idx
+        File kanpig_regenotyped_vcf = MergeProcessed.merged_vcf
+        File kanpig_regenotyped_vcf_idx = MergeProcessed.merged_vcf_idx
     }
 }
 
