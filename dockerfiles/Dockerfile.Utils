@@ -47,6 +47,9 @@ RUN wget -q https://github.com/shenwei356/seqkit/releases/download/v${SEQKIT_VER
     && mv seqkit /usr/local/bin/ \
     && rm seqkit_linux_amd64.tar.gz
 
+# Install AWS CLI
+RUN pip3 install awscli
+
 # Install python
 RUN python3 -m pip install --upgrade pip && \
     python3 -m pip install --no-cache-dir \

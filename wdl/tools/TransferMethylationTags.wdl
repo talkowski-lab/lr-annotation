@@ -97,14 +97,13 @@ task ExtractMethylationTags {
     command <<<
         set -euo pipefail
 
+        aws s3 --no-sign-request cp ~{unaligned_bam_path} ~{bam_basename}.bam
+
         python3 <<CODE
 import gzip
-import os
 import pysam
 
-os.environ['HTS_S3_NO_SIGN_REQUEST'] = '1'
-
-with pysam.AlignmentFile("~{unaligned_bam_path}", "rb", check_sq=False) as ubam:
+with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
     with gzip.open("~{bam_basename}.tags.tsv.gz", "wt") as out:
         for read in ubam:
             try:
@@ -114,6 +113,8 @@ with pysam.AlignmentFile("~{unaligned_bam_path}", "rb", check_sq=False) as ubam:
             except KeyError:
                 pass
 CODE
+
+        rm ~{bam_basename}.bam
     >>>
 
     output {
@@ -123,10 +124,10 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 25,
+        disk_gb: 100,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
