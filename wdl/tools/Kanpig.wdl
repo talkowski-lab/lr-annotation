@@ -173,15 +173,15 @@ task RunKanpig {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 32,
-        disk_gb: ceil(size(input_vcf, "GB")) + 20,
+        disk_gb: 2 * ceil(size(input_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        cpu: 8
+        memory: 32 + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
