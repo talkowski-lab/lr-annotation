@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow SubsetVcfToSamples {
+workflow SubsetVcfToPerSample {
     input {
         File cohort_vcf
         File cohort_vcf_idx

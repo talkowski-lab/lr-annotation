@@ -245,7 +245,7 @@ TODO
 TODO
 
 
-### [SubsetVcfToSamples](wdl/annotation_utils/SubsetVcfToSamples.wdl)
+### [SubsetVcfToPerSample](wdl/annotation_utils/SubsetVcfToPerSample.wdl)
 TODO
 
 

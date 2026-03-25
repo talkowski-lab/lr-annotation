@@ -305,8 +305,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: SubsetVcfToSamples
-    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToSamples.wdl
+    name: SubsetVcfToPerSample
+    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToPerSample.wdl
     filters:
       branches:
         - main
