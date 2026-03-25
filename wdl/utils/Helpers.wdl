@@ -721,6 +721,7 @@ task ExtractSample {
         File vcf_idx
         String sample
         String? extra_args
+        Boolean normalize_output = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -732,9 +733,10 @@ task ExtractSample {
         bcftools view \
             -s ~{sample} \
             --min-ac 1 \
+            ~{if normalize_output then "--trim-alt-alleles" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>

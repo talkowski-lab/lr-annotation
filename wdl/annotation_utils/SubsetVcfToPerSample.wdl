@@ -35,6 +35,7 @@ workflow SubsetVcfToPerSample {
                     vcf = SubsetVcfToContig.subset_vcf,
                     vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                     sample = sample_id,
+                    normalize_output = true,
                     prefix = "~{prefix}.~{sample_id}.~{contig}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_sample
