@@ -8,6 +8,7 @@ workflow AnnotateVcf {
         File vcf
         File vcf_idx
         Array[File] annotations_tsvs
+        Array[Boolean]? sort_tsvs
         Array[String] contigs
         String prefix
 
@@ -40,6 +41,7 @@ workflow AnnotateVcf {
                 input:
                     tsv = annotations_tsvs[i],
                     contig = contig,
+                    sort_output = if defined(sort_tsvs) then select_first([sort_tsvs])[i] else false,
                     prefix = "~{prefix}.~{contig}.tsv~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_tsv

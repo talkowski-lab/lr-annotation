@@ -1706,6 +1706,7 @@ task SubsetTsvToContig {
     input {
         File tsv
         String contig
+        Boolean sort_output = false
         Boolean compressed_tsv = false
         String prefix
         String docker
@@ -1719,6 +1720,10 @@ task SubsetTsvToContig {
             gzip -dc ~{tsv} | awk -v contig="~{contig}" '$1 == contig' > ~{prefix}.tsv
         else
             awk -v contig="~{contig}" '$1 == contig' ~{tsv} > ~{prefix}.tsv
+        fi
+
+        if [ "~{sort_output}" == "true" ]; then
+            sort -k1,1 -k2,2n ~{prefix}.tsv -o ~{prefix}.tsv
         fi
     >>>
 
