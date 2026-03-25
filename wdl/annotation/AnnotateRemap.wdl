@@ -99,6 +99,8 @@ task InsRemap {
 
         mkdir ref_files
         mv ~{ref_fa} ref_files/
+        mv ~{ref_fai} ref_files/
+        
         for x in ~{sep=' ' ref_bwa_indices}; do
             mv $x ref_files/
         done
