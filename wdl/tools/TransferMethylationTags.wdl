@@ -82,6 +82,7 @@ workflow TransferMethylationTags {
     output {
         File methylation_tagged_bam = MergeBams.merged_bam
         File methylation_tagged_bai = MergeBams.merged_bam_idx
+        File methylation_tags_tsv = MergeTagsTsvs.concatenated_tsv
     }
 }
 
@@ -110,9 +111,9 @@ with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
             try:
                 mm = read.get_tag('MM')
                 ml = ','.join(str(v) for v in read.get_tag('ML'))
-                out.write(f"{read.query_name}\t{mm}\t{ml}\n")
             except KeyError:
-                pass
+                mm, ml = '', ''
+            out.write(f"{read.query_name}\t{mm}\t{ml}\n")
 CODE
 
         rm ~{bam_basename}.bam
@@ -179,8 +180,9 @@ with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
         for read in abam:
             if read.query_name in tags_dict:
                 mm, ml = tags_dict[read.query_name]
-                read.set_tag('MM', mm)
-                read.set_tag('ML', array.array('B', ml))
+                if mm:
+                    read.set_tag('MM', mm)
+                    read.set_tag('ML', array.array('B', ml))
             outbam.write(read)
 CODE
     >>>
