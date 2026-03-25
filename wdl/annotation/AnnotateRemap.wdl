@@ -8,6 +8,7 @@ workflow CallInsRemap {
         File vcf
         File vcf_idx
         File ref_fa
+        File ref_fai
         Array[File] ref_bwa_indices
         String prefix
         Int? records_per_shard
@@ -43,7 +44,7 @@ workflow CallInsRemap {
                 vcf = vcfs_to_process[shard_idx],
                 vcf_idx = vcf_idxs_to_process[shard_idx],
                 ref_fa = ref_fa,
-                ref_bwa_indices = ref_bwa_indices,
+                ref_fai = ref_fai,
                 prefix = "~{prefix}.shard_~{shard_idx}",
                 minlength = minlength,
                 maxlength = maxlength,
@@ -74,6 +75,7 @@ task InsRemap {
         File vcf
         File vcf_idx
         File ref_fa
+        File ref_fai
         Array[File] ref_bwa_indices
         String prefix
         Int minlength=50
