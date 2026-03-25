@@ -110,9 +110,14 @@ with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
         for read in ubam:
             try:
                 mm = read.get_tag('MM')
+            except KeyError:
+                mm = ''
+            
+            try:
                 ml = ','.join(str(v) for v in read.get_tag('ML'))
             except KeyError:
-                mm, ml = '', ''
+                ml = ''
+            
             out.write(f"{read.query_name}\t{mm}\t{ml}\n")
 CODE
 

@@ -1654,7 +1654,6 @@ task SubsetBamToContig {
         File bai
         String contig
         String prefix
-        Boolean stream = true
         String docker
         RuntimeAttr? runtime_attr_override
     }
