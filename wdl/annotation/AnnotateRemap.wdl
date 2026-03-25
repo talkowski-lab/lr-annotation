@@ -45,6 +45,7 @@ workflow CallInsRemap {
                 vcf_idx = vcf_idxs_to_process[shard_idx],
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
+                ref_bwa_indices = ref_bwa_indices,
                 prefix = "~{prefix}.shard_~{shard_idx}",
                 minlength = minlength,
                 maxlength = maxlength,
