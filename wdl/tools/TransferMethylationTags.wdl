@@ -276,7 +276,9 @@ task SortIndexBam {
             -o "~{prefix}.bam" \
             ~{unsorted_bam}
 
-        samtools index --threads 3 "~{prefix}.bam"
+        samtools index \
+            -@ 3 \
+            "~{prefix}.bam"
     >>>
 
     output {
