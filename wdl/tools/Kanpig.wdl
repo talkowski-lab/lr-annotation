@@ -143,6 +143,7 @@ task RunKanpig {
     command <<<
         set -euo pipefail
 
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
         export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
         kanpig gt \
