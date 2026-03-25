@@ -222,7 +222,7 @@ with gzip.open("~{tags_tsv}", 'rt') as f:
     for line in f:
         read_name, mm, ml_str = line.rstrip('\n').split('\t')
         if read_name in contig_read_names:
-            tags_dict[read_name] = (mm, [int(v) for v in ml_str.split(',')])
+            tags_dict[read_name] = (mm, [int(v) for v in ml_str.split(',') if v])
 
 # Third pass: stream through contig BAM to add tags for matched reads
 with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:

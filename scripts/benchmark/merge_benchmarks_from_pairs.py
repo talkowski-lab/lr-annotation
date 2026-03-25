@@ -162,7 +162,7 @@ def main():
 
     skip_categories = set()
     if args.skip_vep_categories:
-        skip_categories = { cat.strip().lower() for cat in args.skip_vep_categories.split(",") }
+        skip_categories = {cat.strip().lower() for cat in args.skip_vep_categories.split(",")}
 
     af_pair_paths = [p for p in args.af_pair_tsvs.split(",") if p]
     vep_pair_paths = [p for p in args.vep_pair_tsvs.split(",") if p]
