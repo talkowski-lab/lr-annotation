@@ -579,18 +579,68 @@ task ConvertToSymbolic {
     command <<<
         set -euo pipefail
 
-        bcftools query \
-            -f '%INFO/~{type_field}\n' \
-            ~{vcf} \
-            | sort -u > allele_types.txt
-        
-        python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
-            --input ~{vcf} \
-            --output ~{prefix}.vcf.gz \
-            --length_field ~{length_field} \
-            --type_field ~{type_field} \
-            --types allele_types.txt
-        
+        python3 <<CODE
+import pysam
+import sys
+
+def map_type(raw):
+    t = raw.upper()
+    if 'DEL' in t:
+        return 'DEL'
+    elif 'INS' in t:
+        return 'INS'
+    elif 'DUP' in t or 'NUMT' in t:
+        return 'DUP'
+    else:
+        print(f"Error: unrecognized allele type '{raw}'", file=sys.stderr)
+        sys.exit(1)
+
+# First pass: collect mapped types present in the VCF
+present_types = set()
+with pysam.VariantFile("~{vcf}") as vcf_scan:
+    for record in vcf_scan:
+        raw = record.info["~{type_field}"]
+        if isinstance(raw, (list, tuple)):
+            raw = raw[0]
+        present_types.add(map_type(raw))
+
+# Build updated header
+vcf_in = pysam.VariantFile("~{vcf}")
+header = vcf_in.header
+
+if 'END' not in header.info:
+    header.add_line('##INFO=<ID=END,Number=.,Type=Integer,Description="End position of the variant">')
+header.add_line('##ALT=<ID=N,Description="Baseline reference">')
+for allele_type in present_types:
+    if allele_type not in header.alts:
+        header.add_line(f'##ALT=<ID={allele_type},Description="{allele_type} variant">')
+    if allele_type == 'BND' and 'BND_ALT' not in header.info:
+        header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
+
+# Second pass: convert records
+vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
+for record in vcf_in:
+    raw = record.info["~{type_field}"]
+    if isinstance(raw, (list, tuple)):
+        raw = raw[0]
+    allele_type = map_type(raw)
+
+    if allele_type == 'BND':
+        record.info['BND_ALT'] = record.alts[0]
+    record.ref = 'N'
+    record.alts = (f'<{allele_type}>',)
+
+    allele_length = record.info["~{length_field}"]
+    if isinstance(allele_length, (list, tuple)):
+        allele_length = allele_length[0]
+    record.stop = record.pos + abs(allele_length)
+
+    vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
@@ -1307,10 +1357,30 @@ task RevertSymbolicAlleles {
     command <<<
         set -euo pipefail
 
-        python3 /opt/gnomad-lr/scripts/helpers/revert_symbalts.py \
-            --annotated ~{annotated_vcf} \
-            --original ~{original_vcf} \
-            --output ~{prefix}.vcf.gz
+        python3 <<CODE
+import pysam
+
+# Index original VCF by variant ID
+original_data = {}
+with pysam.VariantFile("~{original_vcf}") as orig_vcf:
+    for record in orig_vcf:
+        original_data[record.id] = (record.ref, record.alts)
+
+# Revert symbolic alleles in annotated VCF
+vcf_in = pysam.VariantFile("~{annotated_vcf}")
+vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
+for record in vcf_in:
+    if record.id in original_data:
+        ref, alts = original_data[record.id]
+        record.ref = ref
+        record.alts = alts
+        if 'BND_ALT' in record.info:
+            del record.info['BND_ALT']
+    vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>

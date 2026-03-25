@@ -3,9 +3,6 @@
 import argparse
 from pysam import VariantFile
 
-NULL_GT = [(0, 0), (None, None), (0, ), (None, ), (None, 0)]
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)

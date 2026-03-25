@@ -57,10 +57,6 @@ RUN python3 -m pip install --upgrade pip && \
         pysam \
         scipy
 
-# Copy helper scripts
-COPY ./scripts/helpers/symbalts.py /opt/gnomad-lr/scripts/helpers/symbalts.py
-COPY ./scripts/helpers/revert_symbalts.py /opt/gnomad-lr/scripts/helpers/revert_symbalts.py
-
 WORKDIR /app
 
 CMD ["/bin/bash"]
