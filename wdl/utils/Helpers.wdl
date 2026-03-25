@@ -1648,6 +1648,60 @@ task StripGenotypes {
     }
 }
 
+task SubsetBamToContig {
+    input {
+        File bam
+        File bai
+        String contig
+        String prefix
+        Boolean stream = true
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    parameter_meta {
+        bam: { localization_optional: true }
+        bai: { localization_optional: true }
+    }
+
+    command <<<
+        set -euo pipefail
+
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+
+        samtools view \
+            --threads 3 \
+            -h \
+            -b \
+            -o ~{prefix}.bam \
+            ~{bam} \
+            ~{contig}
+    >>>
+
+    output {
+        File contig_bam = "~{prefix}.bam"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 25,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task SubsetTsvToContig {
     input {
         File tsv

@@ -356,6 +356,10 @@ TODO
 TODO
 
 
+### [Whatshap](wdl/tools/Whatshap.wdl)
+TODO
+
+
 
 ## Output Schema
 - `INFO/allele_length`: Allele length - positive for insertions, negative for deletions and 0 for SNVs.

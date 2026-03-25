@@ -42,18 +42,19 @@ workflow TransferMethylationTags {
     }
 
     scatter (contig in contigs) {
-        call ExtractContigBam {
+        call Helpers.SubsetBamToContig {
             input:
-                aligned_bam = aligned_bam,
-                aligned_bai = aligned_bai,
+                bam = aligned_bam,
+                bai = aligned_bai,
                 contig = contig,
+                prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_contig
         }
 
         call TransferTagsToContig {
             input:
-                contig_bam = ExtractContigBam.contig_bam,
+                contig_bam = SubsetBamToContig.contig_bam,
                 tags_tsv = MergeTagsTsvs.concatenated_tsv,
                 prefix = "~{prefix}.~{contig}.tagged",
                 docker = utils_docker,
@@ -134,58 +135,6 @@ CODE
         cpu: 1
         memory: 4 + " GiB"
         disks: "local-disk " + 400 + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ExtractContigBam {
-    input {
-        File aligned_bam
-        File aligned_bai
-        String contig
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    parameter_meta {
-        aligned_bam: { localization_optional: true }
-        aligned_bai: { localization_optional: true }
-    }
-
-    command <<<
-        set -euo pipefail
-
-        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
-
-        samtools view \
-            --threads 3 \
-            -h \
-            -b \
-            -o contig_aligned.bam \
-            ~{aligned_bam} \
-            ~{contig}
-    >>>
-
-    output {
-        File contig_bam = "contig_aligned.bam"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: 25,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: 4
-        memory: 8 + " GiB"
-        disks: "local-disk " + 25 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
