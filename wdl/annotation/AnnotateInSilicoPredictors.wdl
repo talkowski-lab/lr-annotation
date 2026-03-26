@@ -4,7 +4,6 @@ import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow AnnotateInSilicoPredictors {
-
     input {
         File vcf
         File vcf_idx
@@ -115,9 +114,11 @@ task AnnotateInSilicoPredictorsTask {
             --revel_ht ~{revel_ht} \
             --spliceai_ht ~{spliceai_ht} \
             --vcf ~{vcf} \
-            --output_vcf ~{prefix}.vcf.gz
+            --output_vcf ~{prefix}.vcf.bgz
+
+        mv ~{prefix}.vcf.bgz ~{prefix}.vcf.gz
         
-        tabix ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {

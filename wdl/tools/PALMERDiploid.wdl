@@ -314,7 +314,7 @@ task ConvertPALMERToVcf {
 			-T . \
 			-Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 		
-		tabix ~{sample}.palmer_calls.~{mei_type}.vcf.gz
+		tabix -p vcf ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 	>>>
 
 	output {

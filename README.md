@@ -36,6 +36,11 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `gnomad_tr_json`: [gnomAD V4 tandem repeats](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/variant_catalog_without_offtargets.GRCh38.json) from the [str-analysis references](https://github.com/broadinstitute/str-analysis/blob/main/str_analysis/variant_catalogs/variant_catalog_without_offtargets.GRCh38.json).
 - `gnomad_vcfs`: [gnomAD V4 short variants](gs://gcp-public-data--gnomad/release/4.1/vcf/genomes/) from the [gnomAD downloads](https://gnomad.broadinstitute.org/data#v4). 
 - `gnomad_vcf_idxs`: Indexes for `gnomad_vcfs`.
+- `insilico_cadd_ht`: [CADD scores for GRCh38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/gnomad/v4.0/annotations/in_silico_predictors/gnomad.v4.0.cadd.grch38.ht) from gnomAD V4.
+- `insilico_pangolin_ht`: [Pangolin scores for GRCh38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/gnomad/v4.0/annotations/in_silico_predictors/gnomad.v4.0.pangolin.grch38.ht) from gnomAD V4.
+- `insilico_phylop_ht`: [PhyloP scores for GRCh38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/gnomad/v4.0/annotations/in_silico_predictors/gnomad.v4.0.phylop.grch38.ht) from gnomAD V4.
+- `insilico_revel_ht`: [REVEL scores for GRCh38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/gnomad/v4.0/annotations/in_silico_predictors/gnomad.v4.0.revel.grch38.ht) from gnomAD V4.
+- `insilico_spliceai_ht`: [SpliceAI scores for GRCh38](gs://fc-0bc12741-801b-4c10-8d3c-92075b188d3c/gnomad/v4.0/annotations/in_silico_predictors/gnomad.v4.0.spliceai.grch38.ht) from gnomAD V4.
 - `mei_catalog`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/meis_hg38.tsv) is a combination of ALU and LINE loci from [RepeatMasker](https://genome.ucsc.edu/cgi-bin/hgTables?db=hg38&hgta_group=rep&hgta_track=rmsk&hgta_table=rmsk&hgta_doSchema=describe+table+schema) and SVA loci from [van Bree et al](https://genome.cshlp.org/content/suppl/2022/03/24/gr.275515.121.DC1).
 - `mei_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/CONSENSUS.fa) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 - `mei_fa_indices`: BWA and Minimap indices for `mei_fa`.
@@ -55,6 +60,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `seg_dup_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SegDup.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `simple_repeat_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SimpRep.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `seqrepo_tar`: [Sequence repository v2024-12-20 for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/seqrepo_2024-12-20.tar.gz) from the [latest release of seqrepo](https://github.com/biocommons/biocommons.seqrepo).
+- `sv_caller_results`: TODO.
 - `vntr_bed`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 
 

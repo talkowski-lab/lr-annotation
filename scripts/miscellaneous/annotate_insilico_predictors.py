@@ -30,10 +30,11 @@ spliceai_ht_uri = args.spliceai_ht
 vcf_uri = args.vcf
 output_vcf_uri = args.output_vcf
 
-hl.init(default_reference=build,
-        min_block_size=128, 
-        local=f"local[*]", 
-        tmp_dir="tmp", local_tmpdir="tmp"
+hl.init(
+    default_reference=build,
+    min_block_size=128,
+    local="local[*]",
+    tmp_dir="tmp", local_tmpdir="tmp"
 )
 
 # Load all predictor HTs
@@ -82,4 +83,4 @@ predictors = {
 for key, desc in predictors.items():
     header['info'][key] = {'Description': f"{key.replace('_', ' ').title()} from {desc}.", 'Number': '.', 'Type': 'Float'}
 
-hl.export_vcf(dataset=mt, output=output_vcf_uri, metadata=header, tabix=True)
+hl.export_vcf(dataset=mt, output=output_vcf_uri, metadata=header)

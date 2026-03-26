@@ -217,7 +217,7 @@ task SplitByChromosomeRemote {
         
         HTS_AUTH_LOCATION=/tmp/token_fifo tabix --verbosity 3 -h ~{vcf_file} ~{chromosome} | bgzip -c > ~{prefix}."~{chromosome}".vcf.gz
         
-        tabix ~{prefix}."~{chromosome}".vcf.gz
+        tabix -p vcf ~{prefix}."~{chromosome}".vcf.gz
         # get number of records in chr
         HTS_AUTH_LOCATION=/tmp/token_fifo bcftools index -n ~{prefix}."~{chromosome}".vcf.gz > contig_length.txt
     >>>
@@ -269,7 +269,7 @@ task SplitByChromosome {
         
         tabix --verbosity 3 -h ~{vcf_file} ~{chromosome} | bgzip -c > ~{prefix}."~{chromosome}".vcf.gz
         
-        tabix ~{prefix}."~{chromosome}".vcf.gz
+        tabix -p vcf ~{prefix}."~{chromosome}".vcf.gz
         
         # get number of records in chr
         HTS_AUTH_LOCATION=/tmp/token_fifo bcftools index -n ~{prefix}."~{chromosome}".vcf.gz > contig_length.txt

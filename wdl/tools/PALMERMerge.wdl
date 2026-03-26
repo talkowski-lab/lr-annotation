@@ -74,7 +74,7 @@ task MergeVCFs {
             -Oz -o ~{prefix}.merged.vcf.gz \
             inputs/*.vcf.gz
 
-        tabix ~{prefix}.merged.vcf.gz
+        tabix -p vcf ~{prefix}.merged.vcf.gz
 
         bcftools annotate \
             -r ~{contig} \
@@ -82,7 +82,7 @@ task MergeVCFs {
             -Oz -o ~{prefix}.vcf.gz \
             ~{prefix}.merged.vcf.gz
 
-        tabix ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {

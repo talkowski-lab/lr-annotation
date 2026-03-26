@@ -82,7 +82,6 @@ workflow TransferMethylationTags {
     output {
         File methylation_tagged_bam = MergeBams.merged_bam
         File methylation_tagged_bai = MergeBams.merged_bam_idx
-        File methylation_tags_tsv = MergeTagsTsvs.concatenated_tsv
     }
 }
 

@@ -334,7 +334,7 @@ task ConvertPALMERToVcf {
 			-T . \
 			-Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 		
-		tabix ~{sample}.palmer_calls.~{mei_type}.vcf.gz
+		tabix -p vcf ~{sample}.palmer_calls.~{mei_type}.vcf.gz
 	>>>
 
 	output {
@@ -403,7 +403,7 @@ task TruvariCollapse {
 			-Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz \
 			~{sample}.~{mei_type}.merged.vcf.gz
 		
-		tabix ~{sample}.~{mei_type}.merged.sorted.vcf.gz
+		tabix -p vcf ~{sample}.~{mei_type}.merged.sorted.vcf.gz
 	>>>
 
 	output {
