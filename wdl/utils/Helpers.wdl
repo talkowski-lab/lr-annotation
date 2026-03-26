@@ -1572,12 +1572,14 @@ task MergeBams {
         set -euo pipefail
 
         samtools merge \
-            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -f \
             -o ~{prefix}.bam \
             ~{sep=' ' bams}
         
-        samtools index ~{prefix}.bam
+        samtools index \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            ~{prefix}.bam
     >>>
 
     output {
@@ -1671,16 +1673,21 @@ task SubsetBamToContig {
         export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 
         samtools view \
-            --threads 3 \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -h \
             -b \
             -o ~{prefix}.bam \
             ~{bam} \
             ~{contig}
+
+        samtools index \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            ~{prefix}.bam
     >>>
 
     output {
         File contig_bam = "~{prefix}.bam"
+        File contig_bai = "~{prefix}.bam.bai"
     }
 
     RuntimeAttr default_attr = object {

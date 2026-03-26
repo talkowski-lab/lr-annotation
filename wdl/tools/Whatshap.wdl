@@ -49,6 +49,7 @@ workflow Whatshap {
         call Haplotag {
             input:
                 bam = SubsetBamToContig.contig_bam,
+                bai = SubsetBamToContig.contig_bai,
                 phased_vcf = SubsetVcfToContig.subset_vcf,
                 phased_vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 ref_fa = ref_fa,
@@ -80,6 +81,7 @@ workflow Whatshap {
 task Haplotag {
     input {
         File bam
+        File bai
         File phased_vcf
         File phased_vcf_idx
         File ref_fa
