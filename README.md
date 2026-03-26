@@ -21,7 +21,7 @@ This repository serves as a home for all scripts, workflows and processes for an
 - HPRC & HGSVC Overlapping Samples: HG002, HG00733, HG02818, NA19036, NA19240.
 - All of Us Phase 1.
 	- 1027 total samples.
-	- Metadata file extracted from VCF - all samples are unrelated and of African ancestry..
+	- Metadata file extracted from VCF - all samples are unrelated and of African ancestry.
 
 
 ## References
@@ -228,6 +228,10 @@ TODO
 
 
 ### [FillPhasedGenotypes](wdl/annotation_utils/FillPhasedGenotypes.wdl)
+TODO
+
+
+### [FillSVFormatFields](wdl/annotation_utils/FillSVFormatFields.wdl)
 TODO
 
 
