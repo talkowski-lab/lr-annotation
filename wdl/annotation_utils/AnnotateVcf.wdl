@@ -25,6 +25,8 @@ workflow AnnotateVcf {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Array[Boolean] sort_tsvs_resolved = select_first([sort_tsvs, []])
+
     scatter (contig in contigs) {
         call Helpers.SubsetVcfToContig {
             input:
@@ -41,7 +43,7 @@ workflow AnnotateVcf {
                 input:
                     tsv = annotations_tsvs[i],
                     contig = contig,
-                    sort_output = if defined(sort_tsvs) then select_first([sort_tsvs])[i] else false,
+                    sort_output = if length(sort_tsvs_resolved) > i then sort_tsvs_resolved[i] else false,
                     prefix = "~{prefix}.~{contig}.tsv~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_tsv
