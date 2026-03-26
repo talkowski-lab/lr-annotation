@@ -183,9 +183,9 @@ task RunKanpig {
     command <<<
         set -euo pipefail
 
-        export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
 
-        nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
+        export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 
         kanpig gt \
             --input ~{input_vcf} \
@@ -193,7 +193,7 @@ task RunKanpig {
             --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
-            --threads "${nproc}" \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --sample ~{sample_id} \
             ~{kanpig_params}
 
