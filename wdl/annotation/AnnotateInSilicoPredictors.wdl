@@ -91,16 +91,6 @@ task AnnotateInSilicoPredictorsTask {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 8,
-        disk_gb: ceil(10.0 + size(vcf, "GB") * 10.0),
-        boot_disk_gb: 10,
-        preemptible_tries: 3,
-        max_retries: 1
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
 
@@ -117,8 +107,8 @@ task AnnotateInSilicoPredictorsTask {
             --output_vcf ~{prefix}.vcf.bgz
 
         mv ~{prefix}.vcf.bgz ~{prefix}.vcf.gz
-        
-        tabix -p vcf ~{prefix}.vcf.gz
+
+        mv ~{prefix}.vcf.bgz.tbi ~{prefix}.vcf.gz.tbi
     >>>
 
     output {
@@ -126,6 +116,15 @@ task AnnotateInSilicoPredictorsTask {
         File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

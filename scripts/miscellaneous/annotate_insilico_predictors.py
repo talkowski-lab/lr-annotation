@@ -83,4 +83,4 @@ predictors = {
 for key, desc in predictors.items():
     header['info'][key] = {'Description': f"{key.replace('_', ' ').title()} from {desc}.", 'Number': '.', 'Type': 'Float'}
 
-hl.export_vcf(dataset=mt, output=output_vcf_uri, metadata=header)
+hl.export_vcf(dataset=mt, output=output_vcf_uri, metadata=header, tabix=True)
