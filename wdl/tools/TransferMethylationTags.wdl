@@ -229,12 +229,12 @@ task SortIndexBam {
 
         samtools sort \
             -@ 3 \
-            -o "~{prefix}.bam" \
+            -o ~{prefix}.bam \
             ~{unsorted_bam}
 
         samtools index \
             -@ 3 \
-            "~{prefix}.bam"
+            ~{prefix}.bam
     >>>
 
     output {
