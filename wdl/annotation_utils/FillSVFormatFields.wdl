@@ -315,6 +315,11 @@ def calc_pls(ref_depth, alt_depth, error_rate=0.001):
 def calc_gq(norm_pls):
     return min(sorted(norm_pls)[1], 99)
 
+# Maps caller names as they appear in sv_stats SUPP to VCF filename suffixes
+CALLER_NAME_MAP = {'dipcall': 'dip'}
+# Callers that can never supply AD (excluded from best-caller ranking)
+NO_AD_CALLERS = {'hapdiff'}
+
 def get_ad_from_record(record, caller, sample_name):
     fmt = record.samples[sample_name]
     if caller in ('cutesv', 'sniffles'):
@@ -322,7 +327,7 @@ def get_ad_from_record(record, caller, sample_name):
         dv = fmt.get('DV')
         if dr is not None and dv is not None:
             return (int(dr), int(dv))
-    elif caller in ('pbsv', 'sawfish'):
+    elif caller in ('pbsv', 'sawfish', 'dip', 'dipcall'):
         ad = fmt.get('AD')
         if ad is not None:
             return tuple(int(x) for x in ad)
@@ -384,21 +389,21 @@ with gzip.open("~{sv_stats}", 'rt') as f:
             'callers': callers,
         }
 
-# Map caller name -> (local_vcf_path, caller_sample_name)
+# Map VCF filename caller name -> (local_vcf_path, caller_sample_name)
 vcf_paths = "~{sep=',' sv_vcfs}".split(',')
 idx_paths = "~{sep=',' sv_vcf_idxs}".split(',')
 
 caller_vcf_map = {}
 for vcf_path, idx_path in zip(vcf_paths, idx_paths):
     bname = os.path.basename(vcf_path)
-    caller = bname.replace(sample_id + '.', '', 1).replace('.vcf.gz', '').replace('.vcf.bgz', '')
-    local_vcf = f"caller_{caller}.vcf.gz"
-    local_idx = f"caller_{caller}.vcf.gz.tbi"
+    vcf_caller = bname.replace(sample_id + '.', '', 1).replace('.vcf.gz', '').replace('.vcf.bgz', '')
+    local_vcf = f"caller_{vcf_caller}.vcf.gz"
+    local_idx = f"caller_{vcf_caller}.vcf.gz.tbi"
     os.symlink(vcf_path, local_vcf)
     os.symlink(idx_path, local_idx)
     with pysam.VariantFile(local_vcf) as tmp:
         caller_sample = list(tmp.header.samples)[0]
-    caller_vcf_map[caller] = (local_vcf, caller_sample)
+    caller_vcf_map[vcf_caller] = (local_vcf, caller_sample)
 
 # Add new FORMAT fields to the input VCF header, then write output
 vcf_in = pysam.VariantFile("~{subset_vcf}")
@@ -430,12 +435,16 @@ for record in vcf_in:
     ev = ','.join(callers)
 
     bucket_counts = caller_counts.get((svtype, len_bucket), {})
-    ranked_callers = sorted(callers, key=lambda c: bucket_counts.get(c, 0), reverse=True)
+    # Exclude callers that can never provide AD from the ranking
+    rankable = [c for c in callers if c not in NO_AD_CALLERS]
+    ranked_callers = sorted(rankable, key=lambda c: bucket_counts.get(c, 0), reverse=True)
 
     ad = None
     bev = None
     for caller in ranked_callers:
-        entry = caller_vcf_map.get(caller)
+        # Map sv_stats caller name to VCF filename caller name
+        vcf_caller = CALLER_NAME_MAP.get(caller, caller)
+        entry = caller_vcf_map.get(vcf_caller)
         if entry is None:
             continue
         vcf_path, caller_sample = entry

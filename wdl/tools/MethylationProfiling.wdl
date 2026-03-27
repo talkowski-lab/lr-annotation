@@ -27,8 +27,12 @@ workflow MethylationProfiling {
     }
 
     output {
-        File cpg_bed = CpgPileup.pileup_bed
-        File cpg_bed_idx = CpgPileup.pileup_bed_idx
+        File cpg_combined_bed = CpgPileup.pileup_combined_bed
+        File cpg_combined_bed_idx = CpgPileup.pileup_combined_bed_idx
+        File cpg_hap1_bed = CpgPileup.pileup_hap1_bed
+        File cpg_hap1_bed_idx = CpgPileup.pileup_hap1_bed_idx
+        File cpg_hap2_bed = CpgPileup.pileup_hap2_bed
+        File cpg_hap2_bed_idx = CpgPileup.pileup_hap2_bed_idx
     }
 }
 
@@ -57,8 +61,12 @@ task CpgPileup {
     >>>
 
     output {
-        File pileup_bed = "~{prefix}.combined.bed.gz"
-        File pileup_bed_idx = "~{prefix}.combined.bed.gz.tbi"
+        File pileup_combined_bed = "~{prefix}.combined.bed.gz"
+        File pileup_combined_bed_idx = "~{prefix}.combined.bed.gz.tbi"
+        File pileup_hap1_bed = "~{prefix}.hap1.bed.gz"
+        File pileup_hap1_bed_idx = "~{prefix}.hap1.bed.gz.tbi"
+        File pileup_hap2_bed = "~{prefix}.hap2.bed.gz"
+        File pileup_hap2_bed_idx = "~{prefix}.hap2.bed.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
