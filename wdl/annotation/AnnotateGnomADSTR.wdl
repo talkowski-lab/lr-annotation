@@ -15,7 +15,8 @@ workflow AnnotateGnomADSTR {
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_subset_contigs
+        RuntimeAttr? runtime_attr_subset_trv
         RuntimeAttr? runtime_attr_annotate_gnomad_str
         RuntimeAttr? runtime_attr_concat_vcf
     }
@@ -26,16 +27,27 @@ workflow AnnotateGnomADSTR {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                extra_args = "-i 'INFO/allele_type=\"trv\"'",
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+                runtime_attr_override = runtime_attr_subset_contigs
+        }
+
+        call Helpers.SubsetVcfByArgs {
+            input:
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                exclude_args = "INFO/allele_type=\"trv\"",
+                prefix = "~{prefix}.~{contig}.trv",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_trv
         }
 
         call AnnotateGnomADSTRLoci {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                base_vcf = SubsetVcfToContig.subset_vcf,
+                base_vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                trv_vcf = SubsetVcfByArgs.subset_vcf,
+                trv_vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                 gnomad_tr_json = gnomad_tr_json,
                 min_reciprocal_overlap = min_reciprocal_overlap,
                 prefix = "~{prefix}.~{contig}.gnomad_str",
@@ -63,8 +75,10 @@ workflow AnnotateGnomADSTR {
 
 task AnnotateGnomADSTRLoci {
     input {
-        File vcf
-        File vcf_idx
+        File base_vcf
+        File base_vcf_idx
+        File trv_vcf
+        File trv_vcf_idx
         File gnomad_tr_json
         Float min_reciprocal_overlap
         String prefix
@@ -101,7 +115,7 @@ PYCODE
         # Extract VCF variants to BED
         bcftools query \
             -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/MOTIFS\n' \
-            ~{vcf} \
+            ~{trv_vcf} \
         | sort -k1,1 -k2,2n > variants.bed
 
         # Condition 1: variant fully enveloped within a reference region (-f 1.0 = 100% of variant covered)
@@ -136,7 +150,7 @@ PYCODE
             | sort -k1,1 -u \
             > all_matches.tsv
 
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{vcf} \
+        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{trv_vcf} \
             | awk 'BEGIN{OFS="\t"} NR==FNR{locus[$1]=$2; next} ($5 in locus){print $1,$2,$3,$4,locus[$5]}' \
             all_matches.tsv - \
             | sort -k1,1 -k2,2n \
@@ -151,7 +165,7 @@ PYCODE
             -h header.lines \
             -a annot.txt.gz \
             -c CHROM,POS,REF,ALT,INFO/gnomAD_STR \
-            ~{vcf} \
+            ~{base_vcf} \
             -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
@@ -165,7 +179,7 @@ PYCODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
+        disk_gb: 2 * ceil(size(base_vcf, "GB") + size(trv_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
