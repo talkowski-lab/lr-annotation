@@ -513,3 +513,13 @@ workflows:
         - main
       tags:
         - /.*/
+
+  - subclass: WDL
+    name: DepthPreprocessing
+    primaryDescriptorPath: /wdl/tools/DepthPreprocessing.wdl
+    filters:
+      branches:
+        - main
+        - gcnv
+      tags:
+        - /.*/
