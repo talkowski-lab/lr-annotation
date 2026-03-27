@@ -9,8 +9,20 @@ workflow FillSVFormatFields {
         File cohort_vcf_idx
         Array[String] sample_ids
         Array[File] sample_sv_stats
-        Array[Array[File]] sample_sv_vcfs
-        Array[Array[File]] sample_sv_vcf_idxs
+        Array[File?] cutesv_vcfs
+        Array[File?] cutesv_vcf_idxs
+        Array[File?] sniffles_vcfs
+        Array[File?] sniffles_vcf_idxs
+        Array[File?] delly_vcfs
+        Array[File?] delly_vcf_idxs
+        Array[File?] pbsv_vcfs
+        Array[File?] pbsv_vcf_idxs
+        Array[File?] sawfish_vcfs
+        Array[File?] sawfish_vcf_idxs
+        Array[File?] dipcall_vcfs
+        Array[File?] dipcall_vcf_idxs
+        Array[File?] hapdiff_vcfs
+        Array[File?] hapdiff_vcf_idxs
         String prefix
 
         String utils_docker
@@ -79,8 +91,20 @@ workflow FillSVFormatFields {
                 subset_vcf = ExtractSample.subset_vcf,
                 subset_vcf_idx = ExtractSample.subset_vcf_idx,
                 sv_stats = sample_sv_stats[i],
-                sv_vcfs = sample_sv_vcfs[i],
-                sv_vcf_idxs = sample_sv_vcf_idxs[i],
+                cutesv_vcf = cutesv_vcfs[i],
+                cutesv_vcf_idx = cutesv_vcf_idxs[i],
+                sniffles_vcf = sniffles_vcfs[i],
+                sniffles_vcf_idx = sniffles_vcf_idxs[i],
+                delly_vcf = delly_vcfs[i],
+                delly_vcf_idx = delly_vcf_idxs[i],
+                pbsv_vcf = pbsv_vcfs[i],
+                pbsv_vcf_idx = pbsv_vcf_idxs[i],
+                sawfish_vcf = sawfish_vcfs[i],
+                sawfish_vcf_idx = sawfish_vcf_idxs[i],
+                dipcall_vcf = dipcall_vcfs[i],
+                dipcall_vcf_idx = dipcall_vcf_idxs[i],
+                hapdiff_vcf = hapdiff_vcfs[i],
+                hapdiff_vcf_idx = hapdiff_vcf_idxs[i],
                 caller_counts_tsv = AggregateCallerCounts.counts_tsv,
                 prefix = "~{prefix}.~{sample_ids[i]}.filled",
                 docker = utils_docker,
@@ -264,8 +288,20 @@ task FillSampleFormatFields {
         File subset_vcf
         File subset_vcf_idx
         File sv_stats
-        Array[File] sv_vcfs
-        Array[File] sv_vcf_idxs
+        File? cutesv_vcf
+        File? cutesv_vcf_idx
+        File? sniffles_vcf
+        File? sniffles_vcf_idx
+        File? delly_vcf
+        File? delly_vcf_idx
+        File? pbsv_vcf
+        File? pbsv_vcf_idx
+        File? sawfish_vcf
+        File? sawfish_vcf_idx
+        File? dipcall_vcf
+        File? dipcall_vcf_idx
+        File? hapdiff_vcf
+        File? hapdiff_vcf_idx
         File caller_counts_tsv
         String prefix
         String docker
@@ -389,14 +425,21 @@ with gzip.open("~{sv_stats}", 'rt') as f:
             'callers': callers,
         }
 
-# Map VCF filename caller name -> (local_vcf_path, caller_sample_name)
-vcf_paths = "~{sep=',' sv_vcfs}".split(',')
-idx_paths = "~{sep=',' sv_vcf_idxs}".split(',')
+# Build caller VCF map from per-caller optional input files
+caller_files = {
+    'cutesv':  ("~{cutesv_vcf}",  "~{cutesv_vcf_idx}"),
+    'sniffles': ("~{sniffles_vcf}", "~{sniffles_vcf_idx}"),
+    'delly':   ("~{delly_vcf}",   "~{delly_vcf_idx}"),
+    'pbsv':    ("~{pbsv_vcf}",    "~{pbsv_vcf_idx}"),
+    'sawfish': ("~{sawfish_vcf}", "~{sawfish_vcf_idx}"),
+    'dip':     ("~{dipcall_vcf}", "~{dipcall_vcf_idx}"),
+    'hapdiff': ("~{hapdiff_vcf}", "~{hapdiff_vcf_idx}"),
+}
 
 caller_vcf_map = {}
-for vcf_path, idx_path in zip(vcf_paths, idx_paths):
-    bname = os.path.basename(vcf_path)
-    vcf_caller = bname.replace(sample_id + '.', '', 1).replace('.vcf.gz', '').replace('.vcf.bgz', '')
+for vcf_caller, (vcf_path, idx_path) in caller_files.items():
+    if not vcf_path:
+        continue
     local_vcf = f"caller_{vcf_caller}.vcf.gz"
     local_idx = f"caller_{vcf_caller}.vcf.gz.tbi"
     os.symlink(vcf_path, local_vcf)
@@ -491,7 +534,7 @@ CODE
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: ceil(size(subset_vcf, "GB") + size(sv_stats, "GB") + size(sv_vcfs, "GB")) + 10,
+        disk_gb: ceil(size(subset_vcf, "GB") + size(sv_stats, "GB") + size(select_all([cutesv_vcf, sniffles_vcf, delly_vcf, pbsv_vcf, sawfish_vcf, dipcall_vcf, hapdiff_vcf]), "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
