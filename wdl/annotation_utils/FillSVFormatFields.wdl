@@ -27,6 +27,7 @@ workflow FillSVFormatFields {
 
         String utils_docker
 
+        String merge_args = "--merge id"
         File? swap_samples
 
         RuntimeAttr? runtime_attr_swap_samples
@@ -116,6 +117,7 @@ workflow FillSVFormatFields {
         input:
             vcfs = FillSampleFormatFields.filled_vcf,
             vcf_idxs = FillSampleFormatFields.filled_vcf_idx,
+            extra_args = merge_args,
             prefix = "~{prefix}.filled",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
@@ -280,8 +282,6 @@ CODE
     }
 }
 
-# For a single sample, fill AD/EV/BEV/GQ/PL FORMAT fields in the subset VCF using
-# caller-specific evidence from the raw SV caller VCFs.
 task FillSampleFormatFields {
     input {
         String sample_id
@@ -351,9 +351,6 @@ def calc_pls(ref_depth, alt_depth, error_rate=0.001):
 def calc_gq(norm_pls):
     return min(sorted(norm_pls)[1], 99)
 
-# Maps caller names as they appear in sv_stats SUPP to VCF filename suffixes
-CALLER_NAME_MAP = {'dipcall': 'dip'}
-# Callers that can never supply AD (excluded from best-caller ranking)
 NO_AD_CALLERS = {'hapdiff'}
 
 def get_ad_from_record(record, caller, sample_name):
@@ -363,7 +360,7 @@ def get_ad_from_record(record, caller, sample_name):
         dv = fmt.get('DV')
         if dr is not None and dv is not None:
             return (int(dr), int(dv))
-    elif caller in ('pbsv', 'sawfish', 'dip', 'dipcall'):
+    elif caller in ('pbsv', 'sawfish', 'dipcall'):
         ad = fmt.get('AD')
         if ad is not None:
             return tuple(int(x) for x in ad)
@@ -406,7 +403,7 @@ with open("~{caller_counts_tsv}", 'r') as f:
         key = (row['TYPE'], row['LEN'])
         caller_counts[key] = {k[6:]: int(v) for k, v in row.items() if k.startswith('COUNT_')}
 
-# Load sv_stats by variant ID (excluding pav from SUPP)
+# Load sv_stats by variant ID (excluding pav)
 sv_stats_map = {}
 with gzip.open("~{sv_stats}", 'rt') as f:
     header = None
@@ -432,7 +429,7 @@ caller_files = {
     'delly':   ("~{delly_vcf}",   "~{delly_vcf_idx}"),
     'pbsv':    ("~{pbsv_vcf}",    "~{pbsv_vcf_idx}"),
     'sawfish': ("~{sawfish_vcf}", "~{sawfish_vcf_idx}"),
-    'dip':     ("~{dipcall_vcf}", "~{dipcall_vcf_idx}"),
+    'dipcall': ("~{dipcall_vcf}", "~{dipcall_vcf_idx}"),
     'hapdiff': ("~{hapdiff_vcf}", "~{hapdiff_vcf_idx}"),
 }
 
@@ -478,16 +475,13 @@ for record in vcf_in:
     ev = ','.join(callers)
 
     bucket_counts = caller_counts.get((svtype, len_bucket), {})
-    # Exclude callers that can never provide AD from the ranking
     rankable = [c for c in callers if c not in NO_AD_CALLERS]
     ranked_callers = sorted(rankable, key=lambda c: bucket_counts.get(c, 0), reverse=True)
 
     ad = None
     bev = None
     for caller in ranked_callers:
-        # Map sv_stats caller name to VCF filename caller name
-        vcf_caller = CALLER_NAME_MAP.get(caller, caller)
-        entry = caller_vcf_map.get(vcf_caller)
+        entry = caller_vcf_map.get(caller)
         if entry is None:
             continue
         vcf_path, caller_sample = entry

@@ -1,9 +1,12 @@
 import argparse
+import numpy as np
 import hail as hl
 
 parser = argparse.ArgumentParser(description="Annotate VCF with GnomAD in silico predictors using Hail HTs.")
 
 parser.add_argument('--build', required=True, help='Reference genome build (e.g., GRCh37 or GRCh38).')
+parser.add_argument('--cores', required=True, help='CPU cores.')
+parser.add_argument('--mem', required=True, help='Memory in GB.')
 
 parser.add_argument('--cadd_ht', required=True, help='CADD Hail Table path.')
 parser.add_argument('--pangolin_ht', required=True, help='Pangolin Hail Table path.')
@@ -18,6 +21,8 @@ args = parser.parse_args()
 
 # Reference genome
 build = args.build
+cores = args.cores
+mem = int(np.floor(float(args.mem)))
 
 # Annotation HT paths
 cadd_ht_uri = args.cadd_ht
@@ -33,7 +38,12 @@ output_vcf_uri = args.output_vcf
 hl.init(
     default_reference=build,
     min_block_size=128,
-    local="local[*]",
+    spark_conf={
+        "spark.executor.cores": cores,
+        "spark.executor.memory": f"{int(np.floor(mem*0.4))}g",
+        "spark.driver.cores": cores,
+        "spark.driver.memory": f"{int(np.floor(mem*0.4))}g",
+    },
     tmp_dir="tmp", local_tmpdir="tmp"
 )
 

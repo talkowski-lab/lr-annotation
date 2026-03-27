@@ -98,6 +98,8 @@ task AnnotateInSilicoPredictorsTask {
 
         python3 annotate.py \
             --build ~{genome_build} \
+            --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
             --cadd_ht ~{cadd_ht} \
             --pangolin_ht ~{pangolin_ht} \
             --phylop_ht ~{phylop_ht} \
