@@ -11,7 +11,6 @@ workflow Kanpig {
         Array[File] bams
         Array[File] bais
         Array[String] sexes
-        Array[String] contigs
         String prefix
 
         File ref_fa
@@ -28,12 +27,9 @@ workflow Kanpig {
         File? swap_samples
 
         RuntimeAttr? runtime_attr_swap_samples
-        RuntimeAttr? runtime_attr_subset_to_contig
         RuntimeAttr? runtime_attr_subset_to_sample
         RuntimeAttr? runtime_attr_run_kanpig
         RuntimeAttr? runtime_attr_merge_genotypes
-        RuntimeAttr? runtime_attr_concat_raw_per_sample
-        RuntimeAttr? runtime_attr_concat_merged_per_sample
         RuntimeAttr? runtime_attr_merge_raw_vcfs
         RuntimeAttr? runtime_attr_merge_processed_vcfs
     }
@@ -53,88 +49,52 @@ workflow Kanpig {
     File final_cohort_vcf = select_first([SwapSampleIds.swapped_vcf, cohort_vcf])
     File final_cohort_vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, cohort_vcf_idx])
 
-    scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = final_cohort_vcf,
-                vcf_idx = final_cohort_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_to_contig
-        }
-    }
-
     scatter (i in range(length(sample_ids))) {
         File ploidy_bed = if sexes[i] == "M" then ploidy_bed_male else ploidy_bed_female
 
-        scatter (j in range(length(contigs))) {
-            call Helpers.SubsetVcfToSamples {
-                input:
-                    vcf = SubsetVcfToContig.subset_vcf[j],
-                    vcf_idx = SubsetVcfToContig.subset_vcf_idx[j],
-                    samples = [sample_ids[i]],
-                    filter_to_sample = false,
-                    prefix = "~{prefix}.~{sample_ids[i]}.~{contigs[j]}.subset",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_to_sample
-            }
-
-            call RunKanpig {
-                input:
-                    input_vcf = SubsetVcfToSamples.subset_vcf,
-                    input_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
-                    bam = bams[i],
-                    bai = bais[i],
-                    sample_id = sample_ids[i],
-                    ploidy_bed = ploidy_bed,
-                    kanpig_params = kanpig_params,
-                    ref_fa = ref_fa,
-                    ref_fai = ref_fai,
-                    prefix = "~{prefix}.~{sample_ids[i]}.~{contigs[j]}.kanpig",
-                    docker = kanpig_docker,
-                    runtime_attr_override = runtime_attr_run_kanpig
-            }
-
-            call MergeGenotypes {
-                input:
-                    base_vcf = SubsetVcfToSamples.subset_vcf,
-                    base_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
-                    kanpig_vcf = RunKanpig.regenotyped_vcf,
-                    kanpig_vcf_idx = RunKanpig.regenotyped_vcf_idx,
-                    prefix = "~{prefix}.~{sample_ids[i]}.~{contigs[j]}.kanpig_merged",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_merge_genotypes
-            }
-        }
-
-        call Helpers.ConcatVcfs as ConcatRawPerSample {
+        call Helpers.SubsetVcfToSamples {
             input:
-                vcfs = RunKanpig.regenotyped_vcf,
-                vcf_idxs = RunKanpig.regenotyped_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
-                prefix = "~{prefix}.~{sample_ids[i]}.kanpig_raw",
+                vcf = final_cohort_vcf,
+                vcf_idx = final_cohort_vcf_idx,
+                samples = [sample_ids[i]],
+                filter_to_sample = false,
+                prefix = "~{prefix}.~{sample_ids[i]}.subset",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_raw_per_sample
+                runtime_attr_override = runtime_attr_subset_to_sample
         }
 
-        call Helpers.ConcatVcfs as ConcatMergedPerSample {
+        call RunKanpig {
             input:
-                vcfs = MergeGenotypes.merged_vcf,
-                vcf_idxs = MergeGenotypes.merged_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
+                input_vcf = SubsetVcfToSamples.subset_vcf,
+                input_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
+                bam = bams[i],
+                bai = bais[i],
+                sample_id = sample_ids[i],
+                ploidy_bed = ploidy_bed,
+                kanpig_params = kanpig_params,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
+                prefix = "~{prefix}.~{sample_ids[i]}.kanpig",
+                docker = kanpig_docker,
+                runtime_attr_override = runtime_attr_run_kanpig
+        }
+
+        call MergeGenotypes {
+            input:
+                base_vcf = SubsetVcfToSamples.subset_vcf,
+                base_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
+                kanpig_vcf = RunKanpig.regenotyped_vcf,
+                kanpig_vcf_idx = RunKanpig.regenotyped_vcf_idx,
                 prefix = "~{prefix}.~{sample_ids[i]}.kanpig_merged",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_merged_per_sample
+                runtime_attr_override = runtime_attr_merge_genotypes
         }
     }
 
     call Helpers.MergeVcfs as MergeRaw {
         input:
-            vcfs = ConcatRawPerSample.concat_vcf,
-            vcf_idxs = ConcatRawPerSample.concat_vcf_idx,
+            vcfs = RunKanpig.regenotyped_vcf,
+            vcf_idxs = RunKanpig.regenotyped_vcf_idx,
             prefix = "~{prefix}.kanpig_raw",
             extra_args = merge_args,
             docker = utils_docker,
@@ -143,8 +103,8 @@ workflow Kanpig {
 
     call Helpers.MergeVcfs as MergeProcessed {
         input:
-            vcfs = ConcatMergedPerSample.concat_vcf,
-            vcf_idxs = ConcatMergedPerSample.concat_vcf_idx,
+            vcfs = MergeGenotypes.merged_vcf,
+            vcf_idxs = MergeGenotypes.merged_vcf_idx,
             prefix = "~{prefix}.kanpig_merged",
             extra_args = merge_args,
             docker = utils_docker,
@@ -175,17 +135,10 @@ task RunKanpig {
         RuntimeAttr? runtime_attr_override
     }
 
-    parameter_meta {
-        bam: { localization_optional: true }
-        bai: { localization_optional: true }
-    }
-
     command <<<
         set -euo pipefail
 
-        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
-
-        export CURL_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+        nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 
         kanpig gt \
             --input ~{input_vcf} \
@@ -193,7 +146,7 @@ task RunKanpig {
             --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
-            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            --threads "${nproc}" \
             --sample ~{sample_id} \
             ~{kanpig_params}
 
@@ -212,17 +165,17 @@ task RunKanpig {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(input_vcf, "GB")) + 10,
+        cpu_cores: 8,
+        mem_gb: 32,
+        disk_gb: ceil(size(bam, "GB")) + ceil(size(input_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: 2
-        memory: 4 + " GiB"
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
