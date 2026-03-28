@@ -146,7 +146,7 @@ task RunKanpig {
             --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
-            --threads "${nproc}" \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --sample ~{sample_id} \
             ~{kanpig_params}
 
@@ -165,8 +165,8 @@ task RunKanpig {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 8,
-        mem_gb: 32,
+        cpu_cores: 4,
+        mem_gb: 16,
         disk_gb: ceil(size(bam, "GB")) + ceil(size(input_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
