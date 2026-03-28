@@ -199,15 +199,7 @@ TODO
 TODO
 
 
-### [ConcatenateMosDepth](wdl/annotation_utils/ConcatenateMosDepth.wdl)
-TODO
-
-
 ### [CreateCoverageFile](wdl/annotation_utils/CreateCoverageFile.wdl)
-TODO
-
-
-### [CreateDepthProfile](wdl/annotation_utils/CreateDepthProfile.wdl)
 TODO
 
 
@@ -274,10 +266,6 @@ TODO
 
 
 ### [HiPhaseMerge](wdl/tools/HiPhaseMerge.wdl)
-TODO
-
-
-### [IndexCram](wdl/tools/IndexCram.wdl)
 TODO
 
 

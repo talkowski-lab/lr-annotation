@@ -70,12 +70,12 @@ task CpgPileup {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 12,
-        mem_gb: 48,
-        disk_gb: ceil((size(bam, "GB") + size(ref_fa, "GB")) * 2 + 20),
+        cpu_cores: 8,
+        mem_gb: 12,
+        disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 1
+        preemptible_tries: 2,
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {

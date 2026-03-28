@@ -1692,8 +1692,8 @@ task SubsetBamToContig {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: 25,
+        mem_gb: 2,
+        disk_gb: 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

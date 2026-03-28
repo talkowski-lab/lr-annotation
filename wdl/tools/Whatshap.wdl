@@ -92,46 +92,43 @@ task Haplotag {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: 3 * ceil(size(bam, "GB")) + ceil(size(phased_vcf, "GB")) + ceil(size(ref_fa, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
 
-        N_THREADS=~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])}
-        OUTPUT_THREADS=$(( N_THREADS > 1 ? N_THREADS - 1 : 1 ))
-
         whatshap haplotag \
-            -o ~{prefix}.bam \
+            -o ~{prefix}.out.bam \
             --reference ~{ref_fa} \
-            --output-threads $OUTPUT_THREADS \
+            --output-threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --output-haplotag-list ~{prefix}.haplotag_list.tsv \
             ~{if defined(extra_args) then extra_args else ""} \
             ~{phased_vcf} \
             ~{bam}
 
         samtools sort \
-            -@ $(( N_THREADS - 1 )) \
-            -o ~{prefix}.sorted.bam \
-            ~{prefix}.bam
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            -o ~{prefix}.bam \
+            ~{prefix}.out.bam
 
-        mv ~{prefix}.sorted.bam ~{prefix}.bam
-        samtools index -@ $(( N_THREADS - 1 )) ~{prefix}.bam
+        samtools index \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            ~{prefix}.bam
     >>>
 
     output {
         File haplotagged_bam = "~{prefix}.bam"
         File haplotagged_bai = "~{prefix}.bam.bai"
-        File haplotag_list   = "~{prefix}.haplotag_list.tsv"
+        File haplotag_list = "~{prefix}.haplotag_list.tsv"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(bam, "GB") + size(ref_fa, "GB") + size(phased_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

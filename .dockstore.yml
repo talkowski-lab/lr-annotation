@@ -197,26 +197,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: ConcatenateMosDepth
-    primaryDescriptorPath: /wdl/annotation_utils/ConcatenateMosDepth.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: CreateCoverageFile
     primaryDescriptorPath: /wdl/annotation_utils/CreateCoverageFile.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CreateDepthProfile
-    primaryDescriptorPath: /wdl/annotation_utils/CreateDepthProfile.wdl
     filters:
       branches:
         - main
@@ -355,15 +337,6 @@ workflows:
   - subclass: WDL
     name: HiPhaseMerge
     primaryDescriptorPath: /wdl/tools/HiPhaseMerge.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: IndexCram
-    primaryDescriptorPath: /wdl/tools/IndexCram.wdl
     filters:
       branches:
         - main
