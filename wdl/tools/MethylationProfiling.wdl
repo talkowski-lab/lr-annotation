@@ -56,8 +56,8 @@ task CpgPileup {
             --ref ~{ref_fa} \
             --output-prefix ~{prefix} \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
-            --min-coverage 10 \
-            --min-mapq 1
+            --min-coverage 4 \
+            --min-mapq 10
     >>>
 
     output {
