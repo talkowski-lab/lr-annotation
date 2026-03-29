@@ -137,12 +137,10 @@ task RunKanpig {
 
     command <<<
         set -euo pipefail
-
-        nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
-
+        
         kanpig gt \
             --input ~{input_vcf} \
-            --out ~{prefix}.kanpig.vcf \
+            --out ~{prefix}.vcf \
             --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
@@ -150,11 +148,7 @@ task RunKanpig {
             --sample ~{sample_id} \
             ~{kanpig_params}
 
-        bcftools sort \
-            -Oz -o ~{prefix}.vcf.gz \
-            ~{prefix}.kanpig.vcf
-        
-        rm ~{prefix}.kanpig.vcf
+        gzip -c ~{prefix}.vcf > ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -237,6 +231,8 @@ for rec in base_vcf:
             if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
                 continue
             rec.samples[sample][field] = val
+
+    record.samples[sample].phased = False
     
     out.write(rec)
 
