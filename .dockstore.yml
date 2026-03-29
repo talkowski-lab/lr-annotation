@@ -188,6 +188,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CombineCohortTRs
+    primaryDescriptorPath: /wdl/annotation_utils/CombineCohortTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CombineTRs
     primaryDescriptorPath: /wdl/annotation_utils/CombineTRs.wdl
     filters:

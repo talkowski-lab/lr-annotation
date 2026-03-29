@@ -195,6 +195,10 @@ TODO
 TODO
 
 
+### [CombineCohortTRs](wdl/annotation_utils/CombineCohortTRs.wdl)
+TODO
+
+
 ### [CombineTRs](wdl/annotation_utils/CombineTRs.wdl)
 TODO
 
