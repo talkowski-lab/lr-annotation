@@ -123,12 +123,12 @@ workflow FillSVFormatFields {
             runtime_attr_override = runtime_attr_merge_vcfs
     }
 
-    call Helpers.ConcatTsvs as ConcatMissingMatches {
+    call Helpers.ConcatTsvs as ConcatFormatSource {
         input:
-            tsvs = FillSampleFormatFields.missing_matches_tsv,
+            tsvs = FillSampleFormatFields.format_source_tsv,
             sort_output = false,
             preserve_header = true,
-            prefix = "~{prefix}.missing_matches",
+            prefix = "~{prefix}.format_source",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_missing
     }
@@ -137,7 +137,7 @@ workflow FillSVFormatFields {
         File filled_cohort_vcf = MergeVcfs.merged_vcf
         File filled_cohort_vcf_idx = MergeVcfs.merged_vcf_idx
         File caller_counts_tsv = AggregateCallerCounts.counts_tsv
-        File missing_matches = ConcatMissingMatches.concatenated_tsv
+        File format_source = ConcatFormatSource.concatenated_tsv
     }
 }
 
@@ -318,6 +318,8 @@ import csv
 import pysam
 from math import lgamma, log
 
+NO_AD_CALLERS = {'hapdiff'}
+
 def get_len_bucket(svlen):
     l = abs(int(svlen))
     if l < 50:
@@ -351,8 +353,6 @@ def calc_pls(ref_depth, alt_depth, error_rate=0.001):
 def calc_gq(norm_pls):
     return min(sorted(norm_pls)[1], 99)
 
-NO_AD_CALLERS = {'hapdiff'}
-
 def get_ad_from_record(record, caller, sample_name):
     fmt = record.samples[sample_name]
     if caller in ('cutesv', 'sniffles'):
@@ -371,13 +371,13 @@ def get_ad_from_record(record, caller, sample_name):
             return (int(rr), int(rv))
     return None
 
-def find_matching_variant(vcf_path, chrom, pos, svtype, window=5000):
+def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
+    vcf = pysam.VariantFile(vcf_path)
+    start = max(0, pos - window)
+    end = pos + window
+    best = None
+    best_dist = float('inf')
     try:
-        vcf = pysam.VariantFile(vcf_path)
-        start = max(0, pos - window)
-        end = pos + window
-        best = None
-        best_dist = float('inf')
         for rec in vcf.fetch(chrom, start, end):
             rec_svtype = rec.info.get('SVTYPE', '')
             if isinstance(rec_svtype, tuple):
@@ -388,10 +388,9 @@ def find_matching_variant(vcf_path, chrom, pos, svtype, window=5000):
             if dist < best_dist:
                 best_dist = dist
                 best = rec
+    finally:
         vcf.close()
-        return best
-    except Exception:
-        return None
+    return best
 
 sample_id = "~{sample_id}"
 
@@ -455,7 +454,7 @@ header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype qua
 header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
-missing_rows = []
+format_source_rows = []
 
 for record in vcf_in:
     sample_name = list(record.samples.keys())[0]
@@ -480,40 +479,51 @@ for record in vcf_in:
 
     ad = None
     bev = None
+    match_pos = '.'
+    match_dist = '.'
     for caller in ranked_callers:
         entry = caller_vcf_map.get(caller)
         if entry is None:
             continue
         vcf_path, caller_sample = entry
-        match = find_matching_variant(vcf_path, record.chrom, record.start, svtype)
+        match = find_matching_variant(vcf_path, record.chrom, record.pos, svtype)
         if match is None:
             continue
         ad = get_ad_from_record(match, caller, caller_sample)
         if ad is not None:
             bev = caller
+            match_pos = str(match.pos)
+            match_dist = str(abs(match.pos - record.pos))
             break
-
-    if ad is None:
-        missing_rows.append((record.id, sample_id))
 
     record.samples[sample_name]['EV'] = ev
     record.samples[sample_name]['BEV'] = bev if bev else '.'
 
-    if ad is not None and len(ad) >= 2:
+    if ad is None:
+        format_source_rows.append((
+            record.id, sample_id, record.chrom, str(record.pos),
+            svtype, ev, '.', '.', '.', '.', '.', ','.join(ranked_callers)
+        ))
+    else:
         record.samples[sample_name]['AD'] = ad
         pls = calc_pls(ad[0], ad[1])
         record.samples[sample_name]['PL'] = tuple(pls)
         record.samples[sample_name]['GQ'] = calc_gq(pls)
+        format_source_rows.append((
+            record.id, sample_id, record.chrom, str(record.pos),
+            svtype, ev, bev, f"{ad[0]},{ad[1]}", match_pos, match_dist,
+            str(calc_gq(pls)), ','.join(ranked_callers)
+        ))
 
     vcf_out.write(record)
 
 vcf_in.close()
 vcf_out.close()
 
-with open("~{prefix}.missing_matches.tsv", 'w') as f:
-    f.write("VARIANT_ID\tSAMPLE\n")
-    for var_id, sid in missing_rows:
-        f.write(f"{var_id}\t{sid}\n")
+with open("~{prefix}.format_source.tsv", 'w') as f:
+    f.write("VARIANT_ID\tSAMPLE\tCHROM\tPOS\tSVTYPE\tEV\tBEV\tAD\tMATCH_POS\tMATCH_DIST\tGQ\tRANKED_CALLERS\n")
+    for row in format_source_rows:
+        f.write("\t".join(row) + "\n")
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
@@ -522,7 +532,7 @@ CODE
     output {
         File filled_vcf = "~{prefix}.vcf.gz"
         File filled_vcf_idx = "~{prefix}.vcf.gz.tbi"
-        File missing_matches_tsv = "~{prefix}.missing_matches.tsv"
+        File format_source_tsv = "~{prefix}.format_source.tsv"
     }
 
     RuntimeAttr default_attr = object {
