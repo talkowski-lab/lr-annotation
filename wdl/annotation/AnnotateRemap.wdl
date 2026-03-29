@@ -91,12 +91,12 @@ task InsRemap {
 
     command <<<
         set -euxo pipefail
-
+        echo "starting"
         # how many cpus are available?
         N_SOCKETS="$(lscpu | grep '^Socket(s):' | awk '{print $NF}')"
         N_CORES_PER_SOCKET="$(lscpu | grep '^Core(s) per socket:' | awk '{print $NF}')"
         N_THREADS=$(( ${N_SOCKETS} * ${N_CORES_PER_SOCKET} ))
-
+        echo "moving refs"
         mkdir ref_files
         mv ~{ref_fa} ref_files/
         mv ~{ref_fai} ref_files/
@@ -106,7 +106,7 @@ task InsRemap {
         done
 
         ref_fa_basename=$(basename ~{ref_fa})
-
+        echo "running truvari"
         truvari anno remap -r ref_files/$ref_fa_basename -o ~{prefix}.remapped.vcf.gz \
             --min-length ~{minlength} --max-length ~{maxlength} --mm2-threshold ~{mm2_threshold} \
             --threads ${N_THREADS} --cov-threshold ~{cov_threshold} ~{vcf}
