@@ -371,6 +371,32 @@ def get_ad_from_record(record, caller, sample_name):
             return (int(rr), int(rv))
     return None
 
+def get_rec_svtype(rec):
+    try:
+        svt = rec.info.get('SVTYPE', '')
+        if isinstance(svt, tuple):
+            svt = svt[0]
+        return svt
+    except ValueError:
+        ref_len = len(rec.ref) if rec.ref else 0
+        alt_len = max((len(str(a)) for a in rec.alts), default=0) if rec.alts else 0
+        if alt_len > ref_len:
+            return 'INS'
+        elif ref_len > alt_len:
+            return 'DEL'
+        return ''
+
+def get_rec_svlen(rec):
+    try:
+        svl = rec.info.get('SVLEN', '')
+        if isinstance(svl, tuple):
+            svl = svl[0]
+        return abs(svl)
+    except ValueError:
+        ref_len = len(rec.ref) if rec.ref else 0
+        alt_len = max((len(str(a)) for a in rec.alts), default=0) if rec.alts else 0
+        return abs(ref_len - alt_len)
+
 def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
     vcf = pysam.VariantFile(vcf_path)
     start = max(0, pos - window)
@@ -379,10 +405,9 @@ def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
     best_dist = float('inf')
     try:
         for rec in vcf.fetch(chrom, start, end):
-            rec_svtype = rec.info.get('SVTYPE', '')
-            if isinstance(rec_svtype, tuple):
-                rec_svtype = rec_svtype[0]
-            if rec_svtype != svtype:
+            if get_rec_svtype(rec) != svtype:
+                continue
+            if get_rec_svlen(rec) < 50:
                 continue
             dist = abs(rec.pos - pos)
             if dist < best_dist:
