@@ -52,10 +52,10 @@ task CpgPileup {
         
         aligned_bam_to_cpg_scores \
             --bam ~{bam} \
-            --pileup-mode model \
             --ref ~{ref_fa} \
             --output-prefix ~{prefix} \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            --pileup-mode model \
             --min-coverage 4 \
             --min-mapq 10
     >>>

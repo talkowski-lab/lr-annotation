@@ -86,7 +86,7 @@ workflow FillSVFormatFields {
                 runtime_attr_override = runtime_attr_extract_sample
         }
 
-        call FillSampleFormatFields {
+        call FillFormatFields {
             input:
                 sample_id = sample_ids[i],
                 subset_vcf = ExtractSample.subset_vcf,
@@ -115,8 +115,8 @@ workflow FillSVFormatFields {
 
     call Helpers.MergeVcfs {
         input:
-            vcfs = FillSampleFormatFields.filled_vcf,
-            vcf_idxs = FillSampleFormatFields.filled_vcf_idx,
+            vcfs = FillFormatFields.filled_vcf,
+            vcf_idxs = FillFormatFields.filled_vcf_idx,
             extra_args = merge_args,
             prefix = "~{prefix}.filled",
             docker = utils_docker,
@@ -125,7 +125,7 @@ workflow FillSVFormatFields {
 
     call Helpers.ConcatTsvs as ConcatFormatSource {
         input:
-            tsvs = FillSampleFormatFields.format_source_tsv,
+            tsvs = FillFormatFields.format_source_tsv,
             sort_output = false,
             preserve_header = true,
             prefix = "~{prefix}.format_source",
@@ -282,7 +282,7 @@ CODE
     }
 }
 
-task FillSampleFormatFields {
+task FillFormatFields {
     input {
         String sample_id
         File subset_vcf
