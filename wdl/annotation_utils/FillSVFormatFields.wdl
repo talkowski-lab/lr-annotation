@@ -503,7 +503,7 @@ for record in vcf_in:
     if stat is None or not stat['callers']:
         format_source_rows.append((
             record.id, sample_id, record.chrom, str(record.pos),
-            stat['svtype'] if stat else '.', '.', '.', '.', '.', '.', '.', '.'
+            stat['svtype'] if stat else '.', '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
         ))
         vcf_out.write(record)
         continue
@@ -512,7 +512,7 @@ for record in vcf_in:
     if svtype not in ('INS', 'DEL'):
         format_source_rows.append((
             record.id, sample_id, record.chrom, str(record.pos),
-            svtype, '.', '.', '.', '.', '.', '.', '.'
+            svtype, '.', '.', '.', '.', '.', '.', '.', 'INVALID_SVTYPE'
         ))
         vcf_out.write(record)
         continue
@@ -552,7 +552,7 @@ for record in vcf_in:
     if ad is None:
         format_source_rows.append((
             record.id, sample_id, record.chrom, str(record.pos),
-            svtype, ev, '.', '.', '.', '.', '.', ','.join(ranked_callers)
+            svtype, ev, '.', '.', '.', '.', '.', ','.join(ranked_callers), 'NO_AD'
         ))
     else:
         record.samples[sample_name]['AD'] = ad
@@ -562,7 +562,7 @@ for record in vcf_in:
         format_source_rows.append((
             record.id, sample_id, record.chrom, str(record.pos),
             svtype, ev, bev, f"{ad[0]},{ad[1]}", match_pos, match_dist,
-            str(calc_gq(pls)), ','.join(ranked_callers)
+            str(calc_gq(pls)), ','.join(ranked_callers), 'MATCHED'
         ))
 
     vcf_out.write(record)
@@ -571,7 +571,7 @@ vcf_in.close()
 vcf_out.close()
 
 with open("~{prefix}.format_source.tsv", 'w') as f:
-    f.write("VARIANT_ID\tSAMPLE\tCHROM\tPOS\tSVTYPE\tEV\tBEV\tAD\tMATCH_POS\tMATCH_DIST\tGQ\tRANKED_CALLERS\n")
+    f.write("VARIANT_ID\tSAMPLE\tCHROM\tPOS\tSVTYPE\tEV\tBEV\tAD\tMATCH_POS\tMATCH_DIST\tGQ\tRANKED_CALLERS\tREASON\n")
     for row in format_source_rows:
         f.write("\t".join(row) + "\n")
 CODE
