@@ -501,11 +501,19 @@ for record in vcf_in:
     stat = sv_stats_map.get(record.id)
 
     if stat is None or not stat['callers']:
+        format_source_rows.append((
+            record.id, sample_id, record.chrom, str(record.pos),
+            stat['svtype'] if stat else '.', '.', '.', '.', '.', '.', '.', '.'
+        ))
         vcf_out.write(record)
         continue
 
     svtype = stat['svtype']
     if svtype not in ('INS', 'DEL'):
+        format_source_rows.append((
+            record.id, sample_id, record.chrom, str(record.pos),
+            svtype, '.', '.', '.', '.', '.', '.', '.'
+        ))
         vcf_out.write(record)
         continue
 
@@ -526,9 +534,11 @@ for record in vcf_in:
         if entry is None:
             continue
         vcf_path, caller_sample = entry
+
         match = find_matching_variant(vcf_path, record.chrom, record.pos, svtype)
         if match is None:
             continue
+        
         ad = get_ad_from_record(match, caller, caller_sample, target_svlen=stat['svlen'])
         if ad is not None:
             bev = caller
