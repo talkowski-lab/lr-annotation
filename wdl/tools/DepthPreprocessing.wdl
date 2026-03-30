@@ -6,7 +6,7 @@ workflow DepthPreprocessing {
   input {
     Array[String] samples
     Array[File] genotyped_segments_vcfs
-    Array[File] contig_ploidy_calls
+    File contig_ploidy_calls_tar
     String batch
     String sv_base_mini_docker
     String sv_pipeline_docker
@@ -18,8 +18,9 @@ workflow DepthPreprocessing {
     call GcnvVcfToBed {
       input:
         sample_id = samples[i],
+        sample_index = i,
         vcf = genotyped_segments_vcfs[i],
-        contig_ploidy_call_tar = contig_ploidy_calls[i],
+        contig_ploidy_calls_tar = contig_ploidy_calls_tar,
         sv_pipeline_docker = sv_pipeline_docker,
         qs_cutoff = gcnv_qs_cutoff
     }
@@ -72,7 +73,8 @@ workflow DepthPreprocessing {
 task GcnvVcfToBed {
   input {
     File vcf
-    File contig_ploidy_call_tar
+    File contig_ploidy_calls_tar
+    Int sample_index
     String sample_id
     Int qs_cutoff
 
@@ -85,7 +87,7 @@ task GcnvVcfToBed {
     Int? max_retries
   }
 
-  Int default_disk_gb = ceil(size([vcf, contig_ploidy_call_tar], "GB") * 2) + 50
+  Int default_disk_gb = ceil(size([vcf, contig_ploidy_calls_tar], "GB") * 2) + 50
 
   runtime {
     cpu: select_first([cpu, 1])
@@ -101,7 +103,22 @@ task GcnvVcfToBed {
   command <<<
     set -euo pipefail
 
-    tar xzf ~{contig_ploidy_call_tar}
+    tar xzf ~{contig_ploidy_calls_tar}
+    # The tar file contains one directory per sample given to GATK DetermineGermlineContigPloidy,
+    # with the naming scheme SAMPLE_0 to SAMPLE_N-1, presumably in the order the samples were given
+    # to the tool.
+    calls_dir='~{"SAMPLE_" + sample_index}'
+    expected_sample_id='~{sample_id}'
+    actual_sample_id="$(cat "${calls_dir}/sample_name.txt")"
+    if [[ "${expected_sample_id}" != "${actual_sample_id}" ]]; then
+      printf 'Expected sample ID does not match actual sample ID\n' >&2
+      printf 'Expected: %s\n' "${expected_sample_id}" >&2
+      printf 'Actual: %s\n' "${actual_sample_id}" >&2
+      printf 'Likely that sample order for this task differs from order given to GATK DetermineGermlineContigPloidy\n' >&2
+      exit 1
+    fi
+    cp "${calls_dir}/contig_ploidy.tsv" contig_ploidy.tsv
+
     tabix ~{vcf}
     python /opt/WGD/bin/convert_gcnv.py \
       --cutoff ~{qs_cutoff} \
