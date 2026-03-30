@@ -148,7 +148,7 @@ task RunKanpig {
             --sample ~{sample_id} \
             ~{kanpig_params}
 
-        gzip -c ~{prefix}.vcf > ~{prefix}.vcf.gz
+        bgzip -c ~{prefix}.vcf > ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
