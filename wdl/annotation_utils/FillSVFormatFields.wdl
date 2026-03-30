@@ -353,7 +353,7 @@ def calc_pls(ref_depth, alt_depth, error_rate=0.001):
 def calc_gq(norm_pls):
     return min(sorted(norm_pls)[1], 99)
 
-def get_ad_from_record(record, caller, sample_name):
+def get_ad_from_record(record, caller, sample_name, target_svlen=None):
     fmt = record.samples[sample_name]
     if caller in ('cutesv', 'sniffles'):
         dr = fmt.get('DR')
@@ -363,7 +363,20 @@ def get_ad_from_record(record, caller, sample_name):
     elif caller in ('pbsv', 'sawfish', 'dipcall'):
         ad = fmt.get('AD')
         if ad is not None:
-            return tuple(int(x) for x in ad)
+            ad = tuple(int(x) for x in ad)
+            if len(ad) == 2:
+                return ad
+            if len(ad) > 2 and record.alts and target_svlen is not None:
+                ref_len = len(record.ref) if record.ref else 0
+                best_idx = 0
+                best_diff = float('inf')
+                for i, alt in enumerate(record.alts):
+                    allele_svlen = abs(len(str(alt)) - ref_len)
+                    diff = abs(allele_svlen - abs(int(target_svlen)))
+                    if diff < best_diff:
+                        best_diff = diff
+                        best_idx = i
+                return (ad[0], ad[best_idx + 1])
     elif caller == 'delly':
         rr = fmt.get('RR')
         rv = fmt.get('RV')
@@ -371,20 +384,22 @@ def get_ad_from_record(record, caller, sample_name):
             return (int(rr), int(rv))
     return None
 
-def get_rec_svtype(rec):
+def rec_has_svtype(rec, svtype):
     try:
         svt = rec.info.get('SVTYPE', '')
         if isinstance(svt, tuple):
             svt = svt[0]
-        return svt
+        return svt == svtype
     except ValueError:
         ref_len = len(rec.ref) if rec.ref else 0
-        alt_len = max((len(str(a)) for a in rec.alts), default=0) if rec.alts else 0
-        if alt_len > ref_len:
-            return 'INS'
-        elif ref_len > alt_len:
-            return 'DEL'
-        return ''
+        if rec.alts:
+            for alt in rec.alts:
+                alt_len = len(str(alt))
+                if svtype == 'INS' and alt_len > ref_len:
+                    return True
+                elif svtype == 'DEL' and ref_len > alt_len:
+                    return True
+        return False
 
 def get_rec_svlen(rec):
     try:
@@ -405,7 +420,7 @@ def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
     best_dist = float('inf')
     try:
         for rec in vcf.fetch(chrom, start, end):
-            if get_rec_svtype(rec) != svtype:
+            if not rec_has_svtype(rec, svtype):
                 continue
             if get_rec_svlen(rec) < 50:
                 continue
@@ -514,7 +529,7 @@ for record in vcf_in:
         match = find_matching_variant(vcf_path, record.chrom, record.pos, svtype)
         if match is None:
             continue
-        ad = get_ad_from_record(match, caller, caller_sample)
+        ad = get_ad_from_record(match, caller, caller_sample, target_svlen=stat['svlen'])
         if ad is not None:
             bev = caller
             match_pos = str(match.pos)
