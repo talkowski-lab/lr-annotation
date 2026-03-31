@@ -223,6 +223,9 @@ def calculate_pl(ref_reads, alt_reads):
     max_ll = max(ll_raw)
     return tuple(int(round(-10 * (ll - max_ll))) for ll in ll_raw)
 
+def calculate_gq(pls):
+    return min(sorted(pls)[1], 99)
+
 kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
 base_vcf = pysam.VariantFile("~{base_vcf}")
 
@@ -250,17 +253,16 @@ for rec in base_vcf:
 
     # Ref/missing in base and ref in kanpig → set FORMAT fields to kanpig
     if not is_non_ref(base_gt) and not is_non_ref(kp_gt) and not is_missing(kp_gt):
-        for field in ['GT', 'AD', 'GQ', 'DP']:
+        for field in ['GT', 'AD', 'DP']:
             val = kp_rec.samples[sample][field]
             if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
                 continue
-            if field == 'GQ' and val is not None:
-                val = min(val, 99)
             rec.samples[sample][field] = val
         
         ad_val = rec.samples[sample].get('AD')
         if ad_val is not None and len(ad_val) == 2:
             rec.samples[sample]['PL'] = calculate_pl(ad_val[0], ad_val[1])
+            rec.samples[sample]['GQ'] = calculate_gq(pls)
 
     rec.samples[sample].phased = False
     
