@@ -96,7 +96,7 @@ task GcnvVcfToBed {
     bootDiskSizeGb: select_first([boot_disk_gb, 10])
     docker: sv_pipeline_docker
     preemptible: select_first([preemptible_tries, 3])
-    maxRetries: select_first([max_retries, 3])
+    maxRetries: select_first([max_retries, 1])
     noAddress: true
   }
 
@@ -157,7 +157,7 @@ task MergeSample {
     bootDiskSizeGb: select_first([boot_disk_gb, 10])
     docker: sv_pipeline_docker
     preemptible: select_first([preemptible_tries, 3])
-    maxRetries: select_first([max_retries, 3])
+    maxRetries: select_first([max_retries, 1])
     noAddress: true
   }
 
@@ -200,7 +200,7 @@ task MergeSet {
     bootDiskSizeGb: select_first([boot_disk_gb, 10])
     docker: sv_base_mini_docker
     preemptible: select_first([preemptible_tries, 3])
-    maxRetries: select_first([max_retries, 3])
+    maxRetries: select_first([max_retries, 1])
     noAddress: true
   }
 
