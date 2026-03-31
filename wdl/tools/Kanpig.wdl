@@ -200,7 +200,7 @@ task MergeGenotypes {
 import pysam
 import math
 
-def is_non_ref(gt):
+def is_called(gt):
     return any(a is not None and a > 0 for a in gt)
 
 def is_missing(gt):
@@ -251,8 +251,8 @@ for rec in base_vcf:
     )
     kp_gt = kp_rec.samples[sample]['GT']
 
-    # Ref/missing in base and ref in kanpig → set FORMAT fields to kanpig
-    if not is_non_ref(base_gt) and not is_non_ref(kp_gt) and not is_missing(kp_gt):
+    # Ref/missing in base and ref in Kanpig → set FORMAT fields to Kanpig
+    if not is_called(base_gt) and not is_called(kp_gt) and not is_missing(kp_gt):
         for field in ['GT', 'AD', 'DP']:
             val = kp_rec.samples[sample][field]
             if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
@@ -263,6 +263,16 @@ for rec in base_vcf:
         if ad_val is not None and len(ad_val) == 2:
             rec.samples[sample]['PL'] = calculate_pl(ad_val[0], ad_val[1])
             rec.samples[sample]['GQ'] = calculate_gq(pls)
+
+    # Ref/missing in base and missing in Kanpig → set FORMAT fields to .
+    if (not is_called(base_gt) and not is_called(kp_gt) and is_missing(kp_gt)):
+        for field in ['GT', 'AD', 'DP', 'PL', 'GQ']:
+            rec.samples[sample][field] = None
+
+    # Ref/missing in base and non-ref in Kanpig → set FORMAT fields to .
+    if (not is_called(base_gt) and is_called(kp_gt)):
+        for field in ['GT', 'AD', 'DP', 'PL', 'GQ']:
+            rec.samples[sample][field] = None
 
     rec.samples[sample].phased = False
     

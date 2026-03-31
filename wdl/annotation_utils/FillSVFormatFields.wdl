@@ -406,14 +406,16 @@ def rec_has_svtype(rec, svtype):
 
 def get_rec_svlen(rec):
     try:
-        svl = rec.info.get('SVLEN', '')
-        if isinstance(svl, tuple):
-            svl = svl[0]
-        return abs(svl)
-    except ValueError:
-        ref_len = len(rec.ref) if rec.ref else 0
-        alt_len = max((len(str(a)) for a in rec.alts), default=0) if rec.alts else 0
-        return abs(ref_len - alt_len)
+        svl = rec.info.get('SVLEN', None)
+        if svl is not None:
+            if isinstance(svl, tuple):
+                svl = svl[0]
+            return abs(svl)
+    except (ValueError, TypeError):
+        pass
+    ref_len = len(rec.ref) if rec.ref else 0
+    alt_len = max((len(str(a)) for a in rec.alts), default=0) if rec.alts else 0
+    return abs(ref_len - alt_len)
 
 def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
     vcf = pysam.VariantFile(vcf_path)
@@ -434,6 +436,8 @@ def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
     finally:
         vcf.close()
     return best
+
+sample_id = "~{sample_id}"
 
 # Load caller counts: (TYPE, LEN_BUCKET) -> {caller: count}
 caller_counts = {}
@@ -534,7 +538,7 @@ for record in vcf_in:
 
     if stat is None or not stat['callers']:
         format_source_rows.append((
-            record.id, '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
+            sample_id, record.id, '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
         ))
         vcf_out.write(record)
         continue
@@ -580,7 +584,7 @@ for record in vcf_in:
 
     if ad is None:
         format_source_rows.append((
-            record.id, stat_id, raw_id, ev, '.', match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'NO_AD'
+            sample_id, record.id, stat_id, raw_id, ev, '.', match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'NO_AD'
         ))
     else:
         record.samples[sample_name]['AD'] = ad
@@ -588,7 +592,7 @@ for record in vcf_in:
         record.samples[sample_name]['PL'] = tuple(pls)
         record.samples[sample_name]['GQ'] = calc_gq(pls)
         format_source_rows.append((
-            record.id, stat_id, raw_id, ev, bev, match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'MATCHED'
+            sample_id, record.id, stat_id, raw_id, ev, bev, match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'MATCHED'
         ))
 
     vcf_out.write(record)
@@ -597,7 +601,7 @@ vcf_in.close()
 vcf_out.close()
 
 with open("~{prefix}.format_source.tsv", 'w') as f:
-    f.write("VARIANT_ID_VCF\tVARIANT_ID_STATS\tVARIANT_ID_RAW\tEV\tBEV\tMATCH_DIST_VCF_STATS\tMATCH_DIST_VCF_RAW\tMATCH_DIST_STATS_RAW\tSTATUS\n")
+    f.write("SAMPLE\tVARIANT_ID_VCF\tVARIANT_ID_STATS\tVARIANT_ID_RAW\tEV\tBEV\tMATCH_DIST_VCF_STATS\tMATCH_DIST_VCF_RAW\tMATCH_DIST_STATS_RAW\tSTATUS\n")
     for row in format_source_rows:
         f.write("\t".join(row) + "\n")
 CODE
