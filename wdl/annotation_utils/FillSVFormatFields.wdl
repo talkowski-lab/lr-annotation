@@ -469,7 +469,7 @@ with gzip.open("~{sv_stats}", 'rt') as f:
         sv_stats_map[fields['ID']] = stat
         sv_stats_spatial[fields['CHROM']].append((int(fields['POS']), stat))
 for chrom in sv_stats_spatial:
-    sv_stats_spatial[chrom].sort()
+    sv_stats_spatial[chrom].sort(key=lambda x: x[0])
 
 def find_matching_stat(chrom, pos, svtype, window=500):
     entries = sv_stats_spatial.get(chrom, [])
