@@ -123,7 +123,7 @@ task Haplotag {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 8,
-        disk_gb: 2 * ceil(size(bam, "GB") + size(ref_fa, "GB") + size(phased_vcf, "GB")) + 10,
+        disk_gb: 3 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

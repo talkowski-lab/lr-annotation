@@ -3,7 +3,7 @@ version 1.0
 import "Helpers.wdl"
 import "Structs.wdl"
 
-workflow ScatterVCF {
+workflow ScatterVcf {
     input {
         File file
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/annotations/refs/heads/main/scripts/split_vcf_hail.py"
@@ -122,7 +122,7 @@ workflow ScatterVCF {
                         docker = hail_docker
                 }
                 
-                call ScatterVCFRemote {
+                call ScatterVcfRemote {
                     input:
                         vcf_file = mt_uri,
                         input_size = getHailMTSize.mt_size,
@@ -138,7 +138,7 @@ workflow ScatterVCF {
     }    
 
     output {
-        Array[File] vcf_shards = select_first([ExecuteScattering.shards, ScatterVCFRemote.shards, chromosome_shards, splitChromosomeShards, [file]])
+        Array[File] vcf_shards = select_first([ExecuteScattering.shards, ScatterVcfRemote.shards, chromosome_shards, splitChromosomeShards, [file]])
     }
 }   
 
@@ -356,7 +356,7 @@ task ExecuteScattering {
     }
 }
 
-task ScatterVCFRemote {
+task ScatterVcfRemote {
     input {
         String vcf_file
         Float input_size

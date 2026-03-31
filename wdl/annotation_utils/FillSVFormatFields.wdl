@@ -55,7 +55,6 @@ workflow FillSVFormatFields {
     File final_cohort_vcf = select_first([SwapSampleIds.swapped_vcf, cohort_vcf])
     File final_cohort_vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, cohort_vcf_idx])
 
-    # First pass: compute per-sample caller counts and aggregate
     scatter (i in range(length(sample_ids))) {
         call ComputePerSampleCallerCounts {
             input:
@@ -75,7 +74,6 @@ workflow FillSVFormatFields {
             runtime_attr_override = runtime_attr_aggregate_counts
     }
 
-    # Second pass: per-sample extraction and FORMAT field filling
     scatter (i in range(length(sample_ids))) {
         call Helpers.ExtractSample {
             input:

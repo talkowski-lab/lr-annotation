@@ -1,14 +1,13 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
-import "../utils/ScatterVCF.wdl"
+import "../utils/ScatterVcf.wdl"
 import "../utils/Structs.wdl"
 
 workflow AnnotateVEPHail {
     input {
         File vcf
         File vcf_idx
-        Array[String] contigs
         String prefix
         
         String? subset_vcf_string
@@ -38,18 +37,15 @@ workflow AnnotateVEPHail {
         String utils_docker
         
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_index_shard
+        RuntimeAttr? runtime_attr_extract_coords
         RuntimeAttr? runtime_attr_normalize
+        RuntimeAttr? runtime_attr_vep_annotate
+        RuntimeAttr? runtime_attr_collapse_multiallelics
+        RuntimeAttr? runtime_attr_restore_alleles
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_split_by_chr
         RuntimeAttr? runtime_attr_split_into_shards
-        RuntimeAttr? runtime_attr_vep_annotate
-        RuntimeAttr? runtime_attr_concat_shards
-        RuntimeAttr? runtime_attr_get_contigs
-        RuntimeAttr? runtime_attr_subset_tsv
-        RuntimeAttr? runtime_attr_collapse_multiallelics
-        RuntimeAttr? runtime_attr_concat_contigs
-        RuntimeAttr? runtime_attr_subset_pre_norm_vcf
-        RuntimeAttr? runtime_attr_extract_coords
-        RuntimeAttr? runtime_attr_restore_alleles
     }
 
     if (defined(subset_vcf_string)) {
@@ -64,23 +60,9 @@ workflow AnnotateVEPHail {
         }
     }
 
-    if (normalize_vcf) {
-        call Helpers.NormalizeVcf {
-            input:
-                vcf = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
-                vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx]),
-                ref_fa = ref_fa,
-                ref_fai = ref_fai,
-                check_ref = normalize_check_ref,
-                prefix = "~{prefix}.normalized",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_normalize
-        }
-    }
-
-    call ScatterVCF.ScatterVCF {
+    call ScatterVcf.ScatterVcf {
         input:
-            file = select_first([NormalizeVcf.normalized_vcf, SubsetVcfByArgs.subset_vcf, vcf]),
+            file = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
             split_vcf_hail_script = split_vcf_hail_script,
             prefix = "~{prefix}.scattered",
             genome_build = genome_build,
@@ -95,10 +77,42 @@ workflow AnnotateVEPHail {
             runtime_attr_split_into_shards = runtime_attr_split_into_shards
     }
 
-    scatter (vcf_shard in ScatterVCF.vcf_shards) {
+    scatter (vcf_shard in ScatterVcf.vcf_shards) {
+        String shard_prefix = sub(sub(basename(vcf_shard), "\\.vcf\\.bgz$", ""), "\\.vcf\\.gz$", "")
+
+        if (normalize_vcf) {
+            call Helpers.IndexVcf as IndexShard {
+                input:
+                    vcf = vcf_shard,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_index_shard
+            }
+
+            call Helpers.ExtractVcfCoords as ExtractShardCoords {
+                input:
+                    vcf = vcf_shard,
+                    vcf_idx = select_first([IndexShard.vcf_idx]),
+                    prefix = shard_prefix + ".coords",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_coords
+            }
+
+            call Helpers.NormalizeVcf as NormalizeVcfShard {
+                input:
+                    vcf = vcf_shard,
+                    vcf_idx = select_first([IndexShard.vcf_idx]),
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    check_ref = normalize_check_ref,
+                    prefix = shard_prefix + ".normalized",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_normalize
+            }
+        }
+
         call VepAnnotate {
             input:
-                vcf = vcf_shard,
+                vcf = select_first([NormalizeVcfShard.normalized_vcf, vcf_shard]),
                 vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 ref_vep_cache = ref_vep_cache,
                 ref_fa_gz = ref_fa_gz,
@@ -108,77 +122,38 @@ workflow AnnotateVEPHail {
                 vep_json_schema = vep_json_schema,
                 runtime_attr_override = runtime_attr_vep_annotate
         }
+
+        if (normalize_vcf) {
+            call Helpers.CollapseMultiallelics as CollapseShardMultiallelics {
+                input:
+                    tsv = VepAnnotate.vep_tsv_file,
+                    prefix = shard_prefix + ".collapsed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_collapse_multiallelics
+            }
+
+            call Helpers.RestoreOriginalAlleles as RestoreShardAlleles {
+                input:
+                    tsv = CollapseShardMultiallelics.collapsed_tsv,
+                    coords_tsv = select_first([ExtractShardCoords.coords_tsv]),
+                    prefix = shard_prefix + ".restored",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_restore_alleles
+            }
+        }
     }
-    
+
     call Helpers.ConcatTsvs as ConcatShards {
         input:
-            tsvs = VepAnnotate.vep_tsv_file,
+            tsvs = if normalize_vcf then select_all(RestoreShardAlleles.restored_tsv) else VepAnnotate.vep_tsv_file,
             sort_output = false,
             prefix = "~{prefix}.vep_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_shards
     }
 
-    if (normalize_vcf) {
-        scatter (contig in contigs) {
-            call Helpers.SubsetVcfToContig as SubsetPreNormVcfToContig {
-                input:
-                    vcf = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
-                    vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx]),
-                    contig = contig,
-                    prefix = "~{prefix}.~{contig}.pre_norm",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_pre_norm_vcf
-            }
-
-            call Helpers.ExtractVcfCoords {
-                input:
-                    vcf = SubsetPreNormVcfToContig.subset_vcf,
-                    vcf_idx = SubsetPreNormVcfToContig.subset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.coords",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_extract_coords
-            }
-
-            call Helpers.SubsetTsvToContig {
-                input:
-                    tsv = ConcatShards.concatenated_tsv,
-                    contig = contig,
-                    prefix = "~{prefix}.~{contig}.vep",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_tsv
-            }
-
-            call Helpers.CollapseMultiallelics {
-                input:
-                    tsv = SubsetTsvToContig.subset_tsv,
-                    prefix = "~{prefix}.~{contig}.collapsed",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_collapse_multiallelics
-            }
-
-            call Helpers.RestoreOriginalAlleles {
-                input:
-                    tsv = CollapseMultiallelics.collapsed_tsv,
-                    coords_tsv = ExtractVcfCoords.coords_tsv,
-                    prefix = "~{prefix}.~{contig}.restored",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_restore_alleles
-            }
-        }
-
-        call Helpers.ConcatTsvs as ConcatCollapsed {
-            input:
-                tsvs = RestoreOriginalAlleles.restored_tsv,
-                sort_output = false,
-                prefix = "~{prefix}.vep_annotations.collapsed",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_contigs
-        }
-    }
-
     output {
-        File annotations_tsv_vep = select_first([ConcatCollapsed.concatenated_tsv, ConcatShards.concatenated_tsv])
+        File annotations_tsv_vep = ConcatShards.concatenated_tsv
     }
 }   
 
