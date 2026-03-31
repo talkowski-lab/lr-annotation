@@ -236,7 +236,7 @@ for rec in base_vcf:
                 continue
             rec.samples[sample][field] = val
 
-    record.samples[sample].phased = False
+    rec.samples[sample].phased = False
     
     out.write(rec)
 

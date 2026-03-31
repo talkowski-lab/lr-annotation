@@ -508,15 +508,6 @@ for record in vcf_in:
         vcf_out.write(record)
         continue
 
-    svtype = stat['svtype']
-    if svtype not in ('INS', 'DEL'):
-        format_source_rows.append((
-            record.id, sample_id, record.chrom, str(record.pos),
-            svtype, '.', '.', '.', '.', '.', '.', '.', 'INVALID_SVTYPE'
-        ))
-        vcf_out.write(record)
-        continue
-
     len_bucket = get_len_bucket(stat['svlen'])
     callers = stat['callers']
     ev = ','.join(callers)
