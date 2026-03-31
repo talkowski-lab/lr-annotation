@@ -437,8 +437,6 @@ def find_matching_variant(vcf_path, chrom, pos, svtype, window=500):
         vcf.close()
     return best
 
-sample_id = "~{sample_id}"
-
 # Load caller counts: (TYPE, LEN_BUCKET) -> {caller: count}
 caller_counts = {}
 with open("~{caller_counts_tsv}", 'r') as f:
@@ -461,8 +459,8 @@ with gzip.open("~{sv_stats}", 'rt') as f:
             continue
         fields = dict(zip(header, line.split('\t')))
         callers = [c.strip() for c in fields['SUPP'].split(',') if c.strip() != 'pav']
-        stat = {
-            'svtype': fields['SVTYPE'],
+        stat = {            'stat_id': fields['ID'],
+            'stat_pos': int(fields['POS']),            'svtype': fields['SVTYPE'],
             'svlen': fields['SVLEN'],
             'callers': callers,
         }
@@ -538,12 +536,13 @@ for record in vcf_in:
 
     if stat is None or not stat['callers']:
         format_source_rows.append((
-            record.id, sample_id, record.chrom, str(record.pos),
-            stat['svtype'] if stat else '.', '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
+            record.id, '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
         ))
         vcf_out.write(record)
         continue
 
+    stat_id = stat['stat_id']
+    stat_pos = stat['stat_pos']
     svtype = stat['svtype']
     len_bucket = get_len_bucket(stat['svlen'])
     callers = stat['callers']
@@ -555,8 +554,8 @@ for record in vcf_in:
 
     ad = None
     bev = None
-    match_pos = '.'
-    match_dist = '.'
+    raw_id = '.'
+    raw_pos = None
     for caller in ranked_callers:
         entry = caller_vcf_map.get(caller)
         if entry is None:
@@ -566,21 +565,24 @@ for record in vcf_in:
         match = find_matching_variant(vcf_path, record.chrom, record.pos, svtype)
         if match is None:
             continue
-        
+
         ad = get_ad_from_record(match, caller, caller_sample, target_svlen=stat['svlen'])
         if ad is not None:
             bev = caller
-            match_pos = str(match.pos)
-            match_dist = str(abs(match.pos - record.pos))
+            raw_id = match.id if match.id else '.'
+            raw_pos = match.pos
             break
 
     record.samples[sample_name]['EV'] = ev
     record.samples[sample_name]['BEV'] = bev if bev else '.'
 
+    match_dist_vcf_stats = str(abs(record.pos - stat_pos))
+    match_dist_vcf_raw = str(abs(record.pos - raw_pos)) if raw_pos is not None else '.'
+    match_dist_stats_raw = str(abs(stat_pos - raw_pos)) if raw_pos is not None else '.'
+
     if ad is None:
         format_source_rows.append((
-            record.id, sample_id, record.chrom, str(record.pos),
-            svtype, ev, '.', '.', '.', '.', '.', ','.join(ranked_callers), 'NO_AD'
+            record.id, stat_id, raw_id, ev, '.', match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'NO_AD'
         ))
     else:
         record.samples[sample_name]['AD'] = ad
@@ -588,9 +590,7 @@ for record in vcf_in:
         record.samples[sample_name]['PL'] = tuple(pls)
         record.samples[sample_name]['GQ'] = calc_gq(pls)
         format_source_rows.append((
-            record.id, sample_id, record.chrom, str(record.pos),
-            svtype, ev, bev, f"{ad[0]},{ad[1]}", match_pos, match_dist,
-            str(calc_gq(pls)), ','.join(ranked_callers), 'MATCHED'
+            record.id, stat_id, raw_id, ev, bev, match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'MATCHED'
         ))
 
     vcf_out.write(record)
@@ -599,7 +599,7 @@ vcf_in.close()
 vcf_out.close()
 
 with open("~{prefix}.format_source.tsv", 'w') as f:
-    f.write("VARIANT_ID\tSAMPLE\tCHROM\tPOS\tSVTYPE\tEV\tBEV\tAD\tMATCH_POS\tMATCH_DIST\tGQ\tRANKED_CALLERS\tREASON\n")
+    f.write("VARIANT_ID_VCF\tVARIANT_ID_STATS\tVARIANT_ID_RAW\tEV\tBEV\tMATCH_DIST_VCF_STATS\tMATCH_DIST_VCF_RAW\tMATCH_DIST_STATS_RAW\tSTATUS\n")
     for row in format_source_rows:
         f.write("\t".join(row) + "\n")
 CODE
