@@ -208,7 +208,7 @@ task MergeSet {
     set -euo pipefail
 
     cat ~{write_lines(beds)} \
-      | xargs zcat \
+      | xargs cat \
       | sort -k1,1V -k2,2n \
       | awk -v OFS="\t" -v svtype=~{svtype} -v batch=~{batch} '{$4=batch"_"svtype"_"NR; print}' \
       | cat <(echo -e "#chr\\tstart\\tend\\tname\\tsample\\tsvtype\\tsources") - \
