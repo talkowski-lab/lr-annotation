@@ -28,6 +28,7 @@ workflow FillSVFormatFields {
         String utils_docker
 
         String merge_args = "--merge id"
+        Boolean fuzzy_match_vcf_to_stats = true
         File? swap_samples
 
         RuntimeAttr? runtime_attr_swap_samples
@@ -107,6 +108,7 @@ workflow FillSVFormatFields {
                 hapdiff_vcf = hapdiff_vcfs[i],
                 hapdiff_vcf_idx = hapdiff_vcf_idxs[i],
                 caller_counts_tsv = AggregateCallerCounts.counts_tsv,
+                fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
                 prefix = "~{prefix}.~{sample_ids[i]}.filled",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_fill_format_fields
@@ -303,6 +305,7 @@ task FillFormatFields {
         File? hapdiff_vcf
         File? hapdiff_vcf_idx
         File caller_counts_tsv
+        Boolean fuzzy_match_vcf_to_stats
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -312,10 +315,12 @@ task FillFormatFields {
         set -euo pipefail
 
         python3 <<CODE
+import bisect
 import gzip
 import os
 import csv
 import pysam
+from collections import defaultdict
 from math import lgamma, log
 
 NO_AD_CALLERS = {'hapdiff'}
@@ -363,6 +368,8 @@ def get_ad_from_record(record, caller, sample_name, target_svlen=None):
     elif caller in ('pbsv', 'sawfish', 'dipcall'):
         ad = fmt.get('AD')
         if ad is not None:
+            if any(x is None for x in ad):
+                return None
             ad = tuple(int(x) for x in ad)
             if len(ad) == 2:
                 return ad
@@ -442,8 +449,9 @@ with open("~{caller_counts_tsv}", 'r') as f:
         key = (row['TYPE'], row['LEN'])
         caller_counts[key] = {k[6:]: int(v) for k, v in row.items() if k.startswith('COUNT_')}
 
-# Load sv_stats by variant ID (excluding pav)
+# Load sv_stats by variant ID (excluding pav) and build spatial index for fuzzy matching
 sv_stats_map = {}
+sv_stats_spatial = defaultdict(list)  # chrom -> sorted list of (pos, stat_dict)
 with gzip.open("~{sv_stats}", 'rt') as f:
     header = None
     for line in f:
@@ -455,11 +463,36 @@ with gzip.open("~{sv_stats}", 'rt') as f:
             continue
         fields = dict(zip(header, line.split('\t')))
         callers = [c.strip() for c in fields['SUPP'].split(',') if c.strip() != 'pav']
-        sv_stats_map[fields['ID']] = {
+        stat = {
             'svtype': fields['SVTYPE'],
             'svlen': fields['SVLEN'],
             'callers': callers,
         }
+        sv_stats_map[fields['ID']] = stat
+        sv_stats_spatial[fields['CHROM']].append((int(fields['POS']), stat))
+for chrom in sv_stats_spatial:
+    sv_stats_spatial[chrom].sort()
+
+def find_matching_stat(chrom, pos, svtype, window=500):
+    entries = sv_stats_spatial.get(chrom, [])
+    if not entries:
+        return None
+    lo = bisect.bisect_left(entries, (pos - window,))
+    best = None
+    best_dist = float('inf')
+    for i in range(lo, len(entries)):
+        entry_pos, stat = entries[i]
+        if entry_pos > pos + window:
+            break
+        if stat['svtype'] != svtype or not stat['callers']:
+            continue
+        dist = abs(entry_pos - pos)
+        if dist < best_dist:
+            best_dist = dist
+            best = stat
+    return best
+
+fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
 
 # Build caller VCF map from per-caller optional input files
 caller_files = {
@@ -500,6 +533,13 @@ for record in vcf_in:
     sample_name = list(record.samples.keys())[0]
     stat = sv_stats_map.get(record.id)
 
+    if stat is None and fuzzy_match:
+        rec_svtype = record.info.get('SVTYPE', None)
+        if isinstance(rec_svtype, tuple):
+            rec_svtype = rec_svtype[0]
+        if rec_svtype:
+            stat = find_matching_stat(record.chrom, record.pos, rec_svtype)
+
     if stat is None or not stat['callers']:
         format_source_rows.append((
             record.id, sample_id, record.chrom, str(record.pos),
@@ -508,6 +548,7 @@ for record in vcf_in:
         vcf_out.write(record)
         continue
 
+    svtype = stat['svtype']
     len_bucket = get_len_bucket(stat['svlen'])
     callers = stat['callers']
     ev = ','.join(callers)
