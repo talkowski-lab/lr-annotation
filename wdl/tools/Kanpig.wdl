@@ -261,7 +261,8 @@ for rec in base_vcf:
         
         ad_val = rec.samples[sample].get('AD')
         if ad_val is not None and len(ad_val) == 2:
-            rec.samples[sample]['PL'] = calculate_pl(ad_val[0], ad_val[1])
+            pls = calculate_pl(ad_val[0], ad_val[1])
+            rec.samples[sample]['PL'] = pls
             rec.samples[sample]['GQ'] = calculate_gq(pls)
 
     # Ref/missing in base and missing in Kanpig → set FORMAT fields to .
