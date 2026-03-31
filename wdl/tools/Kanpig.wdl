@@ -140,7 +140,7 @@ task RunKanpig {
         
         kanpig gt \
             --input ~{input_vcf} \
-            --out ~{prefix}.vcf \
+            --out ~{prefix}.kanpig.vcf \
             --reads ~{bam} \
             --reference ~{ref_fa} \
             --ploidy-bed ~{ploidy_bed} \
@@ -148,8 +148,12 @@ task RunKanpig {
             --sample ~{sample_id} \
             ~{kanpig_params}
 
-        bgzip -c ~{prefix}.vcf > ~{prefix}.vcf.gz
-
+        bcftools sort \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{prefix}.kanpig.vcf
+        
+        rm ~{prefix}.kanpig.vcf
+        
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
