@@ -1195,6 +1195,7 @@ task NormalizeVcf {
         File vcf_idx
         File ref_fa
         File ref_fai
+        String? check_ref
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -1206,6 +1207,7 @@ task NormalizeVcf {
         bcftools norm \
             -m -any \
             -f ~{ref_fa} \
+            ~{if defined(check_ref) then "-c " + check_ref else ""} \
             -Oz -o unsorted.vcf.gz \
             ~{vcf}
         

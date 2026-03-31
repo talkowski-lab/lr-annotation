@@ -11,13 +11,14 @@ workflow AnnotateVEPHail {
         Array[String] contigs
         String prefix
         
-        String? args_string_vcf
+        String? subset_vcf_string
 
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail.py"
         String genome_build = "GRCh38"
         String vep_json_schema = "Struct{allele_string:String,colocated_variants:Array[Struct{allele_string:String,clin_sig:Array[String],clin_sig_allele:String,end:Int32,id:String,phenotype_or_disease:Int32,pubmed:Array[Int32],somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,transcription_factors:Array[String],strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,appris:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,flags:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,mane_select:String,mane_plus_clinical:String,minimised:Int32,pick:Int32,mirna:Array[String],polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,source:String,strand:Int32,swissprot:String,transcript_id:String,trembl:String,tsl:Int32,uniparc:String,uniprot_isoform:Array[String],variant_allele:String}],variant_class:String}"
 
+        String normalize_check_ref = "w"
         Boolean normalize_vcf = false
         Boolean localize_vcf = true
         Boolean has_index = true
@@ -51,12 +52,12 @@ workflow AnnotateVEPHail {
         RuntimeAttr? runtime_attr_restore_alleles
     }
 
-    if (defined(args_string_vcf)) {
+    if (defined(subset_vcf_string)) {
         call Helpers.SubsetVcfByArgs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                extra_args = args_string_vcf,
+                extra_args = subset_vcf_string,
                 prefix = "~{prefix}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -70,6 +71,7 @@ workflow AnnotateVEPHail {
                 vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx]),
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
+                check_ref = normalize_check_ref,
                 prefix = "~{prefix}.normalized",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_normalize
