@@ -164,7 +164,7 @@ task RunKanpig {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 16,
+        mem_gb: 4,
         disk_gb: ceil(size(bam, "GB")) + ceil(size(input_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
@@ -198,26 +198,46 @@ task MergeGenotypes {
 
         python3 <<CODE
 import pysam
-
-kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
-base_vcf = pysam.VariantFile("~{base_vcf}")
-
-header = base_vcf.header.copy()
-if 'AD' not in header.formats:
-    header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles in the order listed">')
-if 'GQ' not in header.formats:
-    header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">')
-if 'DP' not in header.formats:
-    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
-
-out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
-sample = list(base_vcf.header.samples)[0]
+import math
 
 def is_non_ref(gt):
     return any(a is not None and a > 0 for a in gt)
 
 def is_missing(gt):
     return all(a is None for a in gt)
+
+def calculate_pl(ref_reads, alt_reads):
+    n = ref_reads + alt_reads
+    if n == 0:
+        return (0, 0, 0)
+    
+    means = [0.03, 0.50, 0.97]
+    priors = [0.33, 0.34, 0.33]
+    
+    ll_raw = []
+    for i in range(3):
+        ll = math.log(priors[i]) + alt_reads * math.log(means[i]) + ref_reads * math.log(1.0 - means[i])
+        ll_10 = ll / math.log(10)
+        ll_raw.append(ll_10)
+    
+    max_ll = max(ll_raw)
+    return tuple(int(round(-10 * (ll - max_ll))) for ll in ll_raw)
+
+kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
+base_vcf = pysam.VariantFile("~{base_vcf}")
+
+header = base_vcf.header.copy()
+if 'AD' not in header.formats:
+    header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">')
+if 'GQ' not in header.formats:
+    header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">')
+if 'DP' not in header.formats:
+    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
+if 'PL' not in header.formats:
+    header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
+
+out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
+sample = list(base_vcf.header.samples)[0]
 
 for rec in base_vcf:
     rec.translate(out.header)
@@ -234,7 +254,13 @@ for rec in base_vcf:
             val = kp_rec.samples[sample][field]
             if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
                 continue
+            if field == 'GQ' and val is not None:
+                val = min(val, 99)
             rec.samples[sample][field] = val
+        
+        ad_val = rec.samples[sample].get('AD')
+        if ad_val is not None and len(ad_val) == 2:
+            rec.samples[sample]['PL'] = calculate_pl(ad_val[0], ad_val[1])
 
     rec.samples[sample].phased = False
     

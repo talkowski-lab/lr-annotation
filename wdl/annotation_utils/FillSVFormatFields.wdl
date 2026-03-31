@@ -336,24 +336,22 @@ def get_len_bucket(svlen):
     else:
         return ">5000"
 
-def binom_pmf_log10(k, n, p, error_rate=1e-6):
-    p = max(min(p, 1 - error_rate), error_rate)
-    lc = lgamma(n + 1) - lgamma(k + 1) - lgamma(n - k + 1)
-    log_pmf = lc + k * log(p) + (n - k) * log(1 - p)
-    return log_pmf / log(10)
-
-def calc_pls(ref_depth, alt_depth, error_rate=0.001):
-    total = ref_depth + alt_depth
+def calc_pls(ref_reads, alt_reads):
+    total = ref_reads + alt_reads
     if total == 0:
         return [0, 0, 0]
-    log10_probs = [
-        binom_pmf_log10(alt_depth, total, error_rate),        # P(data | 0/0)
-        binom_pmf_log10(alt_depth, total, 0.5),               # P(data | 0/1)
-        binom_pmf_log10(alt_depth, total, 1 - error_rate),    # P(data | 1/1)
-    ]
-    raw_pls = [-10 * lp for lp in log10_probs]
-    min_pl = min(raw_pls)
-    return [int(round(pl - min_pl)) for pl in raw_pls]
+    
+    means = [0.03, 0.50, 0.97]
+    priors = [0.33, 0.34, 0.33]
+    
+    ll_raw = []
+    for i in range(3):
+        ll = log(priors[i]) + alt_reads * log(means[i]) + ref_reads * log(1.0 - means[i])
+        ll_10 = ll / log(10)
+        ll_raw.append(ll_10)
+    
+    max_ll = max(ll_raw)
+    return [int(round(-10 * (ll - max_ll))) for ll in ll_raw]
 
 def calc_gq(norm_pls):
     return min(sorted(norm_pls)[1], 99)
@@ -451,7 +449,7 @@ with open("~{caller_counts_tsv}", 'r') as f:
 
 # Load sv_stats by variant ID (excluding pav) and build spatial index for fuzzy matching
 sv_stats_map = {}
-sv_stats_spatial = defaultdict(list)  # chrom -> sorted list of (pos, stat_dict)
+sv_stats_spatial = defaultdict(list) 
 with gzip.open("~{sv_stats}", 'rt') as f:
     header = None
     for line in f:
@@ -494,7 +492,6 @@ def find_matching_stat(chrom, pos, svtype, window=500):
 
 fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
 
-# Build caller VCF map from per-caller optional input files
 caller_files = {
     'cutesv':  ("~{cutesv_vcf}",  "~{cutesv_vcf_idx}"),
     'sniffles': ("~{sniffles_vcf}", "~{sniffles_vcf_idx}"),
@@ -517,7 +514,6 @@ for vcf_caller, (vcf_path, idx_path) in caller_files.items():
         caller_sample = list(tmp.header.samples)[0]
     caller_vcf_map[vcf_caller] = (local_vcf, caller_sample)
 
-# Add new FORMAT fields to the input VCF header, then write output
 vcf_in = pysam.VariantFile("~{subset_vcf}")
 header = vcf_in.header
 header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">')
@@ -619,7 +615,7 @@ CODE
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
+        mem_gb: 4,
         disk_gb: ceil(size(subset_vcf, "GB") + size(sv_stats, "GB") + size(select_all([cutesv_vcf, sniffles_vcf, delly_vcf, pbsv_vcf, sawfish_vcf, dipcall_vcf, hapdiff_vcf]), "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
