@@ -277,9 +277,8 @@ for rec in base_vcf:
             rec.samples[sample]['PL'] = pls
             rec.samples[sample]['GQ'] = calculate_gq(pls)
 
-    # Ref/missing in base and missing in Kanpig
-    # OR ref/missing in base and non-ref in Kanpig → clear FORMAT fields
-    if (not is_called(base_gt) and not is_called(kp_gt) and is_missing(kp_gt)):
+    # Ref/missing in base and missing/non-ref in Kanpig → clear FORMAT fields
+    if (not is_called(base_gt) and is_missing(kp_gt)) or (not is_called(base_gt) and is_called(kp_gt)):
         ploidy = len(base_gt)
         n_alleles = len(rec.alts) + 1
         rec.samples[sample]['DP'] = None
@@ -288,6 +287,8 @@ for rec in base_vcf:
         rec.samples[sample]['PL'] = tuple(None for _ in range(comb(n_alleles + ploidy - 1, ploidy)))
         rec.samples[sample]['GT'] = tuple(None for _ in range(ploidy))
     
+    gt_current = rec.samples[sample]['GT']
+    rec.samples[sample]['GT'] = tuple(sorted(gt_current, key=lambda a: (a is None, a if a is not None else 0)))
     rec.samples[sample].phased = False
     
     out.write(rec)
