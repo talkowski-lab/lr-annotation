@@ -59,7 +59,10 @@ task CpgPileup {
             --min-coverage 4 \
             --min-mapq 10
 
-        md5sum ~{prefix}.combined.bed.gz ~{prefix}.hap1.bed.gz ~{prefix}.hap2.bed.gz
+        for f in ~{prefix}.combined.bed.gz ~{prefix}.hap1.bed.gz ~{prefix}.hap2.bed.gz; do
+            md5sum "$f"
+            zcat "$f" | head -1
+        done
     >>>
 
     output {
