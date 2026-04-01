@@ -522,9 +522,10 @@ for vcf_caller, (vcf_path, idx_path) in caller_files.items():
     os.symlink(vcf_path, local_vcf)
     os.symlink(idx_path, local_idx)
     with pysam.VariantFile(local_vcf) as tmp:
-        if sample_id not in tmp.header.samples:
+        samples = list(tmp.header.samples)
+        if not samples:
             continue
-        caller_sample = sample_id
+        caller_sample = sample_id if sample_id in samples else samples[0]
     caller_vcf_map[vcf_caller] = (local_vcf, caller_sample)
 
 vcf_in = pysam.VariantFile("~{subset_vcf}")

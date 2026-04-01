@@ -1632,8 +1632,8 @@ task MergeBams {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
-        mem_gb: 8,
-        disk_gb: 3 * ceil(size(bams, "GB")) + 20,
+        mem_gb: 4,
+        disk_gb: ceil(2.5 * size(bams, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
