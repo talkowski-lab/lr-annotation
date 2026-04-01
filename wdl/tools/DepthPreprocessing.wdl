@@ -7,7 +7,14 @@ workflow DepthPreprocessing {
     Array[String] samples
     Array[File] genotyped_segments_vcfs
     File contig_ploidy_calls_tar
+    File primary_contigs_list
+    File ref_fai
+    File ped
     String batch
+
+    String? chr_x
+    String? chr_y
+
     String sv_base_mini_docker
     String sv_pipeline_docker
     Int gcnv_qs_cutoff
@@ -62,11 +69,55 @@ workflow DepthPreprocessing {
       sv_base_mini_docker = sv_base_mini_docker
   }
 
+  call MakePloidyTable {
+    input:
+      ped = ped,
+      contigs_list = primary_contigs_list,
+      chr_x = chr_x,
+      chr_y = chr_y,
+      output_prefix = "~{batch}-ploidy",
+      sv_pipeline_docker = sv_pipeline_docker
+  }
+
+  call CNVBEDToVCF as make_del_vcf {
+    input:
+      bed = MergeSet_del.out,
+      sample_list = write_lines(samples),
+      contig_list = primary_contigs_list,
+      ploidy_table = MakePloidyTable.ploidy_table,
+      ref_fai = ref_fai,
+      vid_prefix = "~{batch}_DEL",
+      output_prefix = "merged_del",
+      sv_pipeline_docker = sv_pipeline_docker
+  }
+
+  call CNVBEDToVCF as make_dup_vcf {
+    input:
+      bed = MergeSet_dup.out,
+      sample_list = write_lines(samples),
+      contig_list = primary_contigs_list,
+      ploidy_table = MakePloidyTable.ploidy_table,
+      ref_fai = ref_fai,
+      vid_prefix = "~{batch}_DUP",
+      output_prefix = "merged_dup",
+      sv_pipeline_docker = sv_pipeline_docker
+  }
+
+  call ConcatVCFs {
+    input:
+      vcfs = [make_del_vcf.vcf, make_dup_vcf.vcf],
+      vcf_idxs = [make_del_vcf.vcf_index, make_dup_vcf.vcf_index],
+      output_prefix = "~{batch}_raw_depth_CNVs",
+      sv_base_mini_docker = sv_base_mini_docker
+  }
+
   output {
-    File del = MergeSet_del.out
-    File del_index = MergeSet_del.out_idx
-    File dup = MergeSet_dup.out
-    File dup_index = MergeSet_dup.out_idx
+    File del_bed = MergeSet_del.out
+    File del_bed_index = MergeSet_del.out_idx
+    File dup_bed = MergeSet_dup.out
+    File dup_bed_index = MergeSet_dup.out_idx
+    File merged_vcf = ConcatVCFs.concat_vcf
+    File merged_vcf_index = ConcatVCFs.concat_vcf_index
   }
 }
 
@@ -222,3 +273,146 @@ task MergeSet {
   }
 }
 
+task MakePloidyTable {
+  input {
+    File ped
+    File contigs_list
+    String? chr_x
+    String? chr_y
+    String output_prefix
+
+    String sv_pipeline_docker
+    Float? mem_gib
+    Int? disk_gb
+    Int? cpu
+    Int? boot_disk_gb
+    Int? preemptible_tries
+    Int? max_retries
+  }
+
+  Int default_disk_gb = ceil(size(ped, "GB") * 3) + 50
+
+  runtime {
+    cpu: select_first([cpu, 1])
+    memory: select_first([mem_gib, 4]) + " GiB"
+    disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([boot_disk_gb, 10])
+    docker: sv_pipeline_docker
+    preemptible: select_first([preemptible_tries, 3])
+    maxRetries: select_first([max_retries, 1])
+    noAddress: true
+  }
+
+  command <<<
+    set -euo pipefail
+
+    python /opt/sv-pipeline/scripts/ploidy_table_from_ped.py \
+      --ped '~{ped}' \
+      --out '~{output_prefix}.tsv' \
+      --contigs '~{contigs_list}' \
+      ~{"--chr-x " + chr_x} \
+      ~{"--chr-y " + chr_y}
+  >>>
+
+  output {
+    File ploidy_table = "~{output_prefix}.tsv"
+  }
+}
+
+task CNVBEDToVCF {
+  input {
+    File bed
+    File sample_list
+    File contig_list
+    File ploidy_table
+    File ref_fai
+    String vid_prefix
+    String output_prefix
+
+    String sv_pipeline_docker
+    Float? mem_gib
+    Int? disk_gb
+    Int? cpu
+    Int? boot_disk_gb
+    Int? preemptible_tries
+    Int? max_retries
+  }
+
+  Int default_disk_gb = ceil(size([bed, sample_list, contig_list, ploidy_table, ref_fai], "GB") * 2) + 50
+
+  runtime {
+    cpu: select_first([cpu, 1])
+    memory: select_first([mem_gib, 4]) + " GiB"
+    disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([boot_disk_gb, 10])
+    docker: sv_pipeline_docker
+    preemptible: select_first([preemptible_tries, 3])
+    maxRetries: select_first([max_retries, 1])
+    noAddress: true
+  }
+
+  command <<<
+    set -euo pipefail
+
+    python /opt/sv-pipeline/scripts/convert_bed_to_gatk_vcf.py \
+      --bed '~{bed}' \
+      --out temp.vcf.gz \
+      --sample '~{sample_list}' \
+      --contigs '~{contig_list}' \
+      --vid-prefix '~{vid_prefix}' \
+      --ploidy-table '~{ploidy_table}' \
+      --fai '~{ref_fai}'
+
+    tabix '~{output_prefix}.vcf.gz'
+  >>>
+
+  output {
+    File vcf = "~{output_prefix}.vcf.gz"
+    File vcf_index = "~{output_prefix}.vcf.gz.tbi"
+  }
+}
+
+task ConcatVCFs {
+  input {
+    Array[File] vcfs
+    Array[File] vcf_idxs
+    String output_prefix
+
+    String sv_base_mini_docker
+    Float? mem_gib
+    Int? disk_gb
+    Int? cpu
+    Int? boot_disk_gb
+    Int? preemptible_tries
+    Int? max_retries
+  }
+
+  Int default_disk_gb = ceil(size([vcf_idxs], "GB") * 5) + 50
+  Int sort_mem_mb = ceil(select_first([mem_gib, 8]) * 1024 * 1.04)
+
+  runtime {
+    cpu: select_first([cpu, 2])
+    memory: select_first([mem_gib, 8]) + " GiB"
+    disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([boot_disk_gb, 10])
+    docker: sv_base_mini_docker
+    preemptible: select_first([preemptible_tries, 3])
+    maxRetries: select_first([max_retries, 1])
+    noAddress: true
+  }
+
+  command <<<
+    set -euo pipefail
+
+    bcftools concat --no-version --allow-overlaps --output-type u \
+     --file-list '~{write_lines(vcfs)}' \
+     | bcftools sort --max-mem '~{sort_mem_mb}' --output-type z \
+         --output '~{output_prefix}.vcf.gz'
+    tabix '~{output_prefix}.vcf.gz'
+  >>>
+
+  output {
+    File concat_vcf = "~{output_prefix}.vcf.gz"
+    File concat_vcf_index = "~{output_prefix}.vcf.gz.tbi"
+  }
+}
