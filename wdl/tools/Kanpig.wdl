@@ -265,15 +265,19 @@ for rec in base_vcf:
             rec.samples[sample]['PL'] = pls
             rec.samples[sample]['GQ'] = calculate_gq(pls)
 
-    # Ref/missing in base and missing in Kanpig → set FORMAT fields to .
+    # Ref/missing in base and missing in Kanpig → clear FORMAT fields
     if (not is_called(base_gt) and not is_called(kp_gt) and is_missing(kp_gt)):
-        for field in ['GT', 'AD', 'DP', 'PL', 'GQ']:
+        for field in ['GT', 'DP', 'GQ']:
             rec.samples[sample][field] = None
+        rec.samples[sample]['AD'] = tuple(None for _ in range(len(rec.alts) + 1))
+        rec.samples[sample]['PL'] = tuple(None for _ in range(3))
 
-    # Ref/missing in base and non-ref in Kanpig → set FORMAT fields to .
+    # Ref/missing in base and non-ref in Kanpig → clear FORMAT fields
     if (not is_called(base_gt) and is_called(kp_gt)):
-        for field in ['GT', 'AD', 'DP', 'PL', 'GQ']:
+        for field in ['GT', 'DP', 'GQ']:
             rec.samples[sample][field] = None
+        rec.samples[sample]['AD'] = tuple(None for _ in range(len(rec.alts) + 1))
+        rec.samples[sample]['PL'] = tuple(None for _ in range(3))
 
     rec.samples[sample].phased = False
     
