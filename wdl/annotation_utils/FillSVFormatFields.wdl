@@ -32,6 +32,7 @@ workflow FillSVFormatFields {
         File? swap_samples
 
         RuntimeAttr? runtime_attr_swap_samples
+        RuntimeAttr? runtime_attr_subset_cohort_to_samples
         RuntimeAttr? runtime_attr_compute_counts
         RuntimeAttr? runtime_attr_aggregate_counts
         RuntimeAttr? runtime_attr_extract_sample
@@ -55,6 +56,17 @@ workflow FillSVFormatFields {
     File final_cohort_vcf = select_first([SwapSampleIds.swapped_vcf, cohort_vcf])
     File final_cohort_vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, cohort_vcf_idx])
 
+    call Helpers.SubsetVcfToSamples as SubsetCohortToSamples {
+        input:
+            vcf = final_cohort_vcf,
+            vcf_idx = final_cohort_vcf_idx,
+            samples = sample_ids,
+            filter_to_sample = false,
+            prefix = "~{prefix}.subset",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_cohort_to_samples
+    }
+
     scatter (i in range(length(sample_ids))) {
         call ComputePerSampleCallerCounts {
             input:
@@ -77,8 +89,8 @@ workflow FillSVFormatFields {
     scatter (i in range(length(sample_ids))) {
         call Helpers.ExtractSample {
             input:
-                vcf = final_cohort_vcf,
-                vcf_idx = final_cohort_vcf_idx,
+                vcf = SubsetCohortToSamples.subset_vcf,
+                vcf_idx = SubsetCohortToSamples.subset_vcf_idx,
                 sample = sample_ids[i],
                 prefix = "~{prefix}.~{sample_ids[i]}.subset",
                 docker = utils_docker,
