@@ -58,11 +58,6 @@ task CpgPileup {
             --pileup-mode model \
             --min-coverage 4 \
             --min-mapq 10
-
-        for f in ~{prefix}.combined.bed.gz ~{prefix}.hap1.bed.gz ~{prefix}.hap2.bed.gz; do
-            md5sum "$f"
-            zcat "$f" | head -1
-        done
     >>>
 
     output {
@@ -77,7 +72,7 @@ task CpgPileup {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 12,
-        disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
+        disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB")) + 50,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
