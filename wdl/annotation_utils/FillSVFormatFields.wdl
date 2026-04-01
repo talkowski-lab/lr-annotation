@@ -61,7 +61,6 @@ workflow FillSVFormatFields {
             vcf = final_cohort_vcf,
             vcf_idx = final_cohort_vcf_idx,
             samples = sample_ids,
-            filter_to_sample = false,
             prefix = "~{prefix}.subset",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_cohort_to_samples
