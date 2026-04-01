@@ -58,6 +58,8 @@ task CpgPileup {
             --pileup-mode model \
             --min-coverage 4 \
             --min-mapq 10
+
+        md5sum ~{prefix}.combined.bed.gz ~{prefix}.hap1.bed.gz ~{prefix}.hap2.bed.gz
     >>>
 
     output {
