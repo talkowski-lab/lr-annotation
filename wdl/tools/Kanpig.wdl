@@ -199,6 +199,7 @@ task MergeGenotypes {
         python3 <<CODE
 import pysam
 import math
+from math import comb
 
 def is_called(gt):
     return any(a is not None and a > 0 for a in gt)
@@ -265,20 +266,17 @@ for rec in base_vcf:
             rec.samples[sample]['PL'] = pls
             rec.samples[sample]['GQ'] = calculate_gq(pls)
 
-    # Ref/missing in base and missing in Kanpig → clear FORMAT fields
+    # Ref/missing in base and missing in Kanpig
+    # OR ref/missing in base and non-ref in Kanpig → clear FORMAT fields
     if (not is_called(base_gt) and not is_called(kp_gt) and is_missing(kp_gt)):
-        for field in ['GT', 'DP', 'GQ']:
-            rec.samples[sample][field] = None
-        rec.samples[sample]['AD'] = tuple(None for _ in range(len(rec.alts) + 1))
-        rec.samples[sample]['PL'] = tuple(None for _ in range(3))
-
-    # Ref/missing in base and non-ref in Kanpig → clear FORMAT fields
-    if (not is_called(base_gt) and is_called(kp_gt)):
-        for field in ['GT', 'DP', 'GQ']:
-            rec.samples[sample][field] = None
-        rec.samples[sample]['AD'] = tuple(None for _ in range(len(rec.alts) + 1))
-        rec.samples[sample]['PL'] = tuple(None for _ in range(3))
-
+        ploidy = len(base_gt)
+        n_alleles = len(rec.alts) + 1
+        rec.samples[sample]['DP'] = None
+        rec.samples[sample]['GQ'] = None
+        rec.samples[sample]['AD'] = tuple(None for _ in range(n_alleles))
+        rec.samples[sample]['PL'] = tuple(None for _ in range(comb(n_alleles + ploidy - 1, ploidy)))
+        rec.samples[sample]['GT'] = tuple(None for _ in range(ploidy))
+    
     rec.samples[sample].phased = False
     
     out.write(rec)
