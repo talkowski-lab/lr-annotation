@@ -34,7 +34,7 @@ workflow DepthPreprocessing {
   }
 
   scatter (i in range(length(samples))) {
-    call MergeSample as MergeSample_del {
+    call MergeSample as merge_sample_del {
       input:
         sample_id = samples[i],
         gcnv = GcnvVcfToBed.del_bed[i],
@@ -44,7 +44,7 @@ workflow DepthPreprocessing {
   }
 
   scatter (i in range(length(samples))) {
-    call MergeSample as MergeSample_dup {
+    call MergeSample as merge_sample_dup {
       input:
         sample_id = samples[i],
         gcnv = GcnvVcfToBed.dup_bed[i],
@@ -53,17 +53,17 @@ workflow DepthPreprocessing {
     }
   }
 
-  call MergeSet as MergeSet_del {
+  call MergeSet as merge_set_del {
     input:
-      beds = MergeSample_del.sample_bed,
+      beds = merge_sample_del.sample_bed,
       svtype = "DEL",
       batch = batch,
       sv_base_mini_docker = sv_base_mini_docker
   }
 
-  call MergeSet as MergeSet_dup {
+  call MergeSet as merge_set_dup {
     input:
-      beds = MergeSample_dup.sample_bed,
+      beds = merge_sample_dup.sample_bed,
       svtype = "DUP",
       batch = batch,
       sv_base_mini_docker = sv_base_mini_docker
@@ -81,7 +81,7 @@ workflow DepthPreprocessing {
 
   call CNVBEDToVCF as make_del_vcf {
     input:
-      bed = MergeSet_del.out,
+      bed = merge_set_del.out,
       sample_list = write_lines(samples),
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
@@ -93,7 +93,7 @@ workflow DepthPreprocessing {
 
   call CNVBEDToVCF as make_dup_vcf {
     input:
-      bed = MergeSet_dup.out,
+      bed = merge_set_dup.out,
       sample_list = write_lines(samples),
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
@@ -112,10 +112,10 @@ workflow DepthPreprocessing {
   }
 
   output {
-    File del_bed = MergeSet_del.out
-    File del_bed_index = MergeSet_del.out_idx
-    File dup_bed = MergeSet_dup.out
-    File dup_bed_index = MergeSet_dup.out_idx
+    File del_bed = merge_set_del.out
+    File del_bed_index = merge_set_del.out_idx
+    File dup_bed = merge_set_dup.out
+    File dup_bed_index = merge_set_dup.out_idx
     File merged_vcf = ConcatVCFs.concat_vcf
     File merged_vcf_index = ConcatVCFs.concat_vcf_index
   }
