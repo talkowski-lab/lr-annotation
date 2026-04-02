@@ -356,7 +356,7 @@ task CNVBEDToVCF {
 
     python /opt/sv-pipeline/scripts/convert_bed_to_gatk_vcf.py \
       --bed '~{bed}' \
-      --out temp.vcf.gz \
+      --out '~{output_prefix}.vcf.gz' \
       --sample '~{sample_list}' \
       --contigs '~{contig_list}' \
       --vid-prefix '~{vid_prefix}' \
