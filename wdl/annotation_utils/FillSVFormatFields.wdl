@@ -542,10 +542,20 @@ format_source_rows = []
 
 for record in vcf_in:
     sample_name = list(record.samples.keys())[0]
+    sample_fmt = record.samples[sample_name]
 
-    gt = record.samples[sample_name].get('GT')
-    if not gt or not any(a not in (0, None) for a in gt):
+    # pysam re-encodes missing/phased alleles on write (e.g. 0|. → 0/.), so save and restore GT
+    orig_gt = sample_fmt['GT']
+    orig_phased = sample_fmt.phased
+
+    def write_record():
+        sample_fmt['GT'] = orig_gt
+        sample_fmt.phased = orig_phased
         vcf_out.write(record)
+
+    # Skip uncalled / ref-only genotypes — pass through untouched
+    if not orig_gt or not any(a not in (0, None) for a in orig_gt):
+        write_record()
         continue
 
     stat = sv_stats_map.get(record.id)
@@ -561,7 +571,7 @@ for record in vcf_in:
         format_source_rows.append((
             sample_id, record.id, '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
         ))
-        vcf_out.write(record)
+        write_record()
         continue
 
     stat_id = stat['stat_id']
@@ -596,8 +606,8 @@ for record in vcf_in:
             raw_pos = match.pos
             break
 
-    record.samples[sample_name]['EV'] = ev
-    record.samples[sample_name]['BEV'] = bev if bev else '.'
+    sample_fmt['EV'] = ev
+    sample_fmt['BEV'] = bev if bev else '.'
 
     match_dist_vcf_stats = str(abs(record.pos - stat_pos))
     match_dist_vcf_raw = str(abs(record.pos - raw_pos)) if raw_pos is not None else '.'
@@ -608,15 +618,15 @@ for record in vcf_in:
             sample_id, record.id, stat_id, raw_id, ev, '.', match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'NO_AD'
         ))
     else:
-        record.samples[sample_name]['AD'] = ad
+        sample_fmt['AD'] = ad
         pls = calc_pls(ad[0], ad[1])
-        record.samples[sample_name]['PL'] = tuple(pls)
-        record.samples[sample_name]['GQ'] = calc_gq(pls)
+        sample_fmt['PL'] = tuple(pls)
+        sample_fmt['GQ'] = calc_gq(pls)
         format_source_rows.append((
             sample_id, record.id, stat_id, raw_id, ev, bev, match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'MATCHED'
         ))
 
-    vcf_out.write(record)
+    write_record()
 
 vcf_in.close()
 vcf_out.close()
