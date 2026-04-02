@@ -38,6 +38,7 @@ workflow AnnotateTRs {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
+                extra_args = "--min-ac 1",
                 prefix = "~{prefix}.~{contig}.base",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig_base
@@ -58,6 +59,7 @@ workflow AnnotateTRs {
                 vcf = tr_vcf,
                 vcf_idx = tr_vcf_idx,
                 contig = contig,
+                extra_args = "--min-ac 1",
                 prefix = "~{prefix}.~{contig}.tr",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig_tr
@@ -390,7 +392,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 8,
-        disk_gb: 10 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 20,
+        disk_gb: 15 * ceil(size(vcf, "GB") + size(tr_vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
