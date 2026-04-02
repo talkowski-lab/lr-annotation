@@ -388,7 +388,7 @@ task ConcatVCFs {
   }
 
   Int default_disk_gb = ceil(size([vcf_idxs], "GB") * 5) + 50
-  Int sort_mem_mb = ceil(select_first([mem_gib, 8]) * 1024 * 1.04)
+  Int sort_mem_mb = ceil(select_first([mem_gib, 8]) * 0.8 * 1024 * 1.04)
 
   runtime {
     cpu: select_first([cpu, 2])
