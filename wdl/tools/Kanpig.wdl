@@ -96,6 +96,7 @@ workflow Kanpig {
                 base_vcf_idx = SubsetVcfToSamples.subset_vcf_idx,
                 kanpig_vcf = RunKanpig.regenotyped_vcf,
                 kanpig_vcf_idx = RunKanpig.regenotyped_vcf_idx,
+                sex = sexes[i],
                 prefix = "~{prefix}.~{sample_ids[i]}.kanpig_merged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_genotypes
@@ -199,6 +200,7 @@ task MergeGenotypes {
         File base_vcf_idx
         File kanpig_vcf
         File kanpig_vcf_idx
+        String sex
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -238,6 +240,16 @@ def calculate_pl(ref_reads, alt_reads):
 def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
 
+def clear_format_fields(rec, sample, n_alleles):
+    rec.samples[sample]['DP'] = None
+    rec.samples[sample]['GQ'] = None
+    rec.samples[sample]['AD'] = tuple(None for _ in range(n_alleles))
+    rec.samples[sample]['PL'] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
+    rec.samples[sample]['GT'] = tuple(None for _ in range(n_alleles))
+
+sex = "~{sex}"
+is_male = (sex == "M")
+
 kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
 base_vcf = pysam.VariantFile("~{base_vcf}")
 
@@ -256,6 +268,8 @@ sample = list(base_vcf.header.samples)[0]
 
 for rec in base_vcf:
     rec.translate(out.header)
+    chrom = rec.chrom
+    n_alleles = len(rec.alts) + 1
     base_gt = rec.samples[sample]['GT']
     kp_rec = next(
         r for r in kp_vcf.fetch(rec.chrom, rec.pos - 1, rec.pos)
@@ -263,30 +277,40 @@ for rec in base_vcf:
     )
     kp_gt = kp_rec.samples[sample]['GT']
 
-    # Ref/missing in base and ref in Kanpig → set FORMAT fields to Kanpig
-    if not is_called(base_gt) and not is_called(kp_gt) and not is_missing(kp_gt):
-        for field in ['GT', 'AD', 'DP']:
-            val = kp_rec.samples[sample][field]
-            if field == 'AD' and (val is None or len(val) != len(rec.alts) + 1):
-                continue
-            rec.samples[sample][field] = val
-        
-        ad_val = rec.samples[sample].get('AD')
-        if ad_val is not None and len(ad_val) == 2:
-            pls = calculate_pl(ad_val[0], ad_val[1])
-            rec.samples[sample]['PL'] = pls
-            rec.samples[sample]['GQ'] = calculate_gq(pls)
+    is_hemi = is_male and chrom in {"chrX", "chrY"} 
+    is_female_y = (not is_male) and chrom == "chrY"
 
-    # Ref/missing in base and missing/non-ref in Kanpig → clear FORMAT fields
+    # Case 1: Ref/missing in base and ref in Kanpig
+    if not is_called(base_gt) and not is_called(kp_gt) and not is_missing(kp_gt):
+        if is_female_y:
+            # Case 1a: Female on chrY → clear everything
+            clear_format_fields(rec, sample, n_alleles)
+        else:
+            # Case 1b: Autosome, male on chrX/Y and female on chrX → set AD/DP/PL/GQ from Kanpig 
+            for field in ['AD', 'DP']:
+                val = kp_rec.samples[sample][field]
+                if field == 'AD' and (val is None or len(val) != n_alleles):
+                    continue
+                rec.samples[sample][field] = val
+            
+            ad_val = rec.samples[sample].get('AD')
+            if ad_val is not None and len(ad_val) == 2:
+                pls = calculate_pl(ad_val[0], ad_val[1])
+                rec.samples[sample]['PL'] = pls
+                rec.samples[sample]['GQ'] = calculate_gq(pls)
+            
+            if is_hemi:
+                # Case 1b_i: Male on chrX/Y → GT of 0/.
+                rec.samples[sample]['GT'] = (0, None)
+            else:
+                # Case 1b_ii: Autosome or female on chrX → GT of 0/0
+                rec.samples[sample]['GT'] = tuple(0 for _ in range(n_alleles))
+
+    # Case 2: Ref/missing in base and missing/alt in Kanpig → clear FORMAT fields
     if (not is_called(base_gt) and is_missing(kp_gt)) or (not is_called(base_gt) and is_called(kp_gt)):
-        ploidy = len(base_gt)
-        n_alleles = len(rec.alts) + 1
-        rec.samples[sample]['DP'] = None
-        rec.samples[sample]['GQ'] = None
-        rec.samples[sample]['AD'] = tuple(None for _ in range(n_alleles))
-        rec.samples[sample]['PL'] = tuple(None for _ in range(comb(n_alleles + ploidy - 1, ploidy)))
-        rec.samples[sample]['GT'] = tuple(None for _ in range(ploidy))
+        clear_format_fields(rec, sample, n_alleles)
     
+    # Right-align alternate genotypes and set to unphased
     gt_current = rec.samples[sample]['GT']
     rec.samples[sample]['GT'] = tuple(sorted(gt_current, key=lambda a: (a is None, a if a is not None else 0)))
     rec.samples[sample].phased = False
