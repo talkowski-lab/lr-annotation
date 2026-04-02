@@ -86,11 +86,12 @@ workflow FillSVFormatFields {
     }
 
     scatter (i in range(length(sample_ids))) {
-        call Helpers.ExtractSample {
+        call Helpers.SubsetVcfToSamples as ExtractSample {
             input:
                 vcf = SubsetCohortToSamples.subset_vcf,
                 vcf_idx = SubsetCohortToSamples.subset_vcf_idx,
-                sample = sample_ids[i],
+                samples = [sample_ids[i]],
+                filter_to_sample = false,
                 prefix = "~{prefix}.~{sample_ids[i]}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_sample
@@ -541,6 +542,12 @@ format_source_rows = []
 
 for record in vcf_in:
     sample_name = list(record.samples.keys())[0]
+
+    gt = record.samples[sample_name].get('GT')
+    if not gt or not any(a not in (0, None) for a in gt):
+        vcf_out.write(record)
+        continue
+
     stat = sv_stats_map.get(record.id)
 
     if stat is None and fuzzy_match:
