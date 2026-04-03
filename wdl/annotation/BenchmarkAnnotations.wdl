@@ -9,8 +9,8 @@ workflow BenchmarkAnnotations {
     input {
         File vcf_eval
         File vcf_eval_idx
-        Array[File] vcf_truth
-        Array[File] vcf_truth_idx
+        File vcf_truth
+        File vcf_truth_idx
         File vcf_sv_truth
         File vcf_sv_truth_idx
         Array[String] contigs
@@ -80,36 +80,40 @@ workflow BenchmarkAnnotations {
 
     Boolean single_contig = length(contigs) == 1
 
-    scatter (contig in contig) {
-        if (!single_contig) {
+    scatter (contig in contigs) {
+        if (!single_contig || defined(args_string_vcf)) {
             call Helpers.SubsetVcfByArgs as SubsetEval {
                 input:
                     vcf = vcf_eval,
                     vcf_idx = vcf_eval_idx,
                     include_args = args_string_vcf,
-                    extra_args = "-G --regions ~{contig}",
+                    extra_args = if single_contig then "" else "--regions ~{contig}",
                     prefix = "~{prefix}.~{contig}.eval",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_eval
             }
+        }
 
+        if (!single_contig || defined(args_string_vcf_truth)) {
             call Helpers.SubsetVcfByArgs as SubsetTruth {
                 input:
-                    vcf = vcf_truth[idx],
-                    vcf_idx = vcf_truth_idx[idx],
+                    vcf = vcf_truth,
+                    vcf_idx = vcf_truth_idx,
                     include_args = args_string_vcf_truth,
-                    extra_args = "-G --regions ~{contig}",
+                    extra_args = if single_contig then "" else "--regions ~{contig}",
                     prefix = "~{prefix}.~{contig}.truth",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_truth
             }
+        }
 
+        if (!single_contig || defined(args_string_vcf_sv_truth)) {
             call Helpers.SubsetVcfByArgs as SubsetSVTruth {
                 input:
                     vcf = vcf_sv_truth,
                     vcf_idx = vcf_sv_truth_idx,
                     include_args = args_string_vcf_sv_truth,
-                    extra_args = "-G --regions ~{contig}",
+                    extra_args = if single_contig then "" else "--regions ~{contig}",
                     prefix = "~{prefix}.~{contig}.sv_truth",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_sv_truth
