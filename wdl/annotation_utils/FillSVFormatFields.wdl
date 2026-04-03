@@ -31,14 +31,33 @@ workflow FillSVFormatFields {
         Boolean fuzzy_match_vcf_to_stats = true
         File? swap_samples
 
-        RuntimeAttr? runtime_attr_swap_samples
-        RuntimeAttr? runtime_attr_subset_cohort_to_samples
         RuntimeAttr? runtime_attr_compute_counts
         RuntimeAttr? runtime_attr_aggregate_counts
+        RuntimeAttr? runtime_attr_swap_samples
+        RuntimeAttr? runtime_attr_subset_cohort_to_samples
         RuntimeAttr? runtime_attr_extract_sample
         RuntimeAttr? runtime_attr_fill_format_fields
         RuntimeAttr? runtime_attr_merge_vcfs
         RuntimeAttr? runtime_attr_concat_missing
+    }
+
+    scatter (i in range(length(sample_ids))) {
+        call ComputePerSampleCallerCounts {
+            input:
+                sample_id = sample_ids[i],
+                sv_stats = sample_sv_stats[i],
+                prefix = "~{prefix}.~{sample_ids[i]}.caller_counts",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_compute_counts
+        }
+    }
+
+    call AggregateCallerCounts {
+        input:
+            per_sample_counts = ComputePerSampleCallerCounts.counts_tsv,
+            prefix = "~{prefix}.caller_counts",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_aggregate_counts
     }
 
     if (defined(swap_samples)) {
@@ -64,25 +83,6 @@ workflow FillSVFormatFields {
             prefix = "~{prefix}.subset",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_cohort_to_samples
-    }
-
-    scatter (i in range(length(sample_ids))) {
-        call ComputePerSampleCallerCounts {
-            input:
-                sample_id = sample_ids[i],
-                sv_stats = sample_sv_stats[i],
-                prefix = "~{prefix}.~{sample_ids[i]}.caller_counts",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_compute_counts
-        }
-    }
-
-    call AggregateCallerCounts {
-        input:
-            per_sample_counts = ComputePerSampleCallerCounts.counts_tsv,
-            prefix = "~{prefix}.caller_counts",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_aggregate_counts
     }
 
     scatter (i in range(length(sample_ids))) {
@@ -531,11 +531,16 @@ for vcf_caller, (vcf_path, idx_path) in caller_files.items():
 
 vcf_in = pysam.VariantFile("~{subset_vcf}")
 header = vcf_in.header
-header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">')
-header.add_line('##FORMAT=<ID=EV,Number=1,Type=String,Description="Callers supporting this variant in this sample (excluding pav)">')
-header.add_line('##FORMAT=<ID=BEV,Number=1,Type=String,Description="Best caller for this variant type and size bucket">')
-header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">')
-header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
+if 'AD' not in header.formats:
+    header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">')
+if 'GQ' not in header.formats:
+    header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype quality">')
+if 'PL' not in header.formats:
+    header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
+if 'EV' not in header.formats:
+    header.add_line('##FORMAT=<ID=EV,Number=1,Type=String,Description="Callers supporting this variant in this sample">')
+if 'BEV' not in header.formats:
+    header.add_line('##FORMAT=<ID=BEV,Number=1,Type=String,Description="Best caller for this variant type and size bucket">')
 
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
 format_source_rows = []

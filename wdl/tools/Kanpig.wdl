@@ -254,12 +254,12 @@ kp_vcf = pysam.VariantFile("~{kanpig_vcf}")
 base_vcf = pysam.VariantFile("~{base_vcf}")
 
 header = base_vcf.header.copy()
+if 'DP' not in header.formats:
+    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
 if 'AD' not in header.formats:
     header.add_line('##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths for the ref and alt alleles">')
 if 'GQ' not in header.formats:
     header.add_line('##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">')
-if 'DP' not in header.formats:
-    header.add_line('##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth (reads with MQ=255 or with bad mates are filtered)">')
 if 'PL' not in header.formats:
     header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 
@@ -287,15 +287,12 @@ for rec in base_vcf:
             clear_format_fields(rec, sample, n_alleles)
         else:
             # Case 1b: Autosome, male on chrX/Y and female on chrX → set AD/DP/PL/GQ from Kanpig 
-            for field in ['AD', 'DP']:
-                val = kp_rec.samples[sample][field]
-                if field == 'AD' and (val is None or len(val) != n_alleles):
-                    continue
-                rec.samples[sample][field] = val
+            rec.samples[sample]['DP'] = kp_rec.samples[sample]['DP']
             
-            ad_val = rec.samples[sample].get('AD')
-            if ad_val is not None and len(ad_val) == 2:
-                pls = calculate_pl(ad_val[0], ad_val[1])
+            if kp_rec.samples[sample]['AD'] is not None and len(kp_rec.samples[sample]['AD']) == n_alleles:
+                ad = kp_rec.samples[sample]['AD']
+                pls = calculate_pl(ad[0], ad[1])
+                rec.samples[sample]['AD'] = ad_val
                 rec.samples[sample]['PL'] = pls
                 rec.samples[sample]['GQ'] = calculate_gq(pls)
             
