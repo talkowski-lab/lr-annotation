@@ -135,21 +135,21 @@ workflow FillSVFormatFields {
             runtime_attr_override = runtime_attr_merge_vcfs
     }
 
-    call Helpers.ConcatTsvs as ConcatFormatSource {
+    call Helpers.ConcatTsvs as ConcatCallerSource {
         input:
-            tsvs = FillFormatFields.format_source_tsv,
+            tsvs = FillFormatFields.caller_source_tsv,
             sort_output = false,
             preserve_header = true,
-            prefix = "~{prefix}.format_source",
+            prefix = "~{prefix}.caller_source",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_missing
     }
 
     output {
-        File filled_cohort_vcf = MergeVcfs.merged_vcf
-        File filled_cohort_vcf_idx = MergeVcfs.merged_vcf_idx
-        File caller_counts_tsv = AggregateCallerCounts.counts_tsv
-        File format_source = ConcatFormatSource.concatenated_tsv
+        File sv_filled_vcf = MergeVcfs.merged_vcf
+        File sv_filled_vcf_idx = MergeVcfs.merged_vcf_idx
+        File sv_caller_counts_tsv = AggregateCallerCounts.counts_tsv
+        File sv_caller_source_tsv = ConcatCallerSource.concatenated_tsv
     }
 }
 
@@ -543,7 +543,7 @@ if 'BEV' not in header.formats:
     header.add_line('##FORMAT=<ID=BEV,Number=1,Type=String,Description="Best caller for this variant type and size bucket">')
 
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
-format_source_rows = []
+caller_source_rows = []
 
 for record in vcf_in:
     sample_name = list(record.samples.keys())[0]
@@ -573,7 +573,7 @@ for record in vcf_in:
             stat = find_matching_stat(record.chrom, record.pos, rec_svtype)
 
     if stat is None or not stat['callers']:
-        format_source_rows.append((
+        caller_source_rows.append((
             sample_id, record.id, '.', '.', '.', '.', '.', '.', '.', 'NO_STATS_MATCH'
         ))
         write_record()
@@ -619,7 +619,7 @@ for record in vcf_in:
     match_dist_stats_raw = str(abs(stat_pos - raw_pos)) if raw_pos is not None else '.'
 
     if ad is None:
-        format_source_rows.append((
+        caller_source_rows.append((
             sample_id, record.id, stat_id, raw_id, ev, '.', match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'NO_AD'
         ))
     else:
@@ -627,7 +627,7 @@ for record in vcf_in:
         pls = calc_pls(ad[0], ad[1])
         sample_fmt['PL'] = tuple(pls)
         sample_fmt['GQ'] = calc_gq(pls)
-        format_source_rows.append((
+        caller_source_rows.append((
             sample_id, record.id, stat_id, raw_id, ev, bev, match_dist_vcf_stats, match_dist_vcf_raw, match_dist_stats_raw, 'MATCHED'
         ))
 
@@ -636,9 +636,9 @@ for record in vcf_in:
 vcf_in.close()
 vcf_out.close()
 
-with open("~{prefix}.format_source.tsv", 'w') as f:
+with open("~{prefix}.caller_source.tsv", 'w') as f:
     f.write("SAMPLE\tVARIANT_ID_VCF\tVARIANT_ID_STATS\tVARIANT_ID_RAW\tEV\tBEV\tMATCH_DIST_VCF_STATS\tMATCH_DIST_VCF_RAW\tMATCH_DIST_STATS_RAW\tSTATUS\n")
-    for row in format_source_rows:
+    for row in caller_source_rows:
         f.write("\t".join(row) + "\n")
 CODE
 
@@ -648,7 +648,7 @@ CODE
     output {
         File filled_vcf = "~{prefix}.vcf.gz"
         File filled_vcf_idx = "~{prefix}.vcf.gz.tbi"
-        File format_source_tsv = "~{prefix}.format_source.tsv"
+        File caller_source_tsv = "~{prefix}.caller_source.tsv"
     }
 
     RuntimeAttr default_attr = object {

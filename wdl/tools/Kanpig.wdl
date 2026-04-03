@@ -124,10 +124,10 @@ workflow Kanpig {
     }
 
     output {
-        File kanpig_raw_vcf = MergeRaw.merged_vcf
-        File kanpig_raw_vcf_idx = MergeRaw.merged_vcf_idx
-        File kanpig_regenotyped_vcf = MergeProcessed.merged_vcf
-        File kanpig_regenotyped_vcf_idx = MergeProcessed.merged_vcf_idx
+        File sv_kanpig_vcf = MergeProcessed.merged_vcf
+        File sv_kanpig_vcf_idx = MergeProcessed.merged_vcf_idx
+        File sv_kanpig_raw_vcf = MergeRaw.merged_vcf
+        File sv_kanpig_raw_vcf_idx = MergeRaw.merged_vcf_idx
     }
 }
 
