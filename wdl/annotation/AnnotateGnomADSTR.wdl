@@ -21,21 +21,28 @@ workflow AnnotateGnomADSTR {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contigs
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contigs
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         call Helpers.SubsetVcfByArgs {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 exclude_args = "INFO/allele_type=\"trv\"",
                 prefix = "~{prefix}.~{contig}.trv",
                 docker = utils_docker,
@@ -44,8 +51,8 @@ workflow AnnotateGnomADSTR {
 
         call AnnotateGnomADSTRLoci {
             input:
-                base_vcf = SubsetVcfToContig.subset_vcf,
-                base_vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                base_vcf = contig_vcf,
+                base_vcf_idx = contig_vcf_idx,
                 trv_vcf = SubsetVcfByArgs.subset_vcf,
                 trv_vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                 gnomad_tr_json = gnomad_tr_json,
@@ -56,20 +63,19 @@ workflow AnnotateGnomADSTR {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateGnomADSTRLoci.annotated_vcf,
-            vcf_idxs = AnnotateGnomADSTRLoci.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.gnomad_str_annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_vcf
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = AnnotateGnomADSTRLoci.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.gnomad_str_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     output {
-        File gnomad_str_annotated_vcf = ConcatVcfs.concat_vcf
-        File gnomad_str_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File annotations_tsv_gnomad_str = select_first([ConcatTsvs.concatenated_tsv, AnnotateGnomADSTRLoci.annotations_tsv[0]])
     }
 }
 
@@ -151,29 +157,14 @@ PYCODE
             > all_matches.tsv
 
         bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{trv_vcf} \
-            | awk 'BEGIN{OFS="\t"} NR==FNR{locus[$1]=$2; next} ($5 in locus){print $1,$2,$3,$4,locus[$5]}' \
+            | awk 'BEGIN{OFS="\t"} NR==FNR{locus[$1]=$2; next} ($5 in locus){print $1,$2,$3,$4,$5,locus[$5]}' \
             all_matches.tsv - \
             | sort -k1,1 -k2,2n \
-            | bgzip -c > annot.txt.gz
-
-        tabix -s1 -b2 -e2 annot.txt.gz
-
-        echo '##INFO=<ID=gnomAD_STR,Number=1,Type=String,Description="gnomAD STR ID overlapping this tandem repeat variant">' \
-            > header.lines
-
-        bcftools annotate \
-            -h header.lines \
-            -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,INFO/gnomAD_STR \
-            ~{base_vcf} \
-            -Oz -o ~{prefix}.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
+            > ~{prefix}.annotations.tsv
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

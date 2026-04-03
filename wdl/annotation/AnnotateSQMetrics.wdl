@@ -17,41 +17,47 @@ workflow AnnotateSQMetrics {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetVcf {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetVcf {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcf.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcf.subset_vcf_idx, vcf_idx])
 
         call CalculateSiteMetrics {
             input:
-                vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 prefix = "~{prefix}.~{contig}.site_quality",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
     }
 
-    call Helpers.ConcatVcfs as MergeAnnotatedVcfs {
-        input:
-            vcfs = CalculateSiteMetrics.annotated_vcf,
-            vcf_idxs = CalculateSiteMetrics.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.site_quality",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs as MergeAnnotations {
+            input:
+                tsvs = CalculateSiteMetrics.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.site_quality",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File sq_annotated_vcf = MergeAnnotatedVcfs.concat_vcf
-        File sq_annotated_vcf_idx = MergeAnnotatedVcfs.concat_vcf_idx
+        File annotations_tsv_sq = select_first([MergeAnnotations.concatenated_tsv, CalculateSiteMetrics.annotations_tsv[0]])
     }
 }
 
@@ -79,18 +85,10 @@ import scipy.stats as stats
 
 vcf_in = pysam.VariantFile("stripped.vcf.gz")
 
-vcf_in.header.info.add("inbreeding_coeff", "A", "Float", "Inbreeding coefficient, the excess heterozygosity at a variant site, computed as 1 - (the number of heterozygous genotypes)/(the number of heterozygous genotypes expected under Hardy-Weinberg equilibrium)")
-vcf_in.header.info.add("AS_pab_max", "A", "Float", "Allele-specific maximum p-value over callset for binomial test of observed allele balance for a heterozygous genotype, given expectation of AB=0.5")
-vcf_in.header.info.add("AS_QUALapprox", "A", "Integer", "Allele-specific sum of PL[0] values; used to approximate the QUAL score")
-vcf_in.header.info.add("AS_QD", "A", "Float", "Allele-specific variant call confidence normalized by depth of sample reads supporting a variant")
-vcf_in.header.info.add("AS_VarDP", "A", "Integer", "Allele-specific depth over variant genotypes (does not include depth of reference samples)")
-vcf_in.header.info.add("HWE", "1", "Float", "Hardy-Weinberg equilibrium p-value")
-
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=vcf_in.header)
+tsv_out = open("~{prefix}.annotations.tsv", "w")
 
 for rec in vcf_in:
     if not rec.alts:
-        vcf_out.write(rec)
         continue
 
     n_alt_alleles = len(rec.alts)
@@ -156,13 +154,6 @@ for rec in vcf_in:
                         if as_pab_max[allele_i] is None or pval > as_pab_max[allele_i]:
                             as_pab_max[allele_i] = pval
 
-    rec.info['AS_VarDP'] = tuple(as_vardp)
-    rec.info['AS_QUALapprox'] = tuple(as_qualapprox)
-    rec.info['AS_QD'] = tuple(
-        round(as_qd_sum[i] / as_qd_n[i], 6) if as_qd_n[i] > 0 else 0.0
-        for i in range(n_alt_alleles)
-    )
-
     inbreeding_coeff = []
     for i in range(n_alt_alleles):
         n_ref_allele = n_ref_per_allele[i]
@@ -183,11 +174,9 @@ for rec in vcf_in:
         else:
             inbreeding_coeff.append(0.0)
 
-    rec.info['inbreeding_coeff'] = tuple(inbreeding_coeff)
+    pab_max_vals = [v if v is not None else '.' for v in as_pab_max]
 
-    if any(v is not None for v in as_pab_max):
-        rec.info['AS_pab_max'] = tuple(as_pab_max)
-
+    hwe_val = '.'
     n_tot = n_ref_site + n_het_site + n_alt_site
     if n_tot > 0:
         p = (2.0 * n_ref_site + n_het_site) / (2.0 * n_tot)
@@ -196,19 +185,31 @@ for rec in vcf_in:
         e_ref = (p ** 2) * n_tot
         e_alt = (q ** 2) * n_tot
         chisq = sum(((o - e) ** 2) / e for o, e in zip([n_ref_site, n_het_site, n_alt_site], [e_ref, e_het, e_alt]) if e > 0)
-        rec.info['HWE'] = round(float(stats.chi2.sf(chisq, 1)), 6)
+        hwe_val = round(float(stats.chi2.sf(chisq, 1)), 6)
 
-    vcf_out.write(rec)
+    as_qd = [round(as_qd_sum[i] / as_qd_n[i], 6) if as_qd_n[i] > 0 else 0.0 for i in range(n_alt_alleles)]
 
-vcf_out.close()
+    row = [
+        rec.chrom,
+        str(rec.pos),
+        rec.ref,
+        ','.join(rec.alts),
+        rec.id if rec.id else '.',
+        ','.join(str(v) for v in inbreeding_coeff),
+        ','.join(str(v) for v in pab_max_vals),
+        ','.join(str(v) for v in as_qualapprox),
+        ','.join(str(v) for v in as_qd),
+        ','.join(str(v) for v in as_vardp),
+        str(hwe_val),
+    ]
+    tsv_out.write('\t'.join(row) + '\n')
+
+tsv_out.close()
 CODE
-
-        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

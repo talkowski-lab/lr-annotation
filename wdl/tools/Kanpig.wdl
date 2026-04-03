@@ -292,7 +292,7 @@ for rec in base_vcf:
             if kp_rec.samples[sample]['AD'] is not None and len(kp_rec.samples[sample]['AD']) == n_alleles:
                 ad = kp_rec.samples[sample]['AD']
                 pls = calculate_pl(ad[0], ad[1])
-                rec.samples[sample]['AD'] = ad_val
+                rec.samples[sample]['AD'] = ad
                 rec.samples[sample]['PL'] = pls
                 rec.samples[sample]['GQ'] = calculate_gq(pls)
             

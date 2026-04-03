@@ -32,43 +32,51 @@ workflow AnnotateTRs {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetContigBase {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                extra_args = "--min-ac 1",
-                prefix = "~{prefix}.~{contig}.base",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig_base
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetContigBase {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.base",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contig_base
+            }
+
+            call Helpers.SubsetVcfToContig as SubsetContigTr {
+                input:
+                    vcf = tr_vcf,
+                    vcf_idx = tr_vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.tr",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contig_tr
+            }
         }
+
+        File contig_vcf = select_first([SubsetContigBase.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetContigBase.subset_vcf_idx, vcf_idx])
+
+        File contig_tr_vcf = select_first([SubsetContigTr.subset_vcf, tr_vcf])
+        File contig_tr_vcf_idx = select_first([SubsetContigTr.subset_vcf_idx, tr_vcf_idx])
 
         call Helpers.SubsetVcfToSamples as SubsetSamplesBase {
             input:
-                vcf = SubsetContigBase.subset_vcf,
-                vcf_idx = SubsetContigBase.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 samples = sample_ids,
                 prefix = "~{prefix}.~{contig}.base_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_samples_base
         }
 
-        call Helpers.SubsetVcfToContig as SubsetContigTr {
-            input:
-                vcf = tr_vcf,
-                vcf_idx = tr_vcf_idx,
-                contig = contig,
-                extra_args = "--min-ac 1",
-                prefix = "~{prefix}.~{contig}.tr",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig_tr
-        }
-
         call Helpers.SubsetVcfToSamples as SubsetSamplesTr {
             input:
-                vcf = SubsetContigTr.subset_vcf,
-                vcf_idx = SubsetContigTr.subset_vcf_idx,
+                vcf = contig_tr_vcf,
+                vcf_idx = contig_tr_vcf_idx,
                 samples = sample_ids,
                 prefix = "~{prefix}.~{contig}.tr_subset",
                 docker = utils_docker,
@@ -137,20 +145,22 @@ workflow AnnotateTRs {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateVcfWithTRs.annotated_vcf,
-            vcf_idxs = AnnotateVcfWithTRs.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.annotated_trs",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_vcf
+    if (!single_contig) {
+        call Helpers.ConcatVcfs {
+            input:
+                vcfs = AnnotateVcfWithTRs.annotated_vcf,
+                vcf_idxs = AnnotateVcfWithTRs.annotated_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.annotated_trs",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     output {
-        File tr_annotated_vcf = ConcatVcfs.concat_vcf
-        File tr_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File tr_annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateVcfWithTRs.annotated_vcf[0]])
+        File tr_annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateVcfWithTRs.annotated_vcf_idx[0]])
     }
 }
 

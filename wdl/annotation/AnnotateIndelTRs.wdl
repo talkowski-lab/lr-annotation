@@ -24,13 +24,15 @@ workflow AnnotateIndelTRs {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
+        call Helpers.SubsetVcfByArgs as SubsetContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                contig = contig,
-                extra_args = "-e 'INFO/allele_type=\"trv\" || INFO/TR_ENVELOPED=1'",
+                exclude_args = "INFO/allele_type=\"trv\" || INFO/TR_ENVELOPED=1",
+                extra_args = if single_contig then "" else "--regions " + contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
@@ -38,8 +40,8 @@ workflow AnnotateIndelTRs {
 
         call RunFilterVcfToTRs {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = SubsetContig.subset_vcf,
+                vcf_idx = SubsetContig.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.tr_annotations",
@@ -51,17 +53,19 @@ workflow AnnotateIndelTRs {
         }
     }
 
-    call Helpers.ConcatTsvs {
-        input:
-            tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.tr_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.tr_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotations_tsv_trs = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_trs = select_first([ConcatTsvs.concatenated_tsv, RunFilterVcfToTRs.tr_annotations_tsv[0]])
     }
 }
 

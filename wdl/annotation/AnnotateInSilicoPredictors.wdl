@@ -27,21 +27,28 @@ workflow AnnotateInSilicoPredictors {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         call AnnotateInSilicoPredictorsTask {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 prefix = "~{prefix}.~{contig}.in_silico_predictors",
                 cadd_ht = cadd_ht,
                 pangolin_ht = pangolin_ht,
@@ -55,20 +62,19 @@ workflow AnnotateInSilicoPredictors {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateInSilicoPredictorsTask.annotated_vcf,
-            vcf_idxs = AnnotateInSilicoPredictorsTask.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.in_silico_predictors",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_vcf
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = AnnotateInSilicoPredictorsTask.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.in_silico_predictors",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     output {
-        File insilico_annotated_vcf = ConcatVcfs.concat_vcf
-        File insilico_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File annotations_tsv_insilico = select_first([ConcatTsvs.concatenated_tsv, AnnotateInSilicoPredictorsTask.annotations_tsv[0]])
     }
 }
 
@@ -106,16 +112,11 @@ task AnnotateInSilicoPredictorsTask {
             --revel_ht ~{revel_ht} \
             --spliceai_ht ~{spliceai_ht} \
             --vcf ~{vcf} \
-            --output_vcf ~{prefix}.vcf.bgz
-
-        mv ~{prefix}.vcf.bgz ~{prefix}.vcf.gz
-
-        mv ~{prefix}.vcf.bgz.tbi ~{prefix}.vcf.gz.tbi
+            --output_tsv ~{prefix}.annotations.tsv
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

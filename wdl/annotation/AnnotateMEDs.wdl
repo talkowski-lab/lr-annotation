@@ -25,20 +25,26 @@ workflow AnnotateMEDs {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
 
         call ExtractDeletionsToBed {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
+                vcf = contig_vcf,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_bedtools
@@ -67,17 +73,19 @@ workflow AnnotateMEDs {
         }
     }
 
-    call Helpers.ConcatTsvs as MergeAnnotations {
-        input:
-            tsvs = GenerateMedAnnotationTable.annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.med_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs as MergeAnnotations {
+            input:
+                tsvs = GenerateMedAnnotationTable.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.med_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotations_tsv_meds = MergeAnnotations.concatenated_tsv
+        File annotations_tsv_meds = select_first([MergeAnnotations.concatenated_tsv, GenerateMedAnnotationTable.annotations_tsv[0]])
     }
 }
 

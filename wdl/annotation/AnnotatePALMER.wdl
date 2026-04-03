@@ -50,13 +50,15 @@ workflow AnnotatePALMER {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
         call Helpers.SubsetVcfByLength {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 min_length = min_length,
-                extra_args = "--regions ~{contig}",
+                extra_args = if single_contig then "" else "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_subset
@@ -98,17 +100,19 @@ workflow AnnotatePALMER {
         }
     }
 
-    call Helpers.ConcatTsvs as MergeAnnotations {
-        input:
-            tsvs = FilterPALMER.annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.palmer_annotations",
-            docker = annotate_palmer_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs as MergeAnnotations {
+            input:
+                tsvs = FilterPALMER.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.palmer_annotations",
+                docker = annotate_palmer_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotations_tsv_palmer = MergeAnnotations.concatenated_tsv
+        File annotations_tsv_palmer = select_first([MergeAnnotations.concatenated_tsv, FilterPALMER.annotations_tsv[0]])
     }
 }
 

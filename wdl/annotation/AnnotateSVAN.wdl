@@ -41,14 +41,15 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_concat_final
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
         # Preprocessing
-        call Helpers.SubsetVcfToContig {
+        call Helpers.SubsetVcfByArgs as SubsetContig {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                contig = contig,
-                extra_args = "-G",
+                extra_args = if single_contig then "-G" else "-G --regions " + contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -57,8 +58,8 @@ workflow AnnotateSVAN {
         # Insertions
         call Helpers.SubsetVcfByArgs as SubsetIns {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = SubsetContig.subset_vcf,
+                vcf_idx = SubsetContig.subset_vcf_idx,
                 include_args = 'INFO/allele_type="ins"',
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
@@ -148,8 +149,8 @@ workflow AnnotateSVAN {
         # Deletions
         call Helpers.SubsetVcfByArgs as SubsetDel {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = SubsetContig.subset_vcf,
+                vcf_idx = SubsetContig.subset_vcf_idx,
                 include_args = 'INFO/allele_type="del"',
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,

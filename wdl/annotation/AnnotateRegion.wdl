@@ -23,21 +23,28 @@ workflow AnnotateRegion {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         call LabelVariantRegions as LabelSimpleRepeats {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 region_bed = simple_repeats_bed,
                 region_name = "SR",
                 min_coverage = min_coverage,
@@ -80,20 +87,19 @@ workflow AnnotateRegion {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = SetUniqueRegion.annotated_vcf,
-            vcf_idxs = SetUniqueRegion.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.region_annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_vcf
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = SetUniqueRegion.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.region_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     output {
-        File region_annotated_vcf = ConcatVcfs.concat_vcf
-        File region_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File annotations_tsv_region = select_first([ConcatTsvs.concatenated_tsv, SetUniqueRegion.annotations_tsv[0]])
     }
 }
 
@@ -193,28 +199,16 @@ task SetUniqueRegion {
     command <<<
         set -euo pipefail
 
-        # Annotate any variants without INFO/REGION as UNIQUE
+        # Extract all variants with their REGION, defaulting to US for unset
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
-            -e 'INFO/REGION != "."' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/REGION\n' \
             ~{vcf} \
-        | awk '{print $0"\tUS"}' \
-        | bgzip -c > unique_annot.txt.gz
-
-        tabix -s1 -b2 -e2 unique_annot.txt.gz
-
-        bcftools annotate \
-            -a unique_annot.txt.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/REGION \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
+        | awk 'BEGIN{OFS="\t"} {if ($6 == ".") $6 = "US"; print}' \
+            > ~{prefix}.annotations.tsv
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

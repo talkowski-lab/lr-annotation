@@ -29,13 +29,15 @@ workflow AnnotateSVAnnotate {
         RuntimeAttr? runtime_attr_revert_symbolic
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
         call Helpers.SubsetVcfByLength as SubsetVcfAnnotated {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 min_length = min_length,
-                extra_args = "--regions ~{contig}",
+                extra_args = if single_contig then "" else "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
@@ -95,26 +97,28 @@ workflow AnnotateSVAnnotate {
         }
     }
 
-    call Helpers.ConcatTsvs as MergeTsvs {
-        input:
-            tsvs = ExtractAnnotations.annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.svannotate_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_annotated
-    }
+    if (!single_contig) {
+        call Helpers.ConcatTsvs as MergeTsvs {
+            input:
+                tsvs = ExtractAnnotations.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.svannotate_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_annotated
+        }
 
-    call Helpers.MergeHeaderLines as MergeHeaders {
-        input:
-            header_files = ExtractAnnotations.annotations_header,
-            prefix = "~{prefix}.svannotate_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge
+        call Helpers.MergeHeaderLines as MergeHeaders {
+            input:
+                header_files = ExtractAnnotations.annotations_header,
+                prefix = "~{prefix}.svannotate_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
     }
 
     output {
-        File annotations_tsv_svannotate = MergeTsvs.concatenated_tsv
-        File annotations_header_svannotate = MergeHeaders.merged_header
+        File annotations_tsv_svannotate = select_first([MergeTsvs.concatenated_tsv, ExtractAnnotations.annotations_tsv[0]])
+        File annotations_header_svannotate = select_first([MergeHeaders.merged_header, ExtractAnnotations.annotations_header[0]])
     }
 }
 

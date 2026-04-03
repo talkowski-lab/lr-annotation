@@ -20,21 +20,28 @@ workflow AnnotateVRS {
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.subset",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.subset",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         call AnnotateVcfWithVRS {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 seqrepo_tar = seqrepo_tar,
                 prefix = "~{prefix}.~{contig}.vrs",
                 docker = vrs_docker,
@@ -42,20 +49,22 @@ workflow AnnotateVRS {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateVcfWithVRS.annotated_vcf,
-            vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.vrs_annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_vcf
+    if (!single_contig) {
+        call Helpers.ConcatVcfs {
+            input:
+                vcfs = AnnotateVcfWithVRS.annotated_vcf,
+                vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.vrs_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     output {
-        File vrs_annotated_vcf = ConcatVcfs.concat_vcf
-        File vrs_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File vrs_annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateVcfWithVRS.annotated_vcf[0]])
+        File vrs_annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateVcfWithVRS.annotated_vcf_idx[0]])
     }
 }
 

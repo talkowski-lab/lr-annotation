@@ -29,53 +29,61 @@ workflow AnnotateDbGaP {
             runtime_attr_override = runtime_attr_subset_dbgap_vcf
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetVcf {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetVcf {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
+
+            call Helpers.SubsetVcfToContig as SubsetDbGaPVcf {
+                input:
+                    vcf = RenameDbGaPContigs.renamed_vcf,
+                    vcf_idx = RenameDbGaPContigs.renamed_vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.dbgap",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_dbgap_vcf
+            }
         }
 
-        call Helpers.SubsetVcfToContig as SubsetDbGaPVcf {
-            input:
-                vcf = RenameDbGaPContigs.renamed_vcf,
-                vcf_idx = RenameDbGaPContigs.renamed_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.dbgap",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_dbgap_vcf
-        }
+        File contig_vcf = select_first([SubsetVcf.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcf.subset_vcf_idx, vcf_idx])
+        File contig_dbgap_vcf = select_first([SubsetDbGaPVcf.subset_vcf, RenameDbGaPContigs.renamed_vcf])
+        File contig_dbgap_vcf_idx = select_first([SubsetDbGaPVcf.subset_vcf_idx, RenameDbGaPContigs.renamed_vcf_idx])
 
         call AnnotateDbGaPIds {
             input:
-                vcf = SubsetVcf.subset_vcf,
-                vcf_idx = SubsetVcf.subset_vcf_idx,
-                dbgap_vcf = SubsetDbGaPVcf.subset_vcf,
-                dbgap_vcf_idx = SubsetDbGaPVcf.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
+                dbgap_vcf = contig_dbgap_vcf,
+                dbgap_vcf_idx = contig_dbgap_vcf_idx,
                 prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateDbGaPIds.annotated_vcf,
-            vcf_idxs = AnnotateDbGaPIds.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.dbgap_annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = AnnotateDbGaPIds.annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.dbgap_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File dbgap_annotated_vcf = ConcatVcfs.concat_vcf
-        File dbgap_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File annotations_tsv_dbgap = select_first([ConcatTsvs.concatenated_tsv, AnnotateDbGaPIds.annotations_tsv[0]])
     }
 }
 
@@ -165,22 +173,10 @@ task AnnotateDbGaPIds {
     command <<<
         set -euo pipefail
 
-        touch new_headers.txt
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=dbGaP_ID'; then
-            echo '##INFO=<ID=dbGaP_ID,Number=1,Type=String,Description="dbGaP variant ID for matching SNV">' >> new_headers.txt
-        fi
-
-        bcftools annotate \
-            -h new_headers.txt \
-            -Oz -o temp.vcf.gz \
-            ~{vcf}
-        
-        tabix -p vcf temp.vcf.gz
-
-        # Extract SNVs from input VCF for variants with allele_type='snv'
+        # Extract variants from input VCF
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
-            temp.vcf.gz \
+            ~{vcf} \
             > input_variants.txt
 
         # Extract all variants from dbGaP VCF
@@ -189,7 +185,7 @@ task AnnotateDbGaPIds {
             ~{dbgap_vcf} \
             > dbgap_variants.txt
 
-        # Match SNVs with dbGaP variants on CHROM, POS, REF and any matching ALT
+        # Match variants with dbGaP variants on CHROM, POS, REF and any matching ALT
         awk 'BEGIN{OFS="\t"} 
         NR==FNR {
             chrom = $1
@@ -210,23 +206,11 @@ task AnnotateDbGaPIds {
                 print $1, $2, $3, $4, $5, dbgap[key]
             }
         }' dbgap_variants.txt input_variants.txt \
-            | bgzip -c > annotations.txt.gz
-        
-        tabix -s1 -b2 -e2 annotations.txt.gz
-
-        # Annotate VCF with dbGaP_ID
-        bcftools annotate \
-            -a annotations.txt.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/dbGaP_ID \
-            -Oz -o ~{prefix}.vcf.gz \
-            temp.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
+            > ~{prefix}.annotations.tsv
     >>>
 
     output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File annotations_tsv = "~{prefix}.annotations.tsv"
     }
 
     RuntimeAttr default_attr = object {

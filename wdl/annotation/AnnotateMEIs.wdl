@@ -19,39 +19,47 @@ workflow AnnotateMEIs {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetTsvToContig as SubsetL1MEAID {
-            input:
-                tsv = annotations_tsv_l1meaid,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.l1meaid",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
+        if (!single_contig) {
+            call Helpers.SubsetTsvToContig as SubsetL1MEAID {
+                input:
+                    tsv = annotations_tsv_l1meaid,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.l1meaid",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
+
+            call Helpers.SubsetTsvToContig as SubsetPALMER {
+                input:
+                    tsv = annotations_tsv_palmer,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.palmer",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
+
+            call Helpers.SubsetTsvToContig as SubsetSVAN {
+                input:
+                    tsv = annotations_tsv_svan,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.svan",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
         }
 
-        call Helpers.SubsetTsvToContig as SubsetPALMER {
-            input:
-                tsv = annotations_tsv_palmer,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.palmer",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
-        }
-
-        call Helpers.SubsetTsvToContig as SubsetSVAN {
-            input:
-                tsv = annotations_tsv_svan,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.svan",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset
-        }
+        File contig_l1meaid = select_first([SubsetL1MEAID.subset_tsv, annotations_tsv_l1meaid])
+        File contig_palmer = select_first([SubsetPALMER.subset_tsv, annotations_tsv_palmer])
+        File contig_svan = select_first([SubsetSVAN.subset_tsv, annotations_tsv_svan])
 
         call FilterMEIs {
             input:
-                tsv_l1meaid = SubsetL1MEAID.subset_tsv,
-                tsv_palmer = SubsetPALMER.subset_tsv,
-                tsv_svan = SubsetSVAN.subset_tsv,
+                tsv_l1meaid = contig_l1meaid,
+                tsv_palmer = contig_palmer,
+                tsv_svan = contig_svan,
                 header_svan = annotations_header_svan,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
@@ -59,17 +67,19 @@ workflow AnnotateMEIs {
         }
     }
 
-    call Helpers.ConcatTsvs {
-        input:
-            tsvs = FilterMEIs.filtered_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.mei_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = FilterMEIs.filtered_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.mei_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotations_tsv_meis = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_meis = select_first([ConcatTsvs.concatenated_tsv, FilterMEIs.filtered_tsv[0]])
     }
 }
 

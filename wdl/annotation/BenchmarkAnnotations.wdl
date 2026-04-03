@@ -78,47 +78,56 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_merge_plot_tarballs
     }
 
-    scatter (idx in range(length(contigs))) {
-        String contig = contigs[idx]
+    Boolean single_contig = length(contigs) == 1
 
-        call Helpers.SubsetVcfByArgs as SubsetEval {
-            input:
-                vcf = vcf_eval,
-                vcf_idx = vcf_eval_idx,
-                include_args = args_string_vcf,
-                extra_args = "-G --regions ~{contig}",
-                prefix = "~{prefix}.~{contig}.eval",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_eval
+    scatter (contig in contig) {
+        if (!single_contig) {
+            call Helpers.SubsetVcfByArgs as SubsetEval {
+                input:
+                    vcf = vcf_eval,
+                    vcf_idx = vcf_eval_idx,
+                    include_args = args_string_vcf,
+                    extra_args = "-G --regions ~{contig}",
+                    prefix = "~{prefix}.~{contig}.eval",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_eval
+            }
+
+            call Helpers.SubsetVcfByArgs as SubsetTruth {
+                input:
+                    vcf = vcf_truth[idx],
+                    vcf_idx = vcf_truth_idx[idx],
+                    include_args = args_string_vcf_truth,
+                    extra_args = "-G --regions ~{contig}",
+                    prefix = "~{prefix}.~{contig}.truth",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_truth
+            }
+
+            call Helpers.SubsetVcfByArgs as SubsetSVTruth {
+                input:
+                    vcf = vcf_sv_truth,
+                    vcf_idx = vcf_sv_truth_idx,
+                    include_args = args_string_vcf_sv_truth,
+                    extra_args = "-G --regions ~{contig}",
+                    prefix = "~{prefix}.~{contig}.sv_truth",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_sv_truth
+            }
         }
 
-        call Helpers.SubsetVcfByArgs as SubsetTruth {
-            input:
-                vcf = vcf_truth[idx],
-                vcf_idx = vcf_truth_idx[idx],
-                include_args = args_string_vcf_truth,
-                extra_args = "-G --regions ~{contig}",
-                prefix = "~{prefix}.~{contig}.truth",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_truth
-        }
-
-        call Helpers.SubsetVcfByArgs as SubsetSVTruth {
-            input:
-                vcf = vcf_sv_truth,
-                vcf_idx = vcf_sv_truth_idx,
-                include_args = args_string_vcf_sv_truth,
-                extra_args = "-G --regions ~{contig}",
-                prefix = "~{prefix}.~{contig}.sv_truth",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_sv_truth
-        }
+        File subset_eval_vcf = select_first([SubsetEval.subset_vcf, vcf_eval])
+        File subset_eval_vcf_idx = select_first([SubsetEval.subset_vcf_idx, vcf_eval_idx])
+        File subset_truth_vcf = select_first([SubsetTruth.subset_vcf, vcf_truth])
+        File subset_truth_vcf_idx = select_first([SubsetTruth.subset_vcf_idx, vcf_truth_idx])
+        File subset_sv_truth_vcf = select_first([SubsetSVTruth.subset_vcf, vcf_sv_truth])
+        File subset_sv_truth_vcf_idx = select_first([SubsetSVTruth.subset_vcf_idx, vcf_sv_truth_idx])
 
         if (defined(rename_id_string_vcf)) {
             call Helpers.RenameVariantIds as RenameEvalIds {
                 input:
-                    vcf = SubsetEval.subset_vcf,
-                    vcf_idx = SubsetEval.subset_vcf_idx,
+                    vcf = subset_eval_vcf,
+                    vcf_idx = subset_eval_vcf_idx,
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     prefix = "~{prefix}.~{contig}.eval.renamed",
@@ -130,8 +139,8 @@ workflow BenchmarkAnnotations {
         if (defined(rename_id_string_vcf_truth)) {
             call Helpers.RenameVariantIds as RenameTruthIds {
                 input:
-                    vcf = SubsetTruth.subset_vcf,
-                    vcf_idx = SubsetTruth.subset_vcf_idx,
+                    vcf = subset_truth_vcf,
+                    vcf_idx = subset_truth_vcf_idx,
                     id_format = select_first([rename_id_string_vcf_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_truth, false]),
                     prefix = "~{prefix}.~{contig}.truth.renamed",
@@ -143,8 +152,8 @@ workflow BenchmarkAnnotations {
         if (defined(rename_id_string_vcf_sv_truth)) {
             call Helpers.RenameVariantIds as RenameSVTruthIds {
                 input:
-                    vcf = SubsetSVTruth.subset_vcf,
-                    vcf_idx = SubsetSVTruth.subset_vcf_idx,
+                    vcf = subset_sv_truth_vcf,
+                    vcf_idx = subset_sv_truth_vcf_idx,
                     id_format = select_first([rename_id_string_vcf_sv_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_sv_truth, false]),
                     prefix = "~{prefix}.~{contig}.sv_truth.renamed",
@@ -153,12 +162,12 @@ workflow BenchmarkAnnotations {
             }
         }
 
-        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, SubsetEval.subset_vcf])
-        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, SubsetEval.subset_vcf_idx])
-        File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, SubsetTruth.subset_vcf])
-        File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_idx, SubsetTruth.subset_vcf_idx])
-        File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, SubsetSVTruth.subset_vcf])
-        File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, SubsetSVTruth.subset_vcf_idx])
+        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, subset_eval_vcf])
+        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, subset_eval_vcf_idx])
+        File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, subset_truth_vcf])
+        File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_idx, subset_truth_vcf_idx])
+        File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, subset_sv_truth_vcf])
+        File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, subset_sv_truth_vcf_idx])
 
         call ExactMatch {
             input:
@@ -306,16 +315,18 @@ workflow BenchmarkAnnotations {
         }
     }
 
-    call Helpers.ConcatTsvs as MergeAnnotationTsvs {
-        input:
-            tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
-            sort_output = false,
-            prefix = "~{prefix}.benchmark_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_annotation_tsvs
+    if (!single_contig) {
+        call Helpers.ConcatTsvs as MergeAnnotationTsvs {
+            input:
+                tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
+                sort_output = false,
+                prefix = "~{prefix}.benchmark_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_annotation_tsvs
+        }
     }
 
-    if (compare_annotations) {
+    if (!single_contig && compare_annotations) {
         call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
             input:
                 tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
@@ -346,10 +357,10 @@ workflow BenchmarkAnnotations {
     }
 
     output {
-        File annotations_tsv_benchmark = MergeAnnotationTsvs.concatenated_tsv
-        File? benchmark_annotations_summary_tsv = MergeBenchmarkSummaries.concatenated_tsv
-        File? benchmark_annotations_stats_tsv = MergeSummaryStats.concatenated_tsv
-        File? benchmark_annotations_plots_tarball = MergePlotTarballs.merged_tarball
+        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, BuildAnnotationTsv.concatenated_tsv[0]])
+        File? benchmark_annotations_summary_tsv = if single_contig then ComputeSummaryForContig.benchmark_summary_tsv[0] else MergeBenchmarkSummaries.concatenated_tsv
+        File? benchmark_annotations_stats_tsv = if single_contig then ComputeSummaryForContig.summary_stats_tsv[0] else MergeSummaryStats.concatenated_tsv
+        File? benchmark_annotations_plots_tarball = if single_contig then MergeShardBenchmarks.plot_tarball[0] else MergePlotTarballs.merged_tarball
     }
 }
 
