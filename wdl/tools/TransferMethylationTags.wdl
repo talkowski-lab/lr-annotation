@@ -106,7 +106,7 @@ import pysam
 
 with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
     with gzip.open("~{bam_basename}.tags.tsv.gz", "wt") as out:
-        for read in ubam:
+        for read in ubam.fetch(until_eof=True):
             try:
                 mm = read.get_tag('MM')
             except KeyError:
