@@ -131,7 +131,7 @@ with open("~{write_json(gq_bins)}") as f:
 larger_flag = ~{true="True" false="False" gq_larger_field}
 prefix = "~{prefix}"
 
-bin_edges_str = "0|" + "|".join(map(str, bins))
+bin_edges_str = "|".join(map(str, bins))
 col_names = [f"{field}_hist_all_bin_freq", f"{field}_hist_alt_bin_freq"]
 header_lines = [
     f'##INFO=<ID={field}_hist_all_bin_freq,Number=1,Type=String,Description="Histogram for {field} in all individuals; bin edges are: {bin_edges_str}">',
@@ -147,19 +147,23 @@ if larger_flag:
 with open(f"{prefix}.header.txt", "w") as f:
     f.write("\n".join(header_lines) + "\n")
 
+n_intervals = len(bins) - 1
+
 def get_bin_index(val):
-    for j, b in enumerate(bins):
-        if val <= b:
+    for j in range(n_intervals):
+        if val <= bins[j + 1]:
             return j
-    return len(bins)
+    return None
 
 vcf_in = pysam.VariantFile("$INPUT_VCF")
 
 with open(f"{prefix}.tsv", "w") as out:
     out.write("\t".join(["#CHROM", "POS", "REF", "ALT", "ID"] + col_names) + "\n")
     for record in vcf_in:
-        counts_all = [0] * (len(bins) + 1)
-        counts_alt = [0] * (len(bins) + 1)
+        counts_all = [0] * n_intervals
+        counts_alt = [0] * n_intervals
+        n_larger_all = 0
+        n_larger_alt = 0
 
         for sample_data in record.samples.values():
             val = sample_data.get(field)
@@ -176,10 +180,19 @@ with open(f"{prefix}.tsv", "w") as out:
                 alt_allele_count = sum(1 for a in gt if a is not None and a > 0)
             is_alt = alt_allele_count > 0
 
-            b_idx = get_bin_index(float(val))
-            counts_all[b_idx] += 1
-            if is_alt:
-                counts_alt[b_idx] += 1
+            val_f = float(val)
+            if val_f <= bins[0]:
+                continue
+            elif val_f > bins[-1]:
+                n_larger_all += 1
+                if is_alt:
+                    n_larger_alt += 1
+            else:
+                b_idx = get_bin_index(val_f)
+                if b_idx is not None:
+                    counts_all[b_idx] += 1
+                    if is_alt:
+                        counts_alt[b_idx] += 1
 
         row = [
             record.chrom, str(record.pos), record.ref,
@@ -189,7 +202,7 @@ with open(f"{prefix}.tsv", "w") as out:
             "|".join(map(str, counts_alt)),
         ]
         if larger_flag:
-            row += [str(counts_all[-1]), str(counts_alt[-1])]
+            row += [str(n_larger_all), str(n_larger_alt)]
 
         out.write("\t".join(row) + "\n")
 CODE
@@ -244,24 +257,26 @@ with open("~{write_json(ab_bins)}") as f:
     bins = json.load(f)
 prefix = "~{prefix}"
 
-bin_edges_str = "0.0|" + "|".join(map(str, bins))
+bin_edges_str = "|".join(map(str, bins))
 header_line = f'##INFO=<ID=ab_hist_alt_bin_freq,Number=1,Type=String,Description="Histogram for allele balance in heterozygous individuals; bin edges are: {bin_edges_str}">'
 
 with open(f"{prefix}.header.txt", "w") as f:
     f.write(header_line + "\n")
 
+n_intervals = len(bins) - 1
+
 def get_bin_index(val):
-    for j, b in enumerate(bins):
-        if val <= b:
+    for j in range(n_intervals):
+        if val <= bins[j + 1]:
             return j
-    return len(bins)
+    return None
 
 vcf_in = pysam.VariantFile("~{vcf}")
 
 with open(f"{prefix}.tsv", "w") as out:
     out.write("\t".join(["#CHROM", "POS", "REF", "ALT", "ID", "ab_hist_alt_bin_freq"]) + "\n")
     for record in vcf_in:
-        counts_alt = [0] * (len(bins) + 1)
+        counts_alt = [0] * n_intervals
 
         for sample_data in record.samples.values():
             gt = sample_data.get("GT")
@@ -278,7 +293,11 @@ with open(f"{prefix}.tsv", "w") as out:
                 continue
 
             ab = ad[0] / float(total)
-            counts_alt[get_bin_index(ab)] += 1
+            if ab <= bins[0] or ab > bins[-1]:
+                continue
+            b_idx = get_bin_index(ab)
+            if b_idx is not None:
+                counts_alt[b_idx] += 1
 
         row = [
             record.chrom, str(record.pos), record.ref,

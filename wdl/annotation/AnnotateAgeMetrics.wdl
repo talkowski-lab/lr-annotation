@@ -113,11 +113,11 @@ bin_edges_str = "|".join(map(str, bins))
 n_bins = len(bins) - 1
 
 def get_bin_index(age):
-    if age < bins[0]:
+    if age <= bins[0]:
         return "smaller"
     if age > bins[-1]:
         return "larger"
-    idx = bisect.bisect_right(bins, age) - 1
+    idx = bisect.bisect_left(bins, age) - 1
     return min(idx, n_bins - 1)
 
 vcf_in = pysam.VariantFile("~{vcf}")

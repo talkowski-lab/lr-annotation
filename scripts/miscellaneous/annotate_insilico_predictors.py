@@ -19,6 +19,12 @@ parser.add_argument('--output_tsv', required=True, help='Output annotations TSV 
 
 args = parser.parse_args()
 
+
+# Helper to format output
+def fmt(val):
+    return hl.coalesce(hl.format('%.6g', val), '.')
+
+
 # Reference genome
 build = args.build
 cores = args.cores
@@ -79,9 +85,6 @@ mt = mt.filter_rows(
     hl.is_defined(mt.info.spliceai_ds_max)
 )
 
-# Format float fields: "." for missing, plain float (no scientific notation)
-def fmt(val):
-    return hl.coalesce(hl.format('%.6g', val), '.')
 
 # Export annotations as TSV
 ht = mt.rows()
