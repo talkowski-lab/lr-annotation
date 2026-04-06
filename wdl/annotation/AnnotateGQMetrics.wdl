@@ -71,7 +71,7 @@ workflow AnnotateGQMetrics {
             }
         }
         
-        call Helpers.ConcatAlignedTsvs {
+        call Helpers.MergeAlignedTsvs {
             input:
                 tsvs = flatten([GenerateGQAnnotationTsv.annotation_tsv, select_all([GenerateABAnnotationTsv.annotation_tsv])]),
                 prefix = prefix + "." + contig + ".gq_annotations",
@@ -82,7 +82,7 @@ workflow AnnotateGQMetrics {
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = ConcatAlignedTsvs.merged_tsv,
+                tsvs = MergeAlignedTsvs.merged_tsv,
                 sort_output = false,
                 prefix = prefix + ".gq_annotated",
                 docker = utils_docker,
@@ -91,8 +91,8 @@ workflow AnnotateGQMetrics {
     }
 
     output {
-        File annotations_tsv_gq = select_first([ConcatTsvs.concatenated_tsv, ConcatAlignedTsvs.merged_tsv[0]])
-        File annotations_header_gq = ConcatAlignedTsvs.merged_header[0]
+        File annotations_tsv_gq = select_first([ConcatTsvs.concatenated_tsv, MergeAlignedTsvs.merged_tsv[0]])
+        File annotations_header_gq = MergeAlignedTsvs.merged_header[0]
     }
 }
 

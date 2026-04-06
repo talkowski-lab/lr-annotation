@@ -1143,6 +1143,100 @@ task MakeWindows {
     }
 }
 
+task MergeAlignedTsvs {
+    input {
+        Array[File] tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+from collections import defaultdict
+
+input_files = "~{sep=',' tsvs}".split(',')
+header_filename = "~{prefix}.header.txt"
+fixed_cols = {"#CHROM", "POS", "REF", "ALT", "ID"}
+
+# Collect annotation keys (columns beyond the 5 fixed cols) in encounter order
+all_keys = []
+all_keys_seen = set()
+file_col_maps = []
+
+for f in input_files:
+    with open(f, 'r') as fh:
+        line = fh.readline().strip()
+        parts = line.split('\t') if line else []
+        col_map = {name: i for i, name in enumerate(parts)}
+        file_col_maps.append(col_map)
+        for k in parts[5:]:
+            if k not in all_keys_seen:
+                all_keys.append(k)
+                all_keys_seen.add(k)
+
+with open(header_filename, 'w') as hout:
+    for k in all_keys:
+        hout.write(k + "\n")
+
+# Read all data indexed by 5-col variant key, joining across files
+variant_order = []
+variant_seen = set()
+variant_data = defaultdict(dict)
+
+for f, col_map in zip(input_files, file_col_maps):
+    if not col_map:
+        continue
+    with open(f, 'r') as fh:
+        fh.readline()  # skip header
+        for line in fh:
+            parts = line.rstrip('\n').split('\t')
+            if len(parts) < 5:
+                continue
+            key = tuple(parts[:5])
+            if key not in variant_seen:
+                variant_order.append(key)
+                variant_seen.add(key)
+            for col_name, col_idx in col_map.items():
+                if col_name not in fixed_cols and col_idx < len(parts):
+                    variant_data[key][col_name] = parts[col_idx]
+
+with open("aligned_unsorted.tsv", 'w') as out:
+    for key in variant_order:
+        row = list(key) + [variant_data[key].get(col, '.') for col in all_keys]
+        out.write('\t'.join(row) + '\n')
+CODE
+
+        sort -k1,1 -k2,2n aligned_unsorted.tsv > ~{prefix}.tsv
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+        File merged_header = "~{prefix}.header.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task MergeBams {
     input {
         Array[File] bams
