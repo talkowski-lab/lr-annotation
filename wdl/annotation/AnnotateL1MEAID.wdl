@@ -36,7 +36,7 @@ workflow AnnotateL1MEAID {
     Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfByArgs as SubsetContig {
+        call Helpers.SubsetVcfByArgs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
@@ -50,8 +50,8 @@ workflow AnnotateL1MEAID {
         if (defined(records_per_shard)) {
             call Helpers.ShardVcfByRecords {
                 input:
-                    vcf = SubsetContig.subset_vcf,
-                    vcf_idx = SubsetContig.subset_vcf_idx,
+                    vcf = SubsetVcfByArgs.subset_vcf,
+                    vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
@@ -59,8 +59,8 @@ workflow AnnotateL1MEAID {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetContig.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetContig.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByArgs.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByArgs.subset_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call RepeatMasker.RepeatMasker {

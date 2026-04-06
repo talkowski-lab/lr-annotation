@@ -98,7 +98,7 @@ workflow AnnotateSVAnnotate {
     }
 
     if (!single_contig) {
-        call Helpers.ConcatTsvs as MergeTsvs {
+        call Helpers.ConcatTsvs {
             input:
                 tsvs = ExtractAnnotations.annotations_tsv,
                 sort_output = false,
@@ -107,7 +107,7 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_concat_annotated
         }
 
-        call Helpers.MergeHeaderLines as MergeHeaders {
+        call Helpers.MergeHeaderLines {
             input:
                 header_files = ExtractAnnotations.annotations_header,
                 prefix = "~{prefix}.svannotate_annotations",
@@ -117,8 +117,8 @@ workflow AnnotateSVAnnotate {
     }
 
     output {
-        File annotations_tsv_svannotate = select_first([MergeTsvs.concatenated_tsv, ExtractAnnotations.annotations_tsv[0]])
-        File annotations_header_svannotate = select_first([MergeHeaders.merged_header, ExtractAnnotations.annotations_header[0]])
+        File annotations_tsv_svannotate = select_first([ConcatTsvs.concatenated_tsv, ExtractAnnotations.annotations_tsv[0]])
+        File annotations_header_svannotate = select_first([MergeHeaderLines.merged_header, ExtractAnnotations.annotations_header[0]])
     }
 }
 

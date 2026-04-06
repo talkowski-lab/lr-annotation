@@ -27,7 +27,7 @@ workflow AnnotateIndelTRs {
     Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfByArgs as SubsetContig {
+        call Helpers.SubsetVcfByArgs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
@@ -40,8 +40,8 @@ workflow AnnotateIndelTRs {
 
         call RunFilterVcfToTRs {
             input:
-                vcf = SubsetContig.subset_vcf,
-                vcf_idx = SubsetContig.subset_vcf_idx,
+                vcf = SubsetVcfByArgs.subset_vcf,
+                vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.tr_annotations",

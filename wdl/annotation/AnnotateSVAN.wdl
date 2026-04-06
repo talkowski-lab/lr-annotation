@@ -45,21 +45,25 @@ workflow AnnotateSVAN {
 
     scatter (contig in contigs) {
         # Preprocessing
-        call Helpers.SubsetVcfByArgs as SubsetContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                extra_args = if single_contig then "-G" else "-G --regions " + contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
         }
+
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         # Insertions
         call Helpers.SubsetVcfByArgs as SubsetIns {
             input:
-                vcf = SubsetContig.subset_vcf,
-                vcf_idx = SubsetContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 include_args = 'INFO/allele_type="ins"',
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
@@ -149,8 +153,8 @@ workflow AnnotateSVAN {
         # Deletions
         call Helpers.SubsetVcfByArgs as SubsetDel {
             input:
-                vcf = SubsetContig.subset_vcf,
-                vcf_idx = SubsetContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 include_args = 'INFO/allele_type="del"',
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,

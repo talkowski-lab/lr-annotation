@@ -79,6 +79,10 @@ mt = mt.filter_rows(
     hl.is_defined(mt.info.spliceai_ds_max)
 )
 
+# Format float fields: "." for missing, plain float (no scientific notation)
+def fmt(val):
+    return hl.coalesce(hl.format('%.6g', val), '.')
+
 # Export annotations as TSV
 ht = mt.rows()
 ht = ht.select(
@@ -87,12 +91,13 @@ ht = ht.select(
     REF=ht.alleles[0],
     ALT=hl.delimit(ht.alleles[1:], ','),
     ID=hl.if_else(hl.is_defined(ht.rsid), ht.rsid, '.'),
-    CADD_raw_score=ht.info.CADD_raw_score,
-    CADD_PHRED_score=ht.info.CADD_PHRED_score,
-    pangolin_largest_ds=ht.info.pangolin_largest_ds,
-    revel_max=ht.info.revel_max,
-    phylop=ht.info.phylop,
-    spliceai_ds_max=ht.info.spliceai_ds_max
+    CADD_raw_score=fmt(ht.info.CADD_raw_score),
+    CADD_PHRED_score=fmt(ht.info.CADD_PHRED_score),
+    pangolin_largest_ds=fmt(ht.info.pangolin_largest_ds),
+    revel_max=fmt(ht.info.revel_max),
+    phylop=fmt(ht.info.phylop),
+    spliceai_ds_max=fmt(ht.info.spliceai_ds_max)
 )
 ht = ht.key_by()
+ht = ht.drop('locus', 'alleles')
 ht.export(output_tsv_uri, delimiter='\t', header=False)

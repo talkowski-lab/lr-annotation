@@ -26,35 +26,42 @@ workflow AnnotateVcf {
     }
 
     Array[Boolean] sort_tsvs_resolved = select_first([sort_tsvs, []])
+    Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
-        }
-
-        scatter (i in range(length(annotations_tsvs))) {
-            call Helpers.SubsetTsvToContig as SubsetTsvs {
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
                 input:
-                    tsv = annotations_tsvs[i],
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
                     contig = contig,
-                    sort_output = if length(sort_tsvs_resolved) > i then sort_tsvs_resolved[i] else false,
-                    prefix = "~{prefix}.~{contig}.tsv~{i}",
+                    prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_tsv
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
+
+            scatter (i in range(length(annotations_tsvs))) {
+                call Helpers.SubsetTsvToContig {
+                    input:
+                        tsv = annotations_tsvs[i],
+                        contig = contig,
+                        sort_output = if length(sort_tsvs_resolved) > i then sort_tsvs_resolved[i] else false,
+                        prefix = "~{prefix}.~{contig}.tsv~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_tsv
+                }
             }
         }
 
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
+        File contig_tsvs = select_first([SubsetTsvToContig.subset_tsv, annotations_tsvs])
+
         call AnnotateSequentially {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                annotations_tsvs = SubsetTsvs.subset_tsv,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
+                annotations_tsvs = SubsetTsvToContig.subset_tsv,
                 info_names = info_names,
                 info_descriptions = info_descriptions,
                 info_types = info_types,
@@ -65,20 +72,22 @@ workflow AnnotateVcf {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateSequentially.annotated_vcf,
-            vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatVcfs {
+            input:
+                vcfs = AnnotateSequentially.annotated_vcf,
+                vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotated_vcf = ConcatVcfs.concat_vcf
-        File annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateSequentially.annotated_vcf[0]])
+        File annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateSequentially.annotated_vcf_idx[0]])
     }
 }
 
@@ -108,12 +117,12 @@ info_types = [line.strip().split('\t') for line in open('~{write_tsv(info_types)
 info_numbers = [line.strip().split('\t') for line in open('~{write_tsv(info_numbers)}')]
 
 if len(info_names) != len(info_descriptions) or len(info_names) != len(info_types) or len(info_names) != len(info_numbers):
-    sys.stderr.write("Error: All info arrays must have the same length\n")
+    sys.stderr.write("Error: All info arrays must have the same length.\n")
     sys.exit(1)
 
 for i, (names, descs, types, numbers) in enumerate(zip(info_names, info_descriptions, info_types, info_numbers)):
     if len(names) != len(descs) or len(names) != len(types) or len(names) != len(numbers):
-        sys.stderr.write(f"Error: info arrays at index {i} must have the same length\n")
+        sys.stderr.write(f"Error: info arrays at index {i} must have the same length.\n")
         sys.exit(1)
     
     with open(f"header_{i}.txt", "w") as f:
@@ -160,7 +169,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(annotations_tsvs, "GB")) + 20,
+        disk_gb: 2 * length(annotations_tsvs) * ceil(size(vcf, "GB") + size(annotations_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
