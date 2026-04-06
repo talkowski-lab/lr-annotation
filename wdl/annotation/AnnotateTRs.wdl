@@ -59,6 +59,7 @@ workflow AnnotateTRs {
 
         File contig_vcf = select_first([SubsetContigBase.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetContigBase.subset_vcf_idx, vcf_idx])
+
         File contig_tr_vcf = select_first([SubsetContigTr.subset_vcf, tr_vcf])
         File contig_tr_vcf_idx = select_first([SubsetContigTr.subset_vcf_idx, tr_vcf_idx])
 
@@ -197,13 +198,12 @@ for cat_file, cat_id in zip(catalog_files, catalog_ids_list):
                 lookup[trid] = cat_id
 
 vcf_in = VariantFile("~{vcf}")
-header = vcf_in.header.copy()
-if 'allele_type' not in header.info:
-    header.add_meta('INFO', items=[('ID', 'allele_type'), ('Number', 1), ('Type', 'String'), ('Description', 'Allele type')])
-if 'SOURCE' not in header.info:
-    header.add_meta('INFO', items=[('ID', 'SOURCE'), ('Number', 1), ('Type', 'String'), ('Description', 'Source of variant call')])
+if 'allele_type' not in vcf_in.header.info:
+    vcf_in.header.add_meta('INFO', items=[('ID', 'allele_type'), ('Number', 1), ('Type', 'String'), ('Description', 'Allele type')])
+if 'SOURCE' not in vcf_in.header.info:
+    vcf_in.header.add_meta('INFO', items=[('ID', 'SOURCE'), ('Number', 1), ('Type', 'String'), ('Description', 'Source of variant call')])
 
-vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=header)
+vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 for record in vcf_in:
     record.info['allele_type'] = 'trv'
     trid = record.info.get('TRID')
@@ -326,61 +326,58 @@ task AnnotateVcfWithTRs {
     command <<<
         set -euo pipefail
 
-        bcftools query \
-            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
-            ~{tr_vcf} \
-            | awk 'BEGIN{OFS="\t"} {
-                end = $2 + length($4)
-                print $1, $2, end, $3, $4, $5
-            }' > tr.bed
-        
-        bcftools query \
-            -f '%CHROM\t%POS\t%ID\t%REF\t%ALT\n' \
-            ~{vcf} \
-            | awk 'BEGIN{OFS="\t"} {
-                end = $2 + length($4)
-                print $1, $2, end, $3, $4, $5
-            }' > vcf.bed
+        python3 <<CODE
+from pysam import VariantFile
 
-        bedtools intersect \
-            -f 1.0 \
-            -wa \
-            -wb \
-            -a vcf.bed \
-            -b tr.bed \
-            > overlaps.bed
+# Load TR intervals from the TR VCF
+tr_in = VariantFile("~{tr_vcf}")
+tr_intervals = []
+for record in tr_in:
+    tr_start = record.pos
+    tr_end = record.pos + len(record.ref)
+    tr_id = record.id if record.id else f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    tr_intervals.append((tr_start, tr_end, tr_id))
+tr_in.close()
 
-        rm -f tr.bed vcf.bed
+# Annotate the base VCF using a sliding window over TR intervals
+vcf_in = VariantFile("~{vcf}")
+if 'TR_ENVELOPED' not in vcf_in.header.info:
+    vcf_in.header.add_meta('INFO', items=[('ID', 'TR_ENVELOPED'), ('Number', 0), ('Type', 'Flag'), ('Description', 'Variant enveloped by tandem repeat')])
+if 'TRID' not in vcf_in.header.info:
+    vcf_in.header.add_meta('INFO', items=[('ID', 'TRID'), ('Number', 1), ('Type', 'String'), ('Description', 'ID of enveloping tandem repeat')])
 
-        awk 'BEGIN{OFS="\t"} {
-            key = $1"\t"$2"\t"$5"\t"$6
-            if (!(key in seen)) {
-                seen[key] = 1
-                print $1, $2, $5, $6, $4, "1", $10
-            }
-        }' overlaps.bed \
-            | sort -k1,1 -k2,2n \
-            | bgzip -c > annotations.tsv.gz
+vcf_out = VariantFile("vcf_annotated.vcf.gz", "w", header=vcf_in.header)
+annotated_count = 0
+tr_idx = 0
+active_trs = []
 
-        tabix -s 1 -b 2 -e 2 annotations.tsv.gz
-        
-        rm -f overlaps.bed
+for record in vcf_in:
+    v_start = record.pos
+    v_end = record.pos + len(record.ref)
 
-        cat <<EOF > new_header.txt
-##INFO=<ID=TR_ENVELOPED,Number=0,Type=Flag,Description="Variant enveloped by tandem repeat">
-##INFO=<ID=TRID,Number=1,Type=String,Description="ID of enveloping tandem repeat">
-EOF
+    # Add new TR intervals that start at or before this variant
+    while tr_idx < len(tr_intervals) and tr_intervals[tr_idx][0] <= v_start:
+        active_trs.append(tr_intervals[tr_idx])
+        tr_idx += 1
 
-        bcftools annotate \
-            -a annotations.tsv.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/TR_ENVELOPED,INFO/TRID \
-            -h new_header.txt \
-            -Oz -o vcf_annotated.vcf.gz \
-            ~{vcf}
+    # Remove expired TR intervals that end before this variant's start
+    active_trs = [t for t in active_trs if t[1] >= v_start]
+
+    # Check containment: variant must be fully within a TR interval
+    for tr_start, tr_end, tr_id in active_trs:
+        if v_start >= tr_start and v_end <= tr_end:
+            record.info['TR_ENVELOPED'] = True
+            record.info['TRID'] = tr_id
+            annotated_count += 1
+            break
+
+    vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
 
         tabix -p vcf vcf_annotated.vcf.gz
-        
-        rm -f annotations.tsv.gz annotations.tsv.gz.tbi new_header.txt
 
         bcftools concat \
             --allow-overlaps \
@@ -389,7 +386,7 @@ EOF
             ~{tr_vcf}
 
         tabix -p vcf ~{prefix}.vcf.gz
-        
+
         rm -f vcf_annotated.vcf.gz vcf_annotated.vcf.gz.tbi
     >>>
 
