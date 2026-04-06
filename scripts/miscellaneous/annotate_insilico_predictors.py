@@ -22,7 +22,7 @@ args = parser.parse_args()
 
 # Helper to format output
 def fmt(val):
-    return hl.coalesce(hl.format('%.6g', val), '.')
+    return hl.if_else(hl.is_defined(val), hl.format('%.6g', val), '.')
 
 
 # Reference genome
