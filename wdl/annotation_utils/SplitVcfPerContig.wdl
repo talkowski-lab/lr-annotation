@@ -32,8 +32,8 @@ workflow SplitVcfPerContig {
     output {
         Array[File] contig_vcfs = SplitByContig.contig_vcfs
         Array[File] contig_vcf_idxs = SplitByContig.contig_vcf_idxs
-        Array[File]? contig_no_geno_vcfs = if (create_no_geno) then SplitByContig.contig_no_geno_vcfs else None
-        Array[File]? contig_no_geno_vcf_idxs = if (create_no_geno) then SplitByContig.contig_no_geno_vcf_idxs else None
+        Array[File] contig_no_geno_vcfs = SplitByContig.contig_no_geno_vcfs
+        Array[File] contig_no_geno_vcf_idxs = SplitByContig.contig_no_geno_vcf_idxs
     }
 }
 
