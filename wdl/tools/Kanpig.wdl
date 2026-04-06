@@ -307,7 +307,6 @@ for rec in base_vcf:
     if (not is_called(base_gt) and is_missing(kp_gt)) or (not is_called(base_gt) and is_called(kp_gt)):
         clear_format_fields(rec, sample, n_alleles)
     
-    # Right-align alternate genotypes and set to unphased
     gt_current = rec.samples[sample]['GT']
     rec.samples[sample]['GT'] = tuple(sorted(gt_current, key=lambda a: (a is None, a if a is not None else 0)))
     rec.samples[sample].phased = False

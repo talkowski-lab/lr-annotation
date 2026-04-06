@@ -147,7 +147,6 @@ workflows:
       tags:
         - /.*/
 
-
   - subclass: WDL
     name: AnnotateVRS
     primaryDescriptorPath: /wdl/annotation/AnnotateVRS.wdl
@@ -289,6 +288,15 @@ workflows:
   - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: SplitVcfPerContig
+    primaryDescriptorPath: /wdl/annotation_utils/SplitVcfPerContig.wdl
     filters:
       branches:
         - main
