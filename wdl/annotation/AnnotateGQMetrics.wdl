@@ -151,7 +151,7 @@ n_intervals = len(bins) - 1
 
 def get_bin_index(val):
     for j in range(n_intervals):
-        if val <= bins[j + 1]:
+        if val < bins[j + 1]:
             return j
     return None
 
@@ -181,9 +181,9 @@ with open(f"{prefix}.tsv", "w") as out:
             is_alt = alt_allele_count > 0
 
             val_f = float(val)
-            if val_f <= bins[0]:
+            if val_f < bins[0]:
                 continue
-            elif val_f > bins[-1]:
+            elif val_f >= bins[-1]:
                 n_larger_all += 1
                 if is_alt:
                     n_larger_alt += 1
@@ -267,7 +267,7 @@ n_intervals = len(bins) - 1
 
 def get_bin_index(val):
     for j in range(n_intervals):
-        if val <= bins[j + 1]:
+        if val < bins[j + 1]:
             return j
     return None
 
@@ -293,7 +293,7 @@ with open(f"{prefix}.tsv", "w") as out:
                 continue
 
             ab = ad[0] / float(total)
-            if ab <= bins[0] or ab > bins[-1]:
+            if ab < bins[0] or ab >= bins[-1]:
                 continue
             b_idx = get_bin_index(ab)
             if b_idx is not None:
