@@ -55,13 +55,13 @@ workflow AnnotateVcf {
 
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
-        File contig_tsvs = select_first([SubsetTsvToContig.subset_tsv, annotations_tsvs])
+        Array[File] contig_tsvs = select_first([SubsetTsvToContig.subset_tsv, annotations_tsvs])
 
         call AnnotateSequentially {
             input:
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
-                annotations_tsvs = SubsetTsvToContig.subset_tsv,
+                annotations_tsvs = contig_tsvs,
                 info_names = info_names,
                 info_descriptions = info_descriptions,
                 info_types = info_types,
