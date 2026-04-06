@@ -10,6 +10,7 @@ workflow TransferMethylationTags {
         File aligned_bai
         Array[String] contigs
         String prefix
+        Boolean gcs_paths = false
 
         String utils_docker
 
@@ -25,6 +26,7 @@ workflow TransferMethylationTags {
         call ExtractMethylationTags {
             input:
                 unaligned_bam_path = path,
+                gcs_paths = gcs_paths,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_tags
         }
@@ -89,6 +91,7 @@ workflow TransferMethylationTags {
 task ExtractMethylationTags {
     input {
         String unaligned_bam_path
+        Boolean gcs_paths
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -98,7 +101,9 @@ task ExtractMethylationTags {
     command <<<
         set -euo pipefail
 
-        aws s3 --no-sign-request cp ~{unaligned_bam_path} ~{bam_basename}.bam
+        ~{if gcs_paths then "gsutil cp" else "aws s3 --no-sign-request cp"} \
+            ~{unaligned_bam_path} \
+            ~{bam_basename}.bam
 
         python3 <<CODE
 import gzip
