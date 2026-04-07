@@ -46,6 +46,7 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_subset_sv_truth
+        RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_rename_eval
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
@@ -127,11 +128,20 @@ workflow BenchmarkAnnotations {
         File subset_sv_truth_vcf = select_first([SubsetSVTruth.subset_vcf, vcf_sv_truth])
         File subset_sv_truth_vcf_idx = select_first([SubsetSVTruth.subset_vcf_idx, vcf_sv_truth_idx])
 
+        call Helpers.StripGenotypes {
+            input:
+                vcf = subset_eval_vcf,
+                vcf_idx = subset_eval_vcf_idx,
+                prefix = "~{prefix}.~{contig}.eval",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_strip_genotypes
+        }
+
         if (defined(rename_id_string_vcf)) {
             call Helpers.RenameVariantIds as RenameEvalIds {
                 input:
-                    vcf = subset_eval_vcf,
-                    vcf_idx = subset_eval_vcf_idx,
+                    vcf = StripGenotypes.stripped_vcf,
+                    vcf_idx = StripGenotypes.stripped_vcf_idx,
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     prefix = "~{prefix}.~{contig}.eval.renamed",
@@ -166,8 +176,8 @@ workflow BenchmarkAnnotations {
             }
         }
 
-        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, subset_eval_vcf])
-        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, subset_eval_vcf_idx])
+        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, StripGenotypes.stripped_vcf])
+        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, StripGenotypes.stripped_vcf_idx])
         File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, subset_truth_vcf])
         File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_idx, subset_truth_vcf_idx])
         File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, subset_sv_truth_vcf])
