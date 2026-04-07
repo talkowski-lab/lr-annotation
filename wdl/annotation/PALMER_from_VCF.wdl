@@ -131,30 +131,49 @@ task InsToFaWithFlanking {
         python3 <<EOF
 import sys
 from pysam import FastaFile
+
+# Read the reference so each insertion can be exported with reference flanks.
 ref_fa = FastaFile("~{ref_fa}")
 infile = open("~{prefix}.tmp.txt", "r")
 outfile = open("~{prefix}.fa", "w")
+# Keep a lookup from the generated FASTA header back to the original variant
+# identity used later when PALMER calls are mapped onto the input VCF.
 mapfile = open("~{prefix}.variant_keys.tsv", "w")
 flanking_bp = ~{flanking_bp}
 
 prev_chrom = ''
-counter=0 #counter is to guarantee that no seqs have identical names in the output fasta
+# counter is included in the FASTA ID to avoid potential duplicate IDs
+counter=0
 chrom_length=0
 
 for line in infile:
     chrom, pos, ID, ref, ins_seq = line.strip().split('\t')
     pos = int(pos)
+    # Reset the per-chromosome counter when moving to a new contig
+    # Save the contig length so right flanks do not extend past the reference.
     if prev_chrom!=chrom:
         counter=0
         prev_chrom=chrom
         chrom_length = ref_fa.get_reference_length(chrom)
     else:
         counter+=1
+
+    # Extract reference sequence flanking the insertion breakpoint
     left_flank = ref_fa.fetch(chrom, max(0, pos-flanking_bp), pos)
     right_flank = ref_fa.fetch(chrom, pos, min(pos+flanking_bp, chrom_length))
+
+    # Encode locus + allele context into the FASTA name so PALMER output can
+    # later be traced back to the original input record.
     fasta_name = '%s_%d_%s_%s_%d' % (chrom, pos, ref, ID, counter)
+
+    # Build the sequence given to PALMER: left flank + inserted bases + right
+    # flank. ins_seq[1:] drops the anchor base because VCF INS alleles are
+    # represented as REF + inserted sequence.
     outfile.write('>%s\n%s\n' % (fasta_name, left_flank+ins_seq[1:]+right_flank))
-    mapfile.write('%s\t%s\t%d\t%s\t%s\t%s\n' % (fasta_name, chrom, pos, ID, ref, (ref + ins_seq[1:]).upper()))
+
+    # Write a mapping table with:
+    #   generated FASTA name, chrom, pos, original ID, REF, ALT
+    mapfile.write('%s\t%s\t%d\t%s\t%s\t%s\n' % (fasta_name, chrom, pos, ID, ref, ins_seq))
 infile.close()
 outfile.close()
 mapfile.close()
@@ -230,10 +249,13 @@ task PALMER {
 import csv
 
 mei_type = "~{MEI_type}"
+# Prefix all PALMER cluster IDs with the MEI type so IDs remain unique
+# after the workflow scatters over multiple MEI classes and merges outputs.
 cluster_prefix = f"{mei_type}_"
 
-
 def prefix_text_table(path):
+    # Rewrite the first column of PALMER's tabular outputs so the cluster IDs
+    # match the MEI-prefixed IDs that will also be written into the VCF.
     rows = []
     with open(path, "r", encoding="utf-8") as src:
         reader = csv.reader(src, delimiter="\t")
@@ -241,6 +263,7 @@ def prefix_text_table(path):
             if not row:
                 rows.append(row)
                 continue
+            # Keep the header unchanged; prefix only data rows.
             if row[0] != "cluster_id":
                 row[0] = cluster_prefix + row[0]
             rows.append(row)
@@ -249,7 +272,8 @@ def prefix_text_table(path):
         writer = csv.writer(dst, delimiter="\t")
         writer.writerows(rows)
 
-
+# Update PALMER's VCF IDs to use the same prefix as the tabular outputs.
+# This prevents collisions between e.g. LINE/ALU/SVA cluster IDs after merge.
 vcf_in = "~{prefix}_integrated.vcf"
 vcf_out = "~{prefix}_integrated_namespaced.vcf"
 with open(vcf_in, "r", encoding="utf-8") as src, open(vcf_out, "w", encoding="utf-8") as dst:
@@ -258,10 +282,13 @@ with open(vcf_in, "r", encoding="utf-8") as src, open(vcf_out, "w", encoding="ut
             dst.write(line)
             continue
         fields = line.rstrip("\n").split("\t")
+        # Column 3 is the VCF record ID. Leave missing IDs alone.
         if len(fields) > 2 and fields[2] not in (".", ""):
             fields[2] = cluster_prefix + fields[2]
         dst.write("\t".join(fields) + "\n")
 
+# Apply the same ID rewrite to PALMER's auxiliary text reports so downstream
+# joins against cluster IDs stay consistent with the rewritten VCF.
 prefix_text_table("~{prefix}_TSD_reads_output.txt")
 prefix_text_table("~{prefix}_calls.txt")
 prefix_text_table("~{prefix}_all_reads_output.txt")
@@ -328,7 +355,7 @@ from collections import OrderedDict
 
 import pysam
 
-
+# Mapping of PALMER INFO fields to copy onto the original VCF, along with the header type/description
 TRANSFER_FIELDS = OrderedDict([
     ("PALMER_MEI_TYPE", ("SUBTYPE", "String", "PALMER MEI subtype")),
     ("ORIENTATION", ("ORIENTATION", "String", "Insertion orientation")),
@@ -351,8 +378,11 @@ MULTI_MEI_FIELD = (
     "PALMER_multi_MEI",
     ("String", "Multiple PALMER calls detected for this insertion; other PALMER INFO annotations were not transferred"),
 )
+ANNOTATION_FIELDS = list(TRANSFER_FIELDS.keys()) + [MULTI_MEI_FIELD[0]]
 
 def normalize_scalar(value):
+    # Pysam may return tuples for INFO fields; collapse them to a comparable
+    # scalar representation so values can be stored and deduplicated easily.
     if isinstance(value, tuple):
         if len(value) == 0:
             return None
@@ -363,17 +393,22 @@ def normalize_scalar(value):
 
 
 def is_missing(value):
+    # Treat common VCF missing-value conventions as absent.
     return value is None or value == "." or value == ""
 
 
 def get_subtype_label(record):
+    # Use SUBTYPE when available; otherwise retain a placeholder for the
+    # multi-MEI fallback annotation.
     subtype = normalize_scalar(record.info.get("SUBTYPE"))
     if not is_missing(subtype) and subtype != "NA":
         return str(subtype)
     return "UNKNOWN"
 
 
-header_to_key = {}
+# Load the lookup written by `InsToFaWithFlanking`, which maps each generated
+# FASTA header back to the exact original VCF allele key.
+fastaID_to_key = {}
 with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
     for raw_line in map_handle:
         raw_line = raw_line.rstrip("\n")
@@ -381,8 +416,10 @@ with open("~{ins_variant_keys}", "r", encoding="utf-8") as map_handle:
             continue
         fasta_name, chrom, pos_str, variant_id, ref, alt = raw_line.split("\t")
         pos = int(pos_str)
-        header_to_key[fasta_name] = (chrom, pos, variant_id, ref.upper(), alt.upper())
+        fastaID_to_key[fasta_name] = (chrom, pos, variant_id, ref, alt)
 
+# PALMER's TSD-read output links a cluster ID to one or more source FASTA names.
+# Capture those links so PALMER VCF calls can be traced back to the input VCF.
 cluster_to_source_names = {}
 with open("~{palmer_tsd_reads}", "r", encoding="utf-8") as tsd_handle:
     for raw_line in tsd_handle:
@@ -396,47 +433,58 @@ with open("~{palmer_tsd_reads}", "r", encoding="utf-8") as tsd_handle:
         source_name = fields[1]
         cluster_to_source_names.setdefault(cluster_id, set()).add(source_name)
 
+# Collect MEI-annotated VCF insertion keys and their corresponding PALMER annotation fields
 palmer_annotation_candidates = {}
 palmer_vcf = pysam.VariantFile("~{palmer_vcf}")
 for record in palmer_vcf:
+    # Only transfer annotations from calls that passed PALMER filtering.
     if "PASS" not in set(record.filter.keys()):
         continue
+
+    # Source FASTA names can come from either the cluster-to-read table or the
+    # representative `TSD_READ` INFO field embedded in the PALMER VCF record
     representative_source_name = normalize_scalar(record.info.get("TSD_READ"))
     source_names = set()
-    if record.id is not None and record.id != ".":
+    if not is_missing(record.id):
         source_names.update(cluster_to_source_names.get(record.id, set()))
     if not is_missing(representative_source_name) and representative_source_name != "NA":
         source_names.add(representative_source_name)
     if not source_names:
         continue
 
-    annotation = {}
+    # Extract the PALMER annotations that should be added back to the original VCF record
+    annotations = {}
     for field, (source_field, _field_type, _description) in TRANSFER_FIELDS.items():
         if field == "PALMER_MEI_LEN":
             continue
         value = normalize_scalar(record.info.get(source_field))
         if is_missing(value) or value == "NA":
             continue
-        annotation[field] = value
+        annotations[field] = value
 
+    # Record the inserted sequence length
     ins_seq = normalize_scalar(record.info.get("INS_SEQ"))
     if not is_missing(ins_seq) and ins_seq != "NA":
-        annotation["PALMER_MEI_LEN"] = len(str(ins_seq))
+        annotations["PALMER_MEI_LEN"] = len(str(ins_seq))
 
     for source_name in source_names:
-        key = header_to_key.get(source_name)
+        # Convert each PALMER source name back into the original VCF key
+        key = fastaID_to_key.get(source_name)
         if key is None:
             continue
         candidate_info = palmer_annotation_candidates.setdefault(
-            key,
-            {"annotations": [], "subtypes": []},
-        )
-        if annotation not in candidate_info["annotations"]:
-            candidate_info["annotations"].append(annotation)
+            key, {"annotations": [], "subtypes": []},)
+
+        # Avoid exact duplicate annotations but otherwise transfer annos for each original VCF key
+        if annotations not in candidate_info["annotations"]:
+            candidate_info["annotations"].append(annotations)
             candidate_info["subtypes"].append(get_subtype_label(record))
 
 palmer_vcf.close()
 
+# Resolve the candidate PALMER annotations for each original insertion. If more
+# than one distinct PALMER call maps back to the same input record, emit only a
+# summary field listing the competing subtypes
 palmer_annotations = {}
 multi_mei_count = 0
 for key, candidate_info in palmer_annotation_candidates.items():
@@ -451,66 +499,86 @@ for key, candidate_info in palmer_annotation_candidates.items():
     }
     multi_mei_count += 1
 
-original_vcf = pysam.VariantFile("~{original_vcf}")
-header = original_vcf.header.copy()
-for field, (_source_field, field_type, description) in TRANSFER_FIELDS.items():
-    if field not in header.info:
-        header.add_line(
-            f'##INFO=<ID={field},Number=1,Type={field_type},Description="{description}">'
-        )
+# Emit new INFO header lines required by `bcftools annotate`.
 multi_field, (multi_field_type, multi_field_description) = MULTI_MEI_FIELD
-if multi_field not in header.info:
-    header.add_line(
-        f'##INFO=<ID={multi_field},Number=.,Type={multi_field_type},Description="{multi_field_description}">'
-    )
-
-annotated_count = 0
-multi_mei_annotated_count = 0
-with pysam.VariantFile("~{prefix}.palmer_annotated.vcf", "w", header=header) as out_vcf:
-    for record in original_vcf:
-        record = record.copy()
-        record.translate(header)
-        matches = []
-        record_id = record.id if record.id is not None else "."
-        if record.alts:
-            for alt in record.alts:
-                key = (record.contig, record.pos, record_id, record.ref.upper(), alt.upper())
-                if key in palmer_annotations:
-                    matches.append(key)
-
-        if len(matches) > 1:
-            raise RuntimeError(
-                "Multiple PALMER matches found for original record "
-                + f"{record.contig}:{record.pos}:{record_id}"
+original_vcf = pysam.VariantFile("~{original_vcf}")
+with open("~{prefix}.palmer_annotation_header.txt", "w", encoding="utf-8") as header_handle:
+    for field, (_source_field, field_type, description) in TRANSFER_FIELDS.items():
+        if field not in original_vcf.header.info:
+            header_handle.write(
+                f'##INFO=<ID={field},Number=1,Type={field_type},Description="{description}">\n'
             )
-
-        if len(matches) == 1:
-            annotation = palmer_annotations[matches[0]]
-            for field, value in annotation.items():
-                record.info[field] = value
-            annotated_count += 1
-            if multi_field in annotation:
-                multi_mei_annotated_count += 1
-
-        out_vcf.write(record)
-
+    if multi_field not in original_vcf.header.info:
+        header_handle.write(
+            f'##INFO=<ID={multi_field},Number=.,Type={multi_field_type},Description="{multi_field_description}">\n'
+        )
 original_vcf.close()
 
-with open("~{prefix}.palmer_annotation_summary.txt", "w", encoding="utf-8") as summary:
-    summary.write(f"annotated_records\t{annotated_count}\n")
-    summary.write(f"annotated_multi_mei_records\t{multi_mei_annotated_count}\n")
-    summary.write(f"palmer_multi_mei_source_keys\t{multi_mei_count}\n")
-    summary.write(f"palmer_records_with_source_key\t{len(palmer_annotations)}\n")
+# Write annotations to a TSV to use with bcftools annotate
+with open("~{prefix}.palmer_annotations.unsorted.tsv", "w", encoding="utf-8") as annotation_handle:
+    for key in sorted(palmer_annotations):
+        chrom, pos, variant_id, ref, alt = key
+        annotation = palmer_annotations[key]
+        row = [chrom, str(pos), variant_id, ref, alt]
+        for field in ANNOTATION_FIELDS:
+            value = annotation.get(field, ".")
+            if isinstance(value, tuple):
+                value = ",".join(str(v) for v in value)
+            elif value is None or value == "":
+                value = "."
+            row.append(str(value))
+        annotation_handle.write("\t".join(row) + "\n")
+
+annotated_count = len(palmer_annotations)
+multi_mei_annotated_count = sum(
+    1 for annotation in palmer_annotations.values() if multi_field in annotation
+)
+
+# Emit a short summary to stdout to help verify how many records were annotated
+# and how many required the multi-MEI fallback.
+print(f"annotated_records\t{annotated_count}")
+print(f"annotated_multi_mei_records\t{multi_mei_annotated_count}")
+print(f"palmer_multi_mei_source_keys\t{multi_mei_count}")
+print(f"palmer_records_with_source_key\t{len(palmer_annotations)}")
 EOF
 
-        bcftools sort -Oz -o ~{prefix}.palmer_annotated.vcf.gz ~{prefix}.palmer_annotated.vcf
+        LC_ALL=C sort -t $'\t' -k1,1 -k2,2n ~{prefix}.palmer_annotations.unsorted.tsv | bgzip -c > ~{prefix}.palmer_annotations.tsv.gz
+        tabix -s 1 -b 2 -e 2 ~{prefix}.palmer_annotations.tsv.gz
+
+        if [ -s ~{prefix}.palmer_annotations.tsv.gz ]; then
+            if [ -s ~{prefix}.palmer_annotation_header.txt ]; then
+                bcftools annotate \
+                    -a ~{prefix}.palmer_annotations.tsv.gz \
+                    -h ~{prefix}.palmer_annotation_header.txt \
+                    -c CHROM,POS,~ID,REF,ALT,PALMER_MEI_TYPE,ORIENTATION,POLYA,TSD5,TSD3,TRANSD,INV5,INV5_START,INV5_END,START_INVAR,END_INVAR,TSD5_SEQ,TSD3_SEQ,TRANSD_READ,JUNC_26MER,PALMER_MEI_LEN,PALMER_multi_MEI \
+                    -Oz -o ~{prefix}.palmer_annotated.vcf.gz \
+                    ~{original_vcf}
+            else # this is if the original VCF already had all necessary INFO headers, so no header file is needed for annotation
+                bcftools annotate \
+                    -a ~{prefix}.palmer_annotations.tsv.gz \
+                    -c CHROM,POS,~ID,REF,ALT,PALMER_MEI_TYPE,ORIENTATION,POLYA,TSD5,TSD3,TRANSD,INV5,INV5_START,INV5_END,START_INVAR,END_INVAR,TSD5_SEQ,TSD3_SEQ,TRANSD_READ,JUNC_26MER,PALMER_MEI_LEN,PALMER_multi_MEI \
+                    -Oz -o ~{prefix}.palmer_annotated.vcf.gz \
+                    ~{original_vcf}
+            fi
+        else
+            echo "No PALMER annotations to add; copying original VCF"
+            cp ~{original_vcf} ~{prefix}.palmer_annotated.vcf.gz
+        fi
+
         tabix -p vcf ~{prefix}.palmer_annotated.vcf.gz
+
+        touch ~{prefix}.palmer_annotations.tsv.gz
+        touch ~{prefix}.palmer_annotations.tsv.gz.tbi
+        touch ~{prefix}.palmer_annotation_header.txt
     >>>
 
     output {
         File annotated_vcf = "~{prefix}.palmer_annotated.vcf.gz"
         File annotated_vcf_tbi = "~{prefix}.palmer_annotated.vcf.gz.tbi"
-        File annotation_summary = "~{prefix}.palmer_annotation_summary.txt"
+        File annotation_header = "~{prefix}.palmer_annotation_header.txt"
+        File annotation_tsv = "~{prefix}.palmer_annotations.tsv"
+        File annotation_tsv_gz = "~{prefix}.palmer_annotations.tsv.gz"
+        File annotation_tsv_gz_tbi = "~{prefix}.palmer_annotations.tsv.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
