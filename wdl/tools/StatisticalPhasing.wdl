@@ -17,7 +17,7 @@ workflow StatisticalPhasing {
         Boolean do_shapeit5
         Boolean remove_duplicates_by_phased_fraction
 
-        Float min_af_common = 0.1
+        Float min_af_common
         String variant_filter_args = "-i 'MAC>=2'"
         String filter_common_args = "-i 'MAF>=0.001'"
         String chunk_extra_args = "--thread $(nproc) --window-size 2000000 --buffer-size 200000"
