@@ -103,6 +103,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateSingletonReads
+    primaryDescriptorPath: /wdl/annotation/AnnotateSingletonReads.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateSQMetrics
     primaryDescriptorPath: /wdl/annotation/AnnotateSQMetrics.wdl
     filters:
@@ -451,15 +460,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: SHAPEITPhase
-    primaryDescriptorPath: /wdl/tools/SHAPEITPhase.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: StatisticalPhasing
     primaryDescriptorPath: /wdl/tools/StatisticalPhasing.wdl
     filters:
@@ -469,8 +469,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: StatisticalPhasingPreprocess
-    primaryDescriptorPath: /wdl/tools/StatisticalPhasingPreprocess.wdl
+    name: StatisticalPhasingV2
+    primaryDescriptorPath: /wdl/tools/StatisticalPhasingV2.wdl
     filters:
       branches:
         - main

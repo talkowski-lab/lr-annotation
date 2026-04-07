@@ -129,6 +129,10 @@ Inputs:
 TODO
 
 
+### [AnnotateSingletonReads](wdl/annotation/AnnotateSingletonReads.wdl)
+TODO
+
+
 ### [AnnotateSQMetrics](wdl/annotation/AnnotateSQMetrics.wdl)
 TODO
 
@@ -337,15 +341,11 @@ This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/Repeat
 TODO
 
 
-### [SHAPEITPhase](wdl/tools/SHAPEITPhase.wdl)
-TODO
-
-
 ### [StatisticalPhasing](wdl/tools/StatisticalPhasing.wdl)
 TODO
 
 
-### [StatisticalPhasingPreprocess](wdl/tools/StatisticalPhasingPreprocess.wdl)
+### [StatisticalPhasingV2](wdl/tools/StatisticalPhasingV2.wdl)
 TODO
 
 

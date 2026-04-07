@@ -35,48 +35,58 @@ workflow AnnotateAlleleType {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig {
+                input:
+                    vcf = vcf,
+                    vcf_idx = vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
+
+            call Helpers.SubsetTsvToContig as SubsetMedTsv {
+                input:
+                    tsv = med_tsv,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.med",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+            }
+
+            call Helpers.SubsetTsvToContig as SubsetMeiTsv {
+                input:
+                    tsv = mei_tsv,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.mei",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+            }
+
+            call Helpers.SubsetTsvToContig as SubsetDupTsv {
+                input:
+                    tsv = dup_tsv,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.dup",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+            }
         }
 
-        call Helpers.SubsetTsvToContig as SubsetMedTsv {
-            input:
-                tsv = med_tsv,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.med",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tsv
-        }
-
-        call Helpers.SubsetTsvToContig as SubsetMeiTsv {
-            input:
-                tsv = mei_tsv,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.mei",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tsv
-        }
-
-        call Helpers.SubsetTsvToContig as SubsetDupTsv {
-            input:
-                tsv = dup_tsv,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.dup",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tsv
-        }
+        File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
+        File contig_med_tsv = select_first([SubsetMedTsv.subset_tsv, med_tsv])
+        File contig_mei_tsv = select_first([SubsetMeiTsv.subset_tsv, mei_tsv])
+        File contig_dup_tsv = select_first([SubsetDupTsv.subset_tsv, dup_tsv])
 
         call AddHeaders {
             input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                vcf = contig_vcf,
+                vcf_idx = contig_vcf_idx,
                 prefix = "~{prefix}.~{contig}.headers",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_med
@@ -86,7 +96,7 @@ workflow AnnotateAlleleType {
             input:
                 vcf = AddHeaders.vcf_with_headers,
                 vcf_idx = AddHeaders.vcf_with_headers_idx,
-                med_tsv = SubsetMedTsv.subset_tsv,
+                med_tsv = contig_med_tsv,
                 med_prefix = med_prefix,
                 med_suffix = med_suffix,
                 med_lowercase = med_lowercase,
@@ -99,7 +109,7 @@ workflow AnnotateAlleleType {
             input:
                 vcf = AnnotateMed.annotated_vcf,
                 vcf_idx = AnnotateMed.annotated_vcf_idx,
-                mei_tsv = SubsetMeiTsv.subset_tsv,
+                mei_tsv = contig_mei_tsv,
                 mei_prefix = mei_prefix,
                 mei_suffix = mei_suffix,
                 mei_lowercase = mei_lowercase,
@@ -112,7 +122,7 @@ workflow AnnotateAlleleType {
             input:
                 vcf = AnnotateMei.annotated_vcf,
                 vcf_idx = AnnotateMei.annotated_vcf_idx,
-                dup_tsv = SubsetDupTsv.subset_tsv,
+                dup_tsv = contig_dup_tsv,
                 dup_prefix = dup_prefix,
                 dup_suffix = dup_suffix,
                 dup_lowercase = dup_lowercase,
@@ -122,20 +132,22 @@ workflow AnnotateAlleleType {
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = AnnotateDup.annotated_vcf,
-            vcf_idxs = AnnotateDup.annotated_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.allele_type_annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatVcfs {
+            input:
+                vcfs = AnnotateDup.annotated_vcf,
+                vcf_idxs = AnnotateDup.annotated_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.allele_type_annotated",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File allele_type_annotated_vcf = ConcatVcfs.concat_vcf
-        File allele_type_annotated_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File allele_type_annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateDup.annotated_vcf[0]])
+        File allele_type_annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateDup.annotated_vcf_idx[0]])
     }
 }
 
