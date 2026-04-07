@@ -13,6 +13,8 @@ workflow TransferMethylationTags {
         Boolean gcs_paths = false
 
         String utils_docker
+        String mm_tag = "MM"
+        String ml_tag = "ML"
 
         RuntimeAttr? runtime_attr_extract_tags
         RuntimeAttr? runtime_attr_merge_tags
@@ -27,6 +29,8 @@ workflow TransferMethylationTags {
             input:
                 unaligned_bam_path = path,
                 gcs_paths = gcs_paths,
+                mm_tag = mm_tag,
+                ml_tag = ml_tag,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_tags
         }
@@ -84,6 +88,7 @@ workflow TransferMethylationTags {
     output {
         File methylation_tagged_bam = MergeBams.merged_bam
         File methylation_tagged_bai = MergeBams.merged_bam_idx
+        File methylation_tags = MergeTagsTsvs.concatenated_tsv
     }
 }
 
@@ -92,6 +97,8 @@ task ExtractMethylationTags {
     input {
         String unaligned_bam_path
         Boolean gcs_paths
+        String mm_tag
+        String ml_tag
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -113,12 +120,12 @@ with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
     with gzip.open("~{bam_basename}.tags.tsv.gz", "wt") as out:
         for read in ubam.fetch(until_eof=True):
             try:
-                mm = read.get_tag('MM')
+                mm = read.get_tag('~{mm_tag}')
             except KeyError:
                 mm = ''
             
             try:
-                ml = ','.join(str(v) for v in read.get_tag('ML'))
+                ml = ','.join(str(v) for v in read.get_tag('~{ml_tag}'))
             except KeyError:
                 ml = ''
             
