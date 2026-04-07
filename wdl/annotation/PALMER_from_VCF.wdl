@@ -107,6 +107,9 @@ workflow CallPALMER {
         File TSD_reads = ConcatTSDReads.concatenated_tsv
         File annotated_vcf = AnnotateOriginalVcfWithPALMER.annotated_vcf
         File annotated_vcf_tbi = AnnotateOriginalVcfWithPALMER.annotated_vcf_tbi
+        File annotation_header = AnnotateOriginalVcfWithPALMER.annotation_header
+        File annotation_tsv_gz = AnnotateOriginalVcfWithPALMER.annotation_tsv_gz
+        File annotation_tsv_gz_tbi = AnnotateOriginalVcfWithPALMER.annotation_tsv_gz_tbi
     }
 }
 
@@ -576,7 +579,6 @@ EOF
         File annotated_vcf = "~{prefix}.palmer_annotated.vcf.gz"
         File annotated_vcf_tbi = "~{prefix}.palmer_annotated.vcf.gz.tbi"
         File annotation_header = "~{prefix}.palmer_annotation_header.txt"
-        File annotation_tsv = "~{prefix}.palmer_annotations.tsv"
         File annotation_tsv_gz = "~{prefix}.palmer_annotations.tsv.gz"
         File annotation_tsv_gz_tbi = "~{prefix}.palmer_annotations.tsv.gz.tbi"
     }
