@@ -341,6 +341,14 @@ TODO
 TODO
 
 
+### [StatisticalPhasing](wdl/tools/StatisticalPhasing.wdl)
+TODO
+
+
+### [StatisticalPhasingPreprocess](wdl/tools/StatisticalPhasingPreprocess.wdl)
+TODO
+
+
 ### [TransferMethylationTags](wdl/tools/TransferMethylationTags.wdl)
 TODO
 

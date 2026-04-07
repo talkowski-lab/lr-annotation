@@ -17,6 +17,7 @@ workflow StatisticalPhasing {
         Boolean do_shapeit5
         Boolean remove_duplicates_by_phased_fraction
 
+        Float min_af_common = 0.1
         String variant_filter_args = "-i 'MAC>=2'"
         String filter_common_args = "-i 'MAF>=0.001'"
         String chunk_extra_args = "--thread $(nproc) --window-size 2000000 --buffer-size 200000"
@@ -34,6 +35,7 @@ workflow StatisticalPhasing {
         RuntimeAttr? runtime_attr_remove_duplicates
         RuntimeAttr? runtime_attr_fill_vcf_tags
         RuntimeAttr? runtime_attr_fix_variant_collisions
+        RuntimeAttr? runtime_attr_subset_phase_set_anchors
         RuntimeAttr? runtime_attr_create_shapeit_chunks
         RuntimeAttr? runtime_attr_shapeit4_all
         RuntimeAttr? runtime_attr_filter_common
@@ -41,7 +43,7 @@ workflow StatisticalPhasing {
         RuntimeAttr? runtime_attr_ligate_vcfs
         RuntimeAttr? runtime_attr_shapeit5_rare
         RuntimeAttr? runtime_attr_concat_shapeit5
-        RuntimeAttr? runtime_attr_annotate_shapeit
+        RuntimeAttr? runtime_attr_transfer_phase_set_haplotypes
     }
 
     Map[String, String] genetic_maps_dict = read_map(genetic_maps_tsv)
@@ -95,10 +97,21 @@ workflow StatisticalPhasing {
             runtime_attr_override = runtime_attr_fix_variant_collisions
     }
 
-    call CreateShapeitChunks {
+    # subset to per-sample phase-set anchor variants for statistical phasing
+    call SubsetToPhaseSetAnchors {
         input:
             vcf = FixVariantCollisions.phased_collisionless_vcf,
             vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
+            min_af_common = min_af_common,
+            prefix = "~{prefix}.ps_anchors",
+            docker = pysam_docker,
+            runtime_attr_override = runtime_attr_subset_phase_set_anchors
+    }
+
+    call CreateShapeitChunks {
+        input:
+            vcf = SubsetToPhaseSetAnchors.anchors_vcf,
+            vcf_idx = SubsetToPhaseSetAnchors.anchors_vcf_idx,
             region = contig,
             extra_args = chunk_extra_args,
             prefix = "~{prefix}.chunked",
@@ -111,8 +124,8 @@ workflow StatisticalPhasing {
         if (!do_shapeit5) {
             call Shapeit4 as Shapeit4All {
                 input:
-                    vcf = FixVariantCollisions.phased_collisionless_vcf,
-                    vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
+                    vcf = SubsetToPhaseSetAnchors.anchors_vcf,
+                    vcf_idx = SubsetToPhaseSetAnchors.anchors_vcf_idx,
                     genetic_map = genetic_maps_dict[contig],
                     region = common_regions[i],
                     prefix = "~{prefix}.phased",
@@ -124,8 +137,8 @@ workflow StatisticalPhasing {
         if (do_shapeit5) {
             call FilterCommon {
                 input:
-                    vcf = FixVariantCollisions.phased_collisionless_vcf,
-                    vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
+                    vcf = SubsetToPhaseSetAnchors.anchors_vcf,
+                    vcf_idx = SubsetToPhaseSetAnchors.anchors_vcf_idx,
                     prefix = "~{prefix}.common",
                     region = common_regions[i],
                     filter_common_args = filter_common_args,
@@ -159,8 +172,8 @@ workflow StatisticalPhasing {
         scatter (i in range(length(rare_regions))) {
             call Shapeit5Rare {
                 input:
-                    vcf = FixVariantCollisions.phased_collisionless_vcf,
-                    vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
+                    vcf = SubsetToPhaseSetAnchors.anchors_vcf,
+                    vcf_idx = SubsetToPhaseSetAnchors.anchors_vcf_idx,
                     scaffold_vcf = LigateScaffold.ligated_vcf,
                     scaffold_vcf_idx = LigateScaffold.ligated_vcf_idx,
                     genetic_map = genetic_maps_dict[contig],
@@ -182,15 +195,16 @@ workflow StatisticalPhasing {
         }
     }
 
-    call AnnotateSHAPEITVcf {
+    # use statistically phased anchor variants to orient every HiPhase PS block per sample
+    call TransferPhaseSetHaplotypes {
         input:
-            shapeit_input_vcf = FixVariantCollisions.phased_collisionless_vcf,
-            shapeit_input_vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
-            shapeit_output_vcf = select_first([ConcatShapeit5.concat_vcf, LigateScaffold.ligated_vcf]),
-            shapeit_output_vcf_idx = select_first([ConcatShapeit5.concat_vcf_idx, LigateScaffold.ligated_vcf_idx]),
-            prefix = "~{prefix}.phased.annotated",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_annotate_shapeit
+            original_vcf = FixVariantCollisions.phased_collisionless_vcf,
+            original_vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
+            phased_anchors_vcf = select_first([ConcatShapeit5.concat_vcf, LigateScaffold.ligated_vcf]),
+            phased_anchors_vcf_idx = select_first([ConcatShapeit5.concat_vcf_idx, LigateScaffold.ligated_vcf_idx]),
+            prefix = "~{prefix}.ps_transferred",
+            docker = pysam_docker,
+            runtime_attr_override = runtime_attr_transfer_phase_set_haplotypes
     }
 
     output {
@@ -200,10 +214,12 @@ workflow StatisticalPhasing {
         File? removed_duplicates_split_vcf_idx = select_first([FillVcfTags.filled_tag_vcf_idx, RemoveDuplicatesByPhasedFraction.dups_removed_vcf_idx])
         File collisionless_split_vcf = FixVariantCollisions.phased_collisionless_vcf
         File collisionless_split_vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx
+        File ps_anchors_vcf = SubsetToPhaseSetAnchors.anchors_vcf
+        File ps_anchors_vcf_idx = SubsetToPhaseSetAnchors.anchors_vcf_idx
         File shapeit_phased_vcf = select_first([ConcatShapeit5.concat_vcf, LigateScaffold.ligated_vcf])
         File shapeit_phased_vcf_idx = select_first([ConcatShapeit5.concat_vcf_idx, LigateScaffold.ligated_vcf_idx])
-        File shapeit_phased_annotated_vcf = AnnotateSHAPEITVcf.annotated_phased_vcf
-        File shapeit_phased_annotated_vcf_idx = AnnotateSHAPEITVcf.annotated_phased_vcf_idx
+        File shapeit_phased_ps_transferred_vcf = TransferPhaseSetHaplotypes.ps_transferred_vcf
+        File shapeit_phased_ps_transferred_vcf_idx = TransferPhaseSetHaplotypes.ps_transferred_vcf_idx
     }
 }
 
@@ -306,7 +322,7 @@ task EnsureUniqueIDsAndNormalize {
             vcf_out.write(new_record)
         vcf_in.close()
         vcf_out.close()
-        print(f"✅ Unique ID VCF written to: {output_vcf}")
+        print(f"Unique ID VCF written to: {output_vcf}")
 
     input_vcf = "~{vcf}"
     output_vcf = "unsorted.vcf"
@@ -396,7 +412,7 @@ task RemoveDuplicatesByPhasedFraction {
             vcf_out.write(new_record)
         vcf_in.close()
         vcf_out.close()
-        print(f"✅ Annotated VCF written to: {output_vcf}")
+        print(f"Annotated VCF written to: {output_vcf}")
         print("Number of duplicate variants to remove: " + str(len(remove_ids)))
         return remove_ids
 
@@ -408,7 +424,7 @@ task RemoveDuplicatesByPhasedFraction {
                 vcf_out.write(record)
         vcf_in.close()
         vcf_out.close()
-        print(f"✅ VCF with duplicate variants removed written to: {output_vcf}")
+        print(f"VCF with duplicate variants removed written to: {output_vcf}")
 
     input_vcf = "~{vcf}"
     intermediate_vcf = "~{prefix}.annotated.vcf"
@@ -878,12 +894,11 @@ task ConcatVcfs {
     }
 }
 
-task AnnotateSHAPEITVcf {
+task SubsetToPhaseSetAnchors {
     input {
-        File shapeit_input_vcf
-        File shapeit_input_vcf_idx
-        File shapeit_output_vcf
-        File shapeit_output_vcf_idx
+        File vcf
+        File vcf_idx
+        Float min_af_common
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -892,30 +907,224 @@ task AnnotateSHAPEITVcf {
     command <<<
         set -euxo pipefail
 
-        bcftools annotate -a ~{shapeit_output_vcf} ~{shapeit_input_vcf} -c FORMAT/GT,INFO -Oz -o ~{prefix}.vcf.gz
-        bcftools index -t ~{prefix}.vcf.gz
+        python3 <<CODE
 
-      >>>
+        #!/usr/bin/env python3
+        import pysam
+        from collections import defaultdict
+
+        def subset_to_phase_set_anchors(input_vcf, output_vcf, min_af_common):
+            vcf_in = pysam.VariantFile(input_vcf, "r")
+            samples = list(vcf_in.header.samples)
+
+            # first pass: collect all records and identify per-sample PS block contents
+            records = []
+            # sample -> ps_id -> list of (record_index, af)
+            sample_ps_variants = defaultdict(lambda: defaultdict(list))
+
+            for rec in vcf_in:
+                idx = len(records)
+                records.append(rec.copy())
+                af = rec.info.get("AF", (0.0,))
+                af_val = af[0] if isinstance(af, tuple) else af
+                for sample in samples:
+                    gt_data = rec.samples[sample]
+                    gt = gt_data.get("GT")
+                    if gt is None or None in gt:
+                        continue
+                    ps = gt_data.get("PS")
+                    if ps is None:
+                        continue
+                    sample_ps_variants[sample][ps].append((idx, af_val))
+
+            vcf_in.close()
+
+            # determine which record indices are anchors
+            keep_indices = set()
+
+            for sample, ps_blocks in sample_ps_variants.items():
+                for ps, variants in ps_blocks.items():
+                    # keep all variants meeting min_af_common threshold
+                    common_in_block = [idx for idx, af in variants if af >= min_af_common]
+                    if common_in_block:
+                        keep_indices.update(common_in_block)
+                    else:
+                        # no common variant in this block: keep the highest-AF variant
+                        best_idx = max(variants, key=lambda x: x[1])[0]
+                        keep_indices.add(best_idx)
+
+            # write output, preserving original order
+            vcf_out = pysam.VariantFile(output_vcf, "w", header=records[0].header if records else pysam.VariantFile(input_vcf, "r").header)
+            for idx, rec in enumerate(records):
+                if idx in keep_indices:
+                    vcf_out.write(rec)
+            vcf_out.close()
+            print(f"Retained {len(keep_indices)} / {len(records)} variants as phase-set anchors")
+
+        subset_to_phase_set_anchors("~{vcf}", "anchors.unsorted.vcf", ~{min_af_common})
+
+        CODE
+
+        bcftools sort anchors.unsorted.vcf -Oz -o ~{prefix}.vcf.gz
+
+        bcftools index -t ~{prefix}.vcf.gz
+    >>>
 
     output {
-        File annotated_phased_vcf = "~{prefix}.vcf.gz"
-        File annotated_phased_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File anchors_vcf = "~{prefix}.vcf.gz"
+        File anchors_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 10 + ceil(size(shapeit_input_vcf, "GiB")*3) + ceil(size(shapeit_output_vcf, "GiB")*3),
-        disk_gb: 15 + ceil(size(shapeit_input_vcf, "GiB")*3) + ceil(size(shapeit_output_vcf, "GiB")*3),
+        mem_gb: 10 + ceil(size(vcf, "GiB") * 3),
+        disk_gb: 15 + ceil(size(vcf, "GiB") * 3),
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 1
     }
-
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task TransferPhaseSetHaplotypes {
+    input {
+        File original_vcf
+        File original_vcf_idx
+        File phased_anchors_vcf
+        File phased_anchors_vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euxo pipefail
+
+        python3 <<CODE
+
+        #!/usr/bin/env python3
+        import pysam
+        from collections import defaultdict
+
+        def transfer_phase_set_haplotypes(original_vcf, phased_anchors_vcf, output_vcf):
+            # load statistically phased anchor genotypes keyed by (chrom, pos, ref, alt, sample)
+            anchors_in = pysam.VariantFile(phased_anchors_vcf, "r")
+            samples = list(anchors_in.header.samples)
+            # sample -> variant_key -> (allele0, allele1, phased)
+            anchor_gts = defaultdict(dict)
+            for rec in anchors_in:
+                key = (rec.contig, rec.pos, rec.ref, rec.alts[0] if rec.alts else None)
+                for sample in samples:
+                    gt_data = rec.samples[sample]
+                    gt = gt_data.get("GT")
+                    if gt is not None and len(gt) == 2:
+                        anchor_gts[sample][key] = (gt[0], gt[1], gt_data.phased)
+            anchors_in.close()
+
+            # per sample, per PS block: vote on haplotype orientation using anchor variants
+            # orientation: +1 means stat-phase agrees with physical phase, -1 means flip needed
+            orig_in = pysam.VariantFile(original_vcf, "r")
+
+            # first pass: collect all records and build per-sample PS block orientation votes
+            records = []
+            # sample -> ps_id -> list of vote (+1 or -1)
+            sample_ps_votes = defaultdict(lambda: defaultdict(list))
+
+            for rec in orig_in:
+                idx = len(records)
+                records.append(rec.copy())
+                key = (rec.contig, rec.pos, rec.ref, rec.alts[0] if rec.alts else None)
+                for sample in samples:
+                    gt_data = rec.samples[sample]
+                    gt = gt_data.get("GT")
+                    if gt is None or None in gt or len(gt) != 2:
+                        continue
+                    ps = gt_data.get("PS")
+                    if ps is None:
+                        continue
+                    if key not in anchor_gts[sample]:
+                        continue
+                    stat_a0, stat_a1, stat_phased = anchor_gts[sample][key]
+                    if not stat_phased:
+                        continue
+                    phys_a0, phys_a1 = gt[0], gt[1]
+                    if not gt_data.phased:
+                        continue
+                    # vote: +1 if stat phase agrees with physical phase orientation, -1 if flipped
+                    if (phys_a0, phys_a1) == (stat_a0, stat_a1):
+                        sample_ps_votes[sample][ps].append(1)
+                    elif (phys_a0, phys_a1) == (stat_a1, stat_a0):
+                        sample_ps_votes[sample][ps].append(-1)
+
+            orig_in.close()
+
+            # determine flip decision per (sample, ps_block)
+            # flip_map[sample][ps] = True if we should swap haplotypes
+            flip_map = defaultdict(dict)
+            for sample, ps_blocks in sample_ps_votes.items():
+                for ps, votes in ps_blocks.items():
+                    flip_map[sample][ps] = sum(votes) < 0
+
+            # second pass: write output with haplotypes corrected
+            orig_in2 = pysam.VariantFile(original_vcf, "r")
+            vcf_out = pysam.VariantFile(output_vcf, "w", header=orig_in2.header)
+            orig_in2.close()
+
+            for rec in records:
+                new_rec = rec.copy()
+                for sample in samples:
+                    gt_data = new_rec.samples[sample]
+                    gt = gt_data.get("GT")
+                    if gt is None or None in gt or len(gt) != 2:
+                        continue
+                    ps = gt_data.get("PS")
+                    if ps is None or not gt_data.phased:
+                        continue
+                    if flip_map[sample].get(ps, False):
+                        gt_data["GT"] = (gt[1], gt[0])
+                        gt_data.phased = True
+                vcf_out.write(new_rec)
+            vcf_out.close()
+            print("Phase set haplotype transfer complete")
+
+        transfer_phase_set_haplotypes("~{original_vcf}", "~{phased_anchors_vcf}", "transferred.vcf")
+
+        CODE
+
+        bgzip transferred.vcf
+        bcftools index -t transferred.vcf.gz
+        mv transferred.vcf.gz ~{prefix}.vcf.gz
+        mv transferred.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
+
+    >>>
+
+    output {
+        File ps_transferred_vcf = "~{prefix}.vcf.gz"
+        File ps_transferred_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 10 + ceil(size(original_vcf, "GiB") * 3) + ceil(size(phased_anchors_vcf, "GiB") * 3),
+        disk_gb: 15 + ceil(size(original_vcf, "GiB") * 3) + ceil(size(phased_anchors_vcf, "GiB") * 3),
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 1
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])

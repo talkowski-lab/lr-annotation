@@ -469,6 +469,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: StatisticalPhasingPreprocess
+    primaryDescriptorPath: /wdl/tools/StatisticalPhasingPreprocess.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: TransferMethylationTags
     primaryDescriptorPath: /wdl/tools/TransferMethylationTags.wdl
     filters:
