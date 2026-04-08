@@ -48,7 +48,7 @@ table = table.select(
     CHROM=table.locus.contig,
     POS=table.locus.position,
     REF=table.alleles[0],
-    ALT=table.alleles[1],
+    ALT=hl.delimit(table.alleles[1:], ','),
     ID=hl.or_else(table.rsid, '.'),
     CSQ=hl.or_else(hl.delimit(table.vep, ','), '.')
 )
