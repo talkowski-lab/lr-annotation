@@ -97,7 +97,6 @@ workflow StatisticalPhasing {
             runtime_attr_override = runtime_attr_fix_variant_collisions
     }
 
-    # subset to per-sample phase-set anchor variants for statistical phasing
     call SubsetToPhaseSetAnchors {
         input:
             vcf = FixVariantCollisions.phased_collisionless_vcf,
@@ -195,7 +194,6 @@ workflow StatisticalPhasing {
         }
     }
 
-    # use statistically phased anchor variants to orient every HiPhase PS block per sample
     call TransferPhaseSetHaplotypes {
         input:
             original_vcf = FixVariantCollisions.phased_collisionless_vcf,
@@ -235,7 +233,13 @@ task SplitAndFilterVcf {
     command <<<
         set -euo pipefail
 
-        bcftools norm -m-any ~{vcf} | bcftools view ~{filter_args} -Oz -o ~{prefix}.vcf.gz
+        bcftools norm \
+            -m-any \
+            ~{vcf} \
+        | bcftools view \
+            ~{filter_args} \
+            -Oz -o ~{prefix}.vcf.gz
+        
         bcftools index -t ~{prefix}.vcf.gz
     >>>
 
@@ -330,9 +334,11 @@ task EnsureUniqueIDsAndNormalize {
 
     CODE
 
-    bcftools sort "unsorted.vcf" -Oz -o "~{prefix}.vcf.gz"
-    bcftools index -t "~{prefix}.vcf.gz"
+    bcftools sort \
+        "unsorted.vcf" \
+        -Oz -o "~{prefix}.vcf.gz"
 
+    bcftools index -t "~{prefix}.vcf.gz"
   >>>
 
   output {
@@ -440,8 +446,8 @@ task RemoveDuplicatesByPhasedFraction {
     CODE
 
     bgzip "~{prefix}.annotated.dups_removed.vcf"
-    bcftools index -t "~{prefix}.annotated.dups_removed.vcf.gz"
 
+    bcftools index -t "~{prefix}.annotated.dups_removed.vcf.gz"
   >>>
 
   output {
@@ -484,9 +490,9 @@ task FillVcfTags {
     command <<<
         set -euo pipefail
 
-        bcftools +setGT ~{vcf} -- -t . -n 0p | \
-            bcftools +fill-tags -- -t AF,AC,AN,MAF | \
-            bcftools view -Oz -o ~{prefix}.vcf.gz
+        bcftools +setGT ~{vcf} -- -t . -n 0p \
+            | bcftools +fill-tags -- -t AF,AC,AN,MAF \
+            | bcftools view -Oz -o ~{prefix}.vcf.gz
 
         bcftools index -t ~{prefix}.vcf.gz
     >>>
@@ -543,8 +549,8 @@ task FixVariantCollisions {
             null
 
         # replace all missing alleles (correctly) emitted with reference alleles, since this is expected by PanGenie panel-creation script
-        bcftools +setGT collisionless.vcf -- -t . -n 0p | \
-            bcftools +fill-tags -Oz -o ~{prefix}.phased.collisionless.vcf.gz -- -t AF,AC,AN
+        bcftools +setGT collisionless.vcf -- -t . -n 0p \
+            | bcftools +fill-tags -Oz -o ~{prefix}.phased.collisionless.vcf.gz -- -t AF,AC,AN
 
         # use vcf.gz to avoid errors from missing header lines
         bcftools index -t ~{prefix}.phased.collisionless.vcf.gz
@@ -600,6 +606,7 @@ task CreateShapeitChunks {
             -O chunks.txt
 
         cut -f3 chunks.txt > ~{prefix}.common.txt
+
         cut -f4 chunks.txt > ~{prefix}.rare.txt
     >>>
 
