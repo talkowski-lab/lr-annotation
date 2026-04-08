@@ -92,7 +92,6 @@ workflow TransferMethylationTags {
     }
 }
 
-
 task ExtractMethylationTags {
     input {
         String unaligned_bam_path
@@ -196,9 +195,8 @@ with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
         for read in abam:
             if read.query_name in tags_dict:
                 mm, ml = tags_dict[read.query_name]
-                if mm:
-                    read.set_tag('MM', mm)
-                    read.set_tag('ML', array.array('B', ml))
+                read.set_tag('MM', mm)
+                read.set_tag('ML', array.array('B', ml))
             outbam.write(read)
 CODE
     >>>
