@@ -227,6 +227,73 @@ task GenerateAnnotationTable {
 
         python3 <<EOF
 import sys
+import ast
+
+
+def get_mei_len(element_hits, subfam, classification):
+    try:
+        hits = ast.literal_eval(element_hits)
+    except (SyntaxError, ValueError):
+        return 0
+
+    intervals = []
+    id_to_intervals = {}
+    for hit in hits:
+        fields = str(hit).split()
+        if len(fields) < 14:
+            continue
+
+        anno = fields[9]
+        anno_class = fields[10]
+        if classification == "Retroposon/SVA":
+            keep = (anno_class == classification)
+        else:
+            keep = (anno == subfam)
+        if not keep:
+            continue
+
+        try:
+            start = int(fields[5])
+            end = int(fields[6])
+        except ValueError:
+            continue
+        if start > end:
+            start, end = end, start
+        if classification == "Retroposon/SVA":
+            intervals.append((start, end))
+        else:
+            hit_id = fields[-1]
+            id_to_intervals.setdefault(hit_id, []).append((start, end))
+
+    if classification != "Retroposon/SVA":
+        best_len = 0
+        for hit_id in id_to_intervals:
+            curr_intervals = sorted(id_to_intervals[hit_id])
+            merged = [curr_intervals[0]]
+            for start, end in curr_intervals[1:]:
+                prev_start, prev_end = merged[-1]
+                if start <= prev_end + 1:
+                    merged[-1] = (prev_start, max(prev_end, end))
+                else:
+                    merged.append((start, end))
+            curr_len = sum(end - start + 1 for start, end in merged)
+            if curr_len > best_len:
+                best_len = curr_len
+        return best_len
+
+    if not intervals:
+        return 0
+
+    intervals.sort()
+    merged = [intervals[0]]
+    for start, end in intervals[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end + 1:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+
+    return sum(end - start + 1 for start, end in merged)
 
 vcf_lookup_file = "vcf_lookup.tsv"
 input_tsv = "~{filtered_tsv}"
@@ -255,7 +322,6 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             me_type = "SVA"
         elif classification == "LINE/L1" and (structure == "INTACT" or structure == "INTACT_3end"):
             me_type = "LINE"
-        
         if me_type:
             full_id = parts[0]
             full_id_parts = full_id.split(';')
@@ -264,7 +330,14 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             ref = full_id_parts[1].split('_')[0]
             alt = parts[1]
             subfam = parts[4]
-            mei_len = parts[3]
+            mei_len = get_mei_len(parts[2], subfam, classification)
+            query_len = int(parts[3])
+            mei_fraction = float(mei_len) / query_len if query_len > 0 else 0.0
+            if me_type == "ALU":
+                if mei_fraction < 0.7:
+                    continue
+            elif mei_fraction < 0.2:
+                continue
             key = (chrom, pos, ref, alt)
             if key in vcf_lookup:
                 f_out.write(f"{chrom}\t{pos}\t{ref}\t{alt}\t{vcf_lookup[key]}\t{me_type}\t{subfam}\t{mei_len}\n")
