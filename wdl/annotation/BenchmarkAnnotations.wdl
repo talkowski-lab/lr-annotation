@@ -758,7 +758,7 @@ task ComputeSummaryForContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(eval_vcf, "GB")) + 5,
+        disk_gb: 10 * ceil(size(eval_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
