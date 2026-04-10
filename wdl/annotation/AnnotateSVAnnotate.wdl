@@ -19,7 +19,6 @@ workflow AnnotateSVAnnotate {
         String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_convert_symbolic
         RuntimeAttr? runtime_attr_annotate_func
         RuntimeAttr? runtime_attr_concat_unannotated

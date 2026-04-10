@@ -36,8 +36,8 @@ workflow AnnotateVEPHail {
         String sv_base_mini_docker
         String utils_docker
         
-        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_strip_genotypes
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_index_shard
         RuntimeAttr? runtime_attr_extract_coords
         RuntimeAttr? runtime_attr_normalize
@@ -49,33 +49,30 @@ workflow AnnotateVEPHail {
         RuntimeAttr? runtime_attr_split_into_shards
     }
 
+    call Helpers.StripGenotypes {
+        input:
+            vcf = vcf,
+            vcf_idx = vcf_idx,
+            prefix = "~{prefix}.stripped",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_strip_genotypes
+    }
+
     if (defined(subset_vcf_string)) {
         call Helpers.SubsetVcfByArgs {
             input:
-                vcf = vcf,
-                vcf_idx = vcf_idx,
+                vcf = StripGenotypes.stripped_vcf,
+                vcf_idx = StripGenotypes.stripped_vcf_idx,
                 extra_args = subset_vcf_string,
                 prefix = "~{prefix}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
     }
-
-    File subset_vcf = select_first([SubsetVcfByArgs.subset_vcf, vcf])
-    File subset_vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx])
-
-    call Helpers.StripGenotypes {
-        input:
-            vcf = subset_vcf,
-            vcf_idx = subset_vcf_idx,
-            prefix = "~{prefix}.~{contig}.stripped",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_strip_genotypes
-    }
-
+    
     call ScatterVcf.ScatterVcf {
         input:
-            file = select_first([SubsetVcfByArgs.subset_vcf, vcf]),
+            file = select_first([SubsetVcfByArgs.subset_vcf, StripGenotypes.stripped_vcf]),
             split_vcf_hail_script = split_vcf_hail_script,
             prefix = "~{prefix}.scattered",
             genome_build = genome_build,
