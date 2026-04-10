@@ -13,6 +13,10 @@ workflow HiPhase {
         File sv_vcf_idx
         File? trgt_vcf
         File? trgt_vcf_idx
+        Int? trgt_min_repeat_unit
+        Boolean? trgt_normalize
+        Int? trgt_min_length_diff
+        Int? trgt_max_catalog_length
         Array[String] contigs
         String prefix
 
@@ -28,6 +32,7 @@ workflow HiPhase {
         RuntimeAttr? runtime_attr_subset_vcf_short
         RuntimeAttr? runtime_attr_subset_vcf_sv
         RuntimeAttr? runtime_attr_subset_vcf_trgt
+        RuntimeAttr? runtime_attr_process_trgt_vcf
         RuntimeAttr? runtime_attr_sync_contigs
         RuntimeAttr? runtime_attr_hiphase
         RuntimeAttr? runtime_attr_concat_per_contig
@@ -85,6 +90,20 @@ workflow HiPhase {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_vcf_trgt
             }
+
+            call ProcessTRGTVcf {
+                input:
+                    vcf = SubsetVcfTRGT.subset_vcf,
+                    vcf_idx = SubsetVcfTRGT.subset_vcf_idx,
+                    min_repeat_unit = trgt_min_repeat_unit,
+                    normalize = select_first([trgt_normalize, false]),
+                    min_length_diff = trgt_min_length_diff,
+                    max_catalog_length = trgt_max_catalog_length,
+                    ref_fa = ref_fa,
+                    prefix = "~{prefix}.~{contig}.trgt.processed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_process_trgt_vcf
+            }
         }
 
         call HiPhase { 
@@ -95,8 +114,8 @@ workflow HiPhase {
                 unphased_sv_idx = SyncContigs.synced_idx,
                 unphased_snp_vcf = SubsetVcfShort.subset_vcf,
                 unphased_snp_idx = SubsetVcfShort.subset_vcf_idx,
-                unphased_trgt_vcf = SubsetVcfTRGT.subset_vcf,
-                unphased_trgt_vcf_idx = SubsetVcfTRGT.subset_vcf_idx,
+                unphased_trgt_vcf = ProcessTRGTVcf.processed_vcf,
+                unphased_trgt_vcf_idx = ProcessTRGTVcf.processed_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.phased",
@@ -243,6 +262,119 @@ task SyncContigs {
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
         docker: select_first([runtime_attr.docker, default_attr.docker])
+    }
+}
+
+task ProcessTRGTVcf {
+    input {
+        File vcf
+        File vcf_idx
+        Int? min_repeat_unit
+        Boolean normalize = false
+        Int? min_length_diff
+        Int? max_catalog_length
+        File ref_fa
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+
+def motif_lengths(record):
+    motifs = record.info.get("MOTIFS")
+    if motifs is None:
+        return []
+    if not isinstance(motifs, (list, tuple)):
+        motifs = [motifs]
+
+    lengths = []
+    for motif_group in motifs:
+        for motif in str(motif_group).split(','):
+            motif = motif.strip()
+            if motif:
+                lengths.append(len(motif))
+    return lengths
+
+
+def keep_record(record):
+    min_repeat_unit = ~{if defined(min_repeat_unit) then min_repeat_unit else "None"}
+    min_length_diff = ~{if defined(min_length_diff) then min_length_diff else "None"}
+    max_catalog_length = ~{if defined(max_catalog_length) then max_catalog_length else "None"}
+
+    if max_catalog_length is not None and len(record.ref) > max_catalog_length:
+        return False
+
+    if min_repeat_unit is not None:
+        lengths = motif_lengths(record)
+        if not lengths or min(lengths) < min_repeat_unit:
+            return False
+
+    if min_length_diff is not None:
+        if not record.alts:
+            return False
+        length_diffs = [abs(len(record.ref) - len(alt)) for alt in record.alts if alt is not None]
+        if not length_diffs or max(length_diffs) < min_length_diff:
+            return False
+
+    return True
+
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
+
+for record in vcf_in:
+    if keep_record(record):
+        vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        if [[ "~{normalize}" == "true" ]]; then
+            bcftools norm \
+                -f ~{ref_fa} \
+                -Oz -o normalized.unsorted.vcf.gz \
+                preprocessed.vcf.gz
+
+            bcftools sort \
+                -T . \
+                -Oz -o ~{prefix}.vcf.gz \
+                normalized.unsorted.vcf.gz
+        else
+            mv preprocessed.vcf.gz ~{prefix}.vcf.gz
+        fi
+
+        tabix -p vcf -f ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File processed_vcf = "~{prefix}.vcf.gz"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 4 * ceil(size([vcf, ref_fa], "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
