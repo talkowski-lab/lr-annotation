@@ -87,6 +87,11 @@ vcf_in = pysam.VariantFile("stripped.vcf.gz")
 
 tsv_out = open("~{prefix}.annotations.tsv", "w")
 
+
+def format_allele_values(values):
+    formatted = [str(value) for value in values]
+    return '.' if all(value == '.' for value in formatted) else ','.join(formatted)
+
 for rec in vcf_in:
     if not rec.alts:
         continue
@@ -195,11 +200,11 @@ for rec in vcf_in:
         rec.ref,
         ','.join(rec.alts),
         rec.id if rec.id else '.',
-        ','.join(str(v) for v in inbreeding_coeff),
-        ','.join(str(v) for v in pab_max_vals),
-        ','.join(str(v) for v in as_qualapprox),
-        ','.join(str(v) for v in as_qd),
-        ','.join(str(v) for v in as_vardp),
+        format_allele_values(inbreeding_coeff),
+        format_allele_values(pab_max_vals),
+        format_allele_values(as_qualapprox),
+        format_allele_values(as_qd),
+        format_allele_values(as_vardp),
         str(hwe_val),
     ]
     tsv_out.write('\t'.join(row) + '\n')
