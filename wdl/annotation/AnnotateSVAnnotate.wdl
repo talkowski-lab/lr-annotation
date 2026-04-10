@@ -11,7 +11,6 @@ workflow AnnotateSVAnnotate {
         String prefix
 
         Int min_length
-        String? vcf_drop_fields
         
         File coding_gtf
         File noncoding_bed
@@ -32,33 +31,21 @@ workflow AnnotateSVAnnotate {
     Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfByLength as SubsetVcfAnnotated {
+        call Helpers.SubsetVcfByLength {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 min_length = min_length,
-                extra_args = if single_contig then "" else "--regions ~{contig}",
+                extra_args = if single_contig then "-G" else "-G --regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        if (defined(vcf_drop_fields)) {
-            call Helpers.DropVcfFields {
-                input:
-                    vcf = SubsetVcfAnnotated.subset_vcf,
-                    vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
-                    drop_fields = select_first([vcf_drop_fields]),
-                    prefix = "~{prefix}.~{contig}.dropped",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_drop_fields
-            }
-        }
-
         call Helpers.ConvertToSymbolic {
             input:
-                vcf = select_first([DropVcfFields.dropped_vcf, SubsetVcfAnnotated.subset_vcf]),
-                vcf_idx = select_first([DropVcfFields.dropped_vcf_idx, SubsetVcfAnnotated.subset_vcf_idx]),
+                vcf = SubsetVcfByLength.subset_vcf,
+                vcf_idx = SubsetVcfByLength.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.converted",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_convert_symbolic
@@ -79,19 +66,19 @@ workflow AnnotateSVAnnotate {
             input:
                 annotated_vcf = AnnotateFunctionalConsequences.anno_vcf,
                 annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
-                original_vcf = SubsetVcfAnnotated.subset_vcf,
-                original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
+                original_vcf = SubsetVcfByLength.subset_vcf,
+                original_vcf_idx = SubsetVcfByLength.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}.reverted",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_revert_symbolic
         }
 
-        call Helpers.ExtractVcfAnnotations as ExtractAnnotations {
+        call Helpers.ExtractVcfAnnotations {
             input:
                 vcf = RevertSymbolicAlleles.reverted_vcf,
                 vcf_idx = RevertSymbolicAlleles.reverted_vcf_idx,
-                original_vcf = SubsetVcfAnnotated.subset_vcf,
-                original_vcf_idx = SubsetVcfAnnotated.subset_vcf_idx,
+                original_vcf = SubsetVcfByLength.subset_vcf,
+                original_vcf_idx = SubsetVcfByLength.subset_vcf_idx,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker
         }
@@ -100,7 +87,7 @@ workflow AnnotateSVAnnotate {
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = ExtractAnnotations.annotations_tsv,
+                tsvs = ExtractVcfAnnotations.annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.svannotate_annotations",
                 docker = utils_docker,
@@ -109,7 +96,7 @@ workflow AnnotateSVAnnotate {
 
         call Helpers.MergeHeaderLines {
             input:
-                header_files = ExtractAnnotations.annotations_header,
+                header_files = ExtractVcfAnnotations.annotations_header,
                 prefix = "~{prefix}.svannotate_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
@@ -117,8 +104,8 @@ workflow AnnotateSVAnnotate {
     }
 
     output {
-        File annotations_tsv_svannotate = select_first([ConcatTsvs.concatenated_tsv, ExtractAnnotations.annotations_tsv[0]])
-        File annotations_header_svannotate = select_first([MergeHeaderLines.merged_header, ExtractAnnotations.annotations_header[0]])
+        File annotations_tsv_svannotate = select_first([ConcatTsvs.concatenated_tsv, ExtractVcfAnnotations.annotations_tsv[0]])
+        File annotations_header_svannotate = select_first([MergeHeaderLines.merged_header, ExtractVcfAnnotations.annotations_header[0]])
     }
 }
 

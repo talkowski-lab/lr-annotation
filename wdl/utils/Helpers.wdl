@@ -1758,8 +1758,8 @@ task StripGenotypes {
 
         bcftools view \
             -G \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{vcf}
         
         tabix -p vcf -f ~{prefix}.vcf.gz
     >>>

@@ -37,6 +37,7 @@ workflow AnnotateVEPHail {
         String utils_docker
         
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_index_shard
         RuntimeAttr? runtime_attr_extract_coords
         RuntimeAttr? runtime_attr_normalize
@@ -58,6 +59,18 @@ workflow AnnotateVEPHail {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
+    }
+
+    File subset_vcf = select_first([SubsetVcfByArgs.subset_vcf, vcf])
+    File subset_vcf_idx = select_first([SubsetVcfByArgs.subset_vcf_idx, vcf_idx])
+
+    call Helpers.StripGenotypes {
+        input:
+            vcf = subset_vcf,
+            vcf_idx = subset_vcf_idx,
+            prefix = "~{prefix}.~{contig}.stripped",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_strip_genotypes
     }
 
     call ScatterVcf.ScatterVcf {
