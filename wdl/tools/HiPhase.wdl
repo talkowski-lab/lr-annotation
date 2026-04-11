@@ -330,8 +330,6 @@ vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
     if keep_record(record):
-        if record.alts:
-            record.alts = tuple(alt.upper() for alt in record.alts)
         vcf_out.write(record)
 
 vcf_in.close()
@@ -341,6 +339,7 @@ CODE
         if [[ "~{normalize}" == "true" ]]; then
             bcftools norm \
                 -f ~{ref_fa} \
+                -c s \
                 -Oz -o normalized.unsorted.vcf.gz \
                 preprocessed.vcf.gz
 
