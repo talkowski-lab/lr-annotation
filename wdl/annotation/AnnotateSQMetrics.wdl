@@ -89,7 +89,7 @@ tsv_out = open("~{prefix}.annotations.tsv", "w")
 
 
 def format_allele_values(values):
-    formatted = [str(value) for value in values]
+    formatted = ['.' if value is None else str(value) for value in values]
     return '.' if all(value == '.' for value in formatted) else ','.join(formatted)
 
 for rec in vcf_in:
@@ -97,8 +97,12 @@ for rec in vcf_in:
         continue
 
     n_alt_alleles = len(rec.alts)
-    as_vardp = [0] * n_alt_alleles
-    as_qualapprox = [0] * n_alt_alleles
+    has_dp = 'DP' in rec.format
+    has_pl = 'PL' in rec.format
+    has_ad = 'AD' in rec.format
+
+    as_vardp = [None] * n_alt_alleles
+    as_qualapprox = [None] * n_alt_alleles
     as_qd_sum = [0.0] * n_alt_alleles
     as_qd_n = [0] * n_alt_alleles
     n_ref_per_allele = [0] * n_alt_alleles
@@ -120,13 +124,13 @@ for rec in vcf_in:
         else:
             n_alt_site += 1
 
-        pl = sample.get('PL')
+        pl = sample.get('PL') if has_pl else None
         hom_ref_pl = None
         if pl and len(pl) > 0 and pl[0] is not None:
             hom_ref_pl = int(pl[0])
 
-        dp = sample.get('DP')
-        ad = sample.get('AD')
+        dp = sample.get('DP') if has_dp else None
+        ad = sample.get('AD') if has_ad else None
         ref_copies = sum(1 for allele in gt if allele == 0)
 
         for allele_idx in range(1, n_alt_alleles + 1):
@@ -142,8 +146,12 @@ for rec in vcf_in:
 
             if n_copies > 0:
                 if dp is not None:
+                    if as_vardp[allele_i] is None:
+                        as_vardp[allele_i] = 0
                     as_vardp[allele_i] += int(dp)
                 if hom_ref_pl is not None:
+                    if as_qualapprox[allele_i] is None:
+                        as_qualapprox[allele_i] = 0
                     as_qualapprox[allele_i] += hom_ref_pl
                     if ad and len(ad) > allele_idx and ad[allele_idx] is not None and ad[allele_idx] > 0:
                         as_qd_sum[allele_i] += hom_ref_pl / float(ad[allele_idx])
@@ -192,7 +200,7 @@ for rec in vcf_in:
         chisq = sum(((o - e) ** 2) / e for o, e in zip([n_ref_site, n_het_site, n_alt_site], [e_ref, e_het, e_alt]) if e > 0)
         hwe_val = round(float(stats.chi2.sf(chisq, 1)), 6)
 
-    as_qd = [round(as_qd_sum[i] / as_qd_n[i], 6) if as_qd_n[i] > 0 else 0.0 for i in range(n_alt_alleles)]
+    as_qd = [round(as_qd_sum[i] / as_qd_n[i], 6) if as_qd_n[i] > 0 else None for i in range(n_alt_alleles)]
 
     row = [
         rec.chrom,
