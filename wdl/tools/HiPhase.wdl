@@ -13,13 +13,13 @@ workflow HiPhase {
         File sv_vcf_idx
         File? trgt_vcf
         File? trgt_vcf_idx
+        Array[String] contigs
+        String prefix
+        
         Int? trgt_min_repeat_unit
         Boolean? trgt_normalize
         Int? trgt_min_length_diff
         Int? trgt_max_catalog_length
-        Array[String] contigs
-        String prefix
-
         String? hiphase_extra_args
         Boolean run_haplotagging = false
 
@@ -284,6 +284,7 @@ task ProcessTRGTVcf {
 
         python3 <<CODE
 import pysam
+    import re
 
 
 def motif_lengths(record):
@@ -330,6 +331,8 @@ vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
     if keep_record(record):
+        if record.alts:
+            record.alts = tuple(alt.upper() for alt in record.alts)
         vcf_out.write(record)
 
 vcf_in.close()
