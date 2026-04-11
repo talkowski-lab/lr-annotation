@@ -284,7 +284,6 @@ task ProcessTRGTVcf {
 
         python3 <<CODE
 import pysam
-import re
 
 
 def motif_lengths(record):
@@ -326,22 +325,11 @@ def keep_record(record):
     return True
 
 
-def canonicalize_allele(allele):
-    if allele is None:
-        return None
-    if re.fullmatch(r'[ACGTNacgtn]+', allele):
-        return allele.upper()
-    return allele
-
-
 vcf_in = pysam.VariantFile("~{vcf}")
 vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
     if keep_record(record):
-        record.ref = canonicalize_allele(record.ref)
-        if record.alts:
-            record.alts = tuple(canonicalize_allele(alt) for alt in record.alts)
         vcf_out.write(record)
 
 vcf_in.close()
