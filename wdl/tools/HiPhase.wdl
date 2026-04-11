@@ -284,7 +284,6 @@ task ProcessTRGTVcf {
 
         python3 <<CODE
 import pysam
-    import re
 
 
 def motif_lengths(record):
