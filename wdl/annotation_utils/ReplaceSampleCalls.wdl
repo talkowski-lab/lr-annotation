@@ -49,15 +49,21 @@ task ReplaceCalls {
         python3 <<CODE
 import pysam
 
-# Build set of variant IDs present in sample_vcf
-sample_variant_ids = set()
+sample_fmt_records = {}
+sample_variants = {}
+
 with pysam.VariantFile("~{sample_vcf}") as s:
     sample_name = list(s.header.samples)[0]
+    for k in s.header.formats:
+        sample_fmt_records[k] = s.header.formats[k].record
     for record in s:
-        if record.id:
-            sample_variant_ids.add(record.id)
+        sample_variants[record.id] = {k: record.samples[sample_name][k] for k in record.samples[sample_name].keys()}
 
 vcf_in = pysam.VariantFile("~{cohort_vcf}")
+for k, fmt_record in sample_fmt_records.items():
+    if k not in vcf_in.header.formats:
+        vcf_in.header.add_record(fmt_record)
+
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
 
 for record in vcf_in:
@@ -65,11 +71,15 @@ for record in vcf_in:
     if allele_type == 'trv' and record.id:
         sample = record.samples[sample_name]
         gt = sample['GT']
-        is_hom_ref = gt is not None and len(gt) > 0 and all(a == 0 for a in gt)
+        is_hom_ref = gt is not None and len(gt) > 0 and all(a in (0, None) for a in gt)
         if not is_hom_ref:
             id_prefix = record.id.split('_')[0]
-            if id_prefix not in sample_variant_ids:
-                sample['GT'] = tuple(None for _ in gt)
+            if id_prefix in sample_variants:
+                for k, v in sample_variants[id_prefix].items():
+                    sample[k] = v
+            else:
+                for k, v in sample.items():
+                    sample[k] = None
     vcf_out.write(record)
 
 vcf_in.close()
