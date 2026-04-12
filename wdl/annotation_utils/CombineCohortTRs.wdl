@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow CombineTRs {
+workflow CombineCohortTRs {
     input {
         Array[File] tr_vcfs
         Array[File] tr_vcf_idxs

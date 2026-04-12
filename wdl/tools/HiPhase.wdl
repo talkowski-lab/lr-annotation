@@ -269,8 +269,8 @@ task ProcessTRGTVcf {
     input {
         File vcf
         File vcf_idx
-        Int? min_repeat_unit
         Boolean normalize = false
+        Int? min_repeat_unit
         Int? min_length_diff
         Int? max_catalog_length
         File ref_fa

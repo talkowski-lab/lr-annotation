@@ -304,6 +304,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: ReplaceSampleCalls
+    primaryDescriptorPath: /wdl/annotation_utils/ReplaceSampleCalls.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: SplitVcfPerContig
     primaryDescriptorPath: /wdl/annotation_utils/SplitVcfPerContig.wdl
     filters:
