@@ -54,7 +54,8 @@ sample_name = list(sample_in.header.samples)[0]
 
 sample_variant_ids = {}
 for record in sample_in:
-    data = { 'GT': record.samples[sample_name]['GT'] }
+    s = record.samples[sample_name]
+    data = { 'GT': s['GT'], 'phased': s.phased }
     if 'PS' in record.format:
         data['PS'] = record.samples[sample_name]['PS']
     if 'PF' in record.format:
@@ -66,11 +67,12 @@ cohort_in = pysam.VariantFile("~{cohort_vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=cohort_in.header)
 
 for record in cohort_in:
-    match_data = sample_variant_ids.get(record.id.split('_')[0])
+    match_data = sample_variant_ids.get(record.id.rsplit('_', 1)[0])
 
     if match_data is not None:
-        # Set GT/PS/PF from sample_vcf for matched variants
+        # Set GT/PS/PF from sample_vcf for matched variants, preserving phase status
         record.samples[sample_name]['GT'] = match_data['GT']
+        record.samples[sample_name].phased = match_data['phased']
         if 'PS' in match_data:
             record.samples[sample_name]['PS'] = match_data['PS']
         if 'PF' in match_data:
