@@ -262,10 +262,9 @@ task TransferHaplotypesFromBaseVcf {
         from collections import defaultdict
 
         def transfer_haplotypes_from_base_vcf(original_vcf, base_vcf, output_vcf):
-            # load base_vcf: for each sample, index phased het variants by (chrom, pos, ref, alt)
+            # load base_vcf: index phased het variants per sample by (chrom, pos, ref, alt)
             base_in = pysam.VariantFile(base_vcf, "r")
             samples = list(base_in.header.samples)
-            # sample -> variant_key -> (allele0, allele1, is_phased)
             base_gts = defaultdict(dict)
             for rec in base_in:
                 if not rec.alts:
@@ -276,64 +275,58 @@ task TransferHaplotypesFromBaseVcf {
                     gt = gt_data.get("GT")
                     if gt is None or None in gt or len(gt) != 2:
                         continue
-                    # only store het genotypes
-                    if gt[0] == gt[1]:
+                    if gt[0] == gt[1] or not gt_data.phased:
                         continue
-                    base_gts[sample][key] = (gt[0], gt[1], gt_data.phased)
+                    base_gts[sample][key] = (gt[0], gt[1])
             base_in.close()
 
-            # first pass over original_vcf: collect all records and build per-sample PS block votes
+            # first pass: tally concordant/discordant per (sample, ps, gt_group)
+            # gt_group is the current GT of the variant in original_vcf: (0,1) or (1,0)
+            # tally[sample][(ps, gt_group)] = [concordant_count, discordant_count]
+            # each group votes independently, allowing both groups to resolve to the same target GT
             orig_in = pysam.VariantFile(original_vcf, "r")
             records = []
-            # sample -> ps_id -> list of votes (+1 keep, -1 flip)
-            sample_ps_votes = defaultdict(lambda: defaultdict(list))
+            tally = defaultdict(lambda: defaultdict(lambda: [0, 0]))
 
             for rec in orig_in:
                 records.append(rec.copy())
                 if not rec.alts:
                     continue
-
-                # only use phased het SNVs (allele_type=snv) for voting
                 allele_type = rec.info.get("allele_type")
                 if allele_type is None or allele_type.lower() != "snv":
                     continue
-
                 key = (rec.contig, rec.pos, rec.ref.upper(), rec.alts[0].upper())
-
                 for sample in samples:
                     gt_data = rec.samples[sample]
                     gt = gt_data.get("GT")
                     if gt is None or None in gt or len(gt) != 2:
                         continue
-                    # must be het and phased in original_vcf
                     if gt[0] == gt[1] or not gt_data.phased:
                         continue
                     ps = gt_data.get("PS")
                     if ps is None:
                         continue
-                    # check matching het in base_vcf
                     if key not in base_gts[sample]:
                         continue
-                    base_a0, base_a1, base_phased = base_gts[sample][key]
-                    # only use orientation votes when base_vcf is phased
-                    if not base_phased:
+                    orig_gt = (gt[0], gt[1])
+                    if orig_gt not in ((0, 1), (1, 0)):
                         continue
-                    orig_a0, orig_a1 = gt[0], gt[1]
-                    if (orig_a0, orig_a1) == (base_a0, base_a1):
-                        sample_ps_votes[sample][ps].append(1)
-                    elif (orig_a0, orig_a1) == (base_a1, base_a0):
-                        sample_ps_votes[sample][ps].append(-1)
-
+                    base_gt = base_gts[sample][key]
+                    if base_gt == orig_gt:
+                        tally[sample][(ps, orig_gt)][0] += 1
+                    elif base_gt == (orig_gt[1], orig_gt[0]):
+                        tally[sample][(ps, orig_gt)][1] += 1
             orig_in.close()
 
-            # determine flip decision per (sample, ps_block): flip if majority vote is negative
-            flip_map = defaultdict(dict)
-            for sample, ps_blocks in sample_ps_votes.items():
-                for ps, votes in ps_blocks.items():
-                    flip_map[sample][ps] = sum(votes) < 0
+            # for each (sample, ps, gt_group): flip to opposite if discordant > concordant, else keep
+            target_map = defaultdict(dict)
+            for sample, block_tallies in tally.items():
+                for (ps, group), (conc, disc) in block_tallies.items():
+                    target_map[sample][(ps, group)] = (group[1], group[0]) if disc > conc else group
 
-            # second pass: write output with flipped haplotypes where needed
-            vcf_out = pysam.VariantFile(output_vcf, "w", header=records[0].header if records else pysam.VariantFile(original_vcf, "r").header)
+            # second pass: apply per-group target GTs to all phased het variants
+            header = records[0].header if records else pysam.VariantFile(original_vcf, "r").header
+            vcf_out = pysam.VariantFile(output_vcf, "w", header=header)
             for rec in records:
                 new_rec = rec.copy()
                 for sample in samples:
@@ -341,18 +334,28 @@ task TransferHaplotypesFromBaseVcf {
                     gt = gt_data.get("GT")
                     if gt is None or None in gt or len(gt) != 2:
                         continue
-                    ps = gt_data.get("PS")
-                    if ps is None or not gt_data.phased:
+                    if not gt_data.phased:
                         continue
-                    if flip_map[sample].get(ps, False):
-                        gt_data["GT"] = (gt[1], gt[0])
+                    ps = gt_data.get("PS")
+                    if ps is None:
+                        continue
+                    orig_gt = (gt[0], gt[1])
+                    if orig_gt not in ((0, 1), (1, 0)):
+                        continue
+                    target = target_map[sample].get((ps, orig_gt), orig_gt)
+                    if target != orig_gt:
+                        gt_data["GT"] = target
                         gt_data.phased = True
                 vcf_out.write(new_rec)
             vcf_out.close()
 
-            flipped_blocks = sum(v for sample_map in flip_map.values() for v in sample_map.values())
-            total_blocks = sum(len(sample_map) for sample_map in flip_map.values())
-            print(f"Flipped {flipped_blocks} / {total_blocks} phase blocks (across all samples)")
+            changed = sum(
+                1 for sample, block_tallies in tally.items()
+                for (ps, group), (conc, disc) in block_tallies.items()
+                if disc > conc
+            )
+            total = sum(len(block_tallies) for block_tallies in tally.values())
+            print(f"Changed orientation for {changed} / {total} haplotype groups across all phase blocks and samples")
 
         transfer_haplotypes_from_base_vcf("~{original_vcf}", "~{base_vcf}", "transferred.vcf")
         CODE
