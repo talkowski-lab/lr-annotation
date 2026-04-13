@@ -49,27 +49,43 @@ task ReplaceCalls {
         python3 <<CODE
 import pysam
 
+sample_in = pysam.VariantFile("~{sample_vcf}")
+sample_name = list(sample_in.header.samples)[0]
+
 sample_variant_ids = {}
-with pysam.VariantFile("~{sample_vcf}") as s:
-    sample_name = list(s.header.samples)[0]
-    for record in s:
-        sample_variant_ids[record.id] = record.samples[sample_name]['PS']
+for record in sample_in:
+    data = { 'GT': record.samples[sample_name]['GT'] }
+    if 'PS' in record.format:
+        data['PS'] = record.samples[sample_name]['PS']
+    if 'PF' in record.format:
+        data['PF'] = record.samples[sample_name]['PF']
+    sample_variant_ids[record.id] = data
+sample_in.close()
 
-vcf_in = pysam.VariantFile("~{cohort_vcf}")
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
+cohort_in = pysam.VariantFile("~{cohort_vcf}")
+vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=cohort_in.header)
 
-for record in vcf_in:
-    record.samples[sample_name]['PS'] = sample_variant_ids[record.id.split('_')[0]]
-    if record.info.get('allele_type') == 'trv' \
-        and not ((sample['GT'] is not None) and (len(sample['GT']) > 0) and (all(a == 0 for a in sample['GT']))) \
-        and record.id.split('_')[0] not in sample_variant_ids:
-        if 'GT' in record.samples[sample_name]:
-            record.samples[sample_name]['GT'] = tuple(None for _ in gt)
-        if 'PS' in record.samples[sample_name]:
+for record in cohort_in:
+    match_data = sample_variant_ids.get(record.id.split('_')[0])
+
+    if match_data is not None:
+        # Set GT/PS/PF from sample_vcf for matched variants
+        record.samples[sample_name]['GT'] = match_data['GT']
+        if 'PS' in match_data:
+            record.samples[sample_name]['PS'] = match_data['PS']
+        if 'PF' in match_data:
+            record.samples[sample_name]['PF'] = match_data['PF']
+    elif record.info.get('allele_type') == 'trv':
+        # Clear GT/PS/PF for unmatched trv variants
+        record.samples[sample_name]['GT'] = tuple(None for _ in record.samples[sample_name]['GT'])
+        if 'PS' in record.format:
             record.samples[sample_name]['PS'] = None
+        if 'PF' in record.format:
+            record.samples[sample_name]['PF'] = None
+
     vcf_out.write(record)
 
-vcf_in.close()
+cohort_in.close()
 vcf_out.close()
 CODE
 
