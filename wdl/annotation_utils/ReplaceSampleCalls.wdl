@@ -55,7 +55,7 @@ sample_name = list(sample_in.header.samples)[0]
 sample_variant_ids = {}
 for record in sample_in:
     s = record.samples[sample_name]
-    data = { 'GT': s['GT'], 'phased': s.phased }
+    data = { 'GT': s['GT'], 'phased': s.phased, 'alts': record.alts }
     if 'PS' in record.format:
         data['PS'] = record.samples[sample_name]['PS']
     if 'PF' in record.format:
@@ -70,13 +70,43 @@ for record in cohort_in:
     match_data = sample_variant_ids.get(record.id.rsplit('_', 1)[0])
 
     if match_data is not None:
-        # Set GT/PS/PF from sample_vcf for matched variants, preserving phase status
-        record.samples[sample_name]['GT'] = match_data['GT']
-        record.samples[sample_name].phased = match_data['phased']
+        cohort_sample = record.samples[sample_name]
+        cohort_gt = cohort_sample['GT']
+        sample_gt = match_data['GT']
+        sample_phased = match_data['phased']
+        if (sample_phased and cohort_sample.phased
+                and cohort_gt is not None and len(cohort_gt) == 2
+                and sample_gt is not None and len(sample_gt) == 2):
+            
+            # Translate sample ALT indices into cohort ALT index space
+            sample_alts = match_data['alts'] or ()
+            cohort_alt_idx = {seq: i + 1 for i, seq in enumerate(record.alts or ())}
+            def translate(a):
+                if a is None or a == 0:
+                    return a
+                return cohort_alt_idx.get(sample_alts[a - 1]) if a - 1 < len(sample_alts) else None
+            translated = (translate(sample_gt[0]), translate(sample_gt[1]))
+
+            # Flip cohort GT if sample phasing indicates reversed orientation
+            if translated == (cohort_gt[1], cohort_gt[0]):
+                cohort_sample['GT'] = (cohort_gt[1], cohort_gt[0])
+            cohort_sample.phased = True
+        else:
+            cohort_sample['GT'] = sample_gt
+            cohort_sample.phased = sample_phased
+        
+        # Clear PS/PF if exists in cohort_vcf
+        if 'PS' in cohort_sample:
+            cohort_sample['PS'] = None
+        if 'PF' in cohort_sample:
+            cohort_sample['PF'] = None
+
+        # Copy PS/PF if exists in sample_vcf
         if 'PS' in match_data:
-            record.samples[sample_name]['PS'] = match_data['PS']
+            cohort_sample['PS'] = match_data['PS']
         if 'PF' in match_data:
-            record.samples[sample_name]['PF'] = match_data['PF']
+            cohort_sample['PF'] = match_data['PF']
+        
     elif record.info.get('allele_type') == 'trv':
         # Clear GT/PS/PF for unmatched trv variants
         record.samples[sample_name]['GT'] = tuple(None for _ in record.samples[sample_name]['GT'])

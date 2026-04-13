@@ -469,8 +469,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: StatisticalPhasing
-    primaryDescriptorPath: /wdl/tools/StatisticalPhasing.wdl
+    name: PhaseCallset_vBackbone
+    primaryDescriptorPath: /wdl/tools/PhaseCallset_vBackbone.wdl
     filters:
       branches:
         - main
@@ -478,8 +478,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: StatisticalPhasingV2
-    primaryDescriptorPath: /wdl/tools/StatisticalPhasingV2.wdl
+    name: PhaseCallset_vCommon
+    primaryDescriptorPath: /wdl/tools/PhaseCallset_vCommon.wdl
     filters:
       branches:
         - main

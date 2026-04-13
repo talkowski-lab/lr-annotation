@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow StatisticalPhasing {
+workflow PhaseCallset_vCommon {
     input {
         File vcf
         File vcf_idx

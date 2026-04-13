@@ -339,17 +339,17 @@ TODO
 TODO
 
 
+### [PhaseCallset_vBackbone](wdl/tools/PhaseCallset_vBackbone.wdl)
+TODO
+
+
+### [PhaseCallset_vCommon](wdl/tools/PhaseCallset_vCommon.wdl)
+TODO
+
+
 ### [RepeatMasker](wdl/tools/RepeatMasker.wdl)
 This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/RepeatMasker) in order to annotate repeated regions in an input VCF.
 
-TODO
-
-
-### [StatisticalPhasing](wdl/tools/StatisticalPhasing.wdl)
-TODO
-
-
-### [StatisticalPhasingV2](wdl/tools/StatisticalPhasingV2.wdl)
 TODO
 
 

@@ -2,9 +2,9 @@ version 1.0
 
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
-import "StatisticalPhasing.wdl" as StatPhasing
+import "PhaseCallset_vCommon.wdl"
 
-workflow StatisticalPhasingV2 {
+workflow PhaseCallset_vBackbone {
     input {
         File vcf
         File vcf_idx
@@ -58,7 +58,7 @@ workflow StatisticalPhasingV2 {
             runtime_attr_override = runtime_attr_subset_main_vcf
     }
 
-    call StatPhasing.SplitAndFilterVcf {
+    call PhaseCallset_vCommon.SplitAndFilterVcf {
         input:
             vcf = SubsetMainVcf.subset_vcf,
             vcf_idx = SubsetMainVcf.subset_vcf_idx,
@@ -67,7 +67,7 @@ workflow StatisticalPhasingV2 {
             runtime_attr_override = runtime_attr_filter_vcf
     }
 
-    call StatPhasing.EnsureUniqueIDsAndNormalize {
+    call PhaseCallset_vCommon.EnsureUniqueIDsAndNormalize {
         input:
             vcf = SplitAndFilterVcf.filtered_vcf,
             vcf_idx = SplitAndFilterVcf.filtered_vcf_idx,
@@ -77,7 +77,7 @@ workflow StatisticalPhasingV2 {
     }
 
     if (remove_duplicates_by_phased_fraction) {
-        call StatPhasing.RemoveDuplicatesByPhasedFraction {
+        call PhaseCallset_vCommon.RemoveDuplicatesByPhasedFraction {
             input:
                 vcf = EnsureUniqueIDsAndNormalize.uqids_vcf,
                 vcf_idx = EnsureUniqueIDsAndNormalize.uqids_vcf_idx,
@@ -87,7 +87,7 @@ workflow StatisticalPhasingV2 {
         }
     }
 
-    call StatPhasing.FillVcfTags {
+    call PhaseCallset_vCommon.FillVcfTags {
         input:
             vcf = select_first([RemoveDuplicatesByPhasedFraction.dups_removed_vcf, EnsureUniqueIDsAndNormalize.uqids_vcf]),
             vcf_idx = select_first([RemoveDuplicatesByPhasedFraction.dups_removed_vcf_idx, EnsureUniqueIDsAndNormalize.uqids_vcf_idx]),
@@ -95,7 +95,7 @@ workflow StatisticalPhasingV2 {
             runtime_attr_override = runtime_attr_fill_vcf_tags
     }
 
-    call StatPhasing.FixVariantCollisions {
+    call PhaseCallset_vCommon.FixVariantCollisions {
         input:
             phased_vcf = FillVcfTags.filled_tag_vcf,
             fix_variant_collisions_java = fix_variant_collisions_java,
