@@ -49,28 +49,24 @@ task ReplaceCalls {
         python3 <<CODE
 import pysam
 
-sample_variant_ids = set()
+sample_variant_ids = {}
 with pysam.VariantFile("~{sample_vcf}") as s:
     sample_name = list(s.header.samples)[0]
     for record in s:
-        if record.id:
-            sample_variant_ids.add(record.id)
+        sample_variant_ids[record.id] = record.samples[sample_name]['PS']
 
 vcf_in = pysam.VariantFile("~{cohort_vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
 
 for record in vcf_in:
-    allele_type = record.info.get('allele_type', None)
-    if allele_type == 'trv' and record.id:
-        sample = record.samples[sample_name]
-        gt = sample['GT']
-        is_hom_ref = gt is not None and len(gt) > 0 and all(a == 0 for a in gt)
-        if not is_hom_ref:
-            id_prefix = record.id.split('_')[0]
-            if id_prefix not in sample_variant_ids:
-                sample['GT'] = tuple(None for _ in gt)
-                if 'PS' in sample:
-                    sample['PS'] = None
+    record.samples[sample_name]['PS'] = sample_variant_ids[record.id.split('_')[0]]
+    if record.info.get('allele_type') == 'trv' \
+        and not ((sample['GT'] is not None) and (len(sample['GT']) > 0) and (all(a == 0 for a in sample['GT']))) \
+        and record.id.split('_')[0] not in sample_variant_ids:
+        if 'GT' in record.samples[sample_name]:
+            record.samples[sample_name]['GT'] = tuple(None for _ in gt)
+        if 'PS' in record.samples[sample_name]:
+            record.samples[sample_name]['PS'] = None
     vcf_out.write(record)
 
 vcf_in.close()
