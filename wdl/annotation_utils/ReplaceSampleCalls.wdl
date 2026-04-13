@@ -67,7 +67,7 @@ cohort_in = pysam.VariantFile("~{cohort_vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=cohort_in.header)
 
 for record in cohort_in:
-    match_data = sample_variant_ids.get(record.id.rsplit('_', 1)[0])
+    match_data = sample_variant_ids.get(record.id)
 
     if match_data is not None:
         cohort_sample = record.samples[sample_name]
