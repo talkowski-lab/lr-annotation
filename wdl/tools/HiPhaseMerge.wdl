@@ -20,8 +20,10 @@ workflow HiPhaseMerge {
         String trgt_docker
 
         RuntimeAttr? runtime_attr_subset_trgt
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_subset_integrated
         RuntimeAttr? runtime_attr_extract_trgt_ps
+        RuntimeAttr? runtime_attr_fix_al_header
         RuntimeAttr? runtime_attr_merge_trgt
         RuntimeAttr? runtime_attr_annotate_trgt_ps
         RuntimeAttr? runtime_attr_merge_integrated
@@ -39,6 +41,16 @@ workflow HiPhaseMerge {
                     prefix = "~{prefix}.~{i}.integrated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_integrated
+            }
+
+            call Helpers.DropVcfFields {
+                input:
+                    vcf = SubsetIntegrated.subset_vcf,
+                    vcf_idx = SubsetIntegrated.subset_vcf_idx,
+                    drop_fields = "FORMAT/AD,FORMAT/PL",
+                    prefix = "~{prefix}.~{i}.integrated.no_ad",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_fields
             }
 
             call Helpers.SubsetVcfByArgs as SubsetTRGT {
@@ -59,14 +71,23 @@ workflow HiPhaseMerge {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_trgt_ps
             }
+
+            call FixALHeader {
+                input:
+                    vcf = SubsetTRGT.subset_vcf,
+                    vcf_idx = SubsetTRGT.subset_vcf_idx,
+                    prefix = "~{prefix}.~{i}.trgt.fixed_al",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_fix_al_header
+            }
         }
     }
 
     scatter (contig in contigs) {
         call Helpers.MergeVcfs as MergeIntegratedVcfs {
             input:
-                vcfs = select_first([SubsetIntegrated.subset_vcf, phased_vcfs]),
-                vcf_idxs = select_first([SubsetIntegrated.subset_vcf_idx, phased_vcf_idxs]),
+                vcfs = select_first([DropVcfFields.dropped_vcf, phased_vcfs]),
+                vcf_idxs = select_first([DropVcfFields.dropped_vcf_idx, phased_vcf_idxs]),
                 contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
                 extra_args = merge_args,
@@ -77,8 +98,8 @@ workflow HiPhaseMerge {
         if (merge_trgt) {
             call TRGTMergeContig {
                 input:
-                    vcfs = select_first([SubsetTRGT.subset_vcf]),
-                    vcf_idxs = select_first([SubsetTRGT.subset_vcf_idx]),
+                    vcfs = select_first([FixALHeader.fixed_vcf]),
+                    vcf_idxs = select_first([FixALHeader.fixed_vcf_idx]),
                     prefix = "~{prefix}.~{contig}.trgt",
                     contig = contig,
                     ref_fa = ref_fa,
@@ -132,6 +153,108 @@ workflow HiPhaseMerge {
     }
 }
 
+task ExtractTRGTPSTags {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+with pysam.VariantFile("~{vcf}") as vcf_in:
+    sample = list(vcf_in.header.samples)[0]
+    with open("~{prefix}.ps.tsv", 'w') as out:
+        out.write(f"#SAMPLE\t{sample}\n")
+        for rec in vcf_in:
+            ps_val = rec.samples[sample].get('PS', None)
+            if ps_val is not None:
+                out.write(f"{rec.chrom}\t{rec.id}\t{ps_val}\n")
+CODE
+    >>>
+
+    output {
+        File ps_tsv = "~{prefix}.ps.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(size(vcf, "GB")) + 2,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task FixALHeader {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view \
+            -h \
+            ~{vcf} \
+        | sed 's/^##FORMAT=<ID=AL,.*$/##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">/' \
+            > new_header.txt
+
+        bcftools reheader \
+            -h new_header.txt \
+            ~{vcf} \
+        | bcftools view \
+            -Oz -o ~{prefix}.vcf.gz
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File fixed_vcf = "~{prefix}.vcf.gz"
+        File fixed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task TRGTMergeContig {
     input {
         Array[File] vcfs
@@ -168,56 +291,6 @@ task TRGTMergeContig {
         cpu_cores: 2,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task ExtractTRGTPSTags {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-import pysam
-
-with pysam.VariantFile("~{vcf}") as vcf_in:
-    sample = list(vcf_in.header.samples)[0]
-    with open("~{prefix}.ps.tsv", 'w') as out:
-        out.write(f"#SAMPLE\t{sample}\n")
-        for rec in vcf_in:
-            ps_val = rec.samples[sample].get('PS', None)
-            if ps_val is not None:
-                out.write(f"{rec.chrom}\t{rec.id}\t{ps_val}\n")
-CODE
-    >>>
-
-    output {
-        File ps_tsv = "~{prefix}.ps.tsv"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: ceil(size(vcf, "GB")) + 2,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
