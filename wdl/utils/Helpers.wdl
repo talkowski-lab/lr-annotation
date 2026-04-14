@@ -2203,3 +2203,100 @@ task ShardVcfByRecords {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task FillVcfFormatFields {
+    input {
+        File unfilled_vcf
+        File unfilled_vcf_idx
+        File filled_vcf
+        File filled_vcf_idx
+        Array[String] format_fields
+        Boolean fill_sv_gts = false
+        String? sv_source_tag
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+with open("~{write_lines(format_fields)}") as fh:
+    format_fields = [l.strip() for l in fh if l.strip()]
+
+fill_sv_gts = ~{true="True" false="False" fill_sv_gts}
+sv_source_tag = "~{default="" sv_source_tag}" or None
+
+unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
+filled_in = pysam.VariantFile("~{filled_vcf}")
+
+out_header = unfilled_in.header.copy()
+for field in format_fields:
+    if field in filled_in.header.formats and field not in out_header.formats:
+        out_header.add_record(filled_in.header.formats[field].record)
+
+filled_samples = set(filled_in.header.samples)
+common_samples = [s for s in out_header.samples if s in filled_samples]
+
+out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
+
+for unfilled_rec in unfilled_in:
+    match = None
+    for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
+        if cand.id == unfilled_rec.id:
+            match = cand
+            break
+
+    if match:
+        do_fill_gt = False
+        if fill_sv_gts and sv_source_tag is not None:
+            source = unfilled_rec.info.get("SOURCE")
+            source_val = source if not isinstance(source, tuple) else (source[0] if source else None)
+            do_fill_gt = source_val == sv_source_tag
+
+        for sample in common_samples:
+            for field in format_fields:
+                if field in match.format:
+                    unfilled_rec.samples[sample][field] = match.samples[sample][field]
+            if do_fill_gt:
+                gt = match.samples[sample].get("GT")
+                if gt is not None:
+                    non_none = [a for a in gt if a is not None]
+                    if not any(a > 0 for a in non_none):
+                        unfilled_rec.samples[sample]["GT"] = gt
+
+    out.write(unfilled_rec)
+
+out.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File output_vcf = "~{prefix}.vcf.gz"
+        File output_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(unfilled_vcf, "GB") + size(filled_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
