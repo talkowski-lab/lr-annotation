@@ -2379,7 +2379,8 @@ vcf_in = pysam.VariantFile("~{vcf}")
 vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
 
 for record in vcf_in:
-    if keep_record(record):
+    a_type = record.info.get("allele_type")
+    if (a_type and a_type != "trv") or (keep_record(record)):
         vcf_out.write(record)
 
 vcf_in.close()
