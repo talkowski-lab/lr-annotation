@@ -35,7 +35,7 @@ workflow FillFormatFields {
     }
 
     output {
-        File output_vcf = FillVcfFormatFields.output_vcf
-        File output_vcf_idx = FillVcfFormatFields.output_vcf_idx
+        File filled_vcf = FillVcfFormatFields.output_vcf
+        File filled_vcf_idx = FillVcfFormatFields.output_vcf_idx
     }
 }
