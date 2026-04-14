@@ -295,6 +295,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: FilterTRGTCalls
+    primaryDescriptorPath: /wdl/annotation_utils/FilterTRGTCalls.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: GenerateTRGTJson
     primaryDescriptorPath: /wdl/annotation_utils/GenerateTRGTJson.wdl
     filters:

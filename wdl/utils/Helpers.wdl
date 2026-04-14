@@ -2314,3 +2314,118 @@ CODE
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task FilterTRGTVcf {
+    input {
+        File vcf
+        File vcf_idx
+        Int? min_repeat_unit
+        Int? min_length_diff
+        Int? max_catalog_length
+        File? ref_fa
+        Boolean normalize = false
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+
+def motif_lengths(record):
+    motifs = record.info.get("MOTIFS")
+    if motifs is None:
+        return []
+    if not isinstance(motifs, (list, tuple)):
+        motifs = [motifs]
+
+    lengths = []
+    for motif_group in motifs:
+        for motif in str(motif_group).split(','):
+            motif = motif.strip()
+            if motif:
+                lengths.append(len(motif))
+    return lengths
+
+
+def keep_record(record):
+    min_repeat_unit = ~{if defined(min_repeat_unit) then min_repeat_unit else "None"}
+    min_length_diff = ~{if defined(min_length_diff) then min_length_diff else "None"}
+    max_catalog_length = ~{if defined(max_catalog_length) then max_catalog_length else "None"}
+
+    if max_catalog_length is not None and len(record.ref) > max_catalog_length:
+        return False
+
+    if min_repeat_unit is not None:
+        lengths = motif_lengths(record)
+        if not lengths or min(lengths) < min_repeat_unit:
+            return False
+
+    if min_length_diff is not None:
+        if not record.alts:
+            return False
+        length_diffs = [abs(len(record.ref) - len(alt)) for alt in record.alts if alt is not None]
+        if not length_diffs or max(length_diffs) < min_length_diff:
+            return False
+
+    return True
+
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("preprocessed.vcf.gz", "wz", header=vcf_in.header)
+
+for record in vcf_in:
+    if keep_record(record):
+        vcf_out.write(record)
+
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        if [[ "~{normalize}" == "true" ]]; then
+            bcftools norm \
+                -f ~{select_first([ref_fa, ""])} \
+                preprocessed.vcf.gz \
+            | awk -F'\t' 'BEGIN {OFS="\t"} /^#/ {print; next} { $4=toupper($4); $5=toupper($5); print }' \
+            | bgzip -c > normalized.unsorted.vcf.gz
+
+            bcftools sort \
+                -T . \
+                -Oz -o ~{prefix}.vcf.gz \
+                normalized.unsorted.vcf.gz
+        else
+            mv preprocessed.vcf.gz ~{prefix}.vcf.gz
+        fi
+
+        tabix -p vcf -f ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File processed_vcf = "~{prefix}.vcf.gz"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 4 * ceil(size(vcf, "GB") + size(select_first([ref_fa, vcf]), "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
