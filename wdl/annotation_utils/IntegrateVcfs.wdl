@@ -555,10 +555,9 @@ for record in vcf_in:
     a_type = record.info.get('allele_type').upper()
     a_len = abs(int(record.info.get('allele_length')))
     if a_type == "SNV":
-        new_id = f"{record.chrom}-{record.pos}-{a_type}"
+        new_id = f"{record.chrom}-{record.pos}-{record.ref}-{record.alts[0]}"
     else:
         new_id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
-    
     id_counts[new_id] += 1
 vcf_in.close()
 
@@ -577,7 +576,7 @@ for record in vcf_in:
     a_type = record.info.get('allele_type').upper()
     a_len = abs(int(record.info.get('allele_length')))
     if a_type == "SNV":
-        new_id = f"{record.chrom}-{record.pos}-{a_type}"
+        new_id = f"{record.chrom}-{record.pos}-{record.ref}-{record.alts[0]}"
     else:
         new_id = f"{record.chrom}-{record.pos}-{a_type}-{a_len}"
     
