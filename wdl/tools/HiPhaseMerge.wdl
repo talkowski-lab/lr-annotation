@@ -175,7 +175,7 @@ with pysam.VariantFile("~{vcf}") as vcf_in:
         for rec in vcf_in:
             ps_val = rec.samples[sample].get('PS', None)
             if ps_val is not None:
-                out.write(f"{rec.chrom}\t{rec.id}\t{ps_val}\n")
+                out.write(f"{rec.chrom}\t{rec.pos}\t{ps_val}\n")
 CODE
     >>>
 
@@ -337,15 +337,15 @@ ps_lookup = defaultdict(dict)
 
 with open("contig_ps.tsv") as f:
     for line in f:
-        sample_name, variant_id, ps_val = line.rstrip('\n').split('\t')
-        ps_lookup[variant_id][sample_name] = int(ps_val)
+        sample_name, pos_str, ps_val = line.rstrip('\n').split('\t')
+            ps_lookup[int(pos_str)][sample_name] = int(ps_val)
 
 with pysam.VariantFile("~{merged_vcf}") as vcf_in:
     header = vcf_in.header
     with pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=header) as vcf_out:
         for rec in vcf_in:
-            if rec.id in ps_lookup:
-                for sample_name, ps_val in ps_lookup[rec.id].items():
+            if rec.pos in ps_lookup:
+                for sample_name, ps_val in ps_lookup[rec.pos].items():
                     if sample_name in rec.samples:
                         rec.samples[sample_name]['PS'] = ps_val
             vcf_out.write(rec)
