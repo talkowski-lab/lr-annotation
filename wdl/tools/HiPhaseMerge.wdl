@@ -338,7 +338,7 @@ ps_lookup = defaultdict(dict)
 with open("contig_ps.tsv") as f:
     for line in f:
         sample_name, pos_str, ps_val = line.rstrip('\n').split('\t')
-            ps_lookup[int(pos_str)][sample_name] = int(ps_val)
+        ps_lookup[int(pos_str)][sample_name] = int(ps_val)
 
 with pysam.VariantFile("~{merged_vcf}") as vcf_in:
     header = vcf_in.header
