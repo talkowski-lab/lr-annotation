@@ -2211,8 +2211,10 @@ task FillVcfFormatFields {
         File filled_vcf
         File filled_vcf_idx
         Array[String] format_fields
-        Boolean fill_sv_gts = false
-        String? sv_source_tag
+        String? include_field
+        String? include_value
+        Boolean fill_alt_gts = false
+        Boolean fill_ref_gts = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -2227,8 +2229,12 @@ import pysam
 with open("~{write_lines(format_fields)}") as fh:
     format_fields = [l.strip() for l in fh if l.strip()]
 
-fill_sv_gts = ~{true="True" false="False" fill_sv_gts}
-sv_source_tag = "~{default="" sv_source_tag}" or None
+assert "GT" not in format_fields, "GT must not be passed in format_fields; use fill_alt_gts/fill_ref_gts instead"
+
+include_field = "~{default="" include_field}" or None
+include_value = "~{default="" include_value}" or None
+fill_alt_gts = ~{true="True" false="False" fill_alt_gts}
+fill_ref_gts = ~{true="True" false="False" fill_ref_gts}
 
 unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
 filled_in = pysam.VariantFile("~{filled_vcf}")
@@ -2243,6 +2249,17 @@ common_samples = [s for s in out_header.samples if s in filled_samples]
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
 
+def variant_passes_include(rec):
+    if include_field is None:
+        return True
+    val = rec.info.get(include_field)
+    if isinstance(val, tuple):
+        val = val[0] if val else None
+    return str(val) == include_value
+
+def gt_is_alt(gt):
+    return any(a is not None and a > 0 for a in gt)
+
 for unfilled_rec in unfilled_in:
     match = None
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
@@ -2250,23 +2267,20 @@ for unfilled_rec in unfilled_in:
             match = cand
             break
 
-    if match:
-        do_fill_gt = False
-        if fill_sv_gts and sv_source_tag is not None:
-            source = unfilled_rec.info.get("SOURCE")
-            source_val = source if not isinstance(source, tuple) else (source[0] if source else None)
-            do_fill_gt = source_val == sv_source_tag
-
+    if match and variant_passes_include(unfilled_rec):
         for sample in common_samples:
             for field in format_fields:
                 if field in match.format:
                     unfilled_rec.samples[sample][field] = match.samples[sample][field]
-            if do_fill_gt:
-                gt = match.samples[sample].get("GT")
-                if gt is not None:
-                    non_none = [a for a in gt if a is not None]
-                    if not any(a > 0 for a in non_none):
-                        unfilled_rec.samples[sample]["GT"] = gt
+
+            if fill_alt_gts or fill_ref_gts:
+                src_gt = match.samples[sample].get("GT")
+                cur_gt = unfilled_rec.samples[sample].get("GT")
+                if src_gt is not None and cur_gt is not None:
+                    cur_is_alt = gt_is_alt(cur_gt)
+                    if (fill_alt_gts and cur_is_alt) or (fill_ref_gts and not cur_is_alt):
+                        unfilled_rec.samples[sample]["GT"] = src_gt
+                        unfilled_rec.samples[sample].phased = match.samples[sample].phased
 
     out.write(unfilled_rec)
 
