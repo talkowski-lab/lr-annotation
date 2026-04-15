@@ -2223,6 +2223,8 @@ task FillVcfFormatFields {
     command <<<
         set -euo pipefail
 
+        ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+
         python3 <<CODE
 import pysam
 
