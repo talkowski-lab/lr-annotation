@@ -2,142 +2,78 @@ version 1.0
 
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
-import "PhaseCallset_vCommon.wdl"
 
 workflow PhaseCallset_vBackbone {
     input {
         File vcf
         File vcf_idx
-        File base_vcf
-        File base_vcf_idx
+        Array[File] base_vcfs
+        Array[File] base_vcf_idxs
         String prefix
 
-        Int operation
-        String weight_tag
-        Int is_weight_format_field
-        Float default_weight
-        Boolean remove_duplicates_by_phased_fraction
+        File? swap_samples_base
 
-        String variant_filter_args = "-i 'MAC>=2'"
+        String docker
 
-        File fix_variant_collisions_java
-
-        String utils_docker
-        String pysam_docker
-
-        RuntimeAttr? runtime_attr_get_overlapping_samples
-        RuntimeAttr? runtime_attr_subset_main_vcf
-        RuntimeAttr? runtime_attr_filter_vcf
-        RuntimeAttr? runtime_attr_uqids
-        RuntimeAttr? runtime_attr_remove_duplicates
-        RuntimeAttr? runtime_attr_fill_vcf_tags
-        RuntimeAttr? runtime_attr_fix_variant_collisions
+        RuntimeAttr? runtime_attr_swap_sample_ids
         RuntimeAttr? runtime_attr_prepare_base_vcf
-        RuntimeAttr? runtime_attr_transfer_haplotypes
+        RuntimeAttr? runtime_attr_compute_flips
+        RuntimeAttr? runtime_attr_apply_flips
     }
 
-    call GetOverlappingSamples {
-        input:
-            vcf1 = vcf,
-            vcf2 = base_vcf,
-            prefix = "~{prefix}.overlapping_samples",
-            docker = pysam_docker,
-            runtime_attr_override = runtime_attr_get_overlapping_samples
-    }
+    # Prepare each base_vcf: optional sample swap, then split multiallelics + filter to SNVs
+    # Then compute phase flips for all samples assigned to this base_vcf
+    scatter (i in range(length(base_vcfs))) {
+        if (defined(swap_samples_base)) {
+            call Helpers.SwapSampleIds {
+                input:
+                    vcf = base_vcfs[i],
+                    vcf_idx = base_vcf_idxs[i],
+                    sample_swap_list = select_first([swap_samples_base]),
+                    prefix = "~{prefix}.base_~{i}.swapped",
+                    docker = docker,
+                    runtime_attr_override = runtime_attr_swap_sample_ids
+            }
+        }
 
-    Array[String] overlapping_samples = read_lines(GetOverlappingSamples.samples_file)
-
-    call Helpers.SubsetVcfToSamples as SubsetMainVcf {
-        input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
-            samples = overlapping_samples,
-            filter_to_sample = false,
-            prefix = "~{prefix}.subset",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_main_vcf
-    }
-
-    call PhaseCallset_vCommon.SplitAndFilterVcf {
-        input:
-            vcf = SubsetMainVcf.subset_vcf,
-            vcf_idx = SubsetMainVcf.subset_vcf_idx,
-            prefix = "~{prefix}.filtered",
-            filter_args = variant_filter_args,
-            runtime_attr_override = runtime_attr_filter_vcf
-    }
-
-    call PhaseCallset_vCommon.EnsureUniqueIDsAndNormalize {
-        input:
-            vcf = SplitAndFilterVcf.filtered_vcf,
-            vcf_idx = SplitAndFilterVcf.filtered_vcf_idx,
-            prefix = "~{prefix}.filtered.uqids",
-            docker = pysam_docker,
-            runtime_attr_override = runtime_attr_uqids
-    }
-
-    if (remove_duplicates_by_phased_fraction) {
-        call PhaseCallset_vCommon.RemoveDuplicatesByPhasedFraction {
+        call PrepareBaseVcf {
             input:
-                vcf = EnsureUniqueIDsAndNormalize.uqids_vcf,
-                vcf_idx = EnsureUniqueIDsAndNormalize.uqids_vcf_idx,
-                prefix = "~{prefix}.filtered.uqids",
-                docker = pysam_docker,
-                runtime_attr_override = runtime_attr_remove_duplicates
+                vcf = select_first([SwapSampleIds.swapped_vcf, base_vcfs[i]]),
+                vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, base_vcf_idxs[i]]),
+                prefix = "~{prefix}.base_~{i}.prepared",
+                docker = docker,
+                runtime_attr_override = runtime_attr_prepare_base_vcf
+        }
+
+        call ComputePhaseFlips {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                base_vcf = PrepareBaseVcf.prepared_vcf,
+                base_vcf_idx = PrepareBaseVcf.prepared_vcf_idx,
+                base_vcf_index = i,
+                prefix = "~{prefix}.base_~{i}.flips",
+                docker = docker,
+                runtime_attr_override = runtime_attr_compute_flips
         }
     }
 
-    call PhaseCallset_vCommon.FillVcfTags {
+    # Apply all flips in a single pass through the original VCF
+    call ApplyPhaseFlips {
         input:
-            vcf = select_first([RemoveDuplicatesByPhasedFraction.dups_removed_vcf, EnsureUniqueIDsAndNormalize.uqids_vcf]),
-            vcf_idx = select_first([RemoveDuplicatesByPhasedFraction.dups_removed_vcf_idx, EnsureUniqueIDsAndNormalize.uqids_vcf_idx]),
-            prefix = "~{prefix}.preprocessed",
-            runtime_attr_override = runtime_attr_fill_vcf_tags
-    }
-
-    call PhaseCallset_vCommon.FixVariantCollisions {
-        input:
-            phased_vcf = FillVcfTags.filled_tag_vcf,
-            fix_variant_collisions_java = fix_variant_collisions_java,
-            operation = operation,
-            weight_tag = weight_tag,
-            is_weight_format_field = is_weight_format_field,
-            default_weight = default_weight,
-            prefix = "~{prefix}.collisionless",
-            runtime_attr_override = runtime_attr_fix_variant_collisions
-    }
-
-    call PrepareBaseVcf {
-        input:
-            vcf = base_vcf,
-            vcf_idx = base_vcf_idx,
-            samples = overlapping_samples,
-            prefix = "~{prefix}.base.prepared",
-            runtime_attr_override = runtime_attr_prepare_base_vcf
-    }
-
-    call TransferHaplotypesFromBaseVcf {
-        input:
-            original_vcf = FixVariantCollisions.phased_collisionless_vcf,
-            original_vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx,
-            base_vcf = PrepareBaseVcf.prepared_vcf,
-            base_vcf_idx = PrepareBaseVcf.prepared_vcf_idx,
-            prefix = "~{prefix}.base_transferred",
-            docker = pysam_docker,
-            runtime_attr_override = runtime_attr_transfer_haplotypes
+            vcf = vcf,
+            vcf_idx = vcf_idx,
+            flip_tsvs = ComputePhaseFlips.flips_tsv,
+            missing_samples_files = ComputePhaseFlips.assigned_samples,
+            prefix = "~{prefix}.transferred",
+            docker = docker,
+            runtime_attr_override = runtime_attr_apply_flips
     }
 
     output {
-        File uqids_split_vcf = EnsureUniqueIDsAndNormalize.uqids_vcf
-        File uqids_split_vcf_idx = EnsureUniqueIDsAndNormalize.uqids_vcf_idx
-        File? removed_duplicates_split_vcf = select_first([FillVcfTags.filled_tag_vcf, RemoveDuplicatesByPhasedFraction.dups_removed_vcf])
-        File? removed_duplicates_split_vcf_idx = select_first([FillVcfTags.filled_tag_vcf_idx, RemoveDuplicatesByPhasedFraction.dups_removed_vcf_idx])
-        File collisionless_split_vcf = FixVariantCollisions.phased_collisionless_vcf
-        File collisionless_split_vcf_idx = FixVariantCollisions.phased_collisionless_vcf_idx
-        File base_prepared_vcf = PrepareBaseVcf.prepared_vcf
-        File base_prepared_vcf_idx = PrepareBaseVcf.prepared_vcf_idx
-        File base_transferred_vcf = TransferHaplotypesFromBaseVcf.transferred_vcf
-        File base_transferred_vcf_idx = TransferHaplotypesFromBaseVcf.transferred_vcf_idx
+        File transferred_vcf = ApplyPhaseFlips.transferred_vcf
+        File transferred_vcf_idx = ApplyPhaseFlips.transferred_vcf_idx
+        File missing_samples = ApplyPhaseFlips.missing_samples
     }
 }
 
@@ -145,20 +81,17 @@ task PrepareBaseVcf {
     input {
         File vcf
         File vcf_idx
-        Array[String] samples
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euo pipefail
 
-        printf '%s\n' ~{sep=' ' samples} > samples.txt
-
-        # split multiallelics, filter to SNVs only, then subset to overlapping samples
+        # split multiallelics, then filter to biallelic SNVs only
         bcftools norm -m-any ~{vcf} \
             | bcftools view -v snps \
-            | bcftools view --samples-file samples.txt \
             -Oz -o ~{prefix}.vcf.gz
 
         bcftools index -t ~{prefix}.vcf.gz
@@ -183,16 +116,19 @@ task PrepareBaseVcf {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-basic:0.1.3"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
-task GetOverlappingSamples {
+task ComputePhaseFlips {
     input {
-        File vcf1
-        File vcf2
+        File vcf
+        File vcf_idx
+        File base_vcf
+        File base_vcf_idx
+        Int base_vcf_index
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -202,31 +138,150 @@ task GetOverlappingSamples {
         set -euo pipefail
 
         python3 <<CODE
-        import pysam
+import pysam
+from collections import defaultdict
 
-        vcf1 = pysam.VariantFile("~{vcf1}", "r")
-        vcf2 = pysam.VariantFile("~{vcf2}", "r")
-        samples1 = set(vcf1.header.samples)
-        samples2 = set(vcf2.header.samples)
-        vcf1.close()
-        vcf2.close()
+def normalize_allele(ref, alt):
+    """Trim shared suffix then prefix from a REF/ALT pair."""
+    r, a = ref.upper(), alt.upper()
+    while len(r) > 1 and len(a) > 1 and r[-1] == a[-1]:
+        r = r[:-1]
+        a = a[:-1]
+    offset = 0
+    while len(r) > 1 and len(a) > 1 and r[0] == a[0]:
+        r = r[1:]
+        a = a[1:]
+        offset += 1
+    return r, a, offset
 
-        overlapping = sorted(samples1 & samples2)
-        with open("~{prefix}.txt", "w") as f:
-            for s in overlapping:
-                f.write(s + "\n")
-        print(f"Found {len(overlapping)} overlapping samples")
-        CODE
+base_vcf_index = ~{base_vcf_index}
+
+# Find overlapping samples between vcf and this base_vcf
+vcf_in = pysam.VariantFile("~{vcf}", "r")
+vcf_samples = set(vcf_in.header.samples)
+vcf_in.close()
+
+base_in = pysam.VariantFile("~{base_vcf}", "r")
+base_samples = set(base_in.header.samples)
+base_in.close()
+
+overlapping = sorted(vcf_samples & base_samples)
+print(f"base_vcf_{base_vcf_index}: {len(overlapping)} overlapping samples")
+
+with open("~{prefix}.samples.txt", "w") as f:
+    for s in overlapping:
+        f.write(s + "\n")
+
+# Load base_vcf het phased SNP genotypes for all overlapping samples at once
+base_gts = defaultdict(dict)
+base_in = pysam.VariantFile("~{base_vcf}", "r")
+for rec in base_in:
+    if not rec.alts or len(rec.alts) != 1:
+        continue
+    key = (rec.contig, rec.pos, rec.ref.upper(), rec.alts[0].upper())
+    for sample in overlapping:
+        gt_data = rec.samples[sample]
+        gt = gt_data.get("GT")
+        if gt is None or None in gt or len(gt) != 2:
+            continue
+        if gt[0] == gt[1] or not gt_data.phased:
+            continue
+        base_gts[sample][key] = (gt[0], gt[1])
+base_in.close()
+for s in overlapping:
+    print(f"  {s}: {len(base_gts.get(s, {}))} het phased SNVs in base_vcf")
+
+# First pass through vcf: tally concordant/discordant per (sample, ps, haplotype_group)
+tally = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+vcf_in = pysam.VariantFile("~{vcf}", "r")
+for rec in vcf_in:
+    if not rec.alts:
+        continue
+    for sample in overlapping:
+        gt_data = rec.samples[sample]
+        gt = gt_data.get("GT")
+        if gt is None or None in gt or len(gt) != 2:
+            continue
+        if gt[0] == gt[1] or not gt_data.phased:
+            continue
+        ps = gt_data.get("PS")
+        if ps is None:
+            continue
+        sample_base = base_gts.get(sample)
+        if not sample_base:
+            continue
+        for hap_idx in range(2):
+            allele_idx = gt[hap_idx]
+            if allele_idx == 0 or allele_idx > len(rec.alts):
+                continue
+            norm_ref, norm_alt, offset = normalize_allele(rec.ref, rec.alts[allele_idx - 1])
+            if len(norm_ref) != 1 or len(norm_alt) != 1:
+                continue
+            key = (rec.contig, rec.pos + offset, norm_ref, norm_alt)
+            if key not in sample_base:
+                continue
+            group = (1, 0) if hap_idx == 0 else (0, 1)
+            base_gt = sample_base[key]
+            if base_gt == group:
+                tally[sample][(ps, group)][0] += 1
+            else:
+                tally[sample][(ps, group)][1] += 1
+vcf_in.close()
+
+# Determine which (sample, ps, group) combinations should be flipped
+flip_sets = {}
+for sample in overlapping:
+    sample_flips = set()
+    for (ps, group), (conc, disc) in tally[sample].items():
+        if disc > conc:
+            sample_flips.add((ps, group))
+    flip_sets[sample] = sample_flips
+    matched = sum(c + d for c, d in tally[sample].values())
+    flipped = len(sample_flips)
+    total = len(tally[sample])
+    print(f"  {sample}: {matched} matches, flipping {flipped}/{total} haplotype groups")
+
+# Second pass through vcf: write out flips
+with open("~{prefix}.tsv", "w") as out:
+    out.write("VARIANT_ID\tSAMPLE\tNEW_GT\n")
+    vcf_in = pysam.VariantFile("~{vcf}", "r")
+    for rec in vcf_in:
+        for sample in overlapping:
+            flip_set = flip_sets.get(sample)
+            if not flip_set:
+                continue
+            gt_data = rec.samples[sample]
+            gt = gt_data.get("GT")
+            if gt is None or None in gt or len(gt) != 2:
+                continue
+            if not gt_data.phased or gt[0] == gt[1]:
+                continue
+            ps = gt_data.get("PS")
+            if ps is None:
+                continue
+            a, b = gt[0], gt[1]
+            should_flip = False
+            if a != 0 and b == 0:
+                should_flip = (ps, (1, 0)) in flip_set
+            elif a == 0 and b != 0:
+                should_flip = (ps, (0, 1)) in flip_set
+            else:
+                should_flip = (ps, (1, 0)) in flip_set and (ps, (0, 1)) in flip_set
+            if should_flip:
+                out.write(f"{rec.id}\t{sample}\t{b}|{a}\n")
+    vcf_in.close()
+CODE
     >>>
 
     output {
-        File samples_file = "~{prefix}.txt"
+        File flips_tsv = "~{prefix}.tsv"
+        File assigned_samples = "~{prefix}.samples.txt"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
+        mem_gb: 4 + ceil(size(base_vcf, "GiB") * 2),
+        disk_gb: ceil(size(vcf, "GiB")) + ceil(size(base_vcf, "GiB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -243,12 +298,12 @@ task GetOverlappingSamples {
     }
 }
 
-task TransferHaplotypesFromBaseVcf {
+task ApplyPhaseFlips {
     input {
-        File original_vcf
-        File original_vcf_idx
-        File base_vcf
-        File base_vcf_idx
+        File vcf
+        File vcf_idx
+        Array[File] flip_tsvs
+        Array[File] missing_samples_files
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -258,107 +313,80 @@ task TransferHaplotypesFromBaseVcf {
         set -euo pipefail
 
         python3 <<CODE
-        import pysam
-        from collections import defaultdict
+import pysam
+from collections import defaultdict
 
-        def transfer_haplotypes_from_base_vcf(original_vcf, base_vcf, output_vcf):
-            # load base_vcf: index phased het variants per sample by (chrom, pos, ref, alt)
-            base_in = pysam.VariantFile(base_vcf, "r")
-            samples = list(base_in.header.samples)
-            base_gts = defaultdict(dict)
-            for rec in base_in:
-                if not rec.alts:
-                    continue
-                key = (rec.contig, rec.pos, rec.ref.upper(), rec.alts[0].upper())
-                for sample in samples:
-                    gt_data = rec.samples[sample]
-                    gt = gt_data.get("GT")
-                    if gt is None or None in gt or len(gt) != 2:
-                        continue
-                    if gt[0] == gt[1] or not gt_data.phased:
-                        continue
-                    base_gts[sample][key] = (gt[0], gt[1])
-            base_in.close()
+# Determine missing samples: vcf samples not found in any base_vcf
+vcf_in = pysam.VariantFile("~{vcf}", "r")
+vcf_samples = set(vcf_in.header.samples)
+vcf_in.close()
 
-            # first pass: tally concordant/discordant per (sample, ps, gt_group)
-            # gt_group is the current GT of the variant in original_vcf: (0,1) or (1,0)
-            # tally[sample][(ps, gt_group)] = [concordant_count, discordant_count]
-            # each group votes independently, allowing both groups to resolve to the same target GT
-            orig_in = pysam.VariantFile(original_vcf, "r")
-            records = []
-            tally = defaultdict(lambda: defaultdict(lambda: [0, 0]))
+assigned_samples = set()
+samples_files = []
+with open("~{write_lines(missing_samples_files)}") as f:
+    for line in f:
+        line = line.strip()
+        if line:
+            samples_files.append(line)
 
-            for rec in orig_in:
-                records.append(rec.copy())
-                if not rec.alts:
-                    continue
-                allele_type = rec.info.get("allele_type")
-                if allele_type is None or allele_type.lower() != "snv":
-                    continue
-                key = (rec.contig, rec.pos, rec.ref.upper(), rec.alts[0].upper())
-                for sample in samples:
-                    gt_data = rec.samples[sample]
-                    gt = gt_data.get("GT")
-                    if gt is None or None in gt or len(gt) != 2:
-                        continue
-                    if gt[0] == gt[1] or not gt_data.phased:
-                        continue
-                    ps = gt_data.get("PS")
-                    if ps is None:
-                        continue
-                    if key not in base_gts[sample]:
-                        continue
-                    orig_gt = (gt[0], gt[1])
-                    if orig_gt not in ((0, 1), (1, 0)):
-                        continue
-                    base_gt = base_gts[sample][key]
-                    if base_gt == orig_gt:
-                        tally[sample][(ps, orig_gt)][0] += 1
-                    elif base_gt == (orig_gt[1], orig_gt[0]):
-                        tally[sample][(ps, orig_gt)][1] += 1
-            orig_in.close()
+for path in samples_files:
+    with open(path) as f:
+        for line in f:
+            s = line.strip()
+            if s:
+                assigned_samples.add(s)
 
-            # for each (sample, ps, gt_group): flip to opposite if discordant > concordant, else keep
-            target_map = defaultdict(dict)
-            for sample, block_tallies in tally.items():
-                for (ps, group), (conc, disc) in block_tallies.items():
-                    target_map[sample][(ps, group)] = (group[1], group[0]) if disc > conc else group
+missing = sorted(vcf_samples - assigned_samples)
+with open("~{prefix}.missing_samples.txt", "w") as f:
+    for s in missing:
+        f.write(s + "\n")
+print(f"{len(assigned_samples)} assigned samples, {len(missing)} missing")
 
-            # second pass: apply per-group target GTs to all phased het variants
-            header = records[0].header if records else pysam.VariantFile(original_vcf, "r").header
-            vcf_out = pysam.VariantFile(output_vcf, "w", header=header)
-            for rec in records:
-                new_rec = rec.copy()
-                for sample in samples:
-                    gt_data = new_rec.samples[sample]
-                    gt = gt_data.get("GT")
-                    if gt is None or None in gt or len(gt) != 2:
-                        continue
-                    if not gt_data.phased:
-                        continue
-                    ps = gt_data.get("PS")
-                    if ps is None:
-                        continue
-                    orig_gt = (gt[0], gt[1])
-                    if orig_gt not in ((0, 1), (1, 0)):
-                        continue
-                    target = target_map[sample].get((ps, orig_gt), orig_gt)
-                    if target != orig_gt:
-                        gt_data["GT"] = target
-                        gt_data.phased = True
-                vcf_out.write(new_rec)
-            vcf_out.close()
+# Load all flip TSVs: {variant_id: {sample: (a, b)}}
+flips = defaultdict(dict)
+flip_tsv_paths = []
+with open("~{write_lines(flip_tsvs)}") as f:
+    for line in f:
+        line = line.strip()
+        if line:
+            flip_tsv_paths.append(line)
 
-            changed = sum(
-                1 for sample, block_tallies in tally.items()
-                for (ps, group), (conc, disc) in block_tallies.items()
-                if disc > conc
-            )
-            total = sum(len(block_tallies) for block_tallies in tally.values())
-            print(f"Changed orientation for {changed} / {total} haplotype groups across all phase blocks and samples")
+for path in flip_tsv_paths:
+    with open(path) as f:
+        header = f.readline()
+        for line in f:
+            parts = line.strip().split("\t")
+            if len(parts) != 3:
+                continue
+            vid, sample, new_gt = parts
+            # First-match: skip if this (variant, sample) was already assigned by an earlier base_vcf
+            if sample in flips.get(vid, {}):
+                continue
+            alleles = new_gt.split("|")
+            flips[vid][sample] = (int(alleles[0]), int(alleles[1]))
 
-        transfer_haplotypes_from_base_vcf("~{original_vcf}", "~{base_vcf}", "transferred.vcf")
-        CODE
+total_flips = sum(len(v) for v in flips.values())
+print(f"Loaded {total_flips} flips across {len(flips)} variants")
+
+# Single pass: apply flips
+vcf_in = pysam.VariantFile("~{vcf}", "r")
+vcf_out = pysam.VariantFile("transferred.vcf", "w", header=vcf_in.header)
+applied = 0
+for rec in vcf_in:
+    if rec.id in flips:
+        new_rec = rec.copy()
+        sample_flips = flips[rec.id]
+        for sample, new_gt in sample_flips.items():
+            new_rec.samples[sample]["GT"] = new_gt
+            new_rec.samples[sample].phased = True
+            applied += 1
+        vcf_out.write(new_rec)
+    else:
+        vcf_out.write(rec)
+vcf_in.close()
+vcf_out.close()
+print(f"Applied {applied} genotype flips")
+CODE
 
         bgzip transferred.vcf
         bcftools index -t transferred.vcf.gz
@@ -369,12 +397,13 @@ task TransferHaplotypesFromBaseVcf {
     output {
         File transferred_vcf = "~{prefix}.vcf.gz"
         File transferred_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File missing_samples = "~{prefix}.missing_samples.txt"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 10 + ceil(size(original_vcf, "GiB") * 3) + ceil(size(base_vcf, "GiB") * 3),
-        disk_gb: 15 + ceil(size(original_vcf, "GiB") * 3) + ceil(size(base_vcf, "GiB") * 3),
+        mem_gb: 4 + ceil(size(vcf, "GiB") * 3),
+        disk_gb: 10 + ceil(size(vcf, "GiB") * 3),
         boot_disk_gb: 10,
         preemptible_tries: 1,
         max_retries: 1
