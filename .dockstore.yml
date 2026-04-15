@@ -496,6 +496,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PhaseCallset_vBackbone_v2
+    primaryDescriptorPath: /wdl/tools/PhaseCallset_vBackbone_v2.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PhaseCallset_vCommon
     primaryDescriptorPath: /wdl/tools/PhaseCallset_vCommon.wdl
     filters:
