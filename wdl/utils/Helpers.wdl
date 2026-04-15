@@ -2263,6 +2263,7 @@ def gt_is_alt(gt):
     return any(a is not None and a > 0 for a in gt)
 
 for unfilled_rec in unfilled_in:
+    unfilled_rec.translate(out_header)
     match = None
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
         if cand.id == unfilled_rec.id:
