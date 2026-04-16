@@ -477,7 +477,8 @@ task AnnotateVariantAttributes {
         
         tabix -s1 -b2 -e2 annot.txt.gz
 
-        bcftools annotate -a annot.txt.gz \
+        bcftools annotate \
+            -a annot.txt.gz \
             -c CHROM,POS,REF,ALT,~ID,INFO/allele_length,INFO/allele_type \
             -Oz -o ~{prefix}.vcf.gz \
             temp.vcf.gz
