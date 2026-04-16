@@ -514,6 +514,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PhaseCallset_vCommon
+    primaryDescriptorPath: /wdl/tools/PhaseCallset_vCommon.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: TransferMethylationTags
     primaryDescriptorPath: /wdl/tools/TransferMethylationTags.wdl
     filters:
