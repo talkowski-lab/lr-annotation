@@ -538,7 +538,7 @@ if 'GQ' not in header.formats:
 if 'PL' not in header.formats:
     header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 if 'EV' not in header.formats:
-    header.add_line('##FORMAT=<ID=EV,Number=1,Type=String,Description="Callers supporting this variant in this sample">')
+    header.add_line('##FORMAT=<ID=EV,Number=.,Type=String,Description="Callers supporting this variant in this sample">')
 if 'BEV' not in header.formats:
     header.add_line('##FORMAT=<ID=BEV,Number=1,Type=String,Description="Best caller for this variant type and size bucket">')
 

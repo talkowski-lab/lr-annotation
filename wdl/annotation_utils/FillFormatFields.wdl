@@ -13,6 +13,7 @@ workflow FillFormatFields {
         Array[String] format_fields
         String? include_field
         String? include_value
+        Boolean modify_ev_number = false
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
 
@@ -30,6 +31,7 @@ workflow FillFormatFields {
             format_fields = format_fields,
             include_field = include_field,
             include_value = include_value,
+            modify_ev_number = modify_ev_number,
             fill_alt_gts = fill_alt_gts,
             fill_ref_gts = fill_ref_gts,
             prefix = prefix,
@@ -52,6 +54,7 @@ task FillVcfFormatFields {
         Array[String] format_fields
         String? include_field
         String? include_value
+        Boolean modify_ev_number = false
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
         String prefix
@@ -62,12 +65,39 @@ task FillVcfFormatFields {
     command <<<
         set -euo pipefail
 
-        ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+        format_fields_file="~{write_lines(format_fields)}"
+        filled_vcf_for_fill="~{filled_vcf}"
+
+        if [[ "~{modify_ev_number}" == "true" ]] && grep -Fxq "EV" "$format_fields_file"; then
+            bcftools view -h "~{filled_vcf}" > filled.header.txt
+
+            python3 <<'CODE'
+import re
+
+with open("filled.header.txt") as src:
+    lines = src.readlines()
+
+with open("filled.header.txt", "w") as dst:
+    for line in lines:
+        if line.startswith("##FORMAT=<ID=EV,"):
+            line = re.sub(r"Number=[^,>]+", "Number=.", line, count=1)
+        dst.write(line)
+CODE
+
+            bcftools reheader \
+                -h filled.header.txt \
+                -o filled.ev_number_fixed.vcf.gz \
+                "~{filled_vcf}"
+            tabix -p vcf filled.ev_number_fixed.vcf.gz
+            filled_vcf_for_fill="filled.ev_number_fixed.vcf.gz"
+        else
+            ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+        fi
 
         python3 <<CODE
 import pysam
 
-with open("~{write_lines(format_fields)}") as fh:
+with open("$format_fields_file") as fh:
     format_fields = [l.strip() for l in fh if l.strip()]
 
 assert "GT" not in format_fields, "GT must not be passed in format_fields; use fill_alt_gts/fill_ref_gts instead"
@@ -78,7 +108,7 @@ fill_alt_gts = ~{true="True" false="False" fill_alt_gts}
 fill_ref_gts = ~{true="True" false="False" fill_ref_gts}
 
 unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
-filled_in = pysam.VariantFile("~{filled_vcf}")
+filled_in = pysam.VariantFile("$filled_vcf_for_fill")
 
 out_header = unfilled_in.header.copy()
 for field in format_fields:
