@@ -2274,7 +2274,11 @@ for unfilled_rec in unfilled_in:
         for sample in common_samples:
             for field in format_fields:
                 if field in match.format:
-                    unfilled_rec.samples[sample][field] = match.samples[sample][field]
+                    try:
+                        unfilled_rec.samples[sample][field] = match.samples[sample][field]
+                    except Exception as e:
+                        print(f"Couldn't set {field} for {sample} - original as {unfilled_rec.samples[sample][field]}, new as {match.samples[sample][field]}")
+                        pass
 
             if fill_alt_gts or fill_ref_gts:
                 src_gt = match.samples[sample].get("GT")
