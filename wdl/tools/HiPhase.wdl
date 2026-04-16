@@ -283,16 +283,6 @@ task HiPhase {
         RuntimeAttr? runtime_attr_override
     }
 
-    RuntimeAttr default_attr = object {
-        cpu_cores: 4,
-        mem_gb: 6,
-        disk_gb: 2 * ceil(size(bam, "GB")) + 50,
-        boot_disk_gb: 100,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     command <<<
         set -euo pipefail
 
@@ -332,6 +322,15 @@ task HiPhase {
         File? haplotagged_bam_idx = select_first(["~{prefix}_haplotagged.bam.bai"])
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 6,
+        disk_gb: 2 * ceil(size(bam, "GB")) + 50,
+        boot_disk_gb: 100,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: 6 + " GiB"

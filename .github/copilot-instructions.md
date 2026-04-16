@@ -153,7 +153,7 @@ Defaults to follow:
 Reusable tasks live in `wdl/utils/Helpers.wdl`. Tasks that can be generalized across workflows should be added there rather than duplicated in individual workflow files. Key existing helper tasks: `AddFilter`, `AddInfo`, `BedtoolsClosest`, `ConcatVcfs`, `SubsetVcfToContig`, `SubsetTsvToContig`.
 
 ### Annotation Workflow Outputs
-Annotation workflows should output a TSV file rather than a VCF, unless the annotations apply to every variant in the input VCF or the underlying tool is specifically designed to annotate VCFs inline.
+Annotation workflows should output a TSV file rather than a VCF, unless underlying tool is specifically designed to annotate VCFs inline.
 
 
 ## Python Conventions
@@ -178,12 +178,6 @@ When implementing a new annotation or tool:
 4. **Dockstore** (`.dockstore.yml`): Add entry for any new directly-run workflow.
 5. **README** (`README.md`): Document new references, output schema fields, or pipeline steps.
 
-
-## Terra Workspace Conventions
-- All reference files (not specific to an input callset) are passed via workspace data.
-- All docker image paths are passed via workspace data.
-
-
 ## Key Files
 - `wdl/utils/Structs.wdl` — Defines the `RuntimeAttr` struct used by every task.
 - `wdl/utils/Helpers.wdl` — Shared reusable tasks (filtering, annotation, VCF concat, subsetting).
@@ -194,7 +188,7 @@ When implementing a new annotation or tool:
 
 
 ## Things to Avoid
-- Do not modify anything in `archive/` — it is retained for historical reference only.
+- Do not modify anything in `archive/` unless explicitly asked to — it is retained for historical reference only.
 - Do not manually hardcode Docker image URIs in WDL tasks.
 - Do not use `${var}` interpolation in WDL command blocks — use `~{var}`.
 - Do not add unnecessary edge-case handling or fallback logic.
