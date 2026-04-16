@@ -2277,7 +2277,9 @@ for unfilled_rec in unfilled_in:
                     try:
                         unfilled_rec.samples[sample][field] = match.samples[sample][field]
                     except Exception as e:
-                        print(f"Couldn't set {field} for {sample} - original as {unfilled_rec.samples[sample][field]}, new as {match.samples[sample][field]}")
+                        unfilled_val = unfilled_rec.samples[sample][field] if field in unfilled_rec.samples[sample] else "N/A"
+                        filled_val = match.samples[sample][field] if field in match.samples[sample] else "N/A"
+                        print(f"Couldn't set {field} for {sample}: unfilled_val --> filled_val")
                         pass
 
             if fill_alt_gts or fill_ref_gts:
