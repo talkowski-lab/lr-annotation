@@ -203,7 +203,7 @@ COLUMN_BUCKETS = [
 
 ROW_ORDER = [
 	("", "All"),
-	("", "STR Overlap"),
+	("", "TR Overlap"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -225,7 +225,11 @@ ROW_ORDER = [
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
 	("", "dbGaP"),
+	("dbGaP", "TR Overlap"),
+	("dbGaP", "Not TR Overlap"),
 	("", "gnomAD Matched"),
+	("gnomAD Matched", "TR Overlap"),
+	("gnomAD Matched", "Not TR Overlap"),
 ]
 
 LOF_CONSEQUENCES = {
@@ -336,8 +340,9 @@ def determine_row_weights(record, consequence_idx):
 	row_weights = {row: 0 for row in ROW_ORDER}
 	row_weights[("", "All")] = 1
 
-	if has_info(record, "TR_ENVELOPED"):
-		row_weights[("", "STR Overlap")] = 1
+	is_tr_overlap = has_info(record, "TR_ENVELOPED")
+	if is_tr_overlap:
+		row_weights[("", "TR Overlap")] = 1
 
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
@@ -412,8 +417,16 @@ def determine_row_weights(record, consequence_idx):
 
 	if is_dbgap:
 		row_weights[("", "dbGaP")] = 1
+		if is_tr_overlap:
+			row_weights[("dbGaP", "TR Overlap")] = 1
+		else:
+			row_weights[("dbGaP", "Not TR Overlap")] = 1
 	if is_gnomad_matched:
 		row_weights[("", "gnomAD Matched")] = 1
+		if is_tr_overlap:
+			row_weights[("gnomAD Matched", "TR Overlap")] = 1
+		else:
+			row_weights[("gnomAD Matched", "Not TR Overlap")] = 1
 
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
@@ -539,14 +552,14 @@ def format_label(key):
 	if annotation_group:
 		return "", annotation
 	if annotation in PARENT_ROWS:
-		return annotation, "total"
+		return annotation, "Total"
 	return annotation, ""
 
 
 def format_site_value(value, total):
 	count = int(round(value))
 	percentage = 0.0 if total <= 0 else (value / total) * 100.0
-	return str(count), f"({percentage:.2f}%)"
+	return str(count), f"{percentage:.2f}%"
 
 
 def format_normalized_value(value):
