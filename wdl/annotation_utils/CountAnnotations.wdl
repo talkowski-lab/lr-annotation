@@ -71,6 +71,7 @@ workflow CountAnnotations {
 	Array[File] site_count_tables = flatten(CountAnnotationShard.site_counts_tsv)
 	Array[File] sample_count_tables = flatten(CountAnnotationShard.sample_counts_tsv)
 	Array[File] allele_count_tables = flatten(CountAnnotationShard.allele_counts_tsv)
+	Array[File] annotation_list_tables = flatten(CountAnnotationShard.annotation_list_tsv)
 	Array[File] sample_count_files = flatten(CountAnnotationShard.sample_count_file)
 
 	call MergeAnnotationCountTables as MergeSiteCounts {
@@ -107,10 +108,19 @@ workflow CountAnnotations {
 		}
 	}
 
+	call MergeAnnotationListTables {
+		input:
+			list_tsvs = annotation_list_tables,
+			prefix = "~{prefix}.annotation_counts_list",
+			docker = utils_docker,
+			runtime_attr_override = runtime_attr_merge
+	}
+
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
+		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 	}
 }
 
@@ -187,6 +197,7 @@ VCF_PATH = "~{vcf}"
 SITE_OUTPUT = "~{prefix}.sites.raw.tsv"
 SAMPLE_OUTPUT = "~{prefix}.samples.raw.tsv"
 ALLELE_OUTPUT = "~{prefix}.alleles.raw.tsv"
+LIST_OUTPUT = "~{prefix}.list.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 DO_PER_SAMPLE = "~{do_per_sample}".lower() == "true"
 DO_PER_ALLELE = "~{do_per_allele}".lower() == "true"
@@ -229,10 +240,14 @@ ROW_ORDER = [
 	("", "dbGaP"),
 	("dbGaP", "TR Overlap"),
 	("dbGaP", "Not TR Overlap"),
+	("dbGaP", "gnomAD Matched"),
+	("dbGaP", "gnomAD Missing"),
 	("", "gnomAD Matched"),
 	("gnomAD Matched", "TR Overlap"),
 	("gnomAD Matched", "Not TR Overlap"),
 ]
+
+PARENT_ROWS = {"ME", "DUP", "LoF", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 LOF_CONSEQUENCES = {
 	"transcript_ablation",
@@ -244,14 +259,26 @@ LOF_CONSEQUENCES = {
 	"start_lost",
 	"transcript_amplification",
 	"feature_elongation",
-	"feature_truncation",
+	"feature_truncation"
 }
 
 CODING_CONSEQUENCES = {
+	# LoF
+	"stop_gained",
+	"frameshift_variant",
+	"stop_lost",
+	"start_lost",
+
+	# Non-LoF
 	"inframe_insertion",
 	"inframe_deletion",
 	"missense_variant",
 	"protein_altering_variant",
+	"incomplete_terminal_codon_variant",
+	"start_retained_variant",
+	"stop_retained_variant",
+	"synonymous_variant",
+	"coding_sequence_variant"
 }
 
 
@@ -423,8 +450,7 @@ def determine_row_weights(record, consequence_idx):
 	if is_dbgap:
 		row_weights[("", "dbGaP")] = 1
 		if is_tr_overlap:
-			row_weights[("dbGaP", "TR Overlap")] = 1
-		else:
+	if is_vep_coding or has_svannotate:
 			row_weights[("dbGaP", "Not TR Overlap")] = 1
 	if is_gnomad_matched:
 		row_weights[("", "gnomAD Matched")] = 1
@@ -433,6 +459,10 @@ def determine_row_weights(record, consequence_idx):
 		else:
 			row_weights[("gnomAD Matched", "Not TR Overlap")] = 1
 
+		if is_gnomad_matched:
+			row_weights[("dbGaP", "gnomAD Matched")] = 1
+		else:
+			row_weights[("dbGaP", "gnomAD Missing")] = 1
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
 
@@ -451,6 +481,31 @@ def get_genotype_weights(record):
 			carrier_count += 1
 
 	return carrier_count, alt_allele_count
+
+
+def format_list_column(row_key):
+	annotation_group, annotation = row_key
+	if annotation_group:
+		return annotation
+	if annotation in PARENT_ROWS:
+		return f"{annotation} - Total"
+	return annotation
+
+
+def get_list_columns():
+	default_labels = [format_list_column(row_key) for row_key in ROW_ORDER]
+	label_counts = {}
+	for label in default_labels:
+		label_counts[label] = label_counts.get(label, 0) + 1
+
+	list_columns = []
+	for row_key, default_label in zip(ROW_ORDER, default_labels):
+		annotation_group, annotation = row_key
+		if annotation_group and label_counts[default_label] > 1:
+			list_columns.append(f"{annotation_group} - {annotation}")
+		else:
+			list_columns.append(default_label)
+	return list_columns
 
 
 def write_table(path, table, integer_output):
@@ -479,21 +534,30 @@ sample_count = len(vcf_in.header.samples)
 with open(SAMPLE_COUNT_OUTPUT, "w") as handle:
 	handle.write(f"{sample_count}\n")
 
-for record in vcf_in:
-	column = determine_column(record)
-	row_weights = determine_row_weights(record, consequence_idx)
+with open(LIST_OUTPUT, "w", newline="") as handle:
+	writer = csv.writer(handle, delimiter="\t")
+	writer.writerow(["variant_id", "classification"] + get_list_columns())
 
-	if DO_PER_SAMPLE or DO_PER_ALLELE:
-		carrier_count, alt_allele_count = get_genotype_weights(record)
-	else:
-		carrier_count, alt_allele_count = 0, 0
+	for record in vcf_in:
+		column = determine_column(record)
+		row_weights = determine_row_weights(record, consequence_idx)
 
-	for row_key, weight in row_weights.items():
-		site_table[row_key][column] += weight
-		if DO_PER_SAMPLE:
-			sample_table[row_key][column] += carrier_count * weight
-		if DO_PER_ALLELE:
-			allele_table[row_key][column] += alt_allele_count * weight
+		if DO_PER_SAMPLE or DO_PER_ALLELE:
+			carrier_count, alt_allele_count = get_genotype_weights(record)
+		else:
+			carrier_count, alt_allele_count = 0, 0
+
+		for row_key, weight in row_weights.items():
+			site_table[row_key][column] += weight
+			if DO_PER_SAMPLE:
+				sample_table[row_key][column] += carrier_count * weight
+			if DO_PER_ALLELE:
+				allele_table[row_key][column] += alt_allele_count * weight
+
+		writer.writerow([
+			str(record.id or "."),
+			column,
+		] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
 
 write_table(SITE_OUTPUT, site_table, integer_output=True)
 write_table(SAMPLE_OUTPUT, sample_table, integer_output=True)
@@ -505,6 +569,7 @@ PYCODE
 		File site_counts_tsv = "~{prefix}.sites.raw.tsv"
 		File sample_counts_tsv = "~{prefix}.samples.raw.tsv"
 		File allele_counts_tsv = "~{prefix}.alleles.raw.tsv"
+		File annotation_list_tsv = "~{prefix}.list.raw.tsv"
 		File sample_count_file = "~{prefix}.sample_count.txt"
 	}
 
@@ -648,6 +713,92 @@ PYCODE
 		cpu_cores: 1,
 		mem_gb: 4,
 		disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 2,
+		max_retries: 0
+	}
+	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+	runtime {
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+	}
+}
+
+task MergeAnnotationListTables {
+	input {
+		Array[File] list_tsvs
+		String prefix
+		String docker
+		RuntimeAttr? runtime_attr_override
+	}
+
+	command <<<
+		set -euo pipefail
+
+		python3 <<'PYCODE'
+import csv
+
+
+LIST_FILES = "~{sep=',' list_tsvs}".split(",")
+OUTPUT = "~{prefix}.tsv"
+
+
+header = None
+variant_order = []
+variants = {}
+
+for path in LIST_FILES:
+	with open(path, "r", newline="") as handle:
+		reader = csv.reader(handle, delimiter="\t")
+		current_header = next(reader)
+		if header is None:
+			header = current_header
+		elif current_header != header:
+			raise ValueError(f"Mismatched headers while merging annotation list tables: {path}")
+
+		for row in reader:
+			variant_id = row[0]
+			classification = row[1]
+			memberships = [int(value) for value in row[2:]]
+
+			if variant_id not in variants:
+				variants[variant_id] = [classification, memberships]
+				variant_order.append(variant_id)
+				continue
+
+			existing_classification, existing_memberships = variants[variant_id]
+			if existing_classification != classification:
+				raise ValueError(
+					f"Variant {variant_id} has conflicting classifications while merging annotation list tables"
+				)
+
+			variants[variant_id][1] = [max(left, right) for left, right in zip(existing_memberships, memberships)]
+
+if header is None:
+	raise ValueError("No annotation list tables were provided for merging")
+
+with open(OUTPUT, "w", newline="") as handle:
+	writer = csv.writer(handle, delimiter="\t")
+	writer.writerow(header)
+	for variant_id in variant_order:
+		classification, memberships = variants[variant_id]
+		writer.writerow([variant_id, classification] + [str(value) for value in memberships])
+PYCODE
+	>>>
+
+	output {
+		File merged_list_tsv = "~{prefix}.tsv"
+	}
+
+	RuntimeAttr default_attr = object {
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: 4 * ceil(size(list_tsvs, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
 		max_retries: 0
