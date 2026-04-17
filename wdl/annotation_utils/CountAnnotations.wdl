@@ -531,13 +531,26 @@ COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
+PARENT_ROWS = {"ME", "DUP", "SVAnnotate"}
 
 
-def format_value(value, mode):
-	if mode == "sites":
-		return str(int(round(value)))
-	formatted = f"{value:.6f}".rstrip("0").rstrip(".")
-	return formatted if formatted else "0"
+def format_label(key):
+	annotation_group, annotation = key
+	if annotation_group:
+		return "", annotation
+	if annotation in PARENT_ROWS:
+		return annotation, "total"
+	return annotation, ""
+
+
+def format_site_value(value, total):
+	count = int(round(value))
+	percentage = 0.0 if total <= 0 else (value / total) * 100.0
+	return str(count), f"({percentage:.2f}%)"
+
+
+def format_normalized_value(value):
+	return f"{value:.2f}"
 
 
 header = None
@@ -584,11 +597,25 @@ if MODE != "sites":
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
+	all_counts = counts.get(("", "All"))
+	if all_counts is None:
+		raise ValueError("Merged count tables are missing the All row required for output formatting")
+
 	for key in row_order:
 		values = counts[key]
 		if MODE != "sites":
 			values = [value / denominator for value in values]
-		writer.writerow([key[0], key[1]] + [format_value(value, MODE) for value in values])
+
+		display_group, display_annotation = format_label(key)
+		if MODE == "sites":
+			formatted_pairs = [format_site_value(value, total) for value, total in zip(values, all_counts)]
+			count_values = [count_value for count_value, _ in formatted_pairs]
+			percentage_values = [percentage_value for _, percentage_value in formatted_pairs]
+			writer.writerow([display_group, display_annotation] + count_values)
+			writer.writerow(["", ""] + percentage_values)
+		else:
+			formatted_values = [format_normalized_value(value) for value in values]
+			writer.writerow([display_group, display_annotation] + formatted_values)
 PYCODE
 	>>>
 
