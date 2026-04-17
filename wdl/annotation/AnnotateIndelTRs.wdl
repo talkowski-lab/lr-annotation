@@ -113,7 +113,7 @@ task RunFilterVcfToTRs {
             ~{vcf}
 
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t1\n' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%DETECTED\t%MOTIF\t%END\t%START_0BASED\t%MOTIF_SIZE\n' \
             ~{prefix}.tandem_repeats.vcf.gz \
             > ~{prefix}.tsv
     >>>
