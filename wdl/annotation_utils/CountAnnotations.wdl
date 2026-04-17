@@ -216,6 +216,8 @@ ROW_ORDER = [
 	("", "Intergenic"),
 	("", "Intronic"),
 	("", "LoF"),
+	("LoF", "VEP"),
+	("LoF", "SVAnnotate"),
 	("", "Coding"),
 	("", "SVAnnotate"),
 	("SVAnnotate", "Copy Gain"),
@@ -347,9 +349,8 @@ def determine_row_weights(record, consequence_idx):
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
 	is_sva = "sva" in allele_type
-	me_hits = int(is_alu) + int(is_line) + int(is_sva)
-	if me_hits:
-		row_weights[("", "ME")] = me_hits
+	if is_alu or is_line or is_sva:
+		row_weights[("", "ME")] = 1
 	if is_alu:
 		row_weights[("ME", "ALU")] = 1
 	if is_line:
@@ -360,9 +361,8 @@ def determine_row_weights(record, consequence_idx):
 	is_dup_interspersed = "dup_interspersed" in allele_type
 	is_dup_complex = "complex_dup" in allele_type
 	is_dup_tandem = "dup" in allele_type and not is_dup_interspersed and not is_dup_complex
-	dup_hits = int(is_dup_tandem) + int(is_dup_interspersed) + int(is_dup_complex)
-	if dup_hits:
-		row_weights[("", "DUP")] = dup_hits
+	if is_dup_tandem or is_dup_interspersed or is_dup_complex:
+		row_weights[("", "DUP")] = 1
 	if is_dup_tandem:
 		row_weights[("DUP", "DUP_TANDEM")] = 1
 	if is_dup_interspersed:
@@ -381,9 +381,14 @@ def determine_row_weights(record, consequence_idx):
 	if is_intronic:
 		row_weights[("", "Intronic")] = 1
 
-	is_lof = has_info(record, "PREDICTED_LOF") or bool(LOF_CONSEQUENCES & consequences)
-	if is_lof:
+	is_vep_lof = bool(LOF_CONSEQUENCES & consequences)
+	is_svannotate_lof = has_info(record, "PREDICTED_LOF")
+	if is_vep_lof or is_svannotate_lof:
 		row_weights[("", "LoF")] = 1
+	if is_vep_lof:
+		row_weights[("LoF", "VEP")] = 1
+	if is_svannotate_lof:
+		row_weights[("LoF", "SVAnnotate")] = 1
 
 	is_copy_gain = has_info(record, "PREDICTED_COPY_GAIN")
 	is_ied = has_info(record, "PREDICTED_INTRAGENIC_EXON_DUP")
@@ -394,10 +399,10 @@ def determine_row_weights(record, consequence_idx):
 	is_dbgap = has_info(record, "dbGaP_ID")
 	is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
 	is_vep_coding = bool(CODING_CONSEQUENCES & consequences)
-	svannotate_hits = int(is_copy_gain) + int(is_ied) + int(is_ped) + int(is_tssd) + int(is_dp) + int(is_utr)
+	has_svannotate = is_copy_gain or is_ied or is_ped or is_tssd or is_dp or is_utr
 
-	if svannotate_hits:
-		row_weights[("", "SVAnnotate")] = svannotate_hits
+	if has_svannotate:
+		row_weights[("", "SVAnnotate")] = 1
 	if is_copy_gain:
 		row_weights[("SVAnnotate", "Copy Gain")] = 1
 	if is_ied:
@@ -411,7 +416,7 @@ def determine_row_weights(record, consequence_idx):
 	if is_utr:
 		row_weights[("SVAnnotate", "UTR")] = 1
 
-	coding_hits = int(is_vep_coding) + svannotate_hits
+	coding_hits = int(is_vep_coding) + int(has_svannotate)
 	if coding_hits:
 		row_weights[("", "Coding")] = coding_hits
 
@@ -544,7 +549,7 @@ COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
-PARENT_ROWS = {"ME", "DUP", "SVAnnotate", "dbGaP", "gnomAD Matched"}
+PARENT_ROWS = {"ME", "DUP", "LoF", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 
 def format_label(key):
