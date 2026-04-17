@@ -544,7 +544,7 @@ COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
-PARENT_ROWS = {"ME", "DUP", "SVAnnotate"}
+PARENT_ROWS = {"ME", "DUP", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 
 def format_label(key):
@@ -562,8 +562,9 @@ def format_site_value(value, total):
 	return str(count), f"{percentage:.2f}%"
 
 
-def format_normalized_value(value):
-	return f"{value:.2f}"
+def format_normalized_value(value, total):
+	percentage = 0.0 if total <= 0 else (value / total) * 100.0
+	return f"{value:.2f}", f"{percentage:.2f}%"
 
 
 header = None
@@ -613,6 +614,7 @@ with open(OUTPUT, "w", newline="") as handle:
 	all_counts = counts.get(("", "All"))
 	if all_counts is None:
 		raise ValueError("Merged count tables are missing the All row required for output formatting")
+	all_values = all_counts if MODE == "sites" else [value / denominator for value in all_counts]
 
 	for key in row_order:
 		values = counts[key]
@@ -627,8 +629,11 @@ with open(OUTPUT, "w", newline="") as handle:
 			writer.writerow([display_group, display_annotation] + count_values)
 			writer.writerow(["", ""] + percentage_values)
 		else:
-			formatted_values = [format_normalized_value(value) for value in values]
-			writer.writerow([display_group, display_annotation] + formatted_values)
+			formatted_pairs = [format_normalized_value(value, total) for value, total in zip(values, all_values)]
+			count_values = [count_value for count_value, _ in formatted_pairs]
+			percentage_values = [percentage_value for _, percentage_value in formatted_pairs]
+			writer.writerow([display_group, display_annotation] + count_values)
+			writer.writerow(["", ""] + percentage_values)
 PYCODE
 	>>>
 
