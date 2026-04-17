@@ -195,8 +195,8 @@ COLUMN_BUCKETS = [
 	"SNV",
 	"INS 1-49bp",
 	"DEL 1-49bp",
-	"INS >50bp",
-	"DEL >50bp",
+	"INS >49bp",
+	"DEL >49bp",
 	"TRV",
 	"Other",
 ]
@@ -327,9 +327,9 @@ def determine_column(record):
 	if allele_length is not None and "DEL" in variant_id and allele_length < 50:
 		return "DEL 1-49bp"
 	if allele_length is not None and "INS" in variant_id and allele_length >= 50:
-		return "INS >50bp"
+		return "INS >49bp"
 	if allele_length is not None and "DEL" in variant_id and allele_length >= 50:
-		return "DEL >50bp"
+		return "DEL >49bp"
 	if allele_type == "trv":
 		return "TRV"
 	return "Other"
@@ -610,8 +610,6 @@ if MODE != "sites":
 		raise ValueError("Sample-normalized outputs require at least one sample in every input VCF")
 
 	denominator = float(sample_count)
-	if MODE == "alleles":
-		denominator *= 2.0
 
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
