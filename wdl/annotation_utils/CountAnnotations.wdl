@@ -443,15 +443,20 @@ def determine_row_weights(record, consequence_idx):
 	if is_utr:
 		row_weights[("SVAnnotate", "UTR")] = 1
 
-	coding_hits = int(is_vep_coding) + int(has_svannotate)
-	if coding_hits:
-		row_weights[("", "Coding")] = coding_hits
+	if is_vep_coding or has_svannotate:
+		row_weights[("", "Coding")] = 1
 
 	if is_dbgap:
 		row_weights[("", "dbGaP")] = 1
 		if is_tr_overlap:
-	if is_vep_coding or has_svannotate:
+			row_weights[("dbGaP", "TR Overlap")] = 1
+		else:
 			row_weights[("dbGaP", "Not TR Overlap")] = 1
+		if is_gnomad_matched:
+			row_weights[("dbGaP", "gnomAD Matched")] = 1
+		else:
+			row_weights[("dbGaP", "gnomAD Missing")] = 1
+
 	if is_gnomad_matched:
 		row_weights[("", "gnomAD Matched")] = 1
 		if is_tr_overlap:
@@ -459,10 +464,6 @@ def determine_row_weights(record, consequence_idx):
 		else:
 			row_weights[("gnomAD Matched", "Not TR Overlap")] = 1
 
-		if is_gnomad_matched:
-			row_weights[("dbGaP", "gnomAD Matched")] = 1
-		else:
-			row_weights[("dbGaP", "gnomAD Missing")] = 1
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
 
