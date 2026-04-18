@@ -214,7 +214,7 @@ COLUMN_BUCKETS = [
 
 ROW_ORDER = [
 	("", "All"),
-	("", "TR Overlap"),
+	("", "TR Enveloped"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -223,13 +223,15 @@ ROW_ORDER = [
 	("DUP", "DUP_TANDEM"),
 	("DUP", "DUP_INTERSPERSED"),
 	("DUP", "DUP_COMPLEX"),
-	("", "NUMT"),
-	("", "Intergenic"),
-	("", "Intronic"),
-	("", "LoF"),
-	("LoF", "VEP"),
-	("LoF", "SVAnnotate"),
-	("", "Coding"),
+	("DUP", "NUMT"),
+	("", "Consequence"),
+	("Consequence", "LoF - SVAnnotate"),
+	("Consequence", "LoF - VEP"),
+	("Consequence", "Missense"),
+	("Consequence", "Coding"),
+	("Consequence", "Intronic"),
+	("Consequence", "Intergenic"),
+	("Consequence", "Other"),
 	("", "SVAnnotate"),
 	("SVAnnotate", "Copy Gain"),
 	("SVAnnotate", "IED"),
@@ -247,39 +249,58 @@ ROW_ORDER = [
 	("gnomAD Matched", "Not TR Overlap"),
 ]
 
-PARENT_ROWS = {"ME", "DUP", "LoF", "SVAnnotate", "dbGaP", "gnomAD Matched"}
+PARENT_ROWS = {"ME", "DUP", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
-LOF_CONSEQUENCES = {
-	"transcript_ablation",
-	"splice_acceptor_variant",
-	"splice_donor_variant",
-	"stop_gained",
-	"frameshift_variant",
-	"stop_lost",
-	"start_lost",
-	"transcript_amplification",
-	"feature_elongation",
-	"feature_truncation"
-}
-
-CODING_CONSEQUENCES = {
-	# LoF
-	"stop_gained",
-	"frameshift_variant",
-	"stop_lost",
-	"start_lost",
-
-	# Non-LoF
-	"inframe_insertion",
-	"inframe_deletion",
-	"missense_variant",
-	"protein_altering_variant",
-	"incomplete_terminal_codon_variant",
-	"start_retained_variant",
-	"stop_retained_variant",
-	"synonymous_variant",
-	"coding_sequence_variant"
-}
+CONSEQUENCE_PRIORITY = [
+	("LoF - VEP", {
+		"transcript_ablation",
+		"stop_gained",
+		"frameshift_variant",
+		"splice_donor_variant",
+		"splice_acceptor_variant",
+		"stop_lost",
+		"start_lost",
+		"transcript_amplification",
+		"feature_elongation",
+		"feature_truncation",
+	}),
+	("Missense", {
+		"missense_variant",
+		"inframe_insertion",
+		"inframe_deletion",
+		"protein_altering_variant",
+	}),
+	("Coding", {
+		"synonymous_variant",
+		"stop_retained_variant",
+		"start_retained_variant",
+		"incomplete_terminal_codon_variant",
+		"coding_sequence_variant",
+	}),
+	("Intronic", {
+		"intron_variant",
+		"splice_region_variant",
+		"splice_donor_region_variant",
+		"splice_polypyrimidine_tract_variant",
+		"splice_donor_5th_base_variant",
+		"NMD_transcript_variant",
+		"non_coding_transcript_exon_variant",
+		"non_coding_transcript_variant",
+	}),
+	("Intergenic", {
+		"intergenic_variant",
+		"upstream_gene_variant",
+		"downstream_gene_variant",
+		"regulatory_region_variant",
+		"regulatory_region_ablation",
+		"regulatory_region_amplification",
+		"TF_binding_site_variant",
+		"TFBS_ablation",
+		"TFBS_amplification",
+		"3_prime_UTR_variant",
+		"5_prime_UTR_variant",
+	}),
+]
 
 
 def init_table():
@@ -308,21 +329,19 @@ def has_info(record, key):
 	return key in record.info
 
 
-def get_vep_consequence_index(header):
+def get_vep_field_indices(header):
 	if "vep" not in header.info:
-		return None
+		return {}
 	description = header.info["vep"].description or ""
 	match = re.search(r"Format:\s*([^\"]+)", description)
 	if match is None:
-		return None
+		return {}
 	fields = [field.strip() for field in match.group(1).strip().rstrip(".").split("|")]
-	for idx, field in enumerate(fields):
-		if field == "Consequence":
-			return idx
-	return None
+	return {field: idx for idx, field in enumerate(fields)}
 
 
-def extract_consequences(record, consequence_idx):
+def extract_all_consequences(record, vep_field_indices):
+	consequence_idx = vep_field_indices.get("Consequence")
 	if consequence_idx is None or "vep" not in record.info:
 		return set()
 
@@ -339,7 +358,19 @@ def extract_consequences(record, consequence_idx):
 			consequence = consequence.strip()
 			if consequence:
 				consequences.add(consequence)
+
 	return consequences
+
+
+def determine_consequence_label(record, consequences):
+	if has_info(record, "PREDICTED_LOF"):
+		return "LoF - SVAnnotate"
+
+	for label, consequence_terms in CONSEQUENCE_PRIORITY:
+		if consequence_terms & consequences:
+			return label
+
+	return "Other"
 
 
 def determine_column(record):
@@ -362,16 +393,16 @@ def determine_column(record):
 	return "Other"
 
 
-def determine_row_weights(record, consequence_idx):
+def determine_row_weights(record, vep_field_indices):
 	allele_type = get_string_info(record, "allele_type").lower()
-	consequences = extract_consequences(record, consequence_idx)
+	consequences = extract_all_consequences(record, vep_field_indices)
 
 	row_weights = {row: 0 for row in ROW_ORDER}
 	row_weights[("", "All")] = 1
 
 	is_tr_overlap = has_info(record, "TR_ENVELOPED")
 	if is_tr_overlap:
-		row_weights[("", "TR Overlap")] = 1
+		row_weights[("", "TR Enveloped")] = 1
 
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
@@ -388,7 +419,8 @@ def determine_row_weights(record, consequence_idx):
 	is_dup_interspersed = "dup_interspersed" in allele_type
 	is_dup_complex = "complex_dup" in allele_type
 	is_dup_tandem = "dup" in allele_type and not is_dup_interspersed and not is_dup_complex
-	if is_dup_tandem or is_dup_interspersed or is_dup_complex:
+	is_numt = "numt" in allele_type
+	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt:
 		row_weights[("", "DUP")] = 1
 	if is_dup_tandem:
 		row_weights[("DUP", "DUP_TANDEM")] = 1
@@ -396,26 +428,12 @@ def determine_row_weights(record, consequence_idx):
 		row_weights[("DUP", "DUP_INTERSPERSED")] = 1
 	if is_dup_complex:
 		row_weights[("DUP", "DUP_COMPLEX")] = 1
+	if is_numt:
+		row_weights[("DUP", "NUMT")] = 1
 
-	if "numt" in allele_type:
-		row_weights[("", "NUMT")] = 1
-
-	is_intergenic = has_info(record, "PREDICTED_INTERGENIC") or "intergenic_variant" in consequences
-	if is_intergenic:
-		row_weights[("", "Intergenic")] = 1
-
-	is_intronic = has_info(record, "PREDICTED_INTRONIC") or "intron_variant" in consequences
-	if is_intronic:
-		row_weights[("", "Intronic")] = 1
-
-	is_vep_lof = bool(LOF_CONSEQUENCES & consequences)
-	is_svannotate_lof = has_info(record, "PREDICTED_LOF")
-	if is_vep_lof or is_svannotate_lof:
-		row_weights[("", "LoF")] = 1
-	if is_vep_lof:
-		row_weights[("LoF", "VEP")] = 1
-	if is_svannotate_lof:
-		row_weights[("LoF", "SVAnnotate")] = 1
+	consequence_label = determine_consequence_label(record, consequences)
+	row_weights[("", "Consequence")] = 1
+	row_weights[("Consequence", consequence_label)] = 1
 
 	is_copy_gain = has_info(record, "PREDICTED_COPY_GAIN")
 	is_ied = has_info(record, "PREDICTED_INTRAGENIC_EXON_DUP")
@@ -425,7 +443,6 @@ def determine_row_weights(record, consequence_idx):
 	is_utr = has_info(record, "PREDICTED_UTR")
 	is_dbgap = has_info(record, "dbGaP_ID")
 	is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
-	is_vep_coding = bool(CODING_CONSEQUENCES & consequences)
 	has_svannotate = is_copy_gain or is_ied or is_ped or is_tssd or is_dp or is_utr
 
 	if has_svannotate:
@@ -442,9 +459,6 @@ def determine_row_weights(record, consequence_idx):
 		row_weights[("SVAnnotate", "DP")] = 1
 	if is_utr:
 		row_weights[("SVAnnotate", "UTR")] = 1
-
-	if is_vep_coding or has_svannotate:
-		row_weights[("", "Coding")] = 1
 
 	if is_dbgap:
 		row_weights[("", "dbGaP")] = 1
@@ -529,7 +543,7 @@ sample_table = init_table()
 allele_table = init_table()
 
 vcf_in = pysam.VariantFile(VCF_PATH)
-consequence_idx = get_vep_consequence_index(vcf_in.header)
+vep_field_indices = get_vep_field_indices(vcf_in.header)
 sample_count = len(vcf_in.header.samples)
 
 with open(SAMPLE_COUNT_OUTPUT, "w") as handle:
@@ -541,7 +555,7 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 
 	for record in vcf_in:
 		column = determine_column(record)
-		row_weights = determine_row_weights(record, consequence_idx)
+		row_weights = determine_row_weights(record, vep_field_indices)
 
 		if DO_PER_SAMPLE or DO_PER_ALLELE:
 			carrier_count, alt_allele_count = get_genotype_weights(record)
@@ -615,7 +629,7 @@ COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
-PARENT_ROWS = {"ME", "DUP", "LoF", "SVAnnotate", "dbGaP", "gnomAD Matched"}
+PARENT_ROWS = {"ME", "DUP", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 
 def format_label(key):
