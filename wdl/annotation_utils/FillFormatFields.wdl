@@ -16,6 +16,8 @@ workflow FillFormatFields {
         Boolean modify_ev_number = false
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
+        Boolean unphase_gts = false
+        Boolean add_pl = false
 
         String utils_docker
 
@@ -34,6 +36,8 @@ workflow FillFormatFields {
             modify_ev_number = modify_ev_number,
             fill_alt_gts = fill_alt_gts,
             fill_ref_gts = fill_ref_gts,
+            unphase_gts = unphase_gts,
+            add_pl = add_pl,
             prefix = prefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_fill
@@ -57,6 +61,8 @@ task FillVcfFormatFields {
         Boolean modify_ev_number = false
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
+        Boolean unphase_gts = false
+        Boolean add_pl = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -73,6 +79,8 @@ task FillVcfFormatFields {
 
             python3 <<'CODE'
 import re
+import math
+import pysam
 
 with open("filled.header.txt") as src:
     lines = src.readlines()
@@ -106,6 +114,8 @@ include_field = "~{default="" include_field}" or None
 include_value = "~{default="" include_value}" or None
 fill_alt_gts = ~{true="True" false="False" fill_alt_gts}
 fill_ref_gts = ~{true="True" false="False" fill_ref_gts}
+unphase_gts = ~{true="True" false="False" unphase_gts}
+add_pl = ~{true="True" false="False" add_pl}
 
 unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
 filled_in = pysam.VariantFile("$filled_vcf_for_fill")
@@ -114,9 +124,12 @@ out_header = unfilled_in.header.copy()
 for field in format_fields:
     if field in filled_in.header.formats and field not in out_header.formats:
         out_header.add_record(filled_in.header.formats[field].record)
+if add_pl and "PL" not in out_header.formats:
+    out_header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 
 filled_samples = set(filled_in.header.samples)
 common_samples = [s for s in out_header.samples if s in filled_samples]
+all_samples = list(out_header.samples)
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
 
@@ -131,15 +144,39 @@ def variant_passes_include(rec):
 def gt_is_alt(gt):
     return any(a is not None and a > 0 for a in gt)
 
+def calculate_pl(ref_reads, alt_reads):
+    n = ref_reads + alt_reads
+    if n == 0:
+        return (0, 0, 0)
+
+    means = [0.03, 0.50, 0.97]
+    priors = [0.33, 0.34, 0.33]
+
+    ll_raw = []
+    for i in range(3):
+        ll = math.log(priors[i]) + alt_reads * math.log(means[i]) + ref_reads * math.log(1.0 - means[i])
+        ll_10 = ll / math.log(10)
+        ll_raw.append(ll_10)
+
+    max_ll = max(ll_raw)
+    return tuple(int(round(-10 * (ll - max_ll))) for ll in ll_raw)
+
+def ad_is_populated(ad):
+    return ad is not None and len(ad) == 2 and all(value is not None for value in ad)
+
+def unphase_gt(gt):
+    return tuple(sorted(gt, key=lambda allele: (allele is None, allele if allele is not None else 0)))
+
 for unfilled_rec in unfilled_in:
     unfilled_rec.translate(out_header)
+    passes_include = variant_passes_include(unfilled_rec)
     match = None
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
         if cand.id == unfilled_rec.id:
             match = cand
             break
 
-    if match and variant_passes_include(unfilled_rec):
+    if match and passes_include:
         for sample in common_samples:
             for field in format_fields:
                 if field in match.format:
@@ -159,6 +196,20 @@ for unfilled_rec in unfilled_in:
                     if (fill_alt_gts and cur_is_alt) or (fill_ref_gts and not cur_is_alt):
                         unfilled_rec.samples[sample]["GT"] = src_gt
                         unfilled_rec.samples[sample].phased = match.samples[sample].phased
+
+    if passes_include:
+        if unphase_gts:
+            for sample in all_samples:
+                current_gt = unfilled_rec.samples[sample].get("GT")
+                if current_gt is not None:
+                    unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
+                    unfilled_rec.samples[sample].phased = False
+
+        if add_pl and "PL" not in unfilled_rec.format:
+            for sample in all_samples:
+                ad = unfilled_rec.samples[sample].get("AD")
+                if ad_is_populated(ad):
+                    unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1])
 
     out.write(unfilled_rec)
 

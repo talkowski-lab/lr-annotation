@@ -2,10 +2,11 @@
 **__pycache__/
 
 data/*
+
 .DS_Store
 
 *.pyc
-
+*.jar
 *.tsv
 *.csv
 *.txt
