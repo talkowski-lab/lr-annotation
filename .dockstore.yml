@@ -397,6 +397,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: BackbonePhase
+    primaryDescriptorPath: /wdl/tools/BackbonePhase.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: HiPhase
     primaryDescriptorPath: /wdl/tools/HiPhase.wdl
     filters:
@@ -489,15 +498,6 @@ workflows:
   - subclass: WDL
     name: RepeatMasker
     primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: PhaseCallset_vBackbone_v2
-    primaryDescriptorPath: /wdl/tools/PhaseCallset_vBackbone_v2.wdl
     filters:
       branches:
         - main
