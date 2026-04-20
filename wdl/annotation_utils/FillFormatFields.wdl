@@ -79,8 +79,6 @@ task FillVcfFormatFields {
 
             python3 <<'CODE'
 import re
-import math
-import pysam
 
 with open("filled.header.txt") as src:
     lines = src.readlines()
@@ -103,6 +101,7 @@ CODE
         fi
 
         python3 <<CODE
+import math
 import pysam
 
 with open("$format_fields_file") as fh:
