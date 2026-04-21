@@ -60,7 +60,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `seg_dup_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SegDup.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `simple_repeat_bed`: [Loci for GRCh38](gs://gatk-sv-resources-public/hg38/v0/sv-resources/resources/v1/GenomicContext/hg38.SimpRep.sorted.merged.bed) from the [GATK-SV references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `seqrepo_tar`: [Sequence repository v2024-12-20 for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/seqrepo_2024-12-20.tar.gz) from the [latest release of seqrepo](https://github.com/biocommons/biocommons.seqrepo).
-- `sv_caller_results`: TODO.
+- `truth_hgsvc_vcf`: [HGSVC3 release](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/release/Variant_Calls/1.0/GRCh38/), combined across the specific VCFs for SNVs, indels and SVs, from the [HGSVC FTP server](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/HGSVC3/).
+- `truth_hprc_vcf`: [HPRC2 release](https://s3-us-west-2.amazonaws.com/human-pangenomics/pangenomes/freeze/release2/minigraph-cactus/hprc-v2.0-mc-grch38.wave.vcf.gz) from the [HPRC AWS bucket](https://s3-us-west-2.amazonaws.com/human-pangenomics/index.html?prefix=).
 - `vntr_bed`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/VNTR_hg38.bed) from the [SVAN references](https://zenodo.org/records/15229020/files/hg38.tar.gz).
 
 

@@ -11,6 +11,7 @@ workflow BackbonePhase {
         Array[File] base_vcf_idxs
         String contig
         String prefix
+        Boolean reassign_tr_overlap = false
 
         File? swap_samples_base
 
@@ -37,7 +38,7 @@ workflow BackbonePhase {
             }
         }
 
-        call Helpers.SubsetVcfToContig as SubsetBaseVcf {
+        call Helpers.SubsetVcfToContig {
             input:
                 vcf = select_first([SwapSampleIds.swapped_vcf, base_vcfs[i]]),
                 vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, base_vcf_idxs[i]]),
@@ -49,8 +50,8 @@ workflow BackbonePhase {
 
         call PrepareBaseVcf {
             input:
-                vcf = SubsetBaseVcf.subset_vcf,
-                vcf_idx = SubsetBaseVcf.subset_vcf_idx,
+                vcf = SubsetVcfToContig.subset_vcf,
+                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 prefix = "~{prefix}.base_~{i}.prepared",
                 docker = docker,
                 runtime_attr_override = runtime_attr_prepare_base_vcf
@@ -76,6 +77,7 @@ workflow BackbonePhase {
                 base_vcf_idx = PrepareBaseVcf.prepared_vcf_idx[i],
                 assignment_tsv = AssignSamplesToBaseVcfs.assignment_tsv,
                 base_vcf_index = i,
+                reassign_tr_overlap = reassign_tr_overlap,
                 prefix = "~{prefix}.base_~{i}.flips",
                 docker = docker,
                 runtime_attr_override = runtime_attr_compute_flips
@@ -185,9 +187,6 @@ missing = sorted(vcf_sample_set - set(sample_to_base_idx))
 with open("~{prefix}.missing_samples.txt", "w") as out:
     for sample in missing:
         out.write(sample + "\n")
-
-print(f"Assigned {len(sample_to_base_idx)} samples across {len(base_vcf_paths)} base VCFs")
-print(f"Missing {len(missing)} samples")
 CODE
     >>>
 
@@ -224,6 +223,7 @@ task ComputePhaseFlips {
         File base_vcf_idx
         File assignment_tsv
         Int base_vcf_index
+        Boolean reassign_tr_overlap
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -272,7 +272,142 @@ def extract_sample(input_vcf, sample, output_vcf):
     subprocess.run(["bcftools", "index", "-t", output_vcf], check=True)
 
 
+def phase_gt_by_support(gt, support_hap):
+    a, b = gt
+    if support_hap not in (0, 1):
+        return gt
+    if a == 0 and b != 0:
+        alt = b
+        return (alt, 0) if support_hap == 0 else (0, alt)
+    if a != 0 and b == 0:
+        alt = a
+        return (alt, 0) if support_hap == 0 else (0, alt)
+    if a != 0 and b != 0:
+        return (a, b) if support_hap == 0 else (b, a)
+    return gt
+
+
+def build_overlap_reassignments(sample_vcf, sample):
+    unphased_rows = []
+    phased_rows = []
+    record_gts = {}
+
+    with pysam.VariantFile(sample_vcf, "r") as sample_in:
+        for rec in sample_in:
+            gt_data = rec.samples[sample]
+            gt = gt_data.get("GT")
+            if gt is None or None in gt or len(gt) != 2:
+                continue
+            if gt[0] == gt[1]:
+                continue
+
+            record_gts[rec.id] = gt
+            ps = gt_data.get("PS")
+
+            for allele_order_idx in range(2):
+                allele_idx = gt[allele_order_idx]
+                if allele_idx == 0 or allele_idx > len(rec.alts):
+                    continue
+
+                norm_ref, norm_alt, offset = normalize_allele(rec.ref, rec.alts[allele_idx - 1])
+                start0 = rec.pos + offset - 1
+                end = start0 + len(norm_ref)
+                span = end - start0
+
+                if gt_data.phased:
+                    phased_rows.append((
+                        rec.contig,
+                        start0,
+                        end,
+                        rec.id,
+                        allele_order_idx,
+                        ps if ps is not None else -1,
+                        span,
+                    ))
+                else:
+                    unphased_rows.append((
+                        rec.contig,
+                        start0,
+                        end,
+                        rec.id,
+                        allele_order_idx,
+                        span,
+                    ))
+
+    if not unphased_rows or not phased_rows:
+        return {}
+
+    unphased_rows.sort(key=lambda row: (row[0], row[1], row[2], row[3], row[4]))
+    phased_rows.sort(key=lambda row: (row[0], row[1], row[2], row[3], row[4]))
+
+    with open("unphased_overlap.bed", "w") as out:
+        for row in unphased_rows:
+            out.write("\t".join(map(str, row)) + "\n")
+
+    with open("phased_overlap.bed", "w") as out:
+        for row in phased_rows:
+            out.write("\t".join(map(str, row)) + "\n")
+
+    with open("overlap_matches.tsv", "w") as overlap_out:
+        subprocess.run(
+            [
+                "bedtools",
+                "intersect",
+                "-wa",
+                "-wb",
+                "-f",
+                "1.0",
+                "-a",
+                "unphased_overlap.bed",
+                "-b",
+                "phased_overlap.bed",
+            ],
+            check=True,
+            stdout=overlap_out,
+        )
+
+    best_support = {}
+    with open("overlap_matches.tsv") as matches_in:
+        for line in matches_in:
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) != 13:
+                continue
+
+            variant_id = parts[3]
+            support_hap = int(parts[10])
+            support_ps = int(parts[11])
+            support_span = int(parts[12])
+
+            current = best_support.get(variant_id)
+            if current is None or support_span > current["span"]:
+                best_support[variant_id] = {
+                    "span": support_span,
+                    "support_hap": support_hap,
+                    "support_ps": support_ps,
+                }
+
+    reassigned = {}
+    for variant_id, support in best_support.items():
+        new_gt = phase_gt_by_support(record_gts[variant_id], support["support_hap"])
+        if support["support_ps"] >= 0:
+            reassigned[variant_id] = {
+                "gt": new_gt,
+                "ps": support["support_ps"],
+            }
+
+    for path in [
+        "unphased_overlap.bed",
+        "phased_overlap.bed",
+        "overlap_matches.tsv",
+    ]:
+        if os.path.exists(path):
+            os.remove(path)
+
+    return reassigned
+
+
 base_vcf_index = ~{base_vcf_index}
+reassign_tr_overlap = "~{reassign_tr_overlap}" == "true"
 assigned_samples = []
 with open("~{assignment_tsv}") as f:
     for line in f:
@@ -280,10 +415,8 @@ with open("~{assignment_tsv}") as f:
         if int(idx) == base_vcf_index:
             assigned_samples.append(sample)
 
-print(f"base_vcf_{base_vcf_index}: {len(assigned_samples)} assigned samples")
-
 with open("~{prefix}.tsv", "w") as out:
-    out.write("VARIANT_ID\tSAMPLE\tNEW_GT\n")
+    out.write("VARIANT_ID\tSAMPLE\tNEW_GT\tNEW_PS\n")
 
     for sample_idx, sample in enumerate(assigned_samples):
         sample_vcf = f"sample_{sample_idx}.input.vcf.gz"
@@ -291,6 +424,8 @@ with open("~{prefix}.tsv", "w") as out:
 
         extract_sample("~{vcf}", sample, sample_vcf)
         extract_sample("~{base_vcf}", sample, sample_base_vcf)
+
+        overlap_reassignments = build_overlap_reassignments(sample_vcf, sample) if reassign_tr_overlap else {}
 
         base_gts = {}
         with pysam.VariantFile(sample_base_vcf, "r") as base_in:
@@ -314,11 +449,16 @@ with open("~{prefix}.tsv", "w") as out:
                     continue
                 gt_data = rec.samples[sample]
                 gt = gt_data.get("GT")
+                phased = gt_data.phased
+                ps = gt_data.get("PS")
+                if rec.id in overlap_reassignments:
+                    gt = overlap_reassignments[rec.id]["gt"]
+                    phased = True
+                    ps = overlap_reassignments[rec.id]["ps"]
                 if gt is None or None in gt or len(gt) != 2:
                     continue
-                if gt[0] == gt[1] or not gt_data.phased:
+                if gt[0] == gt[1] or not phased:
                     continue
-                ps = gt_data.get("PS")
                 if ps is None:
                     continue
                 for hap_idx in range(2):
@@ -343,20 +483,22 @@ with open("~{prefix}.tsv", "w") as out:
             if disc > conc:
                 flip_set.add(ps_group)
 
-        print(
-            f"  {sample}: {len(base_gts)} base SNVs, {matches} matches, "
-            f"flipping {len(flip_set)}/{len(tally)} haplotype groups"
-        )
-
         with pysam.VariantFile(sample_vcf, "r") as sample_in:
             for rec in sample_in:
                 gt_data = rec.samples[sample]
-                gt = gt_data.get("GT")
+                orig_gt = gt_data.get("GT")
+                gt = orig_gt
+                phased = gt_data.phased
+                ps = gt_data.get("PS")
+                overlap_reassigned = rec.id in overlap_reassignments
+                if overlap_reassigned:
+                    gt = overlap_reassignments[rec.id]["gt"]
+                    phased = True
+                    ps = overlap_reassignments[rec.id]["ps"]
                 if gt is None or None in gt or len(gt) != 2:
                     continue
-                if gt[0] == gt[1] or not gt_data.phased:
+                if gt[0] == gt[1] or not phased:
                     continue
-                ps = gt_data.get("PS")
                 if ps is None:
                     continue
                 a, b = gt[0], gt[1]
@@ -367,8 +509,12 @@ with open("~{prefix}.tsv", "w") as out:
                     should_flip = (ps, (0, 1)) in flip_set
                 else:
                     should_flip = (ps, (1, 0)) in flip_set and (ps, (0, 1)) in flip_set
-                if should_flip:
-                    out.write(f"{rec.id}\t{sample}\t{b}|{a}\n")
+
+                final_gt = (b, a) if should_flip else (a, b)
+                gt_changed = orig_gt is not None and tuple(orig_gt) != final_gt
+                ps_changed = overlap_reassigned and gt_data.get("PS") != ps
+                if overlap_reassigned or should_flip or gt_changed or ps_changed:
+                    out.write(f"{rec.id}\t{sample}\t{final_gt[0]}|{final_gt[1]}\t{ps}\n")
 
         for path in [sample_vcf, sample_vcf + ".tbi", sample_base_vcf, sample_base_vcf + ".tbi"]:
             os.remove(path)
@@ -422,7 +568,6 @@ with open("~{missing_samples_file}") as src, open("~{prefix}.missing_samples.txt
     missing = [line.rstrip("\n") for line in src if line.strip()]
     for sample in missing:
         dst.write(sample + "\n")
-print(f"{len(missing)} missing samples")
 
 flips = defaultdict(dict)
 flip_tsv_paths = []
@@ -437,37 +582,37 @@ for path in flip_tsv_paths:
         f.readline()
         for line in f:
             parts = line.rstrip("\n").split("\t")
-            if len(parts) != 3:
+            if len(parts) not in (3, 4):
                 continue
-            variant_id, sample, new_gt = parts
+            variant_id, sample, new_gt = parts[:3]
+            new_ps = parts[3] if len(parts) == 4 else None
             if sample in flips[variant_id]:
                 continue
             a, b = new_gt.split("|")
-            flips[variant_id][sample] = (int(a), int(b))
+            flips[variant_id][sample] = ((int(a), int(b)), None if new_ps in (None, "", ".") else int(new_ps))
 
 total_flips = sum(len(sample_map) for sample_map in flips.values())
-print(f"Loaded {total_flips} genotype flips across {len(flips)} variants")
-
 with pysam.VariantFile("~{vcf}", "r") as vcf_in:
     with pysam.VariantFile("transferred.vcf", "w", header=vcf_in.header) as vcf_out:
-        applied = 0
         for rec in vcf_in:
             if rec.id in flips:
                 new_rec = rec.copy()
-                for sample, new_gt in flips[rec.id].items():
+                for sample, (new_gt, new_ps) in flips[rec.id].items():
                     new_rec.samples[sample]["GT"] = new_gt
                     new_rec.samples[sample].phased = True
-                    applied += 1
+                    if new_ps is not None:
+                        new_rec.samples[sample]["PS"] = new_ps
                 vcf_out.write(new_rec)
             else:
                 vcf_out.write(rec)
-
-print(f"Applied {applied} genotype flips")
 CODE
 
         bgzip transferred.vcf
+
         bcftools index -t transferred.vcf.gz
+
         mv transferred.vcf.gz ~{prefix}.vcf.gz
+
         mv transferred.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
     >>>
 
