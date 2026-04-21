@@ -23,6 +23,7 @@ workflow AnnotateGQMetrics {
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_generate_tsv
         RuntimeAttr? runtime_attr_generate_ab_tsv
+        RuntimeAttr? runtime_attr_merge_aligned_tsv
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -75,7 +76,8 @@ workflow AnnotateGQMetrics {
             input:
                 tsvs = flatten([GenerateGQAnnotationTsv.annotation_tsv, select_all([GenerateABAnnotationTsv.annotation_tsv])]),
                 prefix = prefix + "." + contig + ".gq_annotations",
-                docker = utils_docker
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_aligned_tsv
         }
     }
 
