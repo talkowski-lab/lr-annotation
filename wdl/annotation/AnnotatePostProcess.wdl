@@ -9,8 +9,7 @@ workflow AnnotatePostProcess {
 		Array[String] contigs
 		String prefix
 
-		Array[String] sample_ids
-		Array[String] sample_sexes
+		File ped
 
 		Boolean filter_singletons = false
 
@@ -44,8 +43,7 @@ workflow AnnotatePostProcess {
 				vcf = contig_vcf,
 				vcf_idx = contig_vcf_idx,
 				contig = contig,
-				sample_ids = sample_ids,
-				sample_sexes = sample_sexes,
+				ped = ped,
 				filter_singletons = filter_singletons,
 				prefix = prefix + "." + contig + ".post_process",
 				docker = utils_docker,
@@ -77,8 +75,7 @@ task PostProcessVcf {
 		File vcf
 		File vcf_idx
 		String contig
-		Array[String] sample_ids
-		Array[String] sample_sexes
+		File ped
 		Boolean filter_singletons
 		String prefix
 		String docker
@@ -95,28 +92,29 @@ import sys
 import pysam
 from math import comb
 
-with open("~{write_json(sample_ids)}", "r") as handle:
-	sample_ids = json.load(handle)
-
-with open("~{write_json(sample_sexes)}", "r") as handle:
-	sample_sexes = json.load(handle)
-
 filter_singletons = ~{true="True" false="False" filter_singletons}
 target_contig = "~{contig}"
 
-if len(sample_ids) != len(sample_sexes):
-	print("sample_ids and sample_sexes must have the same length", file=sys.stderr)
-	sys.exit(1)
-
 sex_by_sample = {}
-for sample_id, sex in zip(sample_ids, sample_sexes):
-	if sex not in {"M", "F"}:
-		print(f"Unsupported sex '{sex}' for sample {sample_id}", file=sys.stderr)
-		sys.exit(1)
-	if sample_id in sex_by_sample:
-		print(f"Duplicate sample_id '{sample_id}' in sample_ids", file=sys.stderr)
-		sys.exit(1)
-	sex_by_sample[sample_id] = sex
+with open("~{ped}", "r") as handle:
+	for line_number, line in enumerate(handle, start=1):
+		fields = line.rstrip("\n").split("\t")
+		if len(fields) < 5:
+			print(f"PED line {line_number} has fewer than 5 columns", file=sys.stderr)
+			sys.exit(1)
+
+		sample_id = fields[1]
+		sex_code = fields[4]
+		if sample_id in sex_by_sample:
+			print(f"Duplicate sample_id '{sample_id}' in PED file", file=sys.stderr)
+			sys.exit(1)
+
+		if sex_code == "1":
+			sex_by_sample[sample_id] = "M"
+		elif sex_code == "2":
+			sex_by_sample[sample_id] = "F"
+		else:
+			sex_by_sample[sample_id] = None
 
 
 def get_scalar(value):
