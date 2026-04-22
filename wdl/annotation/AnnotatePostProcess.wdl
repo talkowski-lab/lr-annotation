@@ -214,6 +214,7 @@ def update_haploid_likelihoods(sample_data, n_alleles):
 	if "PL" not in sample_data and "GQ" not in sample_data:
 		return
 
+
 	ad = sample_data.get("AD")
 	if ad is None or len(ad) != 2 or any(value is None for value in ad[:2]):
 		if "PL" in sample_data:
@@ -227,7 +228,6 @@ def update_haploid_likelihoods(sample_data, n_alleles):
 		sample_data["PL"] = pls
 	if "GQ" in sample_data:
 		sample_data["GQ"] = calculate_gq(pls)
-
 
 
 def shortest_motif_length(record):
@@ -292,14 +292,14 @@ for record in iterator:
 	record.translate(vcf_out.header)
 	prune_meis(record)
 
-    # Clear genotype fields for females on chrY
+	# Clear genotype fields for females on chrY
 	n_alleles = len(record.alleles)
 	if record.chrom == "chrY":
 		for sample in samples_in_vcf:
 			if sex_by_sample.get(sample) == "F":
 				clear_genotype_fields(record.samples[sample], n_alleles)
 
-    # Set GTs to hemizygous for males on chrX/chrY
+	# Set GTs to hemizygous for males on chrX/chrY
 	if record.chrom in {"chrX", "chrY"}:
 		for sample in samples_in_vcf:
 			if sex_by_sample.get(sample) != "M":
@@ -313,11 +313,11 @@ for record in iterator:
 			sample_data["GT"] = collapse_male_sex_chrom_gt(gt)
 			update_haploid_likelihoods(sample_data, n_alleles)
 
-    # Flag homopolymer TR variants
+	# Flag homopolymer TR variants
 	if get_scalar(record.info.get("allele_type")) == "trv" and shortest_motif_length(record) == 1:
 		record.filter.add("HOMOPOLYMER_TRV")
 
-    # Flag variants with single read support
+	# Flag variants with single read support
 	if has_single_read_support(record, ac):
 		record.filter.add("SINGLE_READ_SUPPORT")
 
