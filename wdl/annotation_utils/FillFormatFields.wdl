@@ -143,16 +143,26 @@ def variant_passes_include(rec):
 def gt_is_alt(gt):
     return any(a is not None and a > 0 for a in gt)
 
-def calculate_pl(ref_reads, alt_reads):
+def get_sample_ploidy(sample_data):
+    gt = sample_data.get("GT")
+    if gt is None:
+        return None
+    return sum(allele is not None for allele in gt)
+
+def calculate_pl(ref_reads, alt_reads, ploidy):
     n = ref_reads + alt_reads
     if n == 0:
-        return (0, 0, 0)
+        return (0, 0) if ploidy == 1 else (0, 0, 0)
 
-    means = [0.03, 0.50, 0.97]
-    priors = [0.33, 0.34, 0.33]
+    if ploidy == 1:
+        means = [0.03, 0.97]
+        priors = [0.50, 0.50]
+    else:
+        means = [0.03, 0.50, 0.97]
+        priors = [0.33, 0.34, 0.33]
 
     ll_raw = []
-    for i in range(3):
+    for i in range(len(means)):
         ll = math.log(priors[i]) + alt_reads * math.log(means[i]) + ref_reads * math.log(1.0 - means[i])
         ll_10 = ll / math.log(10)
         ll_raw.append(ll_10)
@@ -204,7 +214,9 @@ for unfilled_rec in unfilled_in:
             for sample in common_samples:
                 ad = unfilled_rec.samples[sample].get("AD")
                 if ad_is_populated(ad):
-                    unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1])
+                    ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
+                    if ploidy is not None:
+                        unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
 
     out.write(unfilled_rec)
 
