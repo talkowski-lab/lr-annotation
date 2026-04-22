@@ -11,7 +11,7 @@ workflow BackbonePhase {
         Array[File] base_vcf_idxs
         String contig
         String prefix
-        Boolean reassign_tr_overlap = false
+        Boolean reassign_overlapped = false
 
         File? swap_samples_base
 
@@ -77,7 +77,7 @@ workflow BackbonePhase {
                 base_vcf_idx = PrepareBaseVcf.prepared_vcf_idx[i],
                 assignment_tsv = AssignSamplesToBaseVcfs.assignment_tsv,
                 base_vcf_index = i,
-                reassign_tr_overlap = reassign_tr_overlap,
+                reassign_overlapped = reassign_overlapped,
                 prefix = "~{prefix}.base_~{i}.flips",
                 docker = docker,
                 runtime_attr_override = runtime_attr_compute_flips
@@ -223,7 +223,7 @@ task ComputePhaseFlips {
         File base_vcf_idx
         File assignment_tsv
         Int base_vcf_index
-        Boolean reassign_tr_overlap
+        Boolean reassign_overlapped
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -407,7 +407,7 @@ def build_overlap_reassignments(sample_vcf, sample):
 
 
 base_vcf_index = ~{base_vcf_index}
-reassign_tr_overlap = "~{reassign_tr_overlap}" == "true"
+reassign_overlapped = "~{reassign_overlapped}" == "true"
 assigned_samples = []
 with open("~{assignment_tsv}") as f:
     for line in f:
@@ -425,7 +425,7 @@ with open("~{prefix}.tsv", "w") as out:
         extract_sample("~{vcf}", sample, sample_vcf)
         extract_sample("~{base_vcf}", sample, sample_base_vcf)
 
-        overlap_reassignments = build_overlap_reassignments(sample_vcf, sample) if reassign_tr_overlap else {}
+        overlap_reassignments = build_overlap_reassignments(sample_vcf, sample) if reassign_overlapped else {}
 
         base_gts = {}
         with pysam.VariantFile(sample_base_vcf, "r") as base_in:
