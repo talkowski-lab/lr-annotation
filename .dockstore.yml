@@ -94,8 +94,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateRegion
-    primaryDescriptorPath: /wdl/annotation/AnnotateRegion.wdl
+    name: AnnotatePostProcess
+    primaryDescriptorPath: /wdl/annotation/AnnotatePostProcess.wdl
     filters:
       branches:
         - main
@@ -103,8 +103,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateSingletonReads
-    primaryDescriptorPath: /wdl/annotation/AnnotateSingletonReads.wdl
+    name: AnnotateRegion
+    primaryDescriptorPath: /wdl/annotation/AnnotateRegion.wdl
     filters:
       branches:
         - main

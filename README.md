@@ -126,11 +126,11 @@ Inputs:
 - `ref_fai`.
 
 
-### [AnnotateRegion](wdl/annotation/AnnotateRegion.wdl)
+### [AnnotatePostProcess](wdl/annotation/AnnotatePostProcess.wdl)
 TODO
 
 
-### [AnnotateSingletonReads](wdl/annotation/AnnotateSingletonReads.wdl)
+### [AnnotateRegion](wdl/annotation/AnnotateRegion.wdl)
 TODO
 
 

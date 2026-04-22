@@ -34,7 +34,7 @@ CI validates all WDL files on push/PR to `main` when `wdl/**` changes:
 wget -O womtool.jar https://github.com/broadinstitute/cromwell/releases/download/87/womtool-87.jar
 find wdl -type f -name "*.wdl" -exec java -jar womtool.jar validate {} \;
 ```
-Always run `womtool validate` on any new or modified WDL before committing.
+Always run `womtool validate` on any new or modified WDL before committing. You can find a local copy of the `womtool-87.jar` at `/Users/kjaising/Desktop/Work/Miscellaneous/Software/womtool-87.jar`.
 
 ### Python Linting
 CI lints `scripts/**` on push/PR to `main`:
