@@ -182,9 +182,6 @@ for unfilled_rec in unfilled_in:
                     try:
                         unfilled_rec.samples[sample][field] = match.samples[sample][field]
                     except Exception as e:
-                        unfilled_val = unfilled_rec.samples[sample][field] if field in unfilled_rec.samples[sample] else "N/A"
-                        filled_val = match.samples[sample][field] if field in match.samples[sample] else "N/A"
-                        print(f"[{unfilled_rec.id}] Couldn't set {field} for {sample}: {unfilled_val} --> {filled_val}")
                         pass
 
             if fill_alt_gts or fill_ref_gts:
@@ -196,16 +193,15 @@ for unfilled_rec in unfilled_in:
                         unfilled_rec.samples[sample]["GT"] = src_gt
                         unfilled_rec.samples[sample].phased = match.samples[sample].phased
 
-    if passes_include:
         if unphase_gts:
-            for sample in all_samples:
+            for sample in common_samples:
                 current_gt = unfilled_rec.samples[sample].get("GT")
                 if current_gt is not None:
                     unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
                     unfilled_rec.samples[sample].phased = False
 
-        if add_pl and "PL" not in unfilled_rec.format:
-            for sample in all_samples:
+        if add_pl and "PL" not in unfilled_rec.format and "AD" in unfilled_rec.format:
+            for sample in common_samples:
                 ad = unfilled_rec.samples[sample].get("AD")
                 if ad_is_populated(ad):
                     unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1])
