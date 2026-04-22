@@ -147,7 +147,7 @@ def get_sample_ploidy(sample_data):
     gt = sample_data.get("GT")
     if gt is None:
         return None
-    return sum(allele is not None for allele in gt)
+    return len(gt)
 
 def calculate_pl(ref_reads, alt_reads, ploidy):
     n = ref_reads + alt_reads
@@ -187,13 +187,6 @@ for unfilled_rec in unfilled_in:
 
     if match and passes_include:
         for sample in common_samples:
-            for field in format_fields:
-                if field in match.format:
-                    try:
-                        unfilled_rec.samples[sample][field] = match.samples[sample][field]
-                    except Exception as e:
-                        pass
-
             if fill_alt_gts or fill_ref_gts:
                 src_gt = match.samples[sample].get("GT")
                 cur_gt = unfilled_rec.samples[sample].get("GT")
@@ -202,6 +195,16 @@ for unfilled_rec in unfilled_in:
                     if (fill_alt_gts and cur_is_alt) or (fill_ref_gts and not cur_is_alt):
                         unfilled_rec.samples[sample]["GT"] = src_gt
                         unfilled_rec.samples[sample].phased = match.samples[sample].phased
+
+            for field in format_fields:
+                if field not in match.format:
+                    continue
+                value = match.samples[sample].get(field)
+                try:
+                    unfilled_rec.samples[sample][field] = value
+                except Exception:
+                    print(f"[{unfilled_rec.id}] Could not set {field} for {sample}.")
+                    pass
 
         if unphase_gts:
             for sample in common_samples:
