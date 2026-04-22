@@ -249,9 +249,12 @@ def shortest_motif_length(record):
 	return min(len(motif) for motif in motif_values)
 
 
-def has_single_read_support(record, ac):
-	if not filter_singletons or not ac or ac[0] > 2:
+def has_single_read_support(record):
+	if not filter_singletons:
 		return False
+    
+    if 'AC' in record.info and len(record.alts) == 1 and record.info['AC'][0] > 2:
+        return False
 
 	alt_depths = []
 	for sample_data in record.samples.values():
@@ -316,7 +319,7 @@ for record in iterator:
 		record.filter.add("HOMOPOLYMER_TRV")
 
 	# Flag variants with single read support
-	if has_single_read_support(record, ac):
+	if has_single_read_support(record):
 		record.filter.add("SINGLE_READ_SUPPORT")
 
 	vcf_out.write(record)
