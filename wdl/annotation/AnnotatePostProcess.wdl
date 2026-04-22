@@ -252,9 +252,9 @@ def shortest_motif_length(record):
 def has_single_read_support(record):
 	if not filter_singletons:
 		return False
-    
-    if 'AC' in record.info and len(record.alts) == 1 and record.info['AC'][0] > 2:
-        return False
+	
+	if 'AC' in record.info and len(record.alts) == 1 and record.info['AC'][0] > 2:
+		return False
 
 	alt_depths = []
 	for sample_data in record.samples.values():
