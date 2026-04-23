@@ -105,7 +105,7 @@ CODE
 with open("$format_fields_file") as fh:
     format_fields = [line.strip() for line in fh if line.strip()]
 
-columns = [f".FORMAT/{field}" for field in format_fields]
+columns = ["~ID"] + [f".FORMAT/{field}" for field in format_fields]
 
 with open("annotate.columns.txt", "w") as out:
     out.write(",".join(columns))
