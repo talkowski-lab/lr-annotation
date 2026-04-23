@@ -223,6 +223,7 @@ except ValueError:
 for record in iterator:
 	record.translate(output_writer.header)
 
+	# Transfer GT field
 	if transfer_genotypes:
 		match = find_match(record, genotyped_reader)
 		if match is not None:
@@ -236,13 +237,16 @@ for record in iterator:
 		sample_data = record.samples[sample]
 		sample_sex = sex_by_sample.get(sample)
 
+		# Clear format fields for females on chrY
 		if record.chrom == "chrY" and sample_sex == "F":
 			clear_format_fields(sample_data)
 			continue
 
+		# Make male calls hemizygous on chrX & chrY
 		if record.chrom in {"chrX", "chrY"} and sample_sex == "M":
 			sample_data["GT"] = make_male_hemizygous(sample_data.get("GT"), sample_data.phased)
 
+		# Right align unphased calls
 		if not sample_data.phased:
 			sample_data["GT"] = right_align_unphased(sample_data.get("GT"))
 
