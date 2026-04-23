@@ -287,7 +287,7 @@ workflows:
 
   - subclass: WDL
     name: FillFormatFields_V3
-    primaryDescriptorPath: /wdl/annotation_utils/FillFormatFields_V2.wdl
+    primaryDescriptorPath: /wdl/annotation_utils/FillFormatFields_V3.wdl
     filters:
       branches:
         - main
