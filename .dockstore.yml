@@ -393,6 +393,15 @@ workflows:
       tags:
         - /.*/
 
+  - subclass: WDL
+    name: UpdateGenotypes
+    primaryDescriptorPath: /wdl/annotation_utils/UpdateGenotypes.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
   # -----
   # Tools
   # -----
