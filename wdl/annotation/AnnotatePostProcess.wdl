@@ -184,12 +184,14 @@ if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
 	header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by only one read in a single sample")
 
 # Set up variables
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
+vcf_out = pysam.VariantFile("~{prefix}.processed.vcf.gz", "wz", header=header)
 iterator = vcf_in.fetch(target_contig)
 
 # Iterate through records
 for record in iterator:
 	record.translate(vcf_out.header)
+
+	# Revise MEIs outside expected size range to indel
 	prune_meis(record)
 
 	# Flag homopolymer TR variants
@@ -206,6 +208,15 @@ vcf_in.close()
 vcf_out.close()
 CODE
 
+		bcftools view -h ~{prefix}.processed.vcf.gz \
+			| awk '/^##fileformat=|^##contig=|^##FILTER=|^##INFO=|^##FORMAT=|^#CHROM/ { print }' \
+			> clean_header.txt
+
+		bcftools reheader \
+			-h clean_header.txt \
+			-o ~{prefix}.vcf.gz \
+			~{prefix}.processed.vcf.gz
+		
 		tabix -p vcf -f ~{prefix}.vcf.gz
 	>>>
 
@@ -254,20 +265,11 @@ task AnnotateVcfWithVRS {
 
 		vrs-annotate vcf \
 			--dataproxy-uri="seqrepo+file://${SEQREPO_PATH}" \
-			--vcf-out ~{prefix}.vrs.vcf.gz \
+			--vcf-out ~{prefix}.vcf.gz \
 			--vrs-attributes \
 			~{vcf}
 
 		rm -rf seqrepo_data
-
-		bcftools view -h ~{prefix}.vrs.vcf.gz \
-			| awk '/^##fileformat=|^##contig=|^##FILTER=|^##INFO=|^##FORMAT=|^#CHROM/ { print }' \
-			> clean_header.txt
-
-		bcftools reheader \
-			-h clean_header.txt \
-			-o ~{prefix}.vcf.gz \
-			~{prefix}.vrs.vcf.gz
 
 		tabix -p vcf -f ~{prefix}.vcf.gz
 	>>>
