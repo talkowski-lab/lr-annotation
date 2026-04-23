@@ -7,6 +7,7 @@ workflow AnnotatePostProcess {
 		File vcf
 		File vcf_idx
 		Array[String] contigs
+		Array[String] include_contigs
 		String prefix
 
 		File seqrepo_tar
@@ -45,6 +46,7 @@ workflow AnnotatePostProcess {
 				vcf = contig_vcf,
 				vcf_idx = contig_vcf_idx,
 				contig = contig,
+				include_contigs = include_contigs,
 				filter_singletons = filter_singletons,
 				prefix = prefix + "." + contig + ".post_process",
 				docker = utils_docker,
@@ -86,6 +88,7 @@ task PostProcessVcf {
 		File vcf
 		File vcf_idx
 		String contig
+		Array[String] include_contigs
 		Boolean filter_singletons
 		String prefix
 		String docker
@@ -212,8 +215,55 @@ CODE
 			| awk '/^##fileformat=|^##contig=|^##FILTER=|^##INFO=|^##FORMAT=|^#CHROM/ { print }' \
 			> clean_header.txt
 
+		python3 <<CODE
+import json
+import re
+
+with open("~{write_json(include_contigs)}", "r") as handle:
+	include_contigs = json.load(handle)
+
+fileformat_line = None
+chrom_line = None
+contig_lines = {}
+filter_lines = []
+info_lines = []
+format_lines = []
+
+with open("clean_header.txt", "r") as handle:
+	for line in handle:
+		if line.startswith("##fileformat="):
+			fileformat_line = line
+		elif line.startswith("##contig="):
+			match = re.search(r"ID=([^,>]+)", line)
+			if match:
+				contig_lines[match.group(1)] = line
+		elif line.startswith("##FILTER="):
+			filter_lines.append(line)
+		elif line.startswith("##INFO="):
+			info_lines.append(line)
+		elif line.startswith("##FORMAT="):
+			format_lines.append(line)
+		elif line.startswith("#CHROM"):
+			chrom_line = line
+
+with open("clean_header.grouped.txt", "w") as handle:
+	if fileformat_line is not None:
+		handle.write(fileformat_line)
+	for contig_name in include_contigs:
+		if contig_name in contig_lines:
+			handle.write(contig_lines[contig_name])
+	for line in filter_lines:
+		handle.write(line)
+	for line in info_lines:
+		handle.write(line)
+	for line in format_lines:
+		handle.write(line)
+	if chrom_line is not None:
+		handle.write(chrom_line)
+CODE
+
 		bcftools reheader \
-			-h clean_header.txt \
+			-h clean_header.grouped.txt \
 			-o ~{prefix}.vcf.gz \
 			~{prefix}.processed.vcf.gz
 		
