@@ -34,6 +34,7 @@ workflow FillFormatFields {
     call Helpers.CreateContigShards {
         input:
             vcfs = [unfilled_vcf, filled_vcf],
+            vcf_idxs = [unfilled_vcf_idx, filled_vcf_idx],
             contig = contig,
             bin_size = bin_size,
             prefix = "~{prefix}.shards",

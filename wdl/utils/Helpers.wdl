@@ -672,6 +672,7 @@ CODE
 task CreateContigShards {
     input {
         Array[File] vcfs
+        Array[File] vcf_idxs
         String contig
         Int bin_size
         String prefix
@@ -682,15 +683,19 @@ task CreateContigShards {
     command <<<
         set -euo pipefail
 
+        vcfs_file="~{write_lines(vcfs)}"
+        vcf_idxs_file="~{write_lines(vcf_idxs)}"
+        paste "$vcfs_file" "$vcf_idxs_file" > vcf_pairs.tsv
         max_pos=0
-        while IFS= read -r vcf; do
+        while IFS=$'\t' read -r vcf vcf_idx; do
+            ln -sf "$vcf_idx" "$vcf.tbi"
             pos=$(bcftools query -r ~{contig} -f '%POS\n' "$vcf" | tail -n1 || true)
             if [[ -n "$pos" ]] && (( pos > max_pos )); then
                 max_pos=$pos
             fi
-        done < "~{write_lines(vcfs)}"
+        done < vcf_pairs.tsv
 
-        python3 - <<'CODE'
+        python3 - <<CODE
 import math
 
 contig = "~{contig}"
@@ -2123,6 +2128,8 @@ task SubsetVcfToRegion {
 
     command <<<
         set -euo pipefail
+
+        ln -sf "~{vcf_idx}" "~{vcf}.tbi"
 
         bcftools view \
             -t ~{region} \

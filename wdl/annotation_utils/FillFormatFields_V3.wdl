@@ -99,7 +99,7 @@ CODE
         bcftools query -l "$filled_vcf_for_fill" | sort > filled.samples.txt
         comm -12 unfilled.samples.txt filled.samples.txt > common.samples.txt
 
-        python3 <<'CODE'
+        python3 <<CODE
 with open("$format_fields_file") as fh:
     format_fields = [line.strip() for line in fh if line.strip()]
 
