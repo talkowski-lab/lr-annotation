@@ -688,7 +688,9 @@ task CreateContigShards {
         paste "$vcfs_file" "$vcf_idxs_file" > vcf_pairs.tsv
         max_pos=0
         while IFS=$'\t' read -r vcf vcf_idx; do
-            ln -sf "$vcf_idx" "$vcf.tbi"
+            if [[ "$vcf_idx" != "$vcf.tbi" ]]; then
+                ln -sf "$vcf_idx" "$vcf.tbi"
+            fi
             pos=$(bcftools query -r ~{contig} -f '%POS\n' "$vcf" | tail -n1 || true)
             if [[ -n "$pos" ]] && (( pos > max_pos )); then
                 max_pos=$pos
@@ -2129,7 +2131,9 @@ task SubsetVcfToRegion {
     command <<<
         set -euo pipefail
 
-        ln -sf "~{vcf_idx}" "~{vcf}.tbi"
+        if [[ "~{vcf_idx}" != "~{vcf}.tbi" ]]; then
+            ln -sf "~{vcf_idx}" "~{vcf}.tbi"
+        fi
 
         bcftools view \
             -t ~{region} \

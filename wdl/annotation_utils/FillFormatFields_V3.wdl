@@ -92,7 +92,9 @@ CODE
             tabix -p vcf filled.ev_number_fixed.vcf.gz
             filled_vcf_for_fill="filled.ev_number_fixed.vcf.gz"
         else
-            ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            if [[ "~{filled_vcf_idx}" != "~{filled_vcf}.tbi" ]]; then
+                ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            fi
         fi
 
         bcftools query -l "~{unfilled_vcf}" | sort > unfilled.samples.txt
@@ -115,7 +117,7 @@ CODE
                 -a "$filled_vcf_for_fill" \
                 -S common.samples.txt \
                 -c "$annotate_columns" \
-                --pair-logic exact \
+                --collapse none \
                 --threads "$threads" \
                 -k \
                 -Oz -o annotated.vcf.gz \

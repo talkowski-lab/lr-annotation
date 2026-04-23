@@ -150,7 +150,9 @@ CODE
             tabix -p vcf filled.ev_number_fixed.vcf.gz
             filled_vcf_for_fill="filled.ev_number_fixed.vcf.gz"
         else
-            ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            if [[ "~{filled_vcf_idx}" != "~{filled_vcf}.tbi" ]]; then
+                ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            fi
         fi
 
         python3 <<CODE

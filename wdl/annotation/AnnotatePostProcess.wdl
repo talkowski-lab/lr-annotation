@@ -182,9 +182,9 @@ def has_single_read_support(record):
 vcf_in = pysam.VariantFile("~{vcf}")
 header = vcf_in.header.copy()
 if "HOMOPOLYMER_TRV" not in header.filters:
-	header.filters.add("HOMOPOLYMER_TRV", None, None, "TRV call where the shortest motif has length 1")
+	header.filters.add("HOMOPOLYMER_TRV", None, None, "Tandem repeat call where the shortest motif has length 1.")
 if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
-	header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by only one read in a single sample")
+	header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by a single read in a single sample.")
 
 # Set up variables
 vcf_out = pysam.VariantFile("~{prefix}.processed.vcf.gz", "wz", header=header)
