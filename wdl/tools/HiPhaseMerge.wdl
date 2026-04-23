@@ -22,6 +22,7 @@ workflow HiPhaseMerge {
         RuntimeAttr? runtime_attr_subset_trgt
         RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_subset_integrated
+        RuntimeAttr? runtime_attr_add_trgt_end
         RuntimeAttr? runtime_attr_extract_trgt_ps
         RuntimeAttr? runtime_attr_fix_al_header
         RuntimeAttr? runtime_attr_merge_trgt
@@ -63,10 +64,19 @@ workflow HiPhaseMerge {
                     runtime_attr_override = runtime_attr_subset_trgt
             }
 
-            call ExtractTRGTPSTags {
+            call AddTRGTEndTag {
                 input:
                     vcf = SubsetTRGT.subset_vcf,
                     vcf_idx = SubsetTRGT.subset_vcf_idx,
+                    prefix = "~{prefix}.~{i}.trgt.with_end",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_add_trgt_end
+            }
+
+            call ExtractTRGTPSTags {
+                input:
+                    vcf = AddTRGTEndTag.vcf_with_end,
+                    vcf_idx = AddTRGTEndTag.vcf_with_end_idx,
                     prefix = "~{prefix}.~{i}.trgt",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_trgt_ps
@@ -74,8 +84,8 @@ workflow HiPhaseMerge {
 
             call FixALHeader {
                 input:
-                    vcf = SubsetTRGT.subset_vcf,
-                    vcf_idx = SubsetTRGT.subset_vcf_idx,
+                    vcf = AddTRGTEndTag.vcf_with_end,
+                    vcf_idx = AddTRGTEndTag.vcf_with_end_idx,
                     prefix = "~{prefix}.~{i}.trgt.fixed_al",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_fix_al_header
@@ -169,11 +179,11 @@ task ExtractTRGTPSTags {
 import pysam
 
 with pysam.VariantFile("~{vcf}") as vcf_in:
-    sample = list(vcf_in.header.samples)[0]
-    with open("~{prefix}.ps.tsv", 'w') as out:
+    sample = next(iter(vcf_in.header.samples))
+    with open("~{prefix}.ps.tsv", "w") as out:
         out.write(f"#SAMPLE\t{sample}\n")
         for rec in vcf_in:
-            ps_val = rec.samples[sample].get('PS', None)
+            ps_val = rec.samples[sample].get("PS")
             if ps_val is not None:
                 out.write(f"{rec.chrom}\t{rec.pos}\t{ps_val}\n")
 CODE
@@ -203,6 +213,88 @@ CODE
     }
 }
 
+task AddTRGTEndTag {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view ~{vcf} \
+        | awk 'BEGIN { FS = OFS = "\t"; has_end_header = 0 }
+            /^##INFO=<ID=END,/ {
+                has_end_header = 1
+                print
+                next
+            }
+            /^#CHROM/ {
+                if (!has_end_header) {
+                    print "##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position of the variant described in this record\">"
+                }
+                print
+                next
+            }
+            /^#/ {
+                print
+                next
+            }
+            {
+                end_val = $2 + length($4) - 1
+
+                if ($8 == "." || $8 == "") {
+                    $8 = "END=" end_val
+                } else if ($8 ~ /(^|;)END=/) {
+                    n = split($8, info_parts, ";")
+                    for (i = 1; i <= n; i++) {
+                        if (info_parts[i] ~ /^END=/) {
+                            info_parts[i] = "END=" end_val
+                        }
+                    }
+                    $8 = info_parts[1]
+                    for (i = 2; i <= n; i++) {
+                        $8 = $8 ";" info_parts[i]
+                    }
+                } else {
+                    $8 = $8 ";END=" end_val
+                }
+
+                print
+            }' \
+        | bgzip -c > ~{prefix}.vcf.gz
+
+        tabix -f -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File vcf_with_end = "~{prefix}.vcf.gz"
+        File vcf_with_end_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 3 * ceil(size([vcf, vcf_idx], "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task FixALHeader {
     input {
         File vcf
@@ -215,17 +307,12 @@ task FixALHeader {
     command <<<
         set -euo pipefail
 
-        bcftools view \
-            -h \
-            ~{vcf} \
+        bcftools view -h ~{vcf} \
         | sed 's/^##FORMAT=<ID=AL,.*$/##FORMAT=<ID=AL,Number=.,Type=Integer,Description="Length of each allele">/' \
-            > new_header.txt
+        > new_header.txt
 
-        bcftools reheader \
-            -h new_header.txt \
-            ~{vcf} \
-        | bcftools view \
-            -Oz -o ~{prefix}.vcf.gz
+        bcftools reheader -h new_header.txt ~{vcf} \
+        | bcftools view -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -324,7 +411,7 @@ task AnnotateTRGTPS {
         echo "~{sep='\n' ps_tsvs}" > ps_tsv_list.txt
 
         while IFS= read -r tsv_file; do
-            awk -F'\t' -v contig="~{contig}" \
+            awk -F '\t' -v contig="~{contig}" \
                 'NR==1{sample=$2} NR>1 && $1==contig{print sample"\t"$2"\t"$3}' \
                 "$tsv_file"
         done < ps_tsv_list.txt > contig_ps.tsv
@@ -337,17 +424,17 @@ ps_lookup = defaultdict(dict)
 
 with open("contig_ps.tsv") as f:
     for line in f:
-        sample_name, pos_str, ps_val = line.rstrip('\n').split('\t')
+        sample_name, pos_str, ps_val = line.rstrip("\n").split("\t")
         ps_lookup[int(pos_str)][sample_name] = int(ps_val)
 
 with pysam.VariantFile("~{merged_vcf}") as vcf_in:
     header = vcf_in.header
-    with pysam.VariantFile("~{prefix}.vcf.gz", 'wz', header=header) as vcf_out:
+    with pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header) as vcf_out:
         for rec in vcf_in:
             if rec.pos in ps_lookup:
                 for sample_name, ps_val in ps_lookup[rec.pos].items():
                     if sample_name in rec.samples:
-                        rec.samples[sample_name]['PS'] = ps_val
+                        rec.samples[sample_name]["PS"] = ps_val
             vcf_out.write(rec)
 CODE
 
