@@ -105,7 +105,7 @@ CODE
 with open("$format_fields_file") as fh:
     format_fields = [line.strip() for line in fh if line.strip()]
 
-columns = ["~ID"] + [f".FORMAT/{field}" for field in format_fields]
+columns = [f".FORMAT/{field}" for field in format_fields]
 
 with open("annotate.columns.txt", "w") as out:
     out.write(",".join(columns))
@@ -145,9 +145,14 @@ include_value = "~{default="" include_value}" or None
 unphase_gts = ~{true="True" false="False" unphase_gts}
 add_pl = ~{true="True" false="False" add_pl}
 
+unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
+filled_in = pysam.VariantFile("$filled_vcf_for_fill")
 annotated_in = pysam.VariantFile("annotated.vcf.gz")
 
 out_header = annotated_in.header.copy()
+for field in format_fields:
+    if field in filled_in.header.formats and field not in out_header.formats:
+        out_header.add_record(filled_in.header.formats[field].record)
 if add_pl and "PL" not in out_header.formats:
     out_header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 
