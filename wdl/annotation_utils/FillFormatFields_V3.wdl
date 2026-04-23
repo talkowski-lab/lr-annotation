@@ -14,8 +14,6 @@ workflow FillFormatFields {
         String? include_field
         String? include_value
         Boolean modify_ev_number = false
-        Boolean fill_alt_gts = false
-        Boolean fill_ref_gts = false
         Boolean unphase_gts = false
         Boolean add_pl = false
 
@@ -34,8 +32,6 @@ workflow FillFormatFields {
             include_field = include_field,
             include_value = include_value,
             modify_ev_number = modify_ev_number,
-            fill_alt_gts = fill_alt_gts,
-            fill_ref_gts = fill_ref_gts,
             unphase_gts = unphase_gts,
             add_pl = add_pl,
             prefix = prefix,
@@ -59,8 +55,6 @@ task FillVcfFormatFields {
         String? include_field
         String? include_value
         Boolean modify_ev_number = false
-        Boolean fill_alt_gts = false
-        Boolean fill_ref_gts = false
         Boolean unphase_gts = false
         Boolean add_pl = false
         String prefix
@@ -73,6 +67,7 @@ task FillVcfFormatFields {
 
         format_fields_file="~{write_lines(format_fields)}"
         filled_vcf_for_fill="~{filled_vcf}"
+        threads=$(nproc)
 
         if [[ "~{modify_ev_number}" == "true" ]] && grep -Fxq "EV" "$format_fields_file"; then
             bcftools view -h "~{filled_vcf}" > filled.header.txt
@@ -100,6 +95,37 @@ CODE
             ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
         fi
 
+        bcftools query -l "~{unfilled_vcf}" | sort > unfilled.samples.txt
+        bcftools query -l "$filled_vcf_for_fill" | sort > filled.samples.txt
+        comm -12 unfilled.samples.txt filled.samples.txt > common.samples.txt
+
+        python3 <<'CODE'
+with open("$format_fields_file") as fh:
+    format_fields = [line.strip() for line in fh if line.strip()]
+
+columns = [f".FORMAT/{field}" for field in format_fields]
+
+with open("annotate.columns.txt", "w") as out:
+    out.write(",".join(columns))
+CODE
+
+        annotate_columns=$(cat annotate.columns.txt)
+        if [[ -n "$annotate_columns" ]]; then
+            bcftools annotate \
+                -a "$filled_vcf_for_fill" \
+                -S common.samples.txt \
+                -c "$annotate_columns" \
+                --pair-logic exact \
+                --threads "$threads" \
+                -k \
+                -Oz -o annotated.vcf.gz \
+                "~{unfilled_vcf}"
+            tabix -p vcf -f annotated.vcf.gz
+        else
+            ln -sf "~{unfilled_vcf}" annotated.vcf.gz
+            ln -sf "~{unfilled_vcf_idx}" annotated.vcf.gz.tbi
+        fi
+
         python3 <<CODE
 import math
 import pysam
@@ -107,28 +133,21 @@ import pysam
 with open("$format_fields_file") as fh:
     format_fields = [l.strip() for l in fh if l.strip()]
 
-assert "GT" not in format_fields, "GT must not be passed in format_fields; use fill_alt_gts/fill_ref_gts instead"
+with open("common.samples.txt") as fh:
+    common_samples = [l.strip() for l in fh if l.strip()]
+
+assert "GT" not in format_fields, "GT is not supported in FillFormatFields_V3"
 
 include_field = "~{default="" include_field}" or None
 include_value = "~{default="" include_value}" or None
-fill_alt_gts = ~{true="True" false="False" fill_alt_gts}
-fill_ref_gts = ~{true="True" false="False" fill_ref_gts}
 unphase_gts = ~{true="True" false="False" unphase_gts}
 add_pl = ~{true="True" false="False" add_pl}
 
-unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
-filled_in = pysam.VariantFile("$filled_vcf_for_fill")
+annotated_in = pysam.VariantFile("annotated.vcf.gz")
 
-out_header = unfilled_in.header.copy()
-for field in format_fields:
-    if field in filled_in.header.formats and field not in out_header.formats:
-        out_header.add_record(filled_in.header.formats[field].record)
+out_header = annotated_in.header.copy()
 if add_pl and "PL" not in out_header.formats:
     out_header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
-
-filled_samples = set(filled_in.header.samples)
-common_samples = [s for s in out_header.samples if s in filled_samples]
-all_samples = list(out_header.samples)
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
 
@@ -139,9 +158,6 @@ def variant_passes_include(rec):
     if isinstance(val, tuple):
         val = val[0] if val else None
     return str(val) == include_value
-
-def gt_is_alt(gt):
-    return any(a is not None and a > 0 for a in gt)
 
 def get_sample_ploidy(sample_data):
     gt = sample_data.get("GT")
@@ -176,60 +192,30 @@ def ad_is_populated(ad):
 def unphase_gt(gt):
     return tuple(sorted(gt, key=lambda allele: (allele is None, allele if allele is not None else 0)))
 
-for unfilled_rec in unfilled_in:
-    # Find matching variant
-    unfilled_rec.translate(out_header)
-    passes_include = variant_passes_include(unfilled_rec)
-    match = None
-    for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
-        if cand.id == unfilled_rec.id:
-            match = cand
-            break
+for annotated_rec in annotated_in:
+    annotated_rec.translate(out_header)
 
-    if match and passes_include:
+    if variant_passes_include(annotated_rec):
         for sample in common_samples:
-            # Set GT field
-            if fill_alt_gts or fill_ref_gts:
-                src_gt = match.samples[sample].get("GT")
-                cur_gt = unfilled_rec.samples[sample].get("GT")
-                if src_gt is not None and cur_gt is not None:
-                    cur_is_alt = gt_is_alt(cur_gt)
-                    if (fill_alt_gts and cur_is_alt) or (fill_ref_gts and not cur_is_alt):
-                        unfilled_rec.samples[sample]["GT"] = src_gt
-                        unfilled_rec.samples[sample].phased = match.samples[sample].phased
-
-            # Copy over values for format fields
-            for field in format_fields:
-                if field not in match.format:
-                    continue
-                value = match.samples[sample].get(field)
-                try:
-                    unfilled_rec.samples[sample][field] = value
-                except Exception:
-                    print(f"[{unfilled_rec.id}] Could not set {field} for {sample}.")
-                    pass
-
-            # Unphase genotype
             if unphase_gts:
-                current_gt = unfilled_rec.samples[sample].get("GT")
+                current_gt = annotated_rec.samples[sample].get("GT")
                 if current_gt is not None:
-                    unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
-                    unfilled_rec.samples[sample].phased = False
+                    annotated_rec.samples[sample]["GT"] = unphase_gt(current_gt)
+                    annotated_rec.samples[sample].phased = False
 
-            # Set PL if not present but AD exists
-            if add_pl and "PL" not in unfilled_rec.format and "AD" in unfilled_rec.format:
-                ad = unfilled_rec.samples[sample].get("AD")
+            if add_pl and "PL" not in annotated_rec.format and "AD" in annotated_rec.format:
+                ad = annotated_rec.samples[sample].get("AD")
                 if ad_is_populated(ad):
-                    ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
+                    ploidy = get_sample_ploidy(annotated_rec.samples[sample])
                     if ploidy is not None:
-                        unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
+                        annotated_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
 
-    out.write(unfilled_rec)
+    out.write(annotated_rec)
 
 out.close()
 CODE
 
-        tabix -p vcf ~{prefix}.vcf.gz
+        tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {

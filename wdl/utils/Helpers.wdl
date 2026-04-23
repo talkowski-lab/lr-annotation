@@ -669,6 +669,70 @@ CODE
   }
 }
 
+task CreateContigShards {
+    input {
+        Array[File] vcfs
+        String contig
+        Int bin_size
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        max_pos=0
+        while IFS= read -r vcf; do
+            pos=$(bcftools query -r ~{contig} -f '%POS\n' "$vcf" | tail -n1 || true)
+            if [[ -n "$pos" ]] && (( pos > max_pos )); then
+                max_pos=$pos
+            fi
+        done < "~{write_lines(vcfs)}"
+
+        python3 - <<'CODE'
+import math
+
+contig = "~{contig}"
+bin_size = ~{bin_size}
+max_pos = int("$max_pos")
+
+with open("~{prefix}.txt", "w") as out:
+    if max_pos == 0:
+        pass
+    else:
+        shard_count = int(math.ceil(max_pos / bin_size))
+        for shard_index in range(shard_count):
+            start = shard_index * bin_size + 1
+            end = min((shard_index + 1) * bin_size, max_pos)
+            out.write(f"{contig}:{start}-{end}\n")
+CODE
+    >>>
+
+    output {
+        Array[String] shard_regions = read_lines("~{prefix}.txt")
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: ceil(2 * size(vcfs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task DropVcfFields {
     input {
         File vcf
@@ -2019,6 +2083,53 @@ task SubsetVcfToContig {
             ~{if defined(extra_args) then extra_args else ""} \
             ~{vcf} \
             -Oz -o ~{prefix}.vcf.gz
+        tabix -p vcf -f ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File subset_vcf = "~{prefix}.vcf.gz"
+        File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task SubsetVcfToRegion {
+    input {
+        File vcf
+        File vcf_idx
+        String region
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools view \
+            -t ~{region} \
+            --threads $(nproc) \
+            ~{vcf} \
+            -Oz -o ~{prefix}.vcf.gz
+
         tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
