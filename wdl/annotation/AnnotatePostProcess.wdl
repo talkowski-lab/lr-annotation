@@ -9,7 +9,6 @@ workflow AnnotatePostProcess {
 		Array[String] contigs
 		String prefix
 
-		File ped
 		File seqrepo_tar
 
 		Boolean filter_singletons = false
@@ -46,7 +45,6 @@ workflow AnnotatePostProcess {
 				vcf = contig_vcf,
 				vcf_idx = contig_vcf_idx,
 				contig = contig,
-				ped = ped,
 				filter_singletons = filter_singletons,
 				prefix = prefix + "." + contig + ".post_process",
 				docker = utils_docker,
@@ -88,7 +86,6 @@ task PostProcessVcf {
 		File vcf
 		File vcf_idx
 		String contig
-		File ped
 		Boolean filter_singletons
 		String prefix
 		String docker
@@ -99,35 +96,11 @@ task PostProcessVcf {
 		set -euo pipefail
 
 		python3 <<CODE
-import json
-import math
 import sys
 import pysam
-from math import comb
 
 filter_singletons = ~{true="True" false="False" filter_singletons}
 target_contig = "~{contig}"
-
-sex_by_sample = {}
-with open("~{ped}", "r") as handle:
-	for line_number, line in enumerate(handle, start=1):
-		fields = line.rstrip("\n").split("\t")
-		if len(fields) < 5:
-			print(f"PED line {line_number} has fewer than 5 columns", file=sys.stderr)
-			sys.exit(1)
-
-		sample_id = fields[1]
-		sex_code = fields[4]
-		if sample_id in sex_by_sample:
-			print(f"Duplicate sample_id '{sample_id}' in PED file", file=sys.stderr)
-			sys.exit(1)
-
-		if sex_code == "1":
-			sex_by_sample[sample_id] = "M"
-		elif sex_code == "2":
-			sex_by_sample[sample_id] = "F"
-		else:
-			sex_by_sample[sample_id] = None
 
 
 def get_scalar(value):
@@ -137,35 +110,6 @@ def get_scalar(value):
 				return item
 		return None
 	return value
-
-
-def genotype_field_length(n_alleles):
-	return comb(n_alleles + 1, 2)
-
-
-def is_missing(gt):
-	return gt is None or all(allele is None for allele in gt)
-
-
-def calculate_pl(ref_reads, alt_reads):
-	total_reads = ref_reads + alt_reads
-	if total_reads == 0:
-		return (0, 0, 0)
-
-	means = [0.03, 0.50, 0.97]
-	priors = [0.33, 0.34, 0.33]
-
-	ll_raw = []
-	for prior, mean in zip(priors, means):
-		ll = math.log(prior) + alt_reads * math.log(mean) + ref_reads * math.log(1.0 - mean)
-		ll_raw.append(ll / math.log(10))
-
-	max_ll = max(ll_raw)
-	return tuple(int(round(-10 * (ll - max_ll))) for ll in ll_raw)
-
-
-def calculate_gq(pls):
-	return min(sorted(pls)[1], 99)
 
 
 def prune_meis(record):
@@ -183,61 +127,6 @@ def prune_meis(record):
 		record.info["allele_type"] = "ins" if "ins" in allele_type else "del"
 		if "SUB_FAMILY" in record.info:
 			del record.info["SUB_FAMILY"]
-
-
-def clear_genotype_fields(sample_data, n_alleles):
-	gt = sample_data.get("GT")
-	gt_length = len(gt) if gt is not None and len(gt) > 0 else 2
-	sample_data["GT"] = tuple(None for _ in range(gt_length))
-	if "DP" in sample_data:
-		sample_data["DP"] = None
-	if "GQ" in sample_data:
-		sample_data["GQ"] = None
-	if "AD" in sample_data:
-		ad = sample_data.get("AD")
-		ad_length = len(ad) if ad is not None and len(ad) > 0 else n_alleles
-		sample_data["AD"] = tuple(None for _ in range(ad_length))
-	if "PL" in sample_data:
-		pl = sample_data.get("PL")
-		pl_length = len(pl) if pl is not None and len(pl) > 0 else genotype_field_length(n_alleles)
-		sample_data["PL"] = tuple(None for _ in range(pl_length))
-
-
-def collapse_male_sex_chrom_gt(gt):
-	if is_missing(gt):
-		return gt
-
-	left = gt[0] if len(gt) > 0 else None
-	right = gt[1] if len(gt) > 1 else None
-
-	if left is not None and left > 0 and not (right is not None and right > 0):
-		return (left, None)
-	if right is not None and right > 0 and not (left is not None and left > 0):
-		return (None, right)
-	if left is not None and left > 0:
-		return (None, left)
-	if right is not None and right > 0:
-		return (None, right)
-	return (0, None)
-
-
-def update_haploid_likelihoods(sample_data, n_alleles):
-	if "PL" not in sample_data and "GQ" not in sample_data:
-		return
-
-	ad = sample_data.get("AD")
-	if ad is None or len(ad) != 2 or any(value is None for value in ad[:2]):
-		if "PL" in sample_data:
-			sample_data["PL"] = tuple(None for _ in range(genotype_field_length(n_alleles)))
-		if "GQ" in sample_data:
-			sample_data["GQ"] = None
-		return
-
-	pls = calculate_pl(ad[0], ad[1])
-	if "PL" in sample_data:
-		sample_data["PL"] = pls
-	if "GQ" in sample_data:
-		sample_data["GQ"] = calculate_gq(pls)
 
 
 def shortest_motif_length(record):
@@ -296,35 +185,12 @@ if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
 
 # Set up variables
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
-header_info = vcf_out.header.info
-samples_in_vcf = list(vcf_in.header.samples)
 iterator = vcf_in.fetch(target_contig)
 
 # Iterate through records
 for record in iterator:
 	record.translate(vcf_out.header)
 	prune_meis(record)
-
-	# Clear genotype fields for females on chrY
-	n_alleles = len(record.alleles)
-	if record.chrom == "chrY":
-		for sample in samples_in_vcf:
-			if sex_by_sample.get(sample) == "F":
-				clear_genotype_fields(record.samples[sample], n_alleles)
-
-	# Set GTs to hemizygous for males on chrX/chrY
-	if record.chrom in {"chrX", "chrY"}:
-		for sample in samples_in_vcf:
-			if sex_by_sample.get(sample) != "M":
-				continue
-
-			sample_data = record.samples[sample]
-			gt = sample_data.get("GT")
-			if is_missing(gt):
-				continue
-
-			sample_data["GT"] = collapse_male_sex_chrom_gt(gt)
-			update_haploid_likelihoods(sample_data, n_alleles)
 
 	# Flag homopolymer TR variants
 	if get_scalar(record.info.get("allele_type")) == "trv" and shortest_motif_length(record) == 1:
