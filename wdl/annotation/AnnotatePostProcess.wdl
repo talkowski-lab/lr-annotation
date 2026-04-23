@@ -10,13 +10,16 @@ workflow AnnotatePostProcess {
 		String prefix
 
 		File ped
+		File seqrepo_tar
 
 		Boolean filter_singletons = false
 
 		String utils_docker
+		String vrs_docker
 
 		RuntimeAttr? runtime_attr_subset
 		RuntimeAttr? runtime_attr_post_process
+		RuntimeAttr? runtime_attr_annotate_vrs
 		RuntimeAttr? runtime_attr_concat
 	}
 
@@ -49,13 +52,23 @@ workflow AnnotatePostProcess {
 				docker = utils_docker,
 				runtime_attr_override = runtime_attr_post_process
 		}
+
+		call AnnotateVcfWithVRS {
+			input:
+				vcf = PostProcessVcf.post_processed_vcf,
+				vcf_idx = PostProcessVcf.post_processed_vcf_idx,
+				seqrepo_tar = seqrepo_tar,
+				prefix = prefix + "." + contig + ".post_process.vrs",
+				docker = vrs_docker,
+				runtime_attr_override = runtime_attr_annotate_vrs
+		}
 	}
 
 	if (!single_contig) {
 		call Helpers.ConcatVcfs {
 			input:
-				vcfs = PostProcessVcf.post_processed_vcf,
-				vcf_idxs = PostProcessVcf.post_processed_vcf_idx,
+				vcfs = AnnotateVcfWithVRS.annotated_vcf,
+				vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
 				allow_overlaps = false,
 				naive = true,
 				prefix = prefix + ".post_processed",
@@ -65,8 +78,8 @@ workflow AnnotatePostProcess {
 	}
 
 	output {
-		File post_processed_vcf = select_first([ConcatVcfs.concat_vcf, PostProcessVcf.post_processed_vcf[0]])
-		File post_processed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, PostProcessVcf.post_processed_vcf_idx[0]])
+		File post_processed_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateVcfWithVRS.annotated_vcf[0]])
+		File post_processed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateVcfWithVRS.annotated_vcf_idx[0]])
 	}
 }
 
@@ -212,7 +225,6 @@ def update_haploid_likelihoods(sample_data, n_alleles):
 	if "PL" not in sample_data and "GQ" not in sample_data:
 		return
 
-
 	ad = sample_data.get("AD")
 	if ad is None or len(ad) != 2 or any(value is None for value in ad[:2]):
 		if "PL" in sample_data:
@@ -342,6 +354,69 @@ CODE
 		disk_gb: 3 * ceil(size(vcf, "GB")) + 20,
 		boot_disk_gb: 10,
 		preemptible_tries: 1,
+		max_retries: 0
+	}
+	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+	runtime {
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+	}
+}
+
+task AnnotateVcfWithVRS {
+	input {
+		File vcf
+		File vcf_idx
+		File seqrepo_tar
+		String prefix
+		String docker
+		RuntimeAttr? runtime_attr_override
+	}
+
+	command <<<
+		set -euo pipefail
+
+		mkdir seqrepo_data
+		tar -xzf ~{seqrepo_tar} -C seqrepo_data --strip-components 1
+
+		SEQREPO_PATH=$(find $(pwd)/seqrepo_data -name "aliases.sqlite3" | xargs dirname)
+
+		vrs-annotate vcf \
+			--dataproxy-uri="seqrepo+file://${SEQREPO_PATH}" \
+			--vcf-out ~{prefix}.vrs.vcf.gz \
+			--vrs-attributes \
+			~{vcf}
+
+		rm -rf seqrepo_data
+
+		bcftools view -h ~{prefix}.vrs.vcf.gz \
+			| awk '/^##fileformat=|^##contig=|^##FILTER=|^##INFO=|^##FORMAT=|^#CHROM/ { print }' \
+			> clean_header.txt
+
+		bcftools reheader \
+			-h clean_header.txt \
+			-o ~{prefix}.vcf.gz \
+			~{prefix}.vrs.vcf.gz
+
+		tabix -p vcf -f ~{prefix}.vcf.gz
+	>>>
+
+	output {
+		File annotated_vcf = "~{prefix}.vcf.gz"
+		File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+	}
+
+	RuntimeAttr default_attr = object {
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: 2 * ceil(size(vcf, "GB") + size(seqrepo_tar, "GB")) + 20,
+		boot_disk_gb: 50,
+		preemptible_tries: 2,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
