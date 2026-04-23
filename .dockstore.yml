@@ -277,6 +277,24 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: FillFormatFields_V2
+    primaryDescriptorPath: /wdl/annotation_utils/FillFormatFields_V2.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: FillFormatFields_V3
+    primaryDescriptorPath: /wdl/annotation_utils/FillFormatFields_V2.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: FillPhasedGenotypes
     primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
     filters:
