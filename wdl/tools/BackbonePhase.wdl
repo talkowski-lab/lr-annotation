@@ -473,9 +473,9 @@ with open("~{prefix}.tsv", "w") as out:
                         continue
                     group = (1, 0) if hap_idx == 0 else (0, 1)
                     if base_gts[key] == group:
-                        tally[(ps, group)][0] += 1
+                        tally[ps][0] += 1
                     else:
-                        tally[(ps, group)][1] += 1
+                        tally[ps][1] += 1
                     matches += 1
 
         flip_set = set()
@@ -502,13 +502,7 @@ with open("~{prefix}.tsv", "w") as out:
                 if ps is None:
                     continue
                 a, b = gt[0], gt[1]
-                should_flip = False
-                if a != 0 and b == 0:
-                    should_flip = (ps, (1, 0)) in flip_set
-                elif a == 0 and b != 0:
-                    should_flip = (ps, (0, 1)) in flip_set
-                else:
-                    should_flip = (ps, (1, 0)) in flip_set and (ps, (0, 1)) in flip_set
+                should_flip = ps in flip_set
 
                 final_gt = (b, a) if should_flip else (a, b)
                 gt_changed = orig_gt is not None and tuple(orig_gt) != final_gt
