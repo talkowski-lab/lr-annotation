@@ -273,7 +273,7 @@ for rec in base_vcf:
     base_gt = rec.samples[sample]['GT']
     kp_rec = next(
         r for r in kp_vcf.fetch(rec.chrom, rec.pos - 1, rec.pos)
-        if r.ref == rec.ref and r.alts == rec.alts and r.id == rec.id
+        if r.id == rec.id and r.ref == rec.ref and r.alts == rec.alts
     )
     kp_gt = kp_rec.samples[sample]['GT']
 

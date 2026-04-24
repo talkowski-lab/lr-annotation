@@ -105,7 +105,7 @@ out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 for record in phased_in:
     match = None
     for cand in unphased_in.fetch(record.chrom, record.start, record.stop):
-        if cand.id == record.id and cand.ref == record.ref and cand.alts == record.alts:
+        if cand.pos == record.pos and cand.ref == record.ref and cand.alts == record.alts:
             match = cand
             break
     

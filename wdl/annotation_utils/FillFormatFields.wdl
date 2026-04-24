@@ -183,7 +183,7 @@ for unfilled_rec in unfilled_in:
     passes_include = variant_passes_include(unfilled_rec)
     match = None
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
-        if cand.id == unfilled_rec.id:
+        if cand.id == unfilled_rec.id and cand.ref == unfilled_rec.ref and cand.alts == unfilled_rec.alts:
             match = cand
             break
 
