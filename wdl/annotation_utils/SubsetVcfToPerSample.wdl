@@ -1,39 +1,29 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
-import "../utils/Structs.wdl"
 
 workflow SubsetVcfToPerSample {
     input {
-        File cohort_vcf
-        File cohort_vcf_idx
+        Array[File] cohort_vcfs
+        Array[File] cohort_vcf_idxs
         Array[String] sample_ids
         Array[String] contigs
         String prefix
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_contig
         RuntimeAttr? runtime_attr_extract_sample
         RuntimeAttr? runtime_attr_concat_vcfs
     }
 
-    scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
-            input:
-                vcf = cohort_vcf,
-                vcf_idx = cohort_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig
-        }
+    scatter (i in range(length(contigs))) {
+        String contig = contigs[i]
 
         scatter (sample_id in sample_ids) {
             call Helpers.ExtractSample {
                 input:
-                    vcf = SubsetVcfToContig.subset_vcf,
-                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    vcf = cohort_vcfs[i],
+                    vcf_idx = cohort_vcf_idxs[i],
                     sample = sample_id,
                     normalize_output = true,
                     prefix = "~{prefix}.~{sample_id}.~{contig}",
@@ -52,7 +42,7 @@ workflow SubsetVcfToPerSample {
             input:
                 vcfs = vcfs_by_sample[i],
                 vcf_idxs = vcf_idxs_by_sample[i],
-                allow_overlaps = false,
+                allow_overlaps = true,
                 naive = true,
                 prefix = "~{prefix}.~{sample_ids[i]}",
                 docker = utils_docker,
