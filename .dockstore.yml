@@ -304,15 +304,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: FillSVFormatFields
-    primaryDescriptorPath: /wdl/annotation_utils/FillSVFormatFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: FilterTRGTCalls
     primaryDescriptorPath: /wdl/annotation_utils/FilterTRGTCalls.wdl
     filters:
@@ -333,6 +324,15 @@ workflows:
   - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: PopulateSVFormatFields
+    primaryDescriptorPath: /wdl/annotation_utils/PopulateSVFormatFields.wdl
     filters:
       branches:
         - main

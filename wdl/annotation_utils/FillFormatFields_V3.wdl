@@ -145,6 +145,8 @@ with open("common.samples.txt") as fh:
 
 assert "GT" not in format_fields, "GT is not supported in FillFormatFields_V3"
 
+include_field = "~{default="" include_field}" or None
+include_value = "~{default="" include_value}" or None
 unphase_gts = ~{true="True" false="False" unphase_gts}
 add_pl = ~{true="True" false="False" add_pl}
 
@@ -155,6 +157,15 @@ if add_pl and "PL" not in out_header.formats:
     out_header.add_line('##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">')
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
+all_samples = list(out_header.samples)
+
+def variant_passes_include(rec):
+    if include_field is None:
+        return True
+    val = rec.info.get(include_field)
+    if isinstance(val, tuple):
+        val = val[0] if val else None
+    return str(val) == include_value
 
 def get_sample_ploidy(sample_data):
     gt = sample_data.get("GT")
@@ -191,22 +202,25 @@ def unphase_gt(gt):
 
 for annotated_rec in annotated_in:
     annotated_rec.translate(out_header)
+    passes_include = variant_passes_include(annotated_rec)
 
-    for sample in common_samples:
+    if passes_include:
         # Unphase genotypes
         if unphase_gts:
-            current_gt = annotated_rec.samples[sample].get("GT")
-            if current_gt is not None:
-                annotated_rec.samples[sample]["GT"] = unphase_gt(current_gt)
-                annotated_rec.samples[sample].phased = False
+            for sample in all_samples:
+                current_gt = annotated_rec.samples[sample].get("GT")
+                if current_gt is not None:
+                    annotated_rec.samples[sample]["GT"] = unphase_gt(current_gt)
+                    annotated_rec.samples[sample].phased = False
 
-        # Set PL if not present but AD exists
+        # Set PL
         if add_pl and "PL" not in annotated_rec.format and "AD" in annotated_rec.format:
-            ad = annotated_rec.samples[sample].get("AD")
-            if ad_is_populated(ad):
-                ploidy = get_sample_ploidy(annotated_rec.samples[sample])
-                if ploidy is not None:
-                    annotated_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
+            for sample in all_samples:
+                ad = annotated_rec.samples[sample].get("AD")
+                if ad_is_populated(ad):
+                    ploidy = get_sample_ploidy(annotated_rec.samples[sample])
+                    if ploidy is not None:
+                        annotated_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
 
     out.write(annotated_rec)
 

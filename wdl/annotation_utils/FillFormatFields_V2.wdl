@@ -264,21 +264,23 @@ for unfilled_rec in unfilled_in:
                     print(f"[{unfilled_rec.id}] Could not set {field} for {sample}.")
                     pass
 
-    for sample in common_samples:
+    if passes_include:
         # Unphase genotypes
         if unphase_gts:
-            current_gt = unfilled_rec.samples[sample].get("GT")
-            if current_gt is not None:
-                unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
-                unfilled_rec.samples[sample].phased = False
+            for sample in all_samples:
+                current_gt = unfilled_rec.samples[sample].get("GT")
+                if current_gt is not None:
+                    unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
+                    unfilled_rec.samples[sample].phased = False
 
-        # Set PL if not present but AD exists
+        # Set PL
         if add_pl and "PL" not in unfilled_rec.format and "AD" in unfilled_rec.format:
-            ad = unfilled_rec.samples[sample].get("AD")
-            if ad_is_populated(ad):
-                ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
-                if ploidy is not None:
-                    unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
+            for sample in all_samples:
+                ad = unfilled_rec.samples[sample].get("AD")
+                if ad_is_populated(ad):
+                    ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
+                    if ploidy is not None:
+                        unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
 
     out.write(unfilled_rec)
 

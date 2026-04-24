@@ -240,15 +240,15 @@ TODO
 TODO
 
 
-### [FillSVFormatFields](wdl/annotation_utils/FillSVFormatFields.wdl)
-TODO
-
-
 ### [FilterTRGTCalls](wdl/annotation_utils/FilterTRGTCalls.wdl)
 TODO
 
 
 ### [IntegrateVcfs](wdl/annotation_utils/IntegrateHGSVC.wdl)
+TODO
+
+
+### [PopulateSVFormatFields](wdl/annotation_utils/PopulateSVFormatFields.wdl)
 TODO
 
 
