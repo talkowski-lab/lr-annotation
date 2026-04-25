@@ -9,14 +9,15 @@ workflow UpdateGenotypes {
 		File? genotyped_vcf
 		File? genotyped_vcf_idx
 		File ped
-
 		Array[String] contigs
 		String prefix
 
+		Int bin_size = 10000000000
 		Boolean transfer_genotypes = false
 
 		String utils_docker
 
+		RuntimeAttr? runtime_attr_create_shards
 		RuntimeAttr? runtime_attr_subset_base
 		RuntimeAttr? runtime_attr_subset_genotyped
 		RuntimeAttr? runtime_attr_update_genotypes
@@ -55,26 +56,71 @@ workflow UpdateGenotypes {
 		File transfer_source_vcf = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf, select_first([genotyped_vcf])]) else contig_base_vcf
 		File transfer_source_vcf_idx = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf_idx, select_first([genotyped_vcf_idx])]) else contig_base_vcf_idx
 
-		call UpdateContigGenotypes {
+		call Helpers.CreateContigShards {
 			input:
-				base_vcf = contig_base_vcf,
-				base_vcf_idx = contig_base_vcf_idx,
-				genotyped_vcf = transfer_source_vcf,
-				genotyped_vcf_idx = transfer_source_vcf_idx,
-				ped = ped,
+				vcfs = [contig_base_vcf, transfer_source_vcf],
+				vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
 				contig = contig,
-				transfer_genotypes = transfer_genotypes,
+				bin_size = bin_size,
+				prefix = prefix + "." + contig + ".shards",
+				docker = utils_docker,
+				runtime_attr_override = runtime_attr_create_shards
+		}
+
+		scatter (i in range(length(CreateContigShards.shard_regions))) {
+			String shard_region = CreateContigShards.shard_regions[i]
+
+			call Helpers.SubsetVcfToRegion as SubsetBaseShard {
+				input:
+					vcf = contig_base_vcf,
+					vcf_idx = contig_base_vcf_idx,
+					region = shard_region,
+					prefix = prefix + "." + contig + ".shard_" + i + ".base",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_subset_base
+			}
+
+			call Helpers.SubsetVcfToRegion as SubsetGenotypedShard {
+				input:
+					vcf = transfer_source_vcf,
+					vcf_idx = transfer_source_vcf_idx,
+					region = shard_region,
+					prefix = prefix + "." + contig + ".shard_" + i + ".genotyped",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_subset_genotyped
+			}
+
+			call UpdateContigGenotypes {
+				input:
+					base_vcf = SubsetBaseShard.subset_vcf,
+					base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
+					genotyped_vcf = SubsetGenotypedShard.subset_vcf,
+					genotyped_vcf_idx = SubsetGenotypedShard.subset_vcf_idx,
+					ped = ped,
+					transfer_genotypes = transfer_genotypes,
+					prefix = prefix + "." + contig + ".shard_" + i + ".updated",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_update_genotypes
+			}
+		}
+
+		call Helpers.ConcatVcfs as ConcatContig {
+			input:
+				vcfs = UpdateContigGenotypes.updated_vcf,
+				vcf_idxs = UpdateContigGenotypes.updated_vcf_idx,
+				allow_overlaps = false,
+				naive = true,
 				prefix = prefix + "." + contig + ".updated",
 				docker = utils_docker,
-				runtime_attr_override = runtime_attr_update_genotypes
+				runtime_attr_override = runtime_attr_concat
 		}
 	}
 
 	if (!single_contig) {
 		call Helpers.ConcatVcfs {
 			input:
-				vcfs = UpdateContigGenotypes.updated_vcf,
-				vcf_idxs = UpdateContigGenotypes.updated_vcf_idx,
+				vcfs = ConcatContig.concat_vcf,
+				vcf_idxs = ConcatContig.concat_vcf_idx,
 				allow_overlaps = false,
 				naive = true,
 				prefix = prefix + ".updated",
@@ -84,8 +130,8 @@ workflow UpdateGenotypes {
 	}
 
 	output {
-		File updated_vcf = select_first([ConcatVcfs.concat_vcf, UpdateContigGenotypes.updated_vcf[0]])
-		File updated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, UpdateContigGenotypes.updated_vcf_idx[0]])
+		File updated_vcf = select_first([ConcatVcfs.concat_vcf, ConcatContig.concat_vcf[0]])
+		File updated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, ConcatContig.concat_vcf_idx[0]])
 	}
 }
 
@@ -96,7 +142,6 @@ task UpdateContigGenotypes {
 		File genotyped_vcf
 		File genotyped_vcf_idx
 		File ped
-		String contig
 
 		Boolean transfer_genotypes
 
@@ -195,15 +240,7 @@ def make_male_hemizygous(gt, phased):
 	return right_align_unphased(tuple(new_gt))
 
 
-def find_match(record, genotyped_reader):
-	for candidate in genotyped_reader.fetch(record.chrom, record.start, record.stop):
-		if candidate.id == record.id and candidate.ref == record.ref and candidate.alts == record.alts:
-			return candidate
-	return None
-
-
 transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
-target_contig = "~{contig}"
 sex_by_sample = parse_ped("~{ped}")
 
 base_reader = pysam.VariantFile("~{base_vcf}")
@@ -215,17 +252,16 @@ shared_samples = set(base_samples)
 if transfer_genotypes:
 	shared_samples &= set(genotyped_reader.header.samples)
 
-try:
-	iterator = base_reader.fetch(target_contig)
-except ValueError:
-	iterator = iter(())
-
-for record in iterator:
+for record in base_reader:
 	record.translate(output_writer.header)
 
 	# Transfer GT field
 	if transfer_genotypes:
-		match = find_match(record, genotyped_reader)
+		match = None
+		for candidate in genotyped_reader.fetch(record.chrom, record.start, record.stop):
+			if candidate.chrom == record.chrom and candidate.pos == record.pos and candidate.id == record.id and candidate.ref == record.ref and candidate.alts == record.alts:
+				match = candidate
+				break
 		if match is not None:
 			for sample in shared_samples:
 				base_gt = record.samples[sample].get("GT")

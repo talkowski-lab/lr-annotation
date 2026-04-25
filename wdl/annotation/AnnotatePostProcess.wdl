@@ -45,7 +45,6 @@ workflow AnnotatePostProcess {
 			input:
 				vcf = contig_vcf,
 				vcf_idx = contig_vcf_idx,
-				contig = contig,
 				include_contigs = include_contigs,
 				filter_singletons = filter_singletons,
 				prefix = prefix + "." + contig + ".post_process",
@@ -87,7 +86,6 @@ task PostProcessVcf {
 	input {
 		File vcf
 		File vcf_idx
-		String contig
 		Array[String] include_contigs
 		Boolean filter_singletons
 		String prefix
@@ -103,7 +101,6 @@ import sys
 import pysam
 
 filter_singletons = ~{true="True" false="False" filter_singletons}
-target_contig = "~{contig}"
 
 
 def get_scalar(value):
@@ -188,10 +185,9 @@ if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
 
 # Set up variables
 vcf_out = pysam.VariantFile("~{prefix}.processed.vcf.gz", "wz", header=header)
-iterator = vcf_in.fetch(target_contig)
 
 # Iterate through records
-for record in iterator:
+for record in vcf_in:
 	record.translate(vcf_out.header)
 
 	# Revise MEIs outside expected size range to indel

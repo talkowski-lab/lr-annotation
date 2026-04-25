@@ -12,8 +12,11 @@ workflow FillPhasedGenotypes {
         Array[String] contigs
         String prefix
 
+        Int bin_size = 10000000000
+
         String utils_docker
         
+        RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
         RuntimeAttr? runtime_attr_fill
@@ -42,22 +45,68 @@ workflow FillPhasedGenotypes {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call FillGenotypes {
+        call Helpers.CreateContigShards {
             input:
-                phased_vcf = SubsetPhased.subset_vcf,
-                phased_vcf_idx = SubsetPhased.subset_vcf_idx,
-                unphased_vcf = SubsetUnphased.subset_vcf,
-                unphased_vcf_idx = SubsetUnphased.subset_vcf_idx,
+                vcfs = [SubsetPhased.subset_vcf, SubsetUnphased.subset_vcf],
+                vcf_idxs = [SubsetPhased.subset_vcf_idx, SubsetUnphased.subset_vcf_idx],
+                contig = contig,
+                bin_size = bin_size,
+                prefix = "~{prefix}.~{contig}.shards",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_create_shards
+        }
+
+        scatter (i in range(length(CreateContigShards.shard_regions))) {
+            String shard_region = CreateContigShards.shard_regions[i]
+
+            call Helpers.SubsetVcfToRegion as SubsetPhasedShard {
+                input:
+                    vcf = SubsetPhased.subset_vcf,
+                    vcf_idx = SubsetPhased.subset_vcf_idx,
+                    region = shard_region,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.phased",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
+
+            call Helpers.SubsetVcfToRegion as SubsetUnphasedShard {
+                input:
+                    vcf = SubsetUnphased.subset_vcf,
+                    vcf_idx = SubsetUnphased.subset_vcf_idx,
+                    region = shard_region,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.unphased",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset
+            }
+
+            call FillGenotypes {
+                input:
+                    phased_vcf = SubsetPhasedShard.subset_vcf,
+                    phased_vcf_idx = SubsetPhasedShard.subset_vcf_idx,
+                    unphased_vcf = SubsetUnphasedShard.subset_vcf,
+                    unphased_vcf_idx = SubsetUnphasedShard.subset_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.filled",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_fill
+            }
+        }
+
+        call Helpers.ConcatVcfs as ConcatContig {
+            input:
+                vcfs = FillGenotypes.filled_vcf,
+                vcf_idxs = FillGenotypes.filled_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
                 prefix = "~{prefix}.~{contig}.filled",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_fill
+                runtime_attr_override = runtime_attr_concat
         }
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = FillGenotypes.filled_vcf,
-            vcf_idxs = FillGenotypes.filled_vcf_idx,
+            vcfs = ConcatContig.concat_vcf,
+            vcf_idxs = ConcatContig.concat_vcf_idx,
             allow_overlaps = false,
             naive = true,
             prefix = "~{prefix}.filled",
@@ -105,7 +154,7 @@ out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 for record in phased_in:
     match = None
     for cand in unphased_in.fetch(record.chrom, record.start, record.stop):
-        if cand.pos == record.pos and cand.ref == record.ref and cand.alts == record.alts:
+        if cand.chrom == record.chrom and cand.pos == record.pos and cand.ref == record.ref and cand.alts == record.alts:
             match = cand
             break
     

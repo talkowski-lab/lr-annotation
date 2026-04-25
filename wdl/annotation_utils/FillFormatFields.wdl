@@ -10,8 +10,10 @@ workflow FillFormatFields {
         File filled_vcf
         File filled_vcf_idx
         String prefix
+        String contig
 
         Array[String] format_fields
+        Int bin_size  = 10000000000
         String? include_field
         String? include_value
         Boolean modify_ev_number = false
@@ -22,31 +24,81 @@ workflow FillFormatFields {
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_create_shards
+        RuntimeAttr? runtime_attr_subset_unfilled
+        RuntimeAttr? runtime_attr_subset_filled
         RuntimeAttr? runtime_attr_fill
+        RuntimeAttr? runtime_attr_concat
     }
 
-    call FillVcfFormatFields {
+    call Helpers.CreateContigShards {
         input:
-            unfilled_vcf = unfilled_vcf,
-            unfilled_vcf_idx = unfilled_vcf_idx,
-            filled_vcf = filled_vcf,
-            filled_vcf_idx = filled_vcf_idx,
-            format_fields = format_fields,
-            include_field = include_field,
-            include_value = include_value,
-            modify_ev_number = modify_ev_number,
-            fill_alt_gts = fill_alt_gts,
-            fill_ref_gts = fill_ref_gts,
-            unphase_gts = unphase_gts,
-            add_pl = add_pl,
-            prefix = prefix,
+            vcfs = [unfilled_vcf, filled_vcf],
+            vcf_idxs = [unfilled_vcf_idx, filled_vcf_idx],
+            contig = contig,
+            bin_size = bin_size,
+            prefix = "~{prefix}.shards",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_fill
+            runtime_attr_override = runtime_attr_create_shards
+    }
+
+    scatter (i in range(length(CreateContigShards.shard_regions))) {
+        String shard_region = CreateContigShards.shard_regions[i]
+
+        call Helpers.SubsetVcfToRegion as SubsetUnfilled {
+            input:
+                vcf = unfilled_vcf,
+                vcf_idx = unfilled_vcf_idx,
+                region = shard_region,
+                prefix = "~{prefix}.shard_~{i}.unfilled",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_unfilled
+        }
+
+        call Helpers.SubsetVcfToRegion as SubsetFilled {
+            input:
+                vcf = filled_vcf,
+                vcf_idx = filled_vcf_idx,
+                region = shard_region,
+                prefix = "~{prefix}.shard_~{i}.filled_input",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_filled
+        }
+
+        call FillVcfFormatFields {
+            input:
+                unfilled_vcf = SubsetUnfilled.subset_vcf,
+                unfilled_vcf_idx = SubsetUnfilled.subset_vcf_idx,
+                filled_vcf = SubsetFilled.subset_vcf,
+                filled_vcf_idx = SubsetFilled.subset_vcf_idx,
+                format_fields = format_fields,
+                include_field = include_field,
+                include_value = include_value,
+                modify_ev_number = modify_ev_number,
+                fill_alt_gts = fill_alt_gts,
+                fill_ref_gts = fill_ref_gts,
+                unphase_gts = unphase_gts,
+                add_pl = add_pl,
+                prefix = "~{prefix}.shard_~{i}.filled",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_fill
+        }
+    }
+
+    call Helpers.ConcatVcfs {
+        input:
+            vcfs = FillVcfFormatFields.output_vcf,
+            vcf_idxs = FillVcfFormatFields.output_vcf_idx,
+            allow_overlaps = false,
+            naive = true,
+            prefix = "~{prefix}.filled",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat
     }
 
     output {
-        File refilled_vcf = FillVcfFormatFields.output_vcf
-        File refilled_vcf_idx = FillVcfFormatFields.output_vcf_idx
+        File refilled_vcf = ConcatVcfs.concat_vcf
+        File refilled_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
 
@@ -98,7 +150,9 @@ CODE
             tabix -p vcf filled.ev_number_fixed.vcf.gz
             filled_vcf_for_fill="filled.ev_number_fixed.vcf.gz"
         else
-            ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            if [[ "~{filled_vcf_idx}" != "~{filled_vcf}.tbi" ]]; then
+                ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
+            fi
         fi
 
         python3 <<CODE
@@ -183,7 +237,7 @@ for unfilled_rec in unfilled_in:
     passes_include = variant_passes_include(unfilled_rec)
     match = None
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
-        if cand.id == unfilled_rec.id and cand.ref == unfilled_rec.ref and cand.alts == unfilled_rec.alts:
+        if cand.chrom == unfilled_rec.chrom and cand.pos == unfilled_rec.pos and cand.id == unfilled_rec.id and cand.ref == unfilled_rec.ref and cand.alts == unfilled_rec.alts:
             match = cand
             break
 
