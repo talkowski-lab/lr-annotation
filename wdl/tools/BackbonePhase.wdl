@@ -11,7 +11,7 @@ workflow BackbonePhase {
         Array[File] base_vcf_idxs
         String contig
         String prefix
-        Boolean reassign_overlapped = false
+        Boolean reassign_overlapped = true
 
         File? swap_samples_base
 
