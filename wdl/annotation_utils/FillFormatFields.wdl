@@ -13,7 +13,7 @@ workflow FillFormatFields {
         String contig
 
         Array[String] format_fields
-        Int bin_size  = 10000000000
+        Int? bin_size
         String? include_field
         String? include_value
         Boolean modify_ev_number = false
@@ -31,46 +31,80 @@ workflow FillFormatFields {
         RuntimeAttr? runtime_attr_concat
     }
 
-    call Helpers.CreateContigShards {
-        input:
-            vcfs = [unfilled_vcf, filled_vcf],
-            vcf_idxs = [unfilled_vcf_idx, filled_vcf_idx],
-            contig = contig,
-            bin_size = bin_size,
-            prefix = "~{prefix}.shards",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_create_shards
+    if (defined(bin_size)) {
+        call Helpers.CreateContigShards {
+            input:
+                vcfs = [unfilled_vcf, filled_vcf],
+                vcf_idxs = [unfilled_vcf_idx, filled_vcf_idx],
+                contig = contig,
+                bin_size = select_first([bin_size]),
+                prefix = "~{prefix}.shards",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_create_shards
+        }
+
+        scatter (i in range(length(CreateContigShards.shard_regions))) {
+            String shard_region = CreateContigShards.shard_regions[i]
+
+            call Helpers.SubsetVcfToRegion as SubsetUnfilled {
+                input:
+                    vcf = unfilled_vcf,
+                    vcf_idx = unfilled_vcf_idx,
+                    region = shard_region,
+                    prefix = "~{prefix}.shard_~{i}.unfilled",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_unfilled
+            }
+
+            call Helpers.SubsetVcfToRegion as SubsetFilled {
+                input:
+                    vcf = filled_vcf,
+                    vcf_idx = filled_vcf_idx,
+                    region = shard_region,
+                    prefix = "~{prefix}.shard_~{i}.filled_input",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_filled
+            }
+
+            call FillVcfFormatFields {
+                input:
+                    unfilled_vcf = SubsetUnfilled.subset_vcf,
+                    unfilled_vcf_idx = SubsetUnfilled.subset_vcf_idx,
+                    filled_vcf = SubsetFilled.subset_vcf,
+                    filled_vcf_idx = SubsetFilled.subset_vcf_idx,
+                    format_fields = format_fields,
+                    include_field = include_field,
+                    include_value = include_value,
+                    modify_ev_number = modify_ev_number,
+                    fill_alt_gts = fill_alt_gts,
+                    fill_ref_gts = fill_ref_gts,
+                    unphase_gts = unphase_gts,
+                    add_pl = add_pl,
+                    prefix = "~{prefix}.shard_~{i}.filled",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_fill
+            }
+        }
+
+        call Helpers.ConcatVcfs {
+            input:
+                vcfs = FillVcfFormatFields.output_vcf,
+                vcf_idxs = FillVcfFormatFields.output_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.filled",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
-    scatter (i in range(length(CreateContigShards.shard_regions))) {
-        String shard_region = CreateContigShards.shard_regions[i]
-
-        call Helpers.SubsetVcfToRegion as SubsetUnfilled {
+    if (!defined(bin_size)) {
+        call FillVcfFormatFields as FillVcfFormatFieldsNoSharding {
             input:
-                vcf = unfilled_vcf,
-                vcf_idx = unfilled_vcf_idx,
-                region = shard_region,
-                prefix = "~{prefix}.shard_~{i}.unfilled",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_unfilled
-        }
-
-        call Helpers.SubsetVcfToRegion as SubsetFilled {
-            input:
-                vcf = filled_vcf,
-                vcf_idx = filled_vcf_idx,
-                region = shard_region,
-                prefix = "~{prefix}.shard_~{i}.filled_input",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_filled
-        }
-
-        call FillVcfFormatFields {
-            input:
-                unfilled_vcf = SubsetUnfilled.subset_vcf,
-                unfilled_vcf_idx = SubsetUnfilled.subset_vcf_idx,
-                filled_vcf = SubsetFilled.subset_vcf,
-                filled_vcf_idx = SubsetFilled.subset_vcf_idx,
+                unfilled_vcf = unfilled_vcf,
+                unfilled_vcf_idx = unfilled_vcf_idx,
+                filled_vcf = filled_vcf,
+                filled_vcf_idx = filled_vcf_idx,
                 format_fields = format_fields,
                 include_field = include_field,
                 include_value = include_value,
@@ -79,26 +113,15 @@ workflow FillFormatFields {
                 fill_ref_gts = fill_ref_gts,
                 unphase_gts = unphase_gts,
                 add_pl = add_pl,
-                prefix = "~{prefix}.shard_~{i}.filled",
+                prefix = prefix,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_fill
         }
     }
 
-    call Helpers.ConcatVcfs {
-        input:
-            vcfs = FillVcfFormatFields.output_vcf,
-            vcf_idxs = FillVcfFormatFields.output_vcf_idx,
-            allow_overlaps = false,
-            naive = true,
-            prefix = "~{prefix}.filled",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
-    }
-
     output {
-        File refilled_vcf = ConcatVcfs.concat_vcf
-        File refilled_vcf_idx = ConcatVcfs.concat_vcf_idx
+        File refilled_vcf = select_first([ConcatVcfs.concat_vcf, FillVcfFormatFieldsNoSharding.output_vcf])
+        File refilled_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, FillVcfFormatFieldsNoSharding.output_vcf_idx])
     }
 }
 
@@ -289,6 +312,11 @@ CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
+
+        input:
+        File output_vcf = "~{prefix}.vcf.gz"
+        File output_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
 
     output {
         File output_vcf = "~{prefix}.vcf.gz"

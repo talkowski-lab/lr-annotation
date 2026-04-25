@@ -12,7 +12,7 @@ workflow UpdateGenotypes {
 		Array[String] contigs
 		String prefix
 
-		Int bin_size = 10000000000
+		Int? bin_size
 		Boolean transfer_genotypes = false
 
 		String utils_docker
@@ -56,71 +56,91 @@ workflow UpdateGenotypes {
 		File transfer_source_vcf = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf, select_first([genotyped_vcf])]) else contig_base_vcf
 		File transfer_source_vcf_idx = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf_idx, select_first([genotyped_vcf_idx])]) else contig_base_vcf_idx
 
-		call Helpers.CreateContigShards {
-			input:
-				vcfs = [contig_base_vcf, transfer_source_vcf],
-				vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
-				contig = contig,
-				bin_size = bin_size,
-				prefix = prefix + "." + contig + ".shards",
-				docker = utils_docker,
-				runtime_attr_override = runtime_attr_create_shards
+		if (defined(bin_size)) {
+			call Helpers.CreateContigShards {
+				input:
+					vcfs = [contig_base_vcf, transfer_source_vcf],
+					vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
+					contig = contig,
+					bin_size = select_first([bin_size]),
+					prefix = prefix + "." + contig + ".shards",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_create_shards
+			}
+
+			scatter (i in range(length(CreateContigShards.shard_regions))) {
+				String shard_region = CreateContigShards.shard_regions[i]
+
+				call Helpers.SubsetVcfToRegion as SubsetBaseShard {
+					input:
+						vcf = contig_base_vcf,
+						vcf_idx = contig_base_vcf_idx,
+						region = shard_region,
+						prefix = prefix + "." + contig + ".shard_" + i + ".base",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_subset_base
+				}
+
+				call Helpers.SubsetVcfToRegion as SubsetGenotypedShard {
+					input:
+						vcf = transfer_source_vcf,
+						vcf_idx = transfer_source_vcf_idx,
+						region = shard_region,
+						prefix = prefix + "." + contig + ".shard_" + i + ".genotyped",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_subset_genotyped
+				}
+
+				call UpdateContigGenotypes {
+					input:
+						base_vcf = SubsetBaseShard.subset_vcf,
+						base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
+						genotyped_vcf = SubsetGenotypedShard.subset_vcf,
+						genotyped_vcf_idx = SubsetGenotypedShard.subset_vcf_idx,
+						ped = ped,
+						transfer_genotypes = transfer_genotypes,
+						prefix = prefix + "." + contig + ".shard_" + i + ".updated",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_update_genotypes
+				}
+			}
+
+			call Helpers.ConcatVcfs as ConcatContig {
+				input:
+					vcfs = UpdateContigGenotypes.updated_vcf,
+					vcf_idxs = UpdateContigGenotypes.updated_vcf_idx,
+					allow_overlaps = false,
+					naive = true,
+					prefix = prefix + "." + contig + ".updated",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_concat
+			}
 		}
 
-		scatter (i in range(length(CreateContigShards.shard_regions))) {
-			String shard_region = CreateContigShards.shard_regions[i]
-
-			call Helpers.SubsetVcfToRegion as SubsetBaseShard {
+		if (!defined(bin_size)) {
+			call UpdateContigGenotypes as UpdateContigGenotypesNoSharding {
 				input:
-					vcf = contig_base_vcf,
-					vcf_idx = contig_base_vcf_idx,
-					region = shard_region,
-					prefix = prefix + "." + contig + ".shard_" + i + ".base",
-					docker = utils_docker,
-					runtime_attr_override = runtime_attr_subset_base
-			}
-
-			call Helpers.SubsetVcfToRegion as SubsetGenotypedShard {
-				input:
-					vcf = transfer_source_vcf,
-					vcf_idx = transfer_source_vcf_idx,
-					region = shard_region,
-					prefix = prefix + "." + contig + ".shard_" + i + ".genotyped",
-					docker = utils_docker,
-					runtime_attr_override = runtime_attr_subset_genotyped
-			}
-
-			call UpdateContigGenotypes {
-				input:
-					base_vcf = SubsetBaseShard.subset_vcf,
-					base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
-					genotyped_vcf = SubsetGenotypedShard.subset_vcf,
-					genotyped_vcf_idx = SubsetGenotypedShard.subset_vcf_idx,
+					base_vcf = contig_base_vcf,
+					base_vcf_idx = contig_base_vcf_idx,
+					genotyped_vcf = transfer_source_vcf,
+					genotyped_vcf_idx = transfer_source_vcf_idx,
 					ped = ped,
 					transfer_genotypes = transfer_genotypes,
-					prefix = prefix + "." + contig + ".shard_" + i + ".updated",
+					prefix = prefix + "." + contig + ".updated",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_update_genotypes
 			}
 		}
 
-		call Helpers.ConcatVcfs as ConcatContig {
-			input:
-				vcfs = UpdateContigGenotypes.updated_vcf,
-				vcf_idxs = UpdateContigGenotypes.updated_vcf_idx,
-				allow_overlaps = false,
-				naive = true,
-				prefix = prefix + "." + contig + ".updated",
-				docker = utils_docker,
-				runtime_attr_override = runtime_attr_concat
-		}
+		File updated_contig_vcf = select_first([ConcatContig.concat_vcf, UpdateContigGenotypesNoSharding.updated_vcf])
+		File updated_contig_vcf_idx = select_first([ConcatContig.concat_vcf_idx, UpdateContigGenotypesNoSharding.updated_vcf_idx])
 	}
 
 	if (!single_contig) {
 		call Helpers.ConcatVcfs {
 			input:
-				vcfs = ConcatContig.concat_vcf,
-				vcf_idxs = ConcatContig.concat_vcf_idx,
+				vcfs = updated_contig_vcf,
+				vcf_idxs = updated_contig_vcf_idx,
 				allow_overlaps = false,
 				naive = true,
 				prefix = prefix + ".updated",
@@ -130,8 +150,8 @@ workflow UpdateGenotypes {
 	}
 
 	output {
-		File updated_vcf = select_first([ConcatVcfs.concat_vcf, ConcatContig.concat_vcf[0]])
-		File updated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, ConcatContig.concat_vcf_idx[0]])
+		File updated_vcf = select_first([ConcatVcfs.concat_vcf, updated_contig_vcf[0]])
+		File updated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, updated_contig_vcf_idx[0]])
 	}
 }
 

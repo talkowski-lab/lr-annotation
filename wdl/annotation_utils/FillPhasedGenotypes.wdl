@@ -12,7 +12,7 @@ workflow FillPhasedGenotypes {
         Array[String] contigs
         String prefix
 
-        Int bin_size = 10000000000
+        Int? bin_size
 
         String utils_docker
         
@@ -45,68 +45,86 @@ workflow FillPhasedGenotypes {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call Helpers.CreateContigShards {
-            input:
-                vcfs = [SubsetPhased.subset_vcf, SubsetUnphased.subset_vcf],
-                vcf_idxs = [SubsetPhased.subset_vcf_idx, SubsetUnphased.subset_vcf_idx],
-                contig = contig,
-                bin_size = bin_size,
-                prefix = "~{prefix}.~{contig}.shards",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_create_shards
+        if (defined(bin_size)) {
+            call Helpers.CreateContigShards {
+                input:
+                    vcfs = [SubsetPhased.subset_vcf, SubsetUnphased.subset_vcf],
+                    vcf_idxs = [SubsetPhased.subset_vcf_idx, SubsetUnphased.subset_vcf_idx],
+                    contig = contig,
+                    bin_size = select_first([bin_size]),
+                    prefix = "~{prefix}.~{contig}.shards",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_create_shards
+            }
+
+            scatter (i in range(length(CreateContigShards.shard_regions))) {
+                String shard_region = CreateContigShards.shard_regions[i]
+
+                call Helpers.SubsetVcfToRegion as SubsetPhasedShard {
+                    input:
+                        vcf = SubsetPhased.subset_vcf,
+                        vcf_idx = SubsetPhased.subset_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.phased",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset
+                }
+
+                call Helpers.SubsetVcfToRegion as SubsetUnphasedShard {
+                    input:
+                        vcf = SubsetUnphased.subset_vcf,
+                        vcf_idx = SubsetUnphased.subset_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.unphased",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset
+                }
+
+                call FillGenotypes {
+                    input:
+                        phased_vcf = SubsetPhasedShard.subset_vcf,
+                        phased_vcf_idx = SubsetPhasedShard.subset_vcf_idx,
+                        unphased_vcf = SubsetUnphasedShard.subset_vcf,
+                        unphased_vcf_idx = SubsetUnphasedShard.subset_vcf_idx,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.filled",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_fill
+                }
+            }
+
+            call Helpers.ConcatVcfs as ConcatContig {
+                input:
+                    vcfs = FillGenotypes.filled_vcf,
+                    vcf_idxs = FillGenotypes.filled_vcf_idx,
+                    allow_overlaps = false,
+                    naive = true,
+                    prefix = "~{prefix}.~{contig}.filled",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat
+            }
         }
 
-        scatter (i in range(length(CreateContigShards.shard_regions))) {
-            String shard_region = CreateContigShards.shard_regions[i]
-
-            call Helpers.SubsetVcfToRegion as SubsetPhasedShard {
+        if (!defined(bin_size)) {
+            call FillGenotypes as FillGenotypesNoSharding {
                 input:
-                    vcf = SubsetPhased.subset_vcf,
-                    vcf_idx = SubsetPhased.subset_vcf_idx,
-                    region = shard_region,
-                    prefix = "~{prefix}.~{contig}.shard_~{i}.phased",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset
-            }
-
-            call Helpers.SubsetVcfToRegion as SubsetUnphasedShard {
-                input:
-                    vcf = SubsetUnphased.subset_vcf,
-                    vcf_idx = SubsetUnphased.subset_vcf_idx,
-                    region = shard_region,
-                    prefix = "~{prefix}.~{contig}.shard_~{i}.unphased",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset
-            }
-
-            call FillGenotypes {
-                input:
-                    phased_vcf = SubsetPhasedShard.subset_vcf,
-                    phased_vcf_idx = SubsetPhasedShard.subset_vcf_idx,
-                    unphased_vcf = SubsetUnphasedShard.subset_vcf,
-                    unphased_vcf_idx = SubsetUnphasedShard.subset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.shard_~{i}.filled",
+                    phased_vcf = SubsetPhased.subset_vcf,
+                    phased_vcf_idx = SubsetPhased.subset_vcf_idx,
+                    unphased_vcf = SubsetUnphased.subset_vcf,
+                    unphased_vcf_idx = SubsetUnphased.subset_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.filled",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_fill
             }
         }
 
-        call Helpers.ConcatVcfs as ConcatContig {
-            input:
-                vcfs = FillGenotypes.filled_vcf,
-                vcf_idxs = FillGenotypes.filled_vcf_idx,
-                allow_overlaps = false,
-                naive = true,
-                prefix = "~{prefix}.~{contig}.filled",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat
-        }
+        File contig_filled_vcf = select_first([ConcatContig.concat_vcf, FillGenotypesNoSharding.filled_vcf])
+        File contig_filled_vcf_idx = select_first([ConcatContig.concat_vcf_idx, FillGenotypesNoSharding.filled_vcf_idx])
     }
 
     call Helpers.ConcatVcfs {
         input:
-            vcfs = ConcatContig.concat_vcf,
-            vcf_idxs = ConcatContig.concat_vcf_idx,
+            vcfs = contig_filled_vcf,
+            vcf_idxs = contig_filled_vcf_idx,
             allow_overlaps = false,
             naive = true,
             prefix = "~{prefix}.filled",
