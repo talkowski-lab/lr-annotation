@@ -313,11 +313,6 @@ CODE
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
-        input:
-        File output_vcf = "~{prefix}.vcf.gz"
-        File output_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
     output {
         File output_vcf = "~{prefix}.vcf.gz"
         File output_vcf_idx = "~{prefix}.vcf.gz.tbi"
