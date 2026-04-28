@@ -208,6 +208,10 @@ TODO
 TODO
 
 
+### [CombineVcfsAcrossContigs](wdl/annotation_utils/CombineVcfsAcrossContigs.wdl)
+TODO
+
+
 ### [CountAnnotations](wdl/annotation_utils/CountAnnotations.wdl)
 TODO
 

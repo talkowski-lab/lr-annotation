@@ -214,6 +214,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CombineVcfsAcrossContigs
+    primaryDescriptorPath: /wdl/annotation_utils/CombineVcfsAcrossContigs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CountAnnotations
     primaryDescriptorPath: /wdl/annotation_utils/CountAnnotations.wdl
     filters:
