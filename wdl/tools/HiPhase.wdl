@@ -186,7 +186,7 @@ task PreprocessVCF {
         tabix -p vcf ~{prefix}.uppercase.vcf.gz
 
         bcftools +setGT ~{prefix}.uppercase.vcf.gz --no-version -Oz -o ~{prefix}.vcf.gz -- --target-gt a --new-gt u
-        bcftools index -t ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz 
     >>>
 
     output {
@@ -236,7 +236,7 @@ task SyncContigs {
         grep -v "^##fileformat" sv_header_no_contigs.txt >> new_header.txt
 
         bcftools reheader --header new_header.txt --output ~{prefix}.vcf.gz ~{sv_vcf}
-        bcftools index -t ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {

@@ -17,7 +17,7 @@ workflow BenchmarkAnnotations {
         String prefix
         
         Boolean compare_annotations
-        Int variants_per_shard
+        Int? records_per_shard
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
@@ -292,19 +292,23 @@ workflow BenchmarkAnnotations {
                     runtime_attr_override = runtime_attr_compute_summary_for_contig
             }
 
-            call ShardedMatchedVariants {
-                input:
-                    matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
-                    variants_per_shard = variants_per_shard,
-                    prefix = "~{prefix}.~{contig}.sharded",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_shard_matched_eval
+            if (defined(records_per_shard)) {
+                call ShardedMatchedVariants {
+                    input:
+                        matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
+                        records_per_shard = select_first([records_per_shard]),
+                        prefix = "~{prefix}.~{contig}.sharded",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_shard_matched_eval
+                }
             }
 
-            scatter (i in range(length(ShardedMatchedVariants.shard_tsvs))) {
+            Array[File] matched_tsvs_to_process = select_first([ShardedMatchedVariants.shard_tsvs, [CollectMatchedIDsAndINFO.matched_with_info_tsv]])
+
+            scatter (i in range(length(matched_tsvs_to_process))) {
                 call ComputeShardBenchmarks {
                     input:
-                        matched_shard_tsv = ShardedMatchedVariants.shard_tsvs[i],
+                        matched_shard_tsv = matched_tsvs_to_process[i],
                         eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                         truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
                         contig = contig,
@@ -318,8 +322,8 @@ workflow BenchmarkAnnotations {
 
             call MergeShardBenchmarks {
                 input:
-                    af_pair_tsvs = select_all(ComputeShardBenchmarks.af_pairs_tsv),
-                    vep_pair_tsvs = select_all(ComputeShardBenchmarks.vep_pairs_tsv),
+                    af_pair_tsvs = ComputeShardBenchmarks.af_pairs_tsv,
+                    vep_pair_tsvs = ComputeShardBenchmarks.vep_pairs_tsv,
                     contig = contig,
                     prefix = "~{prefix}.~{contig}.merged",
                     skip_vep_categories = skip_vep_categories,
@@ -587,7 +591,7 @@ task ExtractVepHeader {
 task ShardedMatchedVariants {
     input {
         File matched_with_info_tsv
-        Int variants_per_shard
+        Int records_per_shard
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -599,7 +603,7 @@ task ShardedMatchedVariants {
         mkdir -p shards
         
         cat ~{matched_with_info_tsv} \
-            | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{variants_per_shard})) ; c++} END{ }'
+            | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{records_per_shard})) ; c++} END{ }'
     >>>
 
     output {

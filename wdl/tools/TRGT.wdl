@@ -104,12 +104,9 @@ task ProcessWithTRGT {
             -Ob -o ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz
         
-        mv ~{vcf_out_name}.sorted.vcf.gz \
-            ~{vcf_out_name}.vcf.gz
-        
-        bcftools index \
-            -t \
-            ~{vcf_out_name}.vcf.gz
+        mv ~{vcf_out_name}.sorted.vcf.gz ~{vcf_out_name}.vcf.gz
+
+        tabix -p vcf ~{vcf_out_name}.vcf.gz
     >>>
 
     output {
