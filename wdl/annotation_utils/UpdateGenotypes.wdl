@@ -148,6 +148,7 @@ workflow UpdateGenotypes {
 					phased_vcf = transfer_source_vcf,
 					phased_vcf_idx = transfer_source_vcf_idx,
 					ped = ped,
+					unphase_samples = select_first([unphase_samples, []]),
 					transfer_genotypes = transfer_genotypes,
 					prefix = prefix + "." + contig + ".genotyped",
 					docker = utils_docker,
