@@ -10,10 +10,14 @@ workflow AnnotateSQMetrics {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -35,20 +39,50 @@ workflow AnnotateSQMetrics {
         File contig_vcf = select_first([SubsetVcf.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcf.subset_vcf_idx, vcf_idx])
 
-        call CalculateSiteMetrics {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                prefix = "~{prefix}.~{contig}.site_quality",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.site_quality",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call CalculateSiteMetrics {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.site_quality.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = CalculateSiteMetrics.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.site_quality",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, CalculateSiteMetrics.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotations {
             input:
-                tsvs = CalculateSiteMetrics.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.site_quality",
                 docker = utils_docker,
@@ -57,7 +91,7 @@ workflow AnnotateSQMetrics {
     }
 
     output {
-        File annotations_tsv_sq = select_first([MergeAnnotations.concatenated_tsv, CalculateSiteMetrics.annotations_tsv[0]])
+        File annotations_tsv_sq = select_first([MergeAnnotations.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 
