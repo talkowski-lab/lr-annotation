@@ -120,7 +120,7 @@ workflow UpdateGenotypes {
 						phased_vcf = SubsetGenotypedShard.subset_vcf,
 						phased_vcf_idx = SubsetGenotypedShard.subset_vcf_idx,
 						ped = ped,
-						unphase_samples = unphase_samples,
+						unphase_samples = select_first([unphase_samples]),
 						transfer_genotypes = transfer_genotypes,
 						prefix = prefix + "." + contig + ".shard_" + i + ".genotyped",
 						docker = utils_docker,
@@ -199,7 +199,7 @@ task UpdateContigGenotypes {
 		File phased_vcf
 		File phased_vcf_idx
 		File ped
-		Array[String]? unphase_samples
+		Array[String] unphase_samples
 		Boolean transfer_genotypes
 		String prefix
 		String docker
