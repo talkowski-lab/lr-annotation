@@ -12,6 +12,7 @@ workflow UpdateGenotypes {
 		Array[String] contigs
 		String prefix
 
+		Array[String]? unphase_samples
 		Array[String]? drop_samples
 		Int? bin_size
 		Boolean transfer_genotypes = false
@@ -119,6 +120,7 @@ workflow UpdateGenotypes {
 						phased_vcf = SubsetGenotypedShard.subset_vcf,
 						phased_vcf_idx = SubsetGenotypedShard.subset_vcf_idx,
 						ped = ped,
+						unphase_samples = unphase_samples,
 						transfer_genotypes = transfer_genotypes,
 						prefix = prefix + "." + contig + ".shard_" + i + ".genotyped",
 						docker = utils_docker,
@@ -197,6 +199,7 @@ task UpdateContigGenotypes {
 		File phased_vcf
 		File phased_vcf_idx
 		File ped
+		Array[String]? unphase_samples
 		Boolean transfer_genotypes
 		String prefix
 		String docker
@@ -281,6 +284,9 @@ def make_male_hemizygous(gt, phased):
 	return right_align_unphased(tuple(new_gt))
 
 
+unphase_list = ["~{sep='", "' unphase_samples}"] if "~{unphase_samples}" != "" else []
+unphase_samples_set = set(unphase_list)
+
 transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
 sex_by_sample = parse_ped("~{ped}")
 
@@ -313,6 +319,12 @@ for record in base_reader:
 	for sample in base_samples:
 		sample_data = record.samples[sample]
 		sample_sex = sex_by_sample.get(sample)
+
+		# Unphase for samples in unphase_samples
+		if sample in unphase_samples_set:
+			current_gt = sample_data.get("GT")
+			if current_gt is not None:
+				sample_data.phased = False
 
 		# Clear format fields for females on chrY
 		if record.chrom == "chrY" and sample_sex == "F":
