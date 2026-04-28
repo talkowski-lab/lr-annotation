@@ -197,9 +197,7 @@ task UpdateContigGenotypes {
 		File phased_vcf
 		File phased_vcf_idx
 		File ped
-
 		Boolean transfer_genotypes
-
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -240,19 +238,8 @@ def is_heterozygous(gt):
 
 
 def clear_format_fields(sample_data):
-	gt = sample_data.get("GT")
-	gt_length = len(gt) if gt is not None and len(gt) > 0 else 2
-	sample_data["GT"] = tuple(None for _ in range(gt_length))
+	sample_data["GT"] = (None, None)
 	sample_data.phased = False
-
-	for fmt_key in list(sample_data.keys()):
-		if fmt_key == "GT":
-			continue
-		value = sample_data.get(fmt_key)
-		if isinstance(value, tuple):
-			sample_data[fmt_key] = tuple(None for _ in range(len(value)))
-		else:
-			sample_data[fmt_key] = None
 
 
 def right_align_unphased(gt):
