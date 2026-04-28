@@ -10,6 +10,8 @@ workflow AnnotateInSilicoPredictors {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         String cadd_ht
         String pangolin_ht
         String phylop_ht
@@ -23,7 +25,9 @@ workflow AnnotateInSilicoPredictors {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -45,27 +49,57 @@ workflow AnnotateInSilicoPredictors {
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        call AnnotateInSilicoPredictorsTask {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                prefix = "~{prefix}.~{contig}.in_silico_predictors",
-                cadd_ht = cadd_ht,
-                pangolin_ht = pangolin_ht,
-                phylop_ht = phylop_ht,
-                revel_ht = revel_ht,
-                spliceai_ht = spliceai_ht,
-                docker = hail_docker,
-                annotate_in_silico_predictors_script = annotate_in_silico_predictors_script,
-                genome_build = genome_build,
-                runtime_attr_override = runtime_attr_annotate
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.in_silico_predictors",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call AnnotateInSilicoPredictorsTask {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.in_silico_predictors.shard_~{i}",
+                    cadd_ht = cadd_ht,
+                    pangolin_ht = pangolin_ht,
+                    phylop_ht = phylop_ht,
+                    revel_ht = revel_ht,
+                    spliceai_ht = spliceai_ht,
+                    docker = hail_docker,
+                    annotate_in_silico_predictors_script = annotate_in_silico_predictors_script,
+                    genome_build = genome_build,
+                    runtime_attr_override = runtime_attr_annotate
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = AnnotateInSilicoPredictorsTask.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.in_silico_predictors",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, AnnotateInSilicoPredictorsTask.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = AnnotateInSilicoPredictorsTask.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.in_silico_predictors",
                 docker = utils_docker,
@@ -74,7 +108,7 @@ workflow AnnotateInSilicoPredictors {
     }
 
     output {
-        File annotations_tsv_insilico = select_first([ConcatTsvs.concatenated_tsv, AnnotateInSilicoPredictorsTask.annotations_tsv[0]])
+        File annotations_tsv_insilico = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 

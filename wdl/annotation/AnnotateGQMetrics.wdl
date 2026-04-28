@@ -10,6 +10,8 @@ workflow AnnotateGQMetrics {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Array[String] gq_fields
         Array[Array[Int]] gq_bins
         Array[String] gq_variant_filters
@@ -21,9 +23,11 @@ workflow AnnotateGQMetrics {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_generate_tsv
         RuntimeAttr? runtime_attr_generate_ab_tsv
         RuntimeAttr? runtime_attr_merge_aligned_tsv
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -45,46 +49,76 @@ workflow AnnotateGQMetrics {
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        scatter (i in range(length(gq_fields))) {
-            call GenerateGQAnnotationTsv {
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
                 input:
                     vcf = contig_vcf,
                     vcf_idx = contig_vcf_idx,
-                    gq_field = gq_fields[i],
-                    gq_bins = gq_bins[i],
-                    gq_variant_filter = gq_variant_filters[i],
-                    gq_larger_field = gq_larger_field[i],
-                    prefix = prefix + "." + contig + "." + gq_fields[i],
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = prefix + "." + contig + ".gq_annotations",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_generate_tsv
+                    runtime_attr_override = runtime_attr_shard
             }
         }
 
-        if (ab_annotation) {
-            call GenerateABAnnotationTsv {
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+        scatter (shard_i in range(length(vcfs_to_process))) {
+            scatter (field_i in range(length(gq_fields))) {
+                call GenerateGQAnnotationTsv {
+                    input:
+                        vcf = vcfs_to_process[shard_i],
+                        vcf_idx = vcf_idxs_to_process[shard_i],
+                        gq_field = gq_fields[field_i],
+                        gq_bins = gq_bins[field_i],
+                        gq_variant_filter = gq_variant_filters[field_i],
+                        gq_larger_field = gq_larger_field[field_i],
+                        prefix = "~{prefix}.~{contig}.~{gq_fields[field_i]}.shard_~{shard_i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_generate_tsv
+                }
+            }
+
+            if (ab_annotation) {
+                call GenerateABAnnotationTsv {
+                    input:
+                        vcf = vcfs_to_process[shard_i],
+                        vcf_idx = vcf_idxs_to_process[shard_i],
+                        ab_bins = ab_bins,
+                        prefix = "~{prefix}.~{contig}.ab_hist_alt.shard_~{shard_i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_generate_ab_tsv
+                }
+            }
+
+            call Helpers.MergeAlignedTsvs as MergeShardAnnotations {
                 input:
-                    vcf = contig_vcf,
-                    vcf_idx = contig_vcf_idx,
-                    ab_bins = ab_bins,
-                    prefix = prefix + "." + contig + ".ab_hist_alt",
+                    tsvs = flatten([GenerateGQAnnotationTsv.annotation_tsv, select_all([GenerateABAnnotationTsv.annotation_tsv])]),
+                    prefix = "~{prefix}.~{contig}.gq_annotations.shard_~{shard_i}",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_generate_ab_tsv
+                    runtime_attr_override = runtime_attr_merge_aligned_tsv
             }
         }
-        
-        call Helpers.MergeAlignedTsvs {
-            input:
-                tsvs = flatten([GenerateGQAnnotationTsv.annotation_tsv, select_all([GenerateABAnnotationTsv.annotation_tsv])]),
-                prefix = prefix + "." + contig + ".gq_annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge_aligned_tsv
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = MergeShardAnnotations.merged_tsv,
+                    sort_output = false,
+                    prefix = prefix + "." + contig + ".gq_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, MergeShardAnnotations.merged_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = MergeAlignedTsvs.merged_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = prefix + ".gq_annotated",
                 docker = utils_docker,
@@ -93,8 +127,7 @@ workflow AnnotateGQMetrics {
     }
 
     output {
-        File annotations_tsv_gq = select_first([ConcatTsvs.concatenated_tsv, MergeAlignedTsvs.merged_tsv[0]])
-        File annotations_header_gq = MergeAlignedTsvs.merged_header[0]
+        File annotations_tsv_gq = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 
@@ -212,7 +245,6 @@ CODE
 
     output {
         File annotation_tsv = "~{prefix}.tsv"
-        File header_file = "~{prefix}.header.txt"
     }
 
     RuntimeAttr default_attr = object {
@@ -313,7 +345,6 @@ CODE
 
     output {
         File annotation_tsv = "~{prefix}.tsv"
-        File header_file = "~{prefix}.header.txt"
     }
 
     RuntimeAttr default_attr = object {

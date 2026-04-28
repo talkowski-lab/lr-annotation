@@ -10,6 +10,8 @@ workflow AnnotateAgeMetrics {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         File age_data
         Array[Int] age_bins
         String reference_date
@@ -17,7 +19,9 @@ workflow AnnotateAgeMetrics {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_generate_tsv
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -39,23 +43,53 @@ workflow AnnotateAgeMetrics {
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        call GenerateAgeAnnotationTsv {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                age_data = age_data,
-                age_bins = age_bins,
-                reference_date = reference_date,
-                prefix = prefix + "." + contig + ".age",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_generate_tsv
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = prefix + "." + contig + ".age",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call GenerateAgeAnnotationTsv {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    age_data = age_data,
+                    age_bins = age_bins,
+                    reference_date = reference_date,
+                    prefix = "~{prefix}.~{contig}.age.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_generate_tsv
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = GenerateAgeAnnotationTsv.annotations_tsv,
+                    sort_output = false,
+                    prefix = prefix + "." + contig + ".age",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, GenerateAgeAnnotationTsv.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = GenerateAgeAnnotationTsv.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = prefix + ".age_annotated",
                 docker = utils_docker,
@@ -64,7 +98,7 @@ workflow AnnotateAgeMetrics {
     }
 
     output {
-        File annotations_tsv_age = select_first([ConcatTsvs.concatenated_tsv, GenerateAgeAnnotationTsv.annotations_tsv[0]])
+        File annotations_tsv_age = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 

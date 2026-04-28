@@ -10,6 +10,8 @@ workflow AnnotateSVAnnotate {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Int min_length
         
         File coding_gtf
@@ -19,9 +21,11 @@ workflow AnnotateSVAnnotate {
         String gatk_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_convert_symbolic
         RuntimeAttr? runtime_attr_annotate_func
         RuntimeAttr? runtime_attr_concat_unannotated
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_annotated
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_revert_symbolic
@@ -41,52 +45,91 @@ workflow AnnotateSVAnnotate {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
 
-        call Helpers.ConvertToSymbolic {
-            input:
-                vcf = SubsetVcfByLength.subset_vcf,
-                vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.converted",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_convert_symbolic
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = SubsetVcfByLength.subset_vcf,
+                    vcf_idx = SubsetVcfByLength.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.subset",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call AnnotateFunctionalConsequences {
-            input:
-                vcf = ConvertToSymbolic.processed_vcf,
-                vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-                noncoding_bed = noncoding_bed,
-                coding_gtf = coding_gtf,
-                prefix = "~{prefix}.~{contig}.functionally_annotated",
-                docker = gatk_docker,
-                runtime_attr_override = runtime_attr_annotate_func
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [SubsetVcfByLength.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call Helpers.ConvertToSymbolic {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.converted.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_convert_symbolic
+            }
+
+            call AnnotateFunctionalConsequences {
+                input:
+                    vcf = ConvertToSymbolic.processed_vcf,
+                    vcf_idx = ConvertToSymbolic.processed_vcf_idx,
+                    noncoding_bed = noncoding_bed,
+                    coding_gtf = coding_gtf,
+                    prefix = "~{prefix}.~{contig}.functionally_annotated.shard_~{i}",
+                    docker = gatk_docker,
+                    runtime_attr_override = runtime_attr_annotate_func
+            }
+
+            call Helpers.RevertSymbolicAlleles {
+                input:
+                    annotated_vcf = AnnotateFunctionalConsequences.anno_vcf,
+                    annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
+                    original_vcf = vcfs_to_process[i],
+                    original_vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.reverted.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_revert_symbolic
+            }
+
+            call Helpers.ExtractVcfAnnotations {
+                input:
+                    vcf = RevertSymbolicAlleles.reverted_vcf,
+                    vcf_idx = RevertSymbolicAlleles.reverted_vcf_idx,
+                    original_vcf = vcfs_to_process[i],
+                    original_vcf_idx = vcf_idxs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
+                    docker = utils_docker
+            }
         }
 
-        call Helpers.RevertSymbolicAlleles {
-            input:
-                annotated_vcf = AnnotateFunctionalConsequences.anno_vcf,
-                annotated_vcf_idx = AnnotateFunctionalConsequences.anno_vcf_idx,
-                original_vcf = SubsetVcfByLength.subset_vcf,
-                original_vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.reverted",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_revert_symbolic
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = ExtractVcfAnnotations.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.svannotate_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+
+            call Helpers.MergeHeaderLines as MergeShardHeaders {
+                input:
+                    header_files = ExtractVcfAnnotations.annotations_header,
+                    prefix = "~{prefix}.~{contig}.svannotate_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_merge
+            }
         }
 
-        call Helpers.ExtractVcfAnnotations {
-            input:
-                vcf = RevertSymbolicAlleles.reverted_vcf,
-                vcf_idx = RevertSymbolicAlleles.reverted_vcf_idx,
-                original_vcf = SubsetVcfByLength.subset_vcf,
-                original_vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker
-        }
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, ExtractVcfAnnotations.annotations_tsv[0]])
+        File final_annotations_header = select_first([MergeShardHeaders.merged_header, ExtractVcfAnnotations.annotations_header[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = ExtractVcfAnnotations.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.svannotate_annotations",
                 docker = utils_docker,
@@ -95,7 +138,7 @@ workflow AnnotateSVAnnotate {
 
         call Helpers.MergeHeaderLines {
             input:
-                header_files = ExtractVcfAnnotations.annotations_header,
+                header_files = final_annotations_header,
                 prefix = "~{prefix}.svannotate_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
@@ -103,8 +146,8 @@ workflow AnnotateSVAnnotate {
     }
 
     output {
-        File annotations_tsv_svannotate = select_first([ConcatTsvs.concatenated_tsv, ExtractVcfAnnotations.annotations_tsv[0]])
-        File annotations_header_svannotate = select_first([MergeHeaderLines.merged_header, ExtractVcfAnnotations.annotations_header[0]])
+        File annotations_tsv_svannotate = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
+        File annotations_header_svannotate = select_first([MergeHeaderLines.merged_header, final_annotations_header[0]])
     }
 }
 

@@ -10,6 +10,8 @@ workflow AnnotateRegion {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         File simple_repeats_bed
         File seg_dup_bed
         File repeat_masker_bed
@@ -18,8 +20,10 @@ workflow AnnotateRegion {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_label_regions
         RuntimeAttr? runtime_attr_set_unique
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -41,56 +45,86 @@ workflow AnnotateRegion {
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        call LabelVariantRegions as LabelSimpleRepeats {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                region_bed = simple_repeats_bed,
-                region_name = "SR",
-                min_coverage = min_coverage,
-                prefix = "~{prefix}.~{contig}.simple_repeats",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_label_regions
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.region_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call LabelVariantRegions as LabelSegDups {
-            input:
-                vcf = LabelSimpleRepeats.labeled_vcf,
-                vcf_idx = LabelSimpleRepeats.labeled_vcf_idx,
-                region_bed = seg_dup_bed,
-                region_name = "SD",
-                min_coverage = min_coverage,
-                prefix = "~{prefix}.~{contig}.seg_dups",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_label_regions
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call LabelVariantRegions as LabelSimpleRepeats {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    region_bed = simple_repeats_bed,
+                    region_name = "SR",
+                    min_coverage = min_coverage,
+                    prefix = "~{prefix}.~{contig}.simple_repeats.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_label_regions
+            }
+
+            call LabelVariantRegions as LabelSegDups {
+                input:
+                    vcf = LabelSimpleRepeats.labeled_vcf,
+                    vcf_idx = LabelSimpleRepeats.labeled_vcf_idx,
+                    region_bed = seg_dup_bed,
+                    region_name = "SD",
+                    min_coverage = min_coverage,
+                    prefix = "~{prefix}.~{contig}.seg_dups.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_label_regions
+            }
+
+            call LabelVariantRegions as LabelRepeatMasker {
+                input:
+                    vcf = LabelSegDups.labeled_vcf,
+                    vcf_idx = LabelSegDups.labeled_vcf_idx,
+                    region_bed = repeat_masker_bed,
+                    region_name = "RM",
+                    min_coverage = min_coverage,
+                    prefix = "~{prefix}.~{contig}.repeat_masker.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_label_regions
+            }
+
+            call SetUniqueRegion {
+                input:
+                    vcf = LabelRepeatMasker.labeled_vcf,
+                    vcf_idx = LabelRepeatMasker.labeled_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.region_annotated.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_set_unique
+            }
         }
 
-        call LabelVariantRegions as LabelRepeatMasker {
-            input:
-                vcf = LabelSegDups.labeled_vcf,
-                vcf_idx = LabelSegDups.labeled_vcf_idx,
-                region_bed = repeat_masker_bed,
-                region_name = "RM",
-                min_coverage = min_coverage,
-                prefix = "~{prefix}.~{contig}.repeat_masker",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_label_regions
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = SetUniqueRegion.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.region_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
 
-        call SetUniqueRegion {
-            input:
-                vcf = LabelRepeatMasker.labeled_vcf,
-                vcf_idx = LabelRepeatMasker.labeled_vcf_idx,
-                prefix = "~{prefix}.~{contig}.region_annotated",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_set_unique
-        }
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, SetUniqueRegion.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = SetUniqueRegion.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.region_annotated",
                 docker = utils_docker,
@@ -99,7 +133,7 @@ workflow AnnotateRegion {
     }
 
     output {
-        File annotations_tsv_region = select_first([ConcatTsvs.concatenated_tsv, SetUniqueRegion.annotations_tsv[0]])
+        File annotations_tsv_region = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 

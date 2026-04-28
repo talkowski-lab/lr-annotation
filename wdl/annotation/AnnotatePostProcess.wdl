@@ -10,6 +10,8 @@ workflow AnnotatePostProcess {
 		Array[String] include_contigs
 		String prefix
 
+		Int? records_per_shard
+
 		File seqrepo_tar
 
 		Boolean filter_singletons = false
@@ -18,8 +20,10 @@ workflow AnnotatePostProcess {
 		String vrs_docker
 
 		RuntimeAttr? runtime_attr_subset
+		RuntimeAttr? runtime_attr_shard
 		RuntimeAttr? runtime_attr_post_process
 		RuntimeAttr? runtime_attr_annotate_vrs
+		RuntimeAttr? runtime_attr_concat_shards
 		RuntimeAttr? runtime_attr_concat
 	}
 
@@ -41,33 +45,66 @@ workflow AnnotatePostProcess {
 		File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
 		File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-		call PostProcessVcf {
-			input:
-				vcf = contig_vcf,
-				vcf_idx = contig_vcf_idx,
-				include_contigs = include_contigs,
-				filter_singletons = filter_singletons,
-				prefix = prefix + "." + contig + ".post_process",
-				docker = utils_docker,
-				runtime_attr_override = runtime_attr_post_process
+		if (defined(records_per_shard)) {
+			call Helpers.ShardVcfByRecords as ShardVcf {
+				input:
+					vcf = contig_vcf,
+					vcf_idx = contig_vcf_idx,
+					records_per_shard = select_first([records_per_shard]),
+					prefix = prefix + "." + contig + ".post_process",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_shard
+			}
 		}
 
-		call AnnotateVcfWithVRS {
-			input:
-				vcf = PostProcessVcf.post_processed_vcf,
-				vcf_idx = PostProcessVcf.post_processed_vcf_idx,
-				seqrepo_tar = seqrepo_tar,
-				prefix = prefix + "." + contig + ".post_process.vrs",
-				docker = vrs_docker,
-				runtime_attr_override = runtime_attr_annotate_vrs
+		Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
+		Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+
+		scatter (i in range(length(vcfs_to_process))) {
+			call PostProcessVcf {
+				input:
+					vcf = vcfs_to_process[i],
+					vcf_idx = vcf_idxs_to_process[i],
+					include_contigs = include_contigs,
+					filter_singletons = filter_singletons,
+					prefix = "~{prefix}.~{contig}.post_process.shard_~{i}",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_post_process
+			}
+
+			call AnnotateVcfWithVRS {
+				input:
+					vcf = PostProcessVcf.post_processed_vcf,
+					vcf_idx = PostProcessVcf.post_processed_vcf_idx,
+					seqrepo_tar = seqrepo_tar,
+					prefix = "~{prefix}.~{contig}.post_process.vrs.shard_~{i}",
+					docker = vrs_docker,
+					runtime_attr_override = runtime_attr_annotate_vrs
+			}
 		}
+
+		if (defined(records_per_shard)) {
+			call Helpers.ConcatVcfs as ConcatShards {
+				input:
+					vcfs = AnnotateVcfWithVRS.annotated_vcf,
+					vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
+					allow_overlaps = false,
+					naive = true,
+					prefix = prefix + "." + contig + ".post_processed",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_concat_shards
+			}
+		}
+
+		File final_post_processed_vcf = select_first([ConcatShards.concat_vcf, AnnotateVcfWithVRS.annotated_vcf[0]])
+		File final_post_processed_vcf_idx = select_first([ConcatShards.concat_vcf_idx, AnnotateVcfWithVRS.annotated_vcf_idx[0]])
 	}
 
 	if (!single_contig) {
 		call Helpers.ConcatVcfs {
 			input:
-				vcfs = AnnotateVcfWithVRS.annotated_vcf,
-				vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
+				vcfs = final_post_processed_vcf,
+				vcf_idxs = final_post_processed_vcf_idx,
 				allow_overlaps = false,
 				naive = true,
 				prefix = prefix + ".post_processed",
@@ -77,8 +114,8 @@ workflow AnnotatePostProcess {
 	}
 
 	output {
-		File post_processed_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateVcfWithVRS.annotated_vcf[0]])
-		File post_processed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateVcfWithVRS.annotated_vcf_idx[0]])
+		File post_processed_vcf = select_first([ConcatVcfs.concat_vcf, final_post_processed_vcf[0]])
+		File post_processed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, final_post_processed_vcf_idx[0]])
 	}
 }
 

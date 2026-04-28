@@ -10,6 +10,8 @@ workflow AnnotateMEDs {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Float size_similarity = 0.9
         Float reciprocal_overlap = 0.9
         Int breakpoint_window = 500
@@ -20,8 +22,10 @@ workflow AnnotateMEDs {
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_bedtools
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -41,42 +45,83 @@ workflow AnnotateMEDs {
         }
 
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
+        File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        call ExtractDeletionsToBed {
+        call Helpers.SubsetVcfByArgs as SubsetDeletions {
             input:
                 vcf = contig_vcf,
-                prefix = "~{prefix}.~{contig}",
+                vcf_idx = contig_vcf_idx,
+                include_args = 'INFO/allele_type="del"',
+                prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_bedtools
+                runtime_attr_override = runtime_attr_subset
         }
 
-        call IntersectMED {
-            input:
-                bed_a = ExtractDeletionsToBed.del_bed,
-                bed_b = med_catalog,
-                prefix = "~{prefix}.~{contig}",
-                reciprocal_overlap = reciprocal_overlap,
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_bedtools
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords as ShardVcf {
+                input:
+                    vcf = SubsetDeletions.subset_vcf,
+                    vcf_idx = SubsetDeletions.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.med_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call GenerateMedAnnotationTable {
-            input:
-                intersect_bed = IntersectMED.intersect_bed,
-                prefix = "~{prefix}.~{contig}",
-                size_similarity = size_similarity,
-                reciprocal_overlap = reciprocal_overlap,
-                breakpoint_window = breakpoint_window,
-                sequence_similarity = sequence_similarity,
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [SubsetDeletions.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [SubsetDeletions.subset_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call ExtractDeletionsToBed {
+                input:
+                    vcf = vcfs_to_process[i],
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_bedtools
+            }
+
+            call IntersectMED {
+                input:
+                    bed_a = ExtractDeletionsToBed.del_bed,
+                    bed_b = med_catalog,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
+                    reciprocal_overlap = reciprocal_overlap,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_bedtools
+            }
+
+            call GenerateMedAnnotationTable {
+                input:
+                    intersect_bed = IntersectMED.intersect_bed,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
+                    size_similarity = size_similarity,
+                    reciprocal_overlap = reciprocal_overlap,
+                    breakpoint_window = breakpoint_window,
+                    sequence_similarity = sequence_similarity,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate
+            }
         }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = GenerateMedAnnotationTable.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.med_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, GenerateMedAnnotationTable.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotations {
             input:
-                tsvs = GenerateMedAnnotationTable.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.med_annotations",
                 docker = utils_docker,
@@ -85,7 +130,7 @@ workflow AnnotateMEDs {
     }
 
     output {
-        File annotations_tsv_meds = select_first([MergeAnnotations.concatenated_tsv, GenerateMedAnnotationTable.annotations_tsv[0]])
+        File annotations_tsv_meds = select_first([MergeAnnotations.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 
