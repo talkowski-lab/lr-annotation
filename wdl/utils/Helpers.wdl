@@ -2174,6 +2174,7 @@ task SubsetVcfToSamples {
         File vcf
         File vcf_idx
         Array[String] samples
+        Boolean keep_samples = true
         Boolean filter_to_sample = true
         String? extra_args
         String prefix
@@ -2192,7 +2193,7 @@ EOF
             -x INFO/AC,INFO/AN,INFO/AF \
             ~{vcf} \
         | bcftools view \
-            --samples-file samples.txt \
+            --samples-file ~{if keep_samples then "samples.txt" else "^samples.txt"} \
             ~{if filter_to_sample then "--min-ac 1" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
             -Oz -o ~{prefix}.vcf.gz
