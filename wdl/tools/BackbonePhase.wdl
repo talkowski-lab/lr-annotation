@@ -587,7 +587,7 @@ for path in flip_tsv_paths:
 
 total_flips = sum(len(sample_map) for sample_map in flips.values())
 with pysam.VariantFile("~{vcf}", "r") as vcf_in:
-    with pysam.VariantFile("transferred.vcf", "w", header=vcf_in.header) as vcf_out:
+    with pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header) as vcf_out:
         for rec in vcf_in:
             if rec.id in flips:
                 new_rec = rec.copy()
@@ -601,13 +601,7 @@ with pysam.VariantFile("~{vcf}", "r") as vcf_in:
                 vcf_out.write(rec)
 CODE
 
-        bgzip transferred.vcf
-
-        bcftools index -t transferred.vcf.gz
-
-        mv transferred.vcf.gz ~{prefix}.vcf.gz
-
-        mv transferred.vcf.gz.tbi ~{prefix}.vcf.gz.tbi
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {

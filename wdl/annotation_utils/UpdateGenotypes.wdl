@@ -285,7 +285,7 @@ def make_male_hemizygous(gt, phased):
 	return right_align_unphased(tuple(new_gt))
 
 
-unphase_list = ["~{sep='", "' unphase_samples}"] if "~{unphase_samples}" != "" else []
+unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)} > 0 else []
 unphase_samples_set = set(unphase_list)
 
 transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
