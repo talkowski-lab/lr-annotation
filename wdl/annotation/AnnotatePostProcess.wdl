@@ -89,7 +89,7 @@ workflow AnnotatePostProcess {
 					vcfs = AnnotateVcfWithVRS.annotated_vcf,
 					vcf_idxs = AnnotateVcfWithVRS.annotated_vcf_idx,
 					allow_overlaps = true,
-					naive = true,
+					naive = false,
 					prefix = prefix + "." + contig + ".post_processed",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_concat_shards

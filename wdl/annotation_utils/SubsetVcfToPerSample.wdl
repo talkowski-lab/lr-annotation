@@ -43,7 +43,7 @@ workflow SubsetVcfToPerSample {
                 vcfs = vcfs_by_sample[i],
                 vcf_idxs = vcf_idxs_by_sample[i],
                 allow_overlaps = true,
-                naive = true,
+                naive = false,
                 prefix = "~{prefix}.~{sample_ids[i]}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcfs
