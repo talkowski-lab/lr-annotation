@@ -69,7 +69,7 @@ workflow AnnotateSQMetrics {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = CalculateSiteMetrics.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.site_quality",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

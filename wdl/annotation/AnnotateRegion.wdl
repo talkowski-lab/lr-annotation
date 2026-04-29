@@ -111,7 +111,7 @@ workflow AnnotateRegion {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = SetUniqueRegion.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.region_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

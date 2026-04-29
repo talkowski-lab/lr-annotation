@@ -105,7 +105,7 @@ workflow AnnotateGQMetrics {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = MergeShardAnnotations.merged_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = prefix + "." + contig + ".gq_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

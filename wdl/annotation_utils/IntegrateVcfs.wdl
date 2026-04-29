@@ -164,11 +164,11 @@ workflow IntegrateVcfs {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ConcatVcfs as ConcatSnvIndelShards {
+            call Helpers.ConcatVcfs as ConcatShardsSnvIndel {
                 input:
                     vcfs = AddFilterSnvIndel.flagged_vcf,
                     vcf_idxs = AddFilterSnvIndel.flagged_vcf_idx,
-                    allow_overlaps = false,
+                    allow_overlaps = true,
                     naive = true,
                     prefix = "~{prefix}.~{contig}.snv_indel.concatenated",
                     docker = utils_docker,
@@ -176,8 +176,8 @@ workflow IntegrateVcfs {
             }
         }
 
-        File final_snv_indel_vcf_for_contig = select_first([ConcatSnvIndelShards.concat_vcf, AddFilterSnvIndel.flagged_vcf[0]])
-        File final_snv_indel_vcf_for_contig_idx = select_first([ConcatSnvIndelShards.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
+        File final_snv_indel_vcf_for_contig = select_first([ConcatShardsSnvIndel.concat_vcf, AddFilterSnvIndel.flagged_vcf[0]])
+        File final_snv_indel_vcf_for_contig_idx = select_first([ConcatShardsSnvIndel.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
 
         # SV Processing
         call Helpers.SubsetVcfToContig as SubsetContigSv {
@@ -260,7 +260,7 @@ workflow IntegrateVcfs {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ConcatVcfs as ConcatSvShards {
+            call Helpers.ConcatVcfs as ConcatShardsSv {
                 input:
                     vcfs = AddFilterSv.flagged_vcf,
                     vcf_idxs = AddFilterSv.flagged_vcf_idx,
@@ -272,8 +272,8 @@ workflow IntegrateVcfs {
             }
         }
 
-        File final_sv_vcf_for_contig = select_first([ConcatSvShards.concat_vcf, AddFilterSv.flagged_vcf[0]])
-        File final_sv_vcf_for_contig_idx = select_first([ConcatSvShards.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
+        File final_sv_vcf_for_contig = select_first([ConcatShardsSv.concat_vcf, AddFilterSv.flagged_vcf[0]])
+        File final_sv_vcf_for_contig_idx = select_first([ConcatShardsSv.concat_vcf_idx, AddFilterSv.flagged_vcf_idx[0]])
 
         # Merging
         call Helpers.CheckSampleConsistency {

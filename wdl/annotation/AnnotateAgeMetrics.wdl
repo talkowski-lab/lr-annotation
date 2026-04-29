@@ -76,7 +76,7 @@ workflow AnnotateAgeMetrics {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = GenerateAgeAnnotationTsv.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = prefix + "." + contig + ".age",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

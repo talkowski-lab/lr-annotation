@@ -108,7 +108,7 @@ workflow AnnotateMEDs {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = GenerateMedAnnotationTable.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.med_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

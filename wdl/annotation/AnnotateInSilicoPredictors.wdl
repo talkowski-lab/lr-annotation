@@ -86,7 +86,7 @@ workflow AnnotateInSilicoPredictors {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = AnnotateInSilicoPredictorsTask.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.in_silico_predictors",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
