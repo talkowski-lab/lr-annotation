@@ -674,7 +674,7 @@ task CreateContigShards {
         Array[File] vcfs
         Array[File] vcf_idxs
         String contig
-        Int bin_size
+        Int shard_bin_size
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -701,17 +701,17 @@ task CreateContigShards {
 import math
 
 contig = "~{contig}"
-bin_size = ~{bin_size}
+shard_bin_size = ~{shard_bin_size}
 max_pos = int("$max_pos")
 
 with open("~{prefix}.txt", "w") as out:
     if max_pos == 0:
         pass
     else:
-        shard_count = int(math.ceil(max_pos / bin_size))
+        shard_count = int(math.ceil(max_pos / shard_bin_size))
         for shard_index in range(shard_count):
-            start = shard_index * bin_size + 1
-            end = min((shard_index + 1) * bin_size, max_pos)
+            start = shard_index * shard_bin_size + 1
+            end = min((shard_index + 1) * shard_bin_size, max_pos)
             out.write(f"{contig}:{start}-{end}\n")
 CODE
     >>>

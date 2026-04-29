@@ -189,9 +189,8 @@ task CountAnnotationShard {
 		python3 <<'PYCODE'
 import csv
 import re
-
+from collections import defaultdict
 import pysam
-
 
 VCF_PATH = "~{vcf}"
 SITE_OUTPUT = "~{prefix}.sites.raw.tsv"
@@ -240,83 +239,58 @@ ROW_ORDER = [
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
 	("", "dbGaP"),
-	("dbGaP", "TR Overlap"),
-	("dbGaP", "Not TR Overlap"),
 	("dbGaP", "gnomAD Matched"),
 	("dbGaP", "gnomAD Missing"),
+	("dbGaP", "LoF - SVAnnotate"),
+	("dbGaP", "LoF - VEP"),
 	("", "gnomAD Matched"),
-	("gnomAD Matched", "TR Overlap"),
-	("gnomAD Matched", "Not TR Overlap"),
+	("gnomAD Matched", "LoF - SVAnnotate"),
+	("gnomAD Matched", "LoF - VEP"),
 ]
 
 PARENT_ROWS = {"ME", "DUP", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 CONSEQUENCE_PRIORITY = [
 	("LoF - VEP", {
-		"transcript_ablation",
-		"stop_gained",
-		"frameshift_variant",
-		"splice_donor_variant",
-		"splice_acceptor_variant",
-		"stop_lost",
-		"start_lost",
-		"transcript_amplification",
-		"feature_elongation",
+		"transcript_ablation", "stop_gained", "frameshift_variant",
+		"splice_donor_variant", "splice_acceptor_variant", "stop_lost",
+		"start_lost", "transcript_amplification", "feature_elongation",
 		"feature_truncation",
 	}),
 	("Missense", {
-		"missense_variant",
-		"inframe_insertion",
-		"inframe_deletion",
+		"missense_variant", "inframe_insertion", "inframe_deletion",
 		"protein_altering_variant",
 	}),
 	("Coding", {
-		"synonymous_variant",
-		"stop_retained_variant",
-		"start_retained_variant",
-		"incomplete_terminal_codon_variant",
-		"coding_sequence_variant",
+		"synonymous_variant", "stop_retained_variant", "start_retained_variant",
+		"incomplete_terminal_codon_variant", "coding_sequence_variant",
 	}),
 	("Intronic", {
-		"intron_variant",
-		"splice_region_variant",
-		"splice_donor_region_variant",
-		"splice_polypyrimidine_tract_variant",
-		"splice_donor_5th_base_variant",
-		"NMD_transcript_variant",
-		"non_coding_transcript_exon_variant",
+		"intron_variant", "splice_region_variant", "splice_donor_region_variant",
+		"splice_polypyrimidine_tract_variant", "splice_donor_5th_base_variant",
+		"NMD_transcript_variant", "non_coding_transcript_exon_variant",
 		"non_coding_transcript_variant",
 	}),
 	("Intergenic", {
-		"intergenic_variant",
-		"upstream_gene_variant",
-		"downstream_gene_variant",
-		"regulatory_region_variant",
-		"regulatory_region_ablation",
-		"regulatory_region_amplification",
-		"TF_binding_site_variant",
-		"TFBS_ablation",
-		"TFBS_amplification",
-		"3_prime_UTR_variant",
+		"intergenic_variant", "upstream_gene_variant", "downstream_gene_variant",
+		"regulatory_region_variant", "regulatory_region_ablation",
+		"regulatory_region_amplification", "TF_binding_site_variant",
+		"TFBS_ablation", "TFBS_amplification", "3_prime_UTR_variant",
 		"5_prime_UTR_variant",
 	}),
 ]
 
-
 def init_table():
-	return {row: {column: 0.0 for column in COLUMN_BUCKETS} for row in ROW_ORDER}
-
+	return defaultdict(lambda: {column: 0.0 for column in COLUMN_BUCKETS})
 
 def first_value(value):
 	if isinstance(value, (list, tuple)):
 		return value[0] if value else None
 	return value
 
-
 def get_string_info(record, key):
 	value = first_value(record.info.get(key))
 	return "" if value is None else str(value)
-
 
 def get_int_info(record, key):
 	value = first_value(record.info.get(key))
@@ -324,10 +298,8 @@ def get_int_info(record, key):
 		return None
 	return abs(int(value))
 
-
 def has_info(record, key):
 	return key in record.info
-
 
 def get_vep_field_indices(header):
 	if "vep" not in header.info:
@@ -339,16 +311,13 @@ def get_vep_field_indices(header):
 	fields = [field.strip() for field in match.group(1).strip().rstrip(".").split("|")]
 	return {field: idx for idx, field in enumerate(fields)}
 
-
 def extract_all_consequences(record, vep_field_indices):
 	consequence_idx = vep_field_indices.get("Consequence")
 	if consequence_idx is None or "vep" not in record.info:
 		return set()
-
 	annotations = record.info.get("vep")
 	if isinstance(annotations, str):
 		annotations = [annotations]
-
 	consequences = set()
 	for annotation in annotations:
 		fields = annotation.split("|")
@@ -358,40 +327,27 @@ def extract_all_consequences(record, vep_field_indices):
 			consequence = consequence.strip()
 			if consequence:
 				consequences.add(consequence)
-
 	return consequences
-
 
 def determine_consequence_label(record, consequences):
 	if has_info(record, "PREDICTED_LOF"):
 		return "LoF - SVAnnotate"
-
 	for label, consequence_terms in CONSEQUENCE_PRIORITY:
 		if consequence_terms & consequences:
 			return label
-
 	return "Other"
-
 
 def determine_column(record):
 	allele_type = get_string_info(record, "allele_type").lower()
 	allele_length = get_int_info(record, "allele_length")
 	variant_id = (record.id or "").upper()
-
-	if allele_type == "snv":
-		return "SNV"
-	if allele_length is not None and "INS" in variant_id and allele_length < 50:
-		return "INS 1-49bp"
-	if allele_length is not None and "DEL" in variant_id and allele_length < 50:
-		return "DEL 1-49bp"
-	if allele_length is not None and "INS" in variant_id and allele_length >= 50:
-		return "INS >49bp"
-	if allele_length is not None and "DEL" in variant_id and allele_length >= 50:
-		return "DEL >49bp"
-	if allele_type == "trv":
-		return "TRV"
+	if allele_type == "snv": return "SNV"
+	if allele_length is not None and "INS" in variant_id and allele_length < 50: return "INS 1-49bp"
+	if allele_length is not None and "DEL" in variant_id and allele_length < 50: return "DEL 1-49bp"
+	if allele_length is not None and "INS" in variant_id and allele_length >= 50: return "INS >49bp"
+	if allele_length is not None and "DEL" in variant_id and allele_length >= 50: return "DEL >49bp"
+	if allele_type == "trv": return "TRV"
 	return "Other"
-
 
 def determine_row_weights(record, vep_field_indices):
 	allele_type = get_string_info(record, "allele_type").lower()
@@ -407,14 +363,10 @@ def determine_row_weights(record, vep_field_indices):
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
 	is_sva = "sva" in allele_type
-	if is_alu or is_line or is_sva:
-		row_weights[("", "ME")] = 1
-	if is_alu:
-		row_weights[("ME", "ALU")] = 1
-	if is_line:
-		row_weights[("ME", "LINE")] = 1
-	if is_sva:
-		row_weights[("ME", "SVA")] = 1
+	if is_alu or is_line or is_sva: row_weights[("", "ME")] = 1
+	if is_alu: row_weights[("ME", "ALU")] = 1
+	if is_line: row_weights[("ME", "LINE")] = 1
+	if is_sva: row_weights[("ME", "SVA")] = 1
 
 	is_dup_interspersed = "dup_interspersed" in allele_type
 	is_dup_complex = "complex_dup" in allele_type
@@ -422,14 +374,10 @@ def determine_row_weights(record, vep_field_indices):
 	is_numt = "numt" in allele_type
 	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt:
 		row_weights[("", "DUP")] = 1
-	if is_dup_tandem:
-		row_weights[("DUP", "DUP_TANDEM")] = 1
-	if is_dup_interspersed:
-		row_weights[("DUP", "DUP_INTERSPERSED")] = 1
-	if is_dup_complex:
-		row_weights[("DUP", "DUP_COMPLEX")] = 1
-	if is_numt:
-		row_weights[("DUP", "NUMT")] = 1
+	if is_dup_tandem: row_weights[("DUP", "DUP_TANDEM")] = 1
+	if is_dup_interspersed: row_weights[("DUP", "DUP_INTERSPERSED")] = 1
+	if is_dup_complex: row_weights[("DUP", "DUP_COMPLEX")] = 1
+	if is_numt: row_weights[("DUP", "NUMT")] = 1
 
 	consequence_label = determine_consequence_label(record, consequences)
 	row_weights[("", "Consequence")] = 1
@@ -445,74 +393,50 @@ def determine_row_weights(record, vep_field_indices):
 	is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
 	has_svannotate = is_copy_gain or is_ied or is_ped or is_tssd or is_dp or is_utr
 
-	if has_svannotate:
-		row_weights[("", "SVAnnotate")] = 1
-	if is_copy_gain:
-		row_weights[("SVAnnotate", "Copy Gain")] = 1
-	if is_ied:
-		row_weights[("SVAnnotate", "IED")] = 1
-	if is_ped:
-		row_weights[("SVAnnotate", "PED")] = 1
-	if is_tssd:
-		row_weights[("SVAnnotate", "TSSD")] = 1
-	if is_dp:
-		row_weights[("SVAnnotate", "DP")] = 1
-	if is_utr:
-		row_weights[("SVAnnotate", "UTR")] = 1
+	if has_svannotate: row_weights[("", "SVAnnotate")] = 1
+	if is_copy_gain: row_weights[("SVAnnotate", "Copy Gain")] = 1
+	if is_ied: row_weights[("SVAnnotate", "IED")] = 1
+	if is_ped: row_weights[("SVAnnotate", "PED")] = 1
+	if is_tssd: row_weights[("SVAnnotate", "TSSD")] = 1
+	if is_dp: row_weights[("SVAnnotate", "DP")] = 1
+	if is_utr: row_weights[("SVAnnotate", "UTR")] = 1
 
 	if is_dbgap:
 		row_weights[("", "dbGaP")] = 1
-		if is_tr_overlap:
-			row_weights[("dbGaP", "TR Overlap")] = 1
-		else:
-			row_weights[("dbGaP", "Not TR Overlap")] = 1
-		if is_gnomad_matched:
-			row_weights[("dbGaP", "gnomAD Matched")] = 1
-		else:
-			row_weights[("dbGaP", "gnomAD Missing")] = 1
+		if is_gnomad_matched: row_weights[("dbGaP", "gnomAD Matched")] = 1
+		else: row_weights[("dbGaP", "gnomAD Missing")] = 1
+		if consequence_label == "LoF - SVAnnotate": row_weights[("dbGaP", "LoF - SVAnnotate")] = 1
+		elif consequence_label == "LoF - VEP": row_weights[("dbGaP", "LoF - VEP")] = 1
 
 	if is_gnomad_matched:
 		row_weights[("", "gnomAD Matched")] = 1
-		if is_tr_overlap:
-			row_weights[("gnomAD Matched", "TR Overlap")] = 1
-		else:
-			row_weights[("gnomAD Matched", "Not TR Overlap")] = 1
+		if consequence_label == "LoF - SVAnnotate": row_weights[("gnomAD Matched", "LoF - SVAnnotate")] = 1
+		elif consequence_label == "LoF - VEP": row_weights[("gnomAD Matched", "LoF - VEP")] = 1
 
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
-
 
 def get_genotype_weights(record):
 	carrier_count = 0
 	alt_allele_count = 0
-
 	for sample in record.samples.values():
 		genotype = sample.get("GT")
-		if genotype is None:
-			continue
-
+		if genotype is None: continue
 		alt_alleles = sum(1 for allele in genotype if allele is not None and allele > 0)
 		alt_allele_count += alt_alleles
-		if alt_alleles > 0:
-			carrier_count += 1
-
+		if alt_alleles > 0: carrier_count += 1
 	return carrier_count, alt_allele_count
-
 
 def format_list_column(row_key):
 	annotation_group, annotation = row_key
-	if annotation_group:
-		return annotation
-	if annotation in PARENT_ROWS:
-		return f"{annotation} - Total"
+	if annotation_group: return annotation
+	if annotation in PARENT_ROWS: return f"{annotation} - Total"
 	return annotation
-
 
 def get_list_columns():
 	default_labels = [format_list_column(row_key) for row_key in ROW_ORDER]
 	label_counts = {}
 	for label in default_labels:
 		label_counts[label] = label_counts.get(label, 0) + 1
-
 	list_columns = []
 	for row_key, default_label in zip(ROW_ORDER, default_labels):
 		annotation_group, annotation = row_key
@@ -522,21 +446,17 @@ def get_list_columns():
 			list_columns.append(default_label)
 	return list_columns
 
-
-def write_table(path, table, integer_output):
+def write_table(path, table_data, integer_output):
 	with open(path, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["annotation_group", "annotation"] + COLUMN_BUCKETS)
-		for row_key in ROW_ORDER:
+		writer.writerow(["category", "annotation", "tr_status", "region"] + COLUMN_BUCKETS)
+		for key in sorted(table_data.keys()):
 			values = []
 			for column in COLUMN_BUCKETS:
-				value = table[row_key][column]
-				if integer_output:
-					values.append(str(int(value)))
-				else:
-					values.append(str(value))
-			writer.writerow([row_key[0], row_key[1]] + values)
-
+				value = table_data[key][column]
+				if integer_output: values.append(str(int(value)))
+				else: values.append(str(value))
+			writer.writerow(list(key) + values)
 
 site_table = init_table()
 sample_table = init_table()
@@ -556,6 +476,10 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 	for record in vcf_in:
 		column = determine_column(record)
 		row_weights = determine_row_weights(record, vep_field_indices)
+		
+		tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
+		region = get_string_info(record, "REGION")
+		if not region: region = "Unknown"
 
 		if DO_PER_SAMPLE or DO_PER_ALLELE:
 			carrier_count, alt_allele_count = get_genotype_weights(record)
@@ -563,11 +487,13 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 			carrier_count, alt_allele_count = 0, 0
 
 		for row_key, weight in row_weights.items():
-			site_table[row_key][column] += weight
-			if DO_PER_SAMPLE:
-				sample_table[row_key][column] += carrier_count * weight
-			if DO_PER_ALLELE:
-				allele_table[row_key][column] += alt_allele_count * weight
+			cat = row_key[0] if row_key[0] else row_key[1]
+			ann = row_key[1] if row_key[0] else "Total"
+			full_key = (cat, ann, tr_status, region)
+
+			site_table[full_key][column] += weight
+			if DO_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
+			if DO_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
 
 		writer.writerow([
 			str(record.id or "."),
@@ -623,38 +549,68 @@ task MergeAnnotationCountTables {
 
 		python3 <<'PYCODE'
 import csv
-
+from collections import defaultdict
 
 COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
-PARENT_ROWS = {"ME", "DUP", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
+ROW_ORDER = [
+	("", "All"),
+	("", "TR Enveloped"),
+	("", "ME"),
+	("ME", "ALU"),
+	("ME", "LINE"),
+	("ME", "SVA"),
+	("", "DUP"),
+	("DUP", "DUP_TANDEM"),
+	("DUP", "DUP_INTERSPERSED"),
+	("DUP", "DUP_COMPLEX"),
+	("DUP", "NUMT"),
+	("", "Consequence"),
+	("Consequence", "LoF - SVAnnotate"),
+	("Consequence", "LoF - VEP"),
+	("Consequence", "Missense"),
+	("Consequence", "Coding"),
+	("Consequence", "Intronic"),
+	("Consequence", "Intergenic"),
+	("Consequence", "Other"),
+	("", "SVAnnotate"),
+	("SVAnnotate", "Copy Gain"),
+	("SVAnnotate", "IED"),
+	("SVAnnotate", "PED"),
+	("SVAnnotate", "TSSD"),
+	("SVAnnotate", "DP"),
+	("SVAnnotate", "UTR"),
+	("", "dbGaP"),
+	("dbGaP", "gnomAD Matched"),
+	("dbGaP", "gnomAD Missing"),
+	("dbGaP", "LoF - SVAnnotate"),
+	("dbGaP", "LoF - VEP"),
+	("", "gnomAD Matched"),
+	("gnomAD Matched", "LoF - SVAnnotate"),
+	("gnomAD Matched", "LoF - VEP"),
+]
 
-def format_label(key):
-	annotation_group, annotation = key
-	if annotation_group:
-		return "", annotation
-	if annotation in PARENT_ROWS:
-		return annotation, "Total"
-	return annotation, ""
-
+def get_cat_ann(row_key):
+	group, ann = row_key
+	if not group:
+		return ann, "Total"
+	return group, ann
 
 def format_site_value(value, total):
 	count = int(round(value))
 	percentage = 0.0 if total <= 0 else (value / total) * 100.0
 	return str(count), f"{percentage:.2f}%"
 
-
 def format_normalized_value(value, total):
 	percentage = 0.0 if total <= 0 else (value / total) * 100.0
 	return f"{value:.2f}", f"{percentage:.2f}%"
 
-
 header = None
-row_order = []
-counts = {}
+counts = defaultdict(lambda: [0.0] * 7)
+found_regions = set()
 
 for path in COUNT_FILES:
 	with open(path, "r", newline="") as handle:
@@ -666,11 +622,12 @@ for path in COUNT_FILES:
 			raise ValueError(f"Mismatched headers while merging count tables: {path}")
 
 		for row in reader:
-			key = (row[0], row[1])
+			key = (row[0], row[1], row[2], row[3])
+			found_regions.add(row[3])
 			if key not in counts:
-				counts[key] = [0.0] * (len(header) - 2)
-				row_order.append(key)
-			counts[key] = [left + float(right) for left, right in zip(counts[key], row[2:])]
+				counts[key] = [0.0] * (len(header) - 4)
+			for i, val in enumerate(row[4:]):
+				counts[key][i] += float(val)
 
 if header is None:
 	raise ValueError("No count tables were provided for merging")
@@ -691,32 +648,54 @@ if MODE != "sites":
 
 	denominator = float(sample_count)
 
+def get_rollup(target_cat, target_ann, target_tr=None, target_reg=None):
+	total = [0.0] * (len(header) - 4)
+	for (c, a, t, r), vals in counts.items():
+		if c == target_cat and a == target_ann:
+			if target_tr is None or t == target_tr:
+				if target_reg is None or r == target_reg:
+					for i, v in enumerate(vals):
+						total[i] += v
+	return total
+
+def region_sort_key(r):
+	order = {"US": 1, "RM": 2, "SD": 3, "SR": 4}
+	return order.get(r, 5), r
+
+all_regions = sorted(list(found_regions), key=region_sort_key)
+
+global_all = get_rollup("All", "Total")
+global_all_norm = [v / denominator for v in global_all] if MODE != "sites" else global_all
+
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
-	all_counts = counts.get(("", "All"))
-	if all_counts is None:
-		raise ValueError("Merged count tables are missing the All row required for output formatting")
-	all_values = all_counts if MODE == "sites" else [value / denominator for value in all_counts]
-
-	for key in row_order:
-		values = counts[key]
-		if MODE != "sites":
-			values = [value / denominator for value in values]
-
-		display_group, display_annotation = format_label(key)
+	
+	def write_row(c, a, t, r, values):
 		if MODE == "sites":
-			formatted_pairs = [format_site_value(value, total) for value, total in zip(values, all_counts)]
-			count_values = [count_value for count_value, _ in formatted_pairs]
-			percentage_values = [percentage_value for _, percentage_value in formatted_pairs]
-			writer.writerow([display_group, display_annotation] + count_values)
-			writer.writerow(["", ""] + percentage_values)
+			formatted = [format_site_value(v, g) for v, g in zip(values, global_all)]
 		else:
-			formatted_pairs = [format_normalized_value(value, total) for value, total in zip(values, all_values)]
-			count_values = [count_value for count_value, _ in formatted_pairs]
-			percentage_values = [percentage_value for _, percentage_value in formatted_pairs]
-			writer.writerow([display_group, display_annotation] + count_values)
-			writer.writerow(["", ""] + percentage_values)
+			norm_vals = [v / denominator for v in values]
+			formatted = [format_normalized_value(v, g) for v, g in zip(norm_vals, global_all_norm)]
+		
+		count_strings = [pair[0] for pair in formatted]
+		pct_strings = [pair[1] for pair in formatted]
+		writer.writerow([c, a, t, r] + count_strings)
+		writer.writerow(["", "", "", ""] + pct_strings)
+
+	for row_key in ROW_ORDER:
+		cat, ann = get_cat_ann(row_key)
+		tot_vals = get_rollup(cat, ann)
+		write_row(cat, ann, "Total", "Total", tot_vals)
+		
+		for tr in ["TR", "Not TR"]:
+			tr_vals = get_rollup(cat, ann, target_tr=tr)
+			write_row(cat, ann, tr, "Total", tr_vals)
+
+			for reg in all_regions:
+				reg_vals = get_rollup(cat, ann, target_tr=tr, target_reg=reg)
+				if sum(reg_vals) > 0:
+					write_row(cat, ann, tr, reg, reg_vals)
 PYCODE
 	>>>
 

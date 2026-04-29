@@ -12,7 +12,7 @@ workflow FillPhasedGenotypes {
         Array[String] contigs
         String prefix
 
-        Int? bin_size
+        Int? shard_bin_size
 
         String utils_docker
         
@@ -45,13 +45,13 @@ workflow FillPhasedGenotypes {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        if (defined(bin_size)) {
+        if (defined(shard_bin_size)) {
             call Helpers.CreateContigShards {
                 input:
                     vcfs = [SubsetPhased.subset_vcf, SubsetUnphased.subset_vcf],
                     vcf_idxs = [SubsetPhased.subset_vcf_idx, SubsetUnphased.subset_vcf_idx],
                     contig = contig,
-                    bin_size = select_first([bin_size]),
+                    shard_bin_size = select_first([shard_bin_size]),
                     prefix = "~{prefix}.~{contig}.shards",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_create_shards
@@ -104,7 +104,7 @@ workflow FillPhasedGenotypes {
             }
         }
 
-        if (!defined(bin_size)) {
+        if (!defined(shard_bin_size)) {
             call FillGenotypes as FillGenotypesNoSharding {
                 input:
                     phased_vcf = SubsetPhased.subset_vcf,

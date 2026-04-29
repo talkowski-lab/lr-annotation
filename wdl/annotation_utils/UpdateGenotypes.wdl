@@ -14,7 +14,7 @@ workflow UpdateGenotypes {
 
 		Array[String]? unphase_samples
 		Array[String]? drop_samples
-		Int? bin_size
+		Int? shard_bin_size
 		Boolean transfer_genotypes = false
 		Boolean drop_genotypes = false
 
@@ -78,13 +78,13 @@ workflow UpdateGenotypes {
 		File transfer_source_vcf = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf, select_first([phased_vcf])]) else contig_base_vcf
 		File transfer_source_vcf_idx = if transfer_genotypes then select_first([SubsetGenotyped.subset_vcf_idx, select_first([phased_vcf_idx])]) else contig_base_vcf_idx
 
-		if (defined(bin_size)) {
+		if (defined(shard_bin_size)) {
 			call Helpers.CreateContigShards {
 				input:
 					vcfs = [contig_base_vcf, transfer_source_vcf],
 					vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
 					contig = contig,
-					bin_size = select_first([bin_size]),
+					shard_bin_size = select_first([shard_bin_size]),
 					prefix = prefix + "." + contig + ".shards",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_create_shards
@@ -140,7 +140,7 @@ workflow UpdateGenotypes {
 			}
 		}
 
-		if (!defined(bin_size)) {
+		if (!defined(shard_bin_size)) {
 			call UpdateContigGenotypes as UpdateContigGenotypesNoSharding {
 				input:
 					base_vcf = contig_base_vcf,

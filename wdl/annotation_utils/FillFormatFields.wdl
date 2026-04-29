@@ -13,7 +13,7 @@ workflow FillFormatFields {
         String contig
 
         Array[String] format_fields
-        Int? bin_size
+        Int? shard_bin_size
         String? include_field
         String? include_value
         Boolean modify_ev_number = false
@@ -31,13 +31,13 @@ workflow FillFormatFields {
         RuntimeAttr? runtime_attr_concat
     }
 
-    if (defined(bin_size)) {
+    if (defined(shard_bin_size)) {
         call Helpers.CreateContigShards {
             input:
                 vcfs = [unfilled_vcf, filled_vcf],
                 vcf_idxs = [unfilled_vcf_idx, filled_vcf_idx],
                 contig = contig,
-                bin_size = select_first([bin_size]),
+                shard_bin_size = select_first([shard_bin_size]),
                 prefix = "~{prefix}.shards",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_create_shards
@@ -98,7 +98,7 @@ workflow FillFormatFields {
         }
     }
 
-    if (!defined(bin_size)) {
+    if (!defined(shard_bin_size)) {
         call FillVcfFormatFields as FillVcfFormatFieldsNoSharding {
             input:
                 unfilled_vcf = unfilled_vcf,
