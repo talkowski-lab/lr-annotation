@@ -168,20 +168,8 @@ prefix = "~{prefix}"
 
 bin_edges_str = "|".join(map(str, bins))
 col_names = [f"{field}_hist_all_bin_freq", f"{field}_hist_alt_bin_freq"]
-header_lines = [
-    f'##INFO=<ID={field}_hist_all_bin_freq,Number=1,Type=String,Description="Histogram for {field} in all individuals; bin edges are: {bin_edges_str}">',
-    f'##INFO=<ID={field}_hist_alt_bin_freq,Number=1,Type=String,Description="Histogram for {field} in heterozygous/alt individuals; bin edges are: {bin_edges_str}">',
-]
 if larger_flag:
     col_names += [f"{field}_hist_all_n_larger", f"{field}_hist_alt_n_larger"]
-    header_lines += [
-        f'##INFO=<ID={field}_hist_all_n_larger,Number=1,Type=Integer,Description="Count of all genotypes with {field} > {bins[-1]}">',
-        f'##INFO=<ID={field}_hist_alt_n_larger,Number=1,Type=Integer,Description="Count of alt genotypes with {field} > {bins[-1]}">',
-    ]
-
-with open(f"{prefix}.header.txt", "w") as f:
-    f.write("\n".join(header_lines) + "\n")
-
 n_intervals = len(bins) - 1
 
 def get_bin_index(val):
@@ -292,11 +280,6 @@ with open("~{write_json(ab_bins)}") as f:
 prefix = "~{prefix}"
 
 bin_edges_str = "|".join(map(str, bins))
-header_line = f'##INFO=<ID=ab_hist_alt_bin_freq,Number=1,Type=String,Description="Histogram for allele balance in heterozygous individuals; bin edges are: {bin_edges_str}">'
-
-with open(f"{prefix}.header.txt", "w") as f:
-    f.write(header_line + "\n")
-
 n_intervals = len(bins) - 1
 
 def get_bin_index(val):

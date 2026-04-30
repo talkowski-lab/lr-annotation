@@ -10,8 +10,11 @@ workflow SubsetVcfToPerSample {
         Array[String] contigs
         String prefix
 
+        String? drop_fields
+
         String utils_docker
 
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_extract_sample
         RuntimeAttr? runtime_attr_concat_vcfs
     }
@@ -19,11 +22,26 @@ workflow SubsetVcfToPerSample {
     scatter (i in range(length(contigs))) {
         String contig = contigs[i]
 
-        scatter (sample_id in sample_ids) {
-            call Helpers.ExtractSample {
+        if (defined(drop_fields)) {
+            call Helpers.DropVcfFields {
                 input:
                     vcf = cohort_vcfs[i],
                     vcf_idx = cohort_vcf_idxs[i],
+                    drop_fields = select_first([drop_fields]),
+                    prefix = "~{prefix}.~{contig}.dropped",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_fields
+            }
+        }
+
+        File base_vcf = select_first([DropVcfFields.dropped_vcf, cohort_vcfs[i]])
+        File base_vcf_idx = select_first([DropVcfFields.dropped_vcf_idx, cohort_vcf_idxs[i]])
+
+        scatter (sample_id in sample_ids) {
+            call Helpers.ExtractSample {
+                input:
+                    vcf = base_vcf,
+                    vcf_idx = base_vcf_idx,
                     sample = sample_id,
                     normalize_output = true,
                     prefix = "~{prefix}.~{sample_id}.~{contig}",
