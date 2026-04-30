@@ -11,10 +11,9 @@ workflow AnnotatePostProcess {
 		String prefix
 
 		Int? records_per_shard
+		Boolean filter_singletons = false
 
 		File seqrepo_tar
-
-		Boolean filter_singletons = false
 
 		String utils_docker
 		String vrs_docker

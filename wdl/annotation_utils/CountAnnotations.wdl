@@ -11,6 +11,9 @@ workflow CountAnnotations {
 
 		Boolean do_per_sample = false
 		Boolean do_per_allele = false
+		Boolean do_per_gene = false
+
+		File? per_gene_table
 
 		String? subset_vcf_string
 		Int? records_per_shard
@@ -61,6 +64,7 @@ workflow CountAnnotations {
 					vcf_idx = shard_vcf_idxs[j],
 					do_per_sample = do_per_sample,
 					do_per_allele = do_per_allele,
+					do_per_gene = do_per_gene,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_count
@@ -116,11 +120,24 @@ workflow CountAnnotations {
 			runtime_attr_override = runtime_attr_merge
 	}
 
+	if (do_per_gene && defined(per_gene_table)) {
+		Array[File] gene_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
+		call MergeGeneCountTables as MergeGeneCounts {
+			input:
+				count_tsvs = gene_count_tables,
+				per_gene_table = select_first([per_gene_table]),
+				prefix = "~{prefix}.annotation_counts_svannotate",
+				docker = utils_docker,
+				runtime_attr_override = runtime_attr_merge
+		}
+	}
+
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
 		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
+		File? annotation_counts_svannotate_tsv = MergeGeneCounts.merged_counts_tsv
 	}
 }
 
@@ -178,6 +195,7 @@ task CountAnnotationShard {
 		File vcf_idx
 		Boolean do_per_sample
 		Boolean do_per_allele
+		Boolean do_per_gene = false
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -197,9 +215,11 @@ SITE_OUTPUT = "~{prefix}.sites.raw.tsv"
 SAMPLE_OUTPUT = "~{prefix}.samples.raw.tsv"
 ALLELE_OUTPUT = "~{prefix}.alleles.raw.tsv"
 LIST_OUTPUT = "~{prefix}.list.raw.tsv"
+GENE_OUTPUT = "~{prefix}.genes.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 DO_PER_SAMPLE = "~{do_per_sample}".lower() == "true"
 DO_PER_ALLELE = "~{do_per_allele}".lower() == "true"
+DO_PER_GENE = "~{do_per_gene}".lower() == "true"
 
 COLUMN_BUCKETS = [
 	"SNV",
@@ -279,6 +299,21 @@ CONSEQUENCE_PRIORITY = [
 		"5_prime_UTR_variant",
 	}),
 ]
+
+if DO_PER_GENE:
+	gene_counts = defaultdict(lambda: defaultdict(int))
+	PREDICTED_FIELDS = [
+		"PREDICTED_LOF",
+		"PREDICTED_COPY_GAIN",
+		"PREDICTED_INTRAGENIC_EXON_DUP",
+		"PREDICTED_PARTIAL_EXON_DUP",
+		"PREDICTED_TSS_DUP",
+		"PREDICTED_DUP_PARTIAL",
+		"PREDICTED_INV_SPAN",
+		"PREDICTED_UTR",
+		"PREDICTED_INTRONIC",
+		"PREDICTED_PROMOTER"
+	]
 
 def init_table():
 	return defaultdict(lambda: {column: 0.0 for column in COLUMN_BUCKETS})
@@ -485,6 +520,42 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		else:
 			carrier_count, alt_allele_count = 0, 0
 
+		if DO_PER_GENE:
+			af_val = first_value(record.info.get("AF"))
+			ac_val = first_value(record.info.get("AC"))
+			allele_length = get_int_info(record, "allele_length")
+			
+			af = float(af_val) if af_val is not None and af_val != "." else 0.0
+			ac = int(ac_val) if ac_val is not None and ac_val != "." else 0
+			is_large = allele_length is not None and allele_length > 50000
+			
+			buckets = []
+			if ac == 1:
+				buckets.append("singleton")
+			if af < 0.001:
+				buckets.append("ultra_rare")
+			if af < 0.01:
+				buckets.append("rare")
+				if is_large:
+					buckets.append("rare_large")
+			if af > 0.05:
+				buckets.append("common")
+			
+			for field in PREDICTED_FIELDS:
+				if has_info(record, field):
+					genes = record.info.get(field)
+					if isinstance(genes, str):
+						genes = [genes]
+					elif not isinstance(genes, (list, tuple)):
+						genes = [str(genes)]
+					for gene in genes:
+						if not gene or gene == ".": continue
+						for g in str(gene).split(","):
+							g = g.strip()
+							if not g: continue
+							for b in buckets:
+								gene_counts[g][f"{field}.{b}"] += 1
+
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
 			ann = row_key[1] if row_key[0] else "Total"
@@ -502,6 +573,17 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 write_table(SITE_OUTPUT, site_table, integer_output=True)
 write_table(SAMPLE_OUTPUT, sample_table, integer_output=True)
 write_table(ALLELE_OUTPUT, allele_table, integer_output=True)
+
+if DO_PER_GENE:
+	with open(GENE_OUTPUT, "w", newline="") as handle:
+		writer = csv.writer(handle, delimiter="\t")
+		writer.writerow(["gene_name", "category", "count"])
+		for gene, counts in gene_counts.items():
+			for cat, count in counts.items():
+				writer.writerow([gene, cat, str(count)])
+else:
+	with open(GENE_OUTPUT, "w", newline="") as handle:
+		pass
 PYCODE
 	>>>
 
@@ -510,6 +592,7 @@ PYCODE
 		File sample_counts_tsv = "~{prefix}.samples.raw.tsv"
 		File allele_counts_tsv = "~{prefix}.alleles.raw.tsv"
 		File annotation_list_tsv = "~{prefix}.list.raw.tsv"
+		File gene_counts_tsv = "~{prefix}.genes.raw.tsv"
 		File sample_count_file = "~{prefix}.sample_count.txt"
 	}
 
@@ -795,6 +878,115 @@ PYCODE
 		cpu_cores: 1,
 		mem_gb: 4,
 		disk_gb: 4 * ceil(size(list_tsvs, "GB")) + 10,
+		boot_disk_gb: 10,
+		preemptible_tries: 2,
+		max_retries: 0
+	}
+	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+	runtime {
+		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+		docker: docker
+		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+	}
+}
+
+task MergeGeneCountTables {
+	input {
+		Array[File] count_tsvs
+		File per_gene_table
+		String prefix
+		String docker
+		RuntimeAttr? runtime_attr_override
+	}
+
+	command <<<
+		set -euo pipefail
+
+		python3 <<'PYCODE'
+import csv
+from collections import defaultdict
+
+COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
+PER_GENE_TABLE = "~{per_gene_table}"
+OUTPUT = "~{prefix}.tsv"
+
+PREDICTED_FIELDS = [
+    "PREDICTED_LOF",
+    "PREDICTED_COPY_GAIN",
+    "PREDICTED_INTRAGENIC_EXON_DUP",
+    "PREDICTED_PARTIAL_EXON_DUP",
+    "PREDICTED_TSS_DUP",
+    "PREDICTED_DUP_PARTIAL",
+    "PREDICTED_INV_SPAN",
+    "PREDICTED_UTR",
+    "PREDICTED_INTRONIC",
+    "PREDICTED_PROMOTER"
+]
+
+BUCKETS = ["rare", "ultra_rare", "singleton", "rare_large", "common"]
+
+new_columns = []
+for f in PREDICTED_FIELDS:
+    for b in BUCKETS:
+        new_columns.append(f"{f}.{b}")
+
+gene_counts = defaultdict(lambda: {col: 0 for col in new_columns})
+
+for path in COUNT_FILES:
+    with open(path, "r", newline="") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        try:
+            next(reader) # skip header
+        except StopIteration:
+            pass
+        for row in reader:
+            if len(row) == 3:
+                gene, cat, count = row
+                gene_counts[gene][cat] += int(count)
+
+with open(PER_GENE_TABLE, "r", newline="") as handle, open(OUTPUT, "w", newline="") as out_handle:
+    reader = csv.reader(handle, delimiter="\t")
+    writer = csv.writer(out_handle, delimiter="\t")
+    
+    try:
+        header = next(reader)
+    except StopIteration:
+        header = []
+        
+    existing_cols = set(header)
+    cols_to_add = [col for col in new_columns if col not in existing_cols]
+    
+    writer.writerow(header + cols_to_add)
+    
+    if "gene_name" in header:
+        gene_idx = header.index("gene_name")
+    else:
+        gene_idx = 0
+        
+    for row in reader:
+        if not row:
+            continue
+        gene = row[gene_idx] if gene_idx < len(row) else ""
+        counts = gene_counts.get(gene, {col: 0 for col in new_columns})
+        
+        extra_row = [str(counts.get(col, 0)) for col in cols_to_add]
+        writer.writerow(row + extra_row)
+
+PYCODE
+	>>>
+
+	output {
+		File merged_counts_tsv = "~{prefix}.tsv"
+	}
+
+	RuntimeAttr default_attr = object {
+		cpu_cores: 1,
+		mem_gb: 4,
+		disk_gb: 4 * ceil(size(count_tsvs, "GB") + size(per_gene_table, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
 		max_retries: 0
