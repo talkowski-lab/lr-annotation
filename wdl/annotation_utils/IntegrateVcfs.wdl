@@ -568,9 +568,11 @@ vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 id_seen = defaultdict(int)
 for record in vcf_in:
     # Skip redundant variants
-    if (record.info.get("SOURCE") == snv_indel_source and 
-        size_flag in record.filter and 
-        (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants):
+    if (
+        record.info.get("SOURCE") == snv_indel_source 
+        and size_flag in record.filter
+        and (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants
+    ):
         continue
     
     # Generate new ID

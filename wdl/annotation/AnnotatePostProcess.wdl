@@ -136,6 +136,7 @@ task PostProcessVcf {
 import sys
 import pysam
 
+
 filter_singletons = ~{true="True" false="False" filter_singletons}
 
 
@@ -211,6 +212,28 @@ def has_single_read_support(record):
 
 	return len(alt_depths) == 1 and alt_depths[0] == 1
 
+
+def flush_buffer(buf, out_vcf):
+	def custom_sort_key(rec):
+		# 1. Sort by abs(INFO/allele_length)
+		al_val = get_scalar(rec.info.get("allele_length"))
+		abs_al = abs(int(al_val)) if al_val is not None else 0
+			
+		# 2. Natural sort by Variant ID (e.g., _2 before _10)
+		id_val = rec.id if rec.id else ""
+		parts = id_val.rsplit('_', 1)
+		if len(parts) == 2 and parts[1].isdigit():
+			id_sort = (parts[0], int(parts[1]))
+		else:
+			id_sort = (id_val, 0)
+			
+		return (abs_al, id_sort)
+		
+	buf.sort(key=custom_sort_key)
+	for r in buf:
+		out_vcf.write(r)
+
+
 # Update header
 vcf_in = pysam.VariantFile("~{vcf}")
 header = vcf_in.header.copy()
@@ -222,7 +245,10 @@ if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
 # Set up variables
 vcf_out = pysam.VariantFile("~{prefix}.processed.vcf.gz", "wz", header=header)
 
-# Iterate through records
+buffer = []
+current_chrom = None
+current_pos = None
+
 for record in vcf_in:
 	record.translate(vcf_out.header)
 
@@ -237,7 +263,18 @@ for record in vcf_in:
 	if has_single_read_support(record):
 		record.filter.add("SINGLE_READ_SUPPORT")
 
-	vcf_out.write(record)
+	# Buffer records to sort them if they fall on the exact same coordinate
+	if record.chrom != current_chrom or record.pos != current_pos:
+		if buffer:
+			flush_buffer(buffer, vcf_out)
+		buffer = [record]
+		current_chrom = record.chrom
+		current_pos = record.pos
+	else:
+		buffer.append(record)
+
+if buffer:
+	flush_buffer(buffer, vcf_out)
 
 vcf_in.close()
 vcf_out.close()
