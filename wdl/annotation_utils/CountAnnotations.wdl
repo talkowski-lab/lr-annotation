@@ -212,16 +212,17 @@ COLUMN_BUCKETS = [
 ]
 
 ROW_ORDER = [
-	("", "All"),
+	("", "Total"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
 	("ME", "SVA"),
-	("", "DUP"),
-	("DUP", "DUP_TANDEM"),
-	("DUP", "DUP_INTERSPERSED"),
-	("DUP", "DUP_COMPLEX"),
-	("DUP", "NUMT"),
+	("", "Duplication"),
+	("Duplication", "Tandem"),
+	("Duplication", "Interspersed"),
+	("Duplication", "Complex"),
+	("Duplication", "NUMT"),
+	("Duplication", "TR Parsed"),
 	("", "Consequence"),
 	("Consequence", "LoF - SVAnnotate"),
 	("Consequence", "LoF - VEP"),
@@ -247,7 +248,7 @@ ROW_ORDER = [
 	("gnomAD Matched", "LoF - VEP"),
 ]
 
-PARENT_ROWS = {"ME", "DUP", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
+PARENT_ROWS = {"ME", "Duplication", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
 
 CONSEQUENCE_PRIORITY = [
 	("LoF - VEP", {
@@ -353,7 +354,7 @@ def determine_row_weights(record, vep_field_indices):
 	consequences = extract_all_consequences(record, vep_field_indices)
 
 	row_weights = {row: 0 for row in ROW_ORDER}
-	row_weights[("", "All")] = 1
+	row_weights[("", "Total")] = 1
 
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
@@ -367,12 +368,15 @@ def determine_row_weights(record, vep_field_indices):
 	is_dup_complex = "complex_dup" in allele_type
 	is_dup_tandem = "dup" in allele_type and not is_dup_interspersed and not is_dup_complex
 	is_numt = "numt" in allele_type
-	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt:
-		row_weights[("", "DUP")] = 1
-	if is_dup_tandem: row_weights[("DUP", "DUP_TANDEM")] = 1
-	if is_dup_interspersed: row_weights[("DUP", "DUP_INTERSPERSED")] = 1
-	if is_dup_complex: row_weights[("DUP", "DUP_COMPLEX")] = 1
-	if is_numt: row_weights[("DUP", "NUMT")] = 1
+	is_tr_parsed = has_info(record, "TR_PARSED")
+	
+	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt or is_tr_parsed:
+		row_weights[("", "Duplication")] = 1
+	if is_dup_tandem: row_weights[("Duplication", "Tandem")] = 1
+	if is_dup_interspersed: row_weights[("Duplication", "Interspersed")] = 1
+	if is_dup_complex: row_weights[("Duplication", "Complex")] = 1
+	if is_numt: row_weights[("Duplication", "NUMT")] = 1
+	if is_tr_parsed: row_weights[("Duplication", "TR Parsed")] = 1
 
 	consequence_label = determine_consequence_label(record, consequences)
 	row_weights[("", "Consequence")] = 1
@@ -444,7 +448,7 @@ def get_list_columns():
 def write_table(path, table_data, integer_output):
 	with open(path, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["Category", "Subcategory", "TR Status", "Region"] + COLUMN_BUCKETS)
+		writer.writerow(["category", "sub_category", "tr_status", "region"] + COLUMN_BUCKETS)
 		for key in sorted(table_data.keys()):
 			values = []
 			for column in COLUMN_BUCKETS:
@@ -552,16 +556,17 @@ MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
 
 ROW_ORDER = [
-	("", "All"),
+	("", "Total"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
 	("ME", "SVA"),
-	("", "DUP"),
-	("DUP", "DUP_TANDEM"),
-	("DUP", "DUP_INTERSPERSED"),
-	("DUP", "DUP_COMPLEX"),
-	("DUP", "NUMT"),
+	("", "Duplication"),
+	("Duplication", "Tandem"),
+	("Duplication", "Interspersed"),
+	("Duplication", "Complex"),
+	("Duplication", "NUMT"),
+	("Duplication", "TR Parsed"),
 	("", "Consequence"),
 	("Consequence", "LoF - SVAnnotate"),
 	("Consequence", "LoF - VEP"),
@@ -592,15 +597,6 @@ def get_cat_ann(row_key):
 	if not group:
 		return ann, "Total"
 	return group, ann
-
-def format_site_value(value, total):
-	count = int(round(value))
-	percentage = 0.0 if total <= 0 else (value / total) * 100.0
-	return str(count), f"{percentage:.2f}%"
-
-def format_normalized_value(value, total):
-	percentage = 0.0 if total <= 0 else (value / total) * 100.0
-	return f"{value:.2f}", f"{percentage:.2f}%"
 
 header = None
 counts = defaultdict(lambda: [0.0] * 7)
@@ -658,30 +654,35 @@ def region_sort_key(r):
 
 all_regions = sorted(list(found_regions), key=region_sort_key)
 
-global_all = get_rollup("All", "Total")
-global_all_norm = [v / denominator for v in global_all] if MODE != "sites" else global_all
-
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
 	
+	last_seen = [None, None, None, None]
+	
 	def write_row(c, a, t, r, values):
 		if MODE == "sites":
-			formatted = [format_site_value(v, g) for v, g in zip(values, global_all)]
+			formatted = [str(int(round(v))) for v in values]
 		else:
-			norm_vals = [v / denominator for v in values]
-			formatted = [format_normalized_value(v, g) for v, g in zip(norm_vals, global_all_norm)]
+			formatted = [f"{v / denominator:.2f}" for v in values]
 		
-		count_strings = [pair[0] for pair in formatted]
-		pct_strings = [pair[1] for pair in formatted]
+		actual_display = [c, "" if a == "Total" else a, "" if t == "Total" else t, "" if r == "Total" else r]
+		final_display = []
 
-		out_c = c
-		out_a = "" if a == "Total" else a
-		out_t = "" if t == "Total" else t
-		out_r = "" if r == "Total" else r
+		for i in range(4):
+			val = actual_display[i]
+			if val != "":
+				if val == last_seen[i]:
+					final_display.append("")
+				else:
+					final_display.append(val)
+					last_seen[i] = val
+					for j in range(i+1, 4):
+						last_seen[j] = None
+			else:
+				final_display.append("")
 
-		writer.writerow([out_c, out_a, out_t, out_r] + count_strings)
-		writer.writerow(["", "", "", ""] + pct_strings)
+		writer.writerow(final_display + formatted)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
