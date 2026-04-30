@@ -336,6 +336,13 @@ for record in base_reader:
 		if record.chrom in {"chrX", "chrY"} and sample_sex == "M":
 			sample_data["GT"] = make_male_hemizygous(sample_data.get("GT"), sample_data.phased)
 
+		# Ensure diploidy
+		current_gt = sample_data.get("GT")
+		if current_gt is None:
+			sample_data["GT"] = (None, None)
+		elif len(current_gt) == 1:
+			sample_data["GT"] = (None, current_gt[0])
+
 		# Right align unphased calls
 		if not sample_data.phased:
 			sample_data["GT"] = right_align_unphased(sample_data.get("GT"))
