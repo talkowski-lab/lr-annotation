@@ -28,19 +28,19 @@ workflow CountAnnotations {
 
 	scatter (i in range(length(vcfs))) {
 		if (defined(subset_vcf_string)) {
-			call SubsetVcfWithFlags {
+			call Helpers.SubsetVcfByArgs {
 				input:
 					vcf = vcfs[i],
 					vcf_idx = vcfs_idx[i],
-					subset_flags = select_first([subset_vcf_string]),
+					extra_args = select_first([subset_vcf_string]),
 					prefix = "~{prefix}.input_~{i}.subset",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_subset
 			}
 		}
 
-		File vcf_to_process = select_first([SubsetVcfWithFlags.subset_vcf, vcfs[i]])
-		File vcf_idx_to_process = select_first([SubsetVcfWithFlags.subset_vcf_idx, vcfs_idx[i]])
+		File vcf_to_process = select_first([SubsetVcfByArgs.subset_vcf, vcfs[i]])
+		File vcf_idx_to_process = select_first([SubsetVcfByArgs.subset_vcf_idx, vcfs_idx[i]])
 
 		if (defined(records_per_shard)) {
 			call Helpers.ShardVcfByRecords {
@@ -138,54 +138,6 @@ workflow CountAnnotations {
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
 		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_svannotate_tsv = MergeGeneCounts.merged_counts_tsv
-	}
-}
-
-task SubsetVcfWithFlags {
-	input {
-		File vcf
-		File vcf_idx
-		String subset_flags
-		String prefix
-		String docker
-		RuntimeAttr? runtime_attr_override
-	}
-
-	command <<<
-		set -euo pipefail
-
-		bcftools view \
-			--no-version \
-			~{subset_flags} \
-			-O z \
-			-o ~{prefix}.vcf.gz \
-			~{vcf}
-
-		tabix -p vcf ~{prefix}.vcf.gz
-	>>>
-
-	output {
-		File subset_vcf = "~{prefix}.vcf.gz"
-		File subset_vcf_idx = "~{prefix}.vcf.gz.tbi"
-	}
-
-	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
-		disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
-		boot_disk_gb: 10,
-		preemptible_tries: 2,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
 	}
 }
 
@@ -607,7 +559,7 @@ PYCODE
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
 	runtime {
 		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+		memory: 8 + " GiB"
 		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
 		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
 		docker: docker
