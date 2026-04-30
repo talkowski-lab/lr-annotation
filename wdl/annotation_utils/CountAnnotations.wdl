@@ -915,66 +915,66 @@ PER_GENE_TABLE = "~{per_gene_table}"
 OUTPUT = "~{prefix}.tsv"
 
 PREDICTED_FIELDS = [
-    "PREDICTED_LOF",
-    "PREDICTED_COPY_GAIN",
-    "PREDICTED_INTRAGENIC_EXON_DUP",
-    "PREDICTED_PARTIAL_EXON_DUP",
-    "PREDICTED_TSS_DUP",
-    "PREDICTED_DUP_PARTIAL",
-    "PREDICTED_INV_SPAN",
-    "PREDICTED_UTR",
-    "PREDICTED_INTRONIC",
-    "PREDICTED_PROMOTER"
+	"PREDICTED_LOF",
+	"PREDICTED_COPY_GAIN",
+	"PREDICTED_INTRAGENIC_EXON_DUP",
+	"PREDICTED_PARTIAL_EXON_DUP",
+	"PREDICTED_TSS_DUP",
+	"PREDICTED_DUP_PARTIAL",
+	"PREDICTED_INV_SPAN",
+	"PREDICTED_UTR",
+	"PREDICTED_INTRONIC",
+	"PREDICTED_PROMOTER"
 ]
 
 BUCKETS = ["rare", "ultra_rare", "singleton", "rare_large", "common"]
 
 new_columns = []
 for f in PREDICTED_FIELDS:
-    for b in BUCKETS:
-        new_columns.append(f"{f}.{b}")
+	for b in BUCKETS:
+		new_columns.append(f"{f}.{b}")
 
 gene_counts = defaultdict(lambda: {col: 0 for col in new_columns})
 
 for path in COUNT_FILES:
-    with open(path, "r", newline="") as handle:
-        reader = csv.reader(handle, delimiter="\t")
-        try:
-            next(reader) # skip header
-        except StopIteration:
-            pass
-        for row in reader:
-            if len(row) == 3:
-                gene, cat, count = row
-                gene_counts[gene][cat] += int(count)
+	with open(path, "r", newline="") as handle:
+		reader = csv.reader(handle, delimiter="\t")
+		try:
+			next(reader) # skip header
+		except StopIteration:
+			pass
+		for row in reader:
+			if len(row) == 3:
+				gene, cat, count = row
+				gene_counts[gene][cat] += int(count)
 
 with open(PER_GENE_TABLE, "r", newline="") as handle, open(OUTPUT, "w", newline="") as out_handle:
-    reader = csv.reader(handle, delimiter="\t")
-    writer = csv.writer(out_handle, delimiter="\t")
-    
-    try:
-        header = next(reader)
-    except StopIteration:
-        header = []
-        
-    existing_cols = set(header)
-    cols_to_add = [col for col in new_columns if col not in existing_cols]
-    
-    writer.writerow(header + cols_to_add)
-    
-    if "gene_name" in header:
-        gene_idx = header.index("gene_name")
-    else:
-        gene_idx = 0
-        
-    for row in reader:
-        if not row:
-            continue
-        gene = row[gene_idx] if gene_idx < len(row) else ""
-        counts = gene_counts.get(gene, {col: 0 for col in new_columns})
-        
-        extra_row = [str(counts.get(col, 0)) for col in cols_to_add]
-        writer.writerow(row + extra_row)
+	reader = csv.reader(handle, delimiter="\t")
+	writer = csv.writer(out_handle, delimiter="\t")
+	
+	try:
+		header = next(reader)
+	except StopIteration:
+		header = []
+		
+	existing_cols = set(header)
+	cols_to_add = [col for col in new_columns if col not in existing_cols]
+	
+	writer.writerow(header + cols_to_add)
+	
+	if "gene_name" in header:
+		gene_idx = header.index("gene_name")
+	else:
+		gene_idx = 0
+		
+	for row in reader:
+		if not row:
+			continue
+		gene = row[gene_idx] if gene_idx < len(row) else ""
+		counts = gene_counts.get(gene, {col: 0 for col in new_columns})
+		
+		extra_row = [str(counts.get(col, 0)) for col in cols_to_add]
+		writer.writerow(row + extra_row)
 
 PYCODE
 	>>>
