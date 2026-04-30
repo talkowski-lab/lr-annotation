@@ -213,7 +213,6 @@ COLUMN_BUCKETS = [
 
 ROW_ORDER = [
 	("", "All"),
-	("", "TR Enveloped"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -356,10 +355,6 @@ def determine_row_weights(record, vep_field_indices):
 	row_weights = {row: 0 for row in ROW_ORDER}
 	row_weights[("", "All")] = 1
 
-	is_tr_overlap = has_info(record, "TR_ENVELOPED")
-	if is_tr_overlap:
-		row_weights[("", "TR Enveloped")] = 1
-
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
 	is_sva = "sva" in allele_type
@@ -449,7 +444,7 @@ def get_list_columns():
 def write_table(path, table_data, integer_output):
 	with open(path, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["category", "annotation", "tr_status", "region"] + COLUMN_BUCKETS)
+		writer.writerow(["Category", "Subcategory", "TR Status", "Region"] + COLUMN_BUCKETS)
 		for key in sorted(table_data.keys()):
 			values = []
 			for column in COLUMN_BUCKETS:
@@ -558,7 +553,6 @@ OUTPUT = "~{prefix}.tsv"
 
 ROW_ORDER = [
 	("", "All"),
-	("", "TR Enveloped"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -680,18 +674,25 @@ with open(OUTPUT, "w", newline="") as handle:
 		
 		count_strings = [pair[0] for pair in formatted]
 		pct_strings = [pair[1] for pair in formatted]
-		writer.writerow([c, a, t, r] + count_strings)
+
+		out_c = c
+		out_a = "" if a == "Total" else a
+		out_t = "" if t == "Total" else t
+		out_r = "" if r == "Total" else r
+
+		writer.writerow([out_c, out_a, out_t, out_r] + count_strings)
 		writer.writerow(["", "", "", ""] + pct_strings)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
+		
 		tot_vals = get_rollup(cat, ann)
 		write_row(cat, ann, "Total", "Total", tot_vals)
 		
 		for tr in ["TR", "Not TR"]:
 			tr_vals = get_rollup(cat, ann, target_tr=tr)
 			write_row(cat, ann, tr, "Total", tr_vals)
-
+			
 			for reg in all_regions:
 				reg_vals = get_rollup(cat, ann, target_tr=tr, target_reg=reg)
 				if sum(reg_vals) > 0:
