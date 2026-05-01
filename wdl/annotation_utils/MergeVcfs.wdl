@@ -28,6 +28,7 @@ workflow MergeVcfs {
             vcfs = contig_vcfs,
             vcf_idxs = contig_vcf_idxs,
             contig = contig,
+            extra_args = "-m none",
             prefix = "~{prefix}.callsets_merged",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_bcftools_merge
