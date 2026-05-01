@@ -23,7 +23,6 @@ workflow MergeVcfs {
         RuntimeAttr? runtime_attr_concat_shard_summaries
     }
 
-    # Combine all callset VCFs (distinct samples) into one multi-sample VCF
     call Helpers.MergeVcfs as MergeCallsets {
         input:
             vcfs = contig_vcfs,
