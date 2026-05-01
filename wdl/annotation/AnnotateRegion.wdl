@@ -46,7 +46,7 @@ workflow AnnotateRegion {
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
         if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords as ShardVcf {
+            call Helpers.ShardVcfByRecords {
                 input:
                     vcf = contig_vcf,
                     vcf_idx = contig_vcf_idx,
@@ -57,8 +57,8 @@ workflow AnnotateRegion {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [contig_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [contig_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call LabelVariantRegions as LabelSimpleRepeats {
@@ -111,7 +111,7 @@ workflow AnnotateRegion {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = SetUniqueRegion.annotations_tsv,
-                    sort_output = true,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.region_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

@@ -168,8 +168,8 @@ workflow IntegrateVcfs {
                 input:
                     vcfs = AddFilterSnvIndel.flagged_vcf,
                     vcf_idxs = AddFilterSnvIndel.flagged_vcf_idx,
-                    allow_overlaps = true,
-                    naive = false,
+                    allow_overlaps = false,
+                    naive = true,
                     prefix = "~{prefix}.~{contig}.snv_indel.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_snv_indel_shards
@@ -264,8 +264,8 @@ workflow IntegrateVcfs {
                 input:
                     vcfs = AddFilterSv.flagged_vcf,
                     vcf_idxs = AddFilterSv.flagged_vcf_idx,
-                    allow_overlaps = true,
-                    naive = false,
+                    allow_overlaps = false,
+                    naive = true,
                     prefix = "~{prefix}.~{contig}.sv.concatenated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_sv_shards

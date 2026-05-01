@@ -43,7 +43,7 @@ workflow AnnotateIndelTRs {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords as ShardVcf {
+            call Helpers.ShardVcfByRecords {
                 input:
                     vcf = SubsetVcfByArgs.subset_vcf,
                     vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
@@ -54,8 +54,8 @@ workflow AnnotateIndelTRs {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [SubsetVcfByArgs.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [SubsetVcfByArgs.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByArgs.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByArgs.subset_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call RunFilterVcfToTRs {
@@ -77,7 +77,7 @@ workflow AnnotateIndelTRs {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = RunFilterVcfToTRs.tr_annotations_tsv,
-                    sort_output = true,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.tr_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

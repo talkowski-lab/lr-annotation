@@ -2290,21 +2290,29 @@ task ShardVcfByRecords {
     command <<<
         set -euo pipefail
         
+        mkdir scatter_output
+
         bcftools +scatter \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -n ~{records_per_shard} \
             --prefix ~{prefix}. \
-            -Oz -o shards \
+            -Oz -o scatter_output \
             ~{vcf}
         
-        for shard in shards/*.vcf.gz; do
-            tabix -p vcf "$shard"
-        done
+        mkdir shards
+        ls scatter_output/*.vcf.gz | sort -k1,1V > vcfs.list
+        i=0
+        while read VCF; do
+            shard_no=$(printf %06d $i)
+            mv "$VCF" "shards/shard_${shard_no}.vcf.gz"
+            tabix -p vcf "shards/shard_${shard_no}.vcf.gz"
+            i=$((i+1))
+        done < vcfs.list
     >>>
 
     output {
-        Array[File] shards = glob("shards/*.vcf.gz")
-        Array[File] shard_idxs = glob("shards/*.vcf.gz.tbi")
+        Array[File] shards = glob("shards/shard_*.vcf.gz")
+        Array[File] shard_idxs = glob("shards/shard_*.vcf.gz.tbi")
     }
 
     RuntimeAttr default_attr = object {

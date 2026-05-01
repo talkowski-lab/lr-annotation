@@ -58,7 +58,7 @@ workflow AnnotateMEDs {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords as ShardVcf {
+            call Helpers.ShardVcfByRecords {
                 input:
                     vcf = SubsetDeletions.subset_vcf,
                     vcf_idx = SubsetDeletions.subset_vcf_idx,
@@ -69,8 +69,8 @@ workflow AnnotateMEDs {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [SubsetDeletions.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [SubsetDeletions.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetDeletions.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetDeletions.subset_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call ExtractDeletionsToBed {
@@ -108,7 +108,7 @@ workflow AnnotateMEDs {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = GenerateMedAnnotationTable.annotations_tsv,
-                    sort_output = true,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.med_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

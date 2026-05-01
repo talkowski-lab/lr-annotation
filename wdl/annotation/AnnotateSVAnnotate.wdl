@@ -46,7 +46,7 @@ workflow AnnotateSVAnnotate {
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords as ShardVcf {
+            call Helpers.ShardVcfByRecords {
                 input:
                     vcf = SubsetVcfByLength.subset_vcf,
                     vcf_idx = SubsetVcfByLength.subset_vcf_idx,
@@ -57,8 +57,8 @@ workflow AnnotateSVAnnotate {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcf.shards, [SubsetVcfByLength.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcf.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByLength.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call Helpers.ConvertToSymbolic {
@@ -107,7 +107,7 @@ workflow AnnotateSVAnnotate {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = ExtractVcfAnnotations.annotations_tsv,
-                    sort_output = true,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.svannotate_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
