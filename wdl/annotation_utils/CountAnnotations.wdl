@@ -13,8 +13,6 @@ workflow CountAnnotations {
 		Boolean do_per_allele = false
 		Boolean do_per_gene = false
 
-		File? per_gene_table
-
 		String? subset_vcf_string
 		Int? records_per_shard
 
@@ -120,12 +118,12 @@ workflow CountAnnotations {
 			runtime_attr_override = runtime_attr_merge
 	}
 
-	if (do_per_gene && defined(per_gene_table)) {
+	if (do_per_gene) {
 		Array[File] gene_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
+		
 		call MergeGeneCountTables as MergeGeneCounts {
 			input:
 				count_tsvs = gene_count_tables,
-				per_gene_table = select_first([per_gene_table]),
 				prefix = "~{prefix}.annotation_counts_svannotate",
 				docker = utils_docker,
 				runtime_attr_override = runtime_attr_merge
@@ -285,8 +283,35 @@ def get_int_info(record, key):
 		return None
 	return abs(int(value))
 
+def get_float_info(record, key):
+	value = first_value(record.info.get(key))
+	if value is None or value == ".":
+		return None
+	return float(value)
+
 def has_info(record, key):
 	return key in record.info
+
+def get_info_gene_names(record, key):
+	value = record.info.get(key)
+	if isinstance(value, str):
+		values = [value]
+	elif isinstance(value, (list, tuple)):
+		values = value
+	elif value is None:
+		values = []
+	else:
+		values = [str(value)]
+
+	genes = set()
+	for item in values:
+		if item is None:
+			continue
+		for gene_name in str(item).split(","):
+			gene_name = gene_name.strip()
+			if gene_name and gene_name != ".":
+				genes.add(gene_name)
+	return genes
 
 def get_vep_field_indices(header):
 	if "vep" not in header.info:
@@ -473,40 +498,29 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 			carrier_count, alt_allele_count = 0, 0
 
 		if DO_PER_GENE:
-			af_val = first_value(record.info.get("AF"))
-			ac_val = first_value(record.info.get("AC"))
+			af = get_float_info(record, "AF")
+			ac = get_int_info(record, "AC")
 			allele_length = get_int_info(record, "allele_length")
 			
-			af = float(af_val) if af_val is not None and af_val != "." else 0.0
-			ac = int(ac_val) if ac_val is not None and ac_val != "." else 0
 			is_large = allele_length is not None and allele_length > 50000
 			
 			buckets = []
 			if ac == 1:
 				buckets.append("singleton")
-			if af < 0.001:
+			if af is not None and af < 0.001:
 				buckets.append("ultra_rare")
-			if af < 0.01:
+			if af is not None and af < 0.01:
 				buckets.append("rare")
 				if is_large:
 					buckets.append("rare_large")
-			if af > 0.05:
+			if af is not None and af > 0.05:
 				buckets.append("common")
 			
 			for field in PREDICTED_FIELDS:
 				if has_info(record, field):
-					genes = record.info.get(field)
-					if isinstance(genes, str):
-						genes = [genes]
-					elif not isinstance(genes, (list, tuple)):
-						genes = [str(genes)]
-					for gene in genes:
-						if not gene or gene == ".": continue
-						for g in str(gene).split(","):
-							g = g.strip()
-							if not g: continue
-							for b in buckets:
-								gene_counts[g][f"{field}.{b}"] += 1
+					for gene_name in get_info_gene_names(record, field):
+						for bucket in buckets:
+							gene_counts[gene_name][f"{field}.{bucket}"] += 1
 
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
@@ -849,7 +863,6 @@ PYCODE
 task MergeGeneCountTables {
 	input {
 		Array[File] count_tsvs
-		File per_gene_table
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -863,7 +876,6 @@ import csv
 from collections import defaultdict
 
 COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
-PER_GENE_TABLE = "~{per_gene_table}"
 OUTPUT = "~{prefix}.tsv"
 
 PREDICTED_FIELDS = [
@@ -900,33 +912,17 @@ for path in COUNT_FILES:
 				gene, cat, count = row
 				gene_counts[gene][cat] += int(count)
 
-with open(PER_GENE_TABLE, "r", newline="") as handle, open(OUTPUT, "w", newline="") as out_handle:
-	reader = csv.reader(handle, delimiter="\t")
+with open(OUTPUT, "w", newline="") as out_handle:
 	writer = csv.writer(out_handle, delimiter="\t")
 	
-	try:
-		header = next(reader)
-	except StopIteration:
-		header = []
+	# Write header
+	writer.writerow(["gene_name"] + new_columns)
 		
-	existing_cols = set(header)
-	cols_to_add = [col for col in new_columns if col not in existing_cols]
-	
-	writer.writerow(header + cols_to_add)
-	
-	if "gene_name" in header:
-		gene_idx = header.index("gene_name")
-	else:
-		gene_idx = 0
-		
-	for row in reader:
-		if not row:
-			continue
-		gene = row[gene_idx] if gene_idx < len(row) else ""
-		counts = gene_counts.get(gene, {col: 0 for col in new_columns})
-		
-		extra_row = [str(counts.get(col, 0)) for col in cols_to_add]
-		writer.writerow(row + extra_row)
+	# Write data
+	for gene in sorted(gene_counts.keys()):
+		counts = gene_counts[gene]
+		row = [gene] + [str(counts.get(col, 0)) for col in new_columns]
+		writer.writerow(row)
 
 PYCODE
 	>>>
@@ -938,7 +934,7 @@ PYCODE
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
 		mem_gb: 4,
-		disk_gb: 4 * ceil(size(count_tsvs, "GB") + size(per_gene_table, "GB")) + 10,
+		disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
 		max_retries: 0
