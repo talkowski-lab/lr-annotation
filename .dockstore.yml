@@ -322,6 +322,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergeVcfs
+    primaryDescriptorPath: /wdl/annotation_utils/MergeVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PopulateSVFormatFields
     primaryDescriptorPath: /wdl/annotation_utils/PopulateSVFormatFields.wdl
     filters:

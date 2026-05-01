@@ -253,6 +253,10 @@ TODO
 TODO
 
 
+### [MergeVcfs](wdl/annotation_utils/MergeVcfs.wdl)
+TODO
+
+
 ### [PopulateSVFormatFields](wdl/annotation_utils/PopulateSVFormatFields.wdl)
 TODO
 
