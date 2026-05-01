@@ -194,8 +194,8 @@ ROW_ORDER = [
 	("Duplication", "NUMT"),
 	("Duplication", "TR Parsed"),
 	("", "Consequence"),
-	("Consequence", "LoF - SVAnnotate"),
-	("Consequence", "LoF - VEP"),
+	("Consequence", "LoF (SVAnnotate)"),
+	("Consequence", "LoF (VEP)"),
 	("Consequence", "Missense"),
 	("Consequence", "Coding"),
 	("Consequence", "Intronic"),
@@ -208,20 +208,25 @@ ROW_ORDER = [
 	("SVAnnotate", "TSSD"),
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
-	("", "dbGaP"),
-	("dbGaP", "gnomAD Matched"),
-	("dbGaP", "gnomAD Missing"),
-	("dbGaP", "LoF - SVAnnotate"),
-	("dbGaP", "LoF - VEP"),
-	("", "gnomAD Matched"),
-	("gnomAD Matched", "LoF - SVAnnotate"),
-	("gnomAD Matched", "LoF - VEP"),
+	("", "Matched"),
+	("Matched", "dbGaP Matched"),
+	("Matched", "dbGaP Missing"),
+	("Matched", "dbGaP Missing + LoF (SVAnnotate)"),
+	("Matched", "dbGaP Missing + LoF (VEP)"),
+	("Matched", "gnomAD Matched"),
+	("Matched", "gnomAD Missing"),
+	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "gnomAD Missing + LoF (VEP)"),
+	("Matched", "dbGaP/gnomAD Matched"),
+	("Matched", "dbGaP/gnomAD Missing"),
+	("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "dbGaP/gnomAD Missing + LoF (VEP)"),
 ]
 
-PARENT_ROWS = {"ME", "Duplication", "Consequence", "SVAnnotate", "dbGaP", "gnomAD Matched"}
+PARENT_ROWS = {"ME", "Duplication", "Consequence", "SVAnnotate", "Matched"}
 
 CONSEQUENCE_PRIORITY = [
-	("LoF - VEP", {
+	("LoF (VEP)", {
 		"transcript_ablation", "stop_gained", "frameshift_variant",
 		"splice_donor_variant", "splice_acceptor_variant", "stop_lost",
 		"start_lost", "transcript_amplification", "feature_elongation",
@@ -343,7 +348,7 @@ def extract_all_consequences(record, vep_field_indices):
 
 def determine_consequence_label(record, consequences):
 	if has_info(record, "PREDICTED_LOF"):
-		return "LoF - SVAnnotate"
+		return "LoF (SVAnnotate)"
 	for label, consequence_terms in CONSEQUENCE_PRIORITY:
 		if consequence_terms & consequences:
 			return label
@@ -412,17 +417,36 @@ def determine_row_weights(record, vep_field_indices):
 	if is_dp: row_weights[("SVAnnotate", "DP")] = 1
 	if is_utr: row_weights[("SVAnnotate", "UTR")] = 1
 
+	row_weights[("", "Matched")] = 1
 	if is_dbgap:
-		row_weights[("", "dbGaP")] = 1
-		if is_gnomad_matched: row_weights[("dbGaP", "gnomAD Matched")] = 1
-		else: row_weights[("dbGaP", "gnomAD Missing")] = 1
-		if consequence_label == "LoF - SVAnnotate": row_weights[("dbGaP", "LoF - SVAnnotate")] = 1
-		elif consequence_label == "LoF - VEP": row_weights[("dbGaP", "LoF - VEP")] = 1
+		row_weights[("Matched", "dbGaP Matched")] = 1
+	else:
+		row_weights[("Matched", "dbGaP Missing")] = 1
 
 	if is_gnomad_matched:
-		row_weights[("", "gnomAD Matched")] = 1
-		if consequence_label == "LoF - SVAnnotate": row_weights[("gnomAD Matched", "LoF - SVAnnotate")] = 1
-		elif consequence_label == "LoF - VEP": row_weights[("gnomAD Matched", "LoF - VEP")] = 1
+		row_weights[("Matched", "gnomAD Matched")] = 1
+	else:
+		row_weights[("Matched", "gnomAD Missing")] = 1
+
+	if is_dbgap or is_gnomad_matched:
+		row_weights[("Matched", "dbGaP/gnomAD Matched")] = 1
+	else:
+		row_weights[("Matched", "dbGaP/gnomAD Missing")] = 1
+
+	if consequence_label == "LoF (SVAnnotate)":
+		if not is_dbgap:
+			row_weights[("Matched", "dbGaP Missing + LoF (SVAnnotate)")] = 1
+		if not is_gnomad_matched:
+			row_weights[("Matched", "gnomAD Missing + LoF (SVAnnotate)")] = 1
+		if not is_dbgap and not is_gnomad_matched:
+			row_weights[("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)")] = 1
+	elif consequence_label == "LoF (VEP)":
+		if not is_dbgap:
+			row_weights[("Matched", "dbGaP Missing + LoF (VEP)")] = 1
+		if not is_gnomad_matched:
+			row_weights[("Matched", "gnomAD Missing + LoF (VEP)")] = 1
+		if not is_dbgap and not is_gnomad_matched:
+			row_weights[("Matched", "dbGaP/gnomAD Missing + LoF (VEP)")] = 1
 
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
@@ -617,8 +641,8 @@ ROW_ORDER = [
 	("Duplication", "NUMT"),
 	("Duplication", "TR Parsed"),
 	("", "Consequence"),
-	("Consequence", "LoF - SVAnnotate"),
-	("Consequence", "LoF - VEP"),
+	("Consequence", "LoF (SVAnnotate)"),
+	("Consequence", "LoF (VEP)"),
 	("Consequence", "Missense"),
 	("Consequence", "Coding"),
 	("Consequence", "Intronic"),
@@ -631,14 +655,19 @@ ROW_ORDER = [
 	("SVAnnotate", "TSSD"),
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
-	("", "dbGaP"),
-	("dbGaP", "gnomAD Matched"),
-	("dbGaP", "gnomAD Missing"),
-	("dbGaP", "LoF - SVAnnotate"),
-	("dbGaP", "LoF - VEP"),
-	("", "gnomAD Matched"),
-	("gnomAD Matched", "LoF - SVAnnotate"),
-	("gnomAD Matched", "LoF - VEP"),
+	("", "Matched"),
+	("Matched", "dbGaP Matched"),
+	("Matched", "dbGaP Missing"),
+	("Matched", "dbGaP Missing + LoF (SVAnnotate)"),
+	("Matched", "dbGaP Missing + LoF (VEP)"),
+	("Matched", "gnomAD Matched"),
+	("Matched", "gnomAD Missing"),
+	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "gnomAD Missing + LoF (VEP)"),
+	("Matched", "dbGaP/gnomAD Matched"),
+	("Matched", "dbGaP/gnomAD Missing"),
+	("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "dbGaP/gnomAD Missing + LoF (VEP)"),
 ]
 
 def get_cat_ann(row_key):
