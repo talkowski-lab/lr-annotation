@@ -15,31 +15,19 @@ workflow MergeVcfs {
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_bcftools_merge
+        RuntimeAttr? runtime_attr_baseline_merge
         RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset_shard
-        RuntimeAttr? runtime_attr_merge_per_contig
+        RuntimeAttr? runtime_attr_merge_per_shard
         RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_shard_summaries
-    }
-
-    call Helpers.MergeVcfs as MergeCallsets {
-        input:
-            vcfs = contig_vcfs,
-            vcf_idxs = contig_vcf_idxs,
-            contig = contig,
-            extra_args = "-m none",
-            sort_merged = true,
-            prefix = "~{prefix}.callsets_merged",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_bcftools_merge
     }
 
     if (defined(shard_bin_size)) {
         call Helpers.CreateContigShards {
             input:
-                vcfs = [MergeCallsets.merged_vcf],
-                vcf_idxs = [MergeCallsets.merged_vcf_idx],
+                vcfs = contig_vcfs,
+                vcf_idxs = contig_vcf_idxs,
                 contig = contig,
                 shard_bin_size = select_first([shard_bin_size]),
                 prefix = "~{prefix}.shards",
@@ -48,32 +36,43 @@ workflow MergeVcfs {
         }
 
         scatter (j in range(length(CreateContigShards.shard_regions))) {
-            call Helpers.SubsetVcfToRegion as SubsetShard {
-                input:
-                    vcf = MergeCallsets.merged_vcf,
-                    vcf_idx = MergeCallsets.merged_vcf_idx,
-                    region = CreateContigShards.shard_regions[j],
-                    prefix = "~{prefix}.shard_~{j}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_shard
+            scatter (i in range(length(contig_vcfs))) {
+                call Helpers.SubsetVcfToRegion as SubsetCallsetToShard {
+                    input:
+                        vcf = contig_vcfs[i],
+                        vcf_idx = contig_vcf_idxs[i],
+                        region = CreateContigShards.shard_regions[j],
+                        prefix = "~{prefix}.shard_~{j}.callset_~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_shard
+                }
             }
 
-            call MergeVcfsPerContig as MergeVcfsPerShard {
+            call BaselineMergeVcfs as BaselineMergeShard {
                 input:
-                    vcf = SubsetShard.subset_vcf,
-                    vcf_idx = SubsetShard.subset_vcf_idx,
+                    vcfs = SubsetCallsetToShard.subset_vcf,
+                    vcf_idxs = SubsetCallsetToShard.subset_vcf_idx,
+                    prefix = "~{prefix}.shard_~{j}.baseline",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_baseline_merge
+            }
+
+            call MergeVcfsPerShard as MergeShard {
+                input:
+                    vcf = BaselineMergeShard.merged_vcf,
+                    vcf_idx = BaselineMergeShard.merged_vcf_idx,
                     contig = contig,
                     min_truvari_match = min_truvari_match,
                     prefix = "~{prefix}.shard_~{j}.merged",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_merge_per_contig
+                    runtime_attr_override = runtime_attr_merge_per_shard
             }
         }
 
         call Helpers.ConcatVcfs as ConcatShards {
             input:
-                vcfs = MergeVcfsPerShard.merged_vcf,
-                vcf_idxs = MergeVcfsPerShard.merged_vcf_idx,
+                vcfs = MergeShard.merged_vcf,
+                vcf_idxs = MergeShard.merged_vcf_idx,
                 allow_overlaps = false,
                 naive = true,
                 prefix = "~{prefix}.merged",
@@ -83,7 +82,7 @@ workflow MergeVcfs {
 
         call Helpers.ConcatTsvs as ConcatShardSummaries {
             input:
-                tsvs = MergeVcfsPerShard.summary_tsv,
+                tsvs = MergeShard.summary_tsv,
                 sort_output = false,
                 preserve_header = true,
                 prefix = "~{prefix}.merge_summary",
@@ -93,26 +92,103 @@ workflow MergeVcfs {
     }
 
     if (!defined(shard_bin_size)) {
-        call MergeVcfsPerContig {
+        call BaselineMergeVcfs as BaselineMergeContig {
             input:
-                vcf = MergeCallsets.merged_vcf,
-                vcf_idx = MergeCallsets.merged_vcf_idx,
+                vcfs = contig_vcfs,
+                vcf_idxs = contig_vcf_idxs,
+                prefix = "~{prefix}.baseline",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_baseline_merge
+        }
+
+        call MergeVcfsPerShard as MergeWholeContig {
+            input:
+                vcf = BaselineMergeContig.merged_vcf,
+                vcf_idx = BaselineMergeContig.merged_vcf_idx,
                 contig = contig,
                 min_truvari_match = min_truvari_match,
                 prefix = "~{prefix}.merged",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge_per_contig
+                runtime_attr_override = runtime_attr_merge_per_shard
         }
     }
 
     output {
-        File merged_vcf = select_first([ConcatShards.concat_vcf, MergeVcfsPerContig.merged_vcf])
-        File merged_vcf_idx = select_first([ConcatShards.concat_vcf_idx, MergeVcfsPerContig.merged_vcf_idx])
-        File merge_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, MergeVcfsPerContig.summary_tsv])
+        File merged_vcf = select_first([ConcatShards.concat_vcf, MergeWholeContig.merged_vcf])
+        File merged_vcf_idx = select_first([ConcatShards.concat_vcf_idx, MergeWholeContig.merged_vcf_idx])
+        File merge_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, MergeWholeContig.summary_tsv])
     }
 }
 
-task MergeVcfsPerContig {
+task BaselineMergeVcfs {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_idxs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        paste ~{write_lines(vcfs)} ~{write_lines(vcf_idxs)} > vcf_pairs.tsv
+
+        i=0
+        while IFS=$'\t' read -r vcf vcf_idx; do
+            if [[ "$vcf_idx" != "${vcf}.tbi" ]]; then
+                ln -sf "$vcf_idx" "${vcf}.tbi"
+            fi
+
+            bcftools annotate \
+                -x FORMAT/AL \
+                -Oz -o "cleaned_${i}.vcf.gz" \
+                "$vcf"
+
+            tabix -f -p vcf "cleaned_${i}.vcf.gz"
+            echo "cleaned_${i}.vcf.gz" >> cleaned_vcfs.list
+            i=$((i + 1))
+        done < vcf_pairs.tsv
+
+        bcftools merge \
+            -m none \
+            -Oz -o merged.unsorted.vcf.gz \
+            -l cleaned_vcfs.list
+
+        bcftools sort \
+            -T . \
+            -Oz -o ~{prefix}.vcf.gz \
+            merged.unsorted.vcf.gz
+
+        tabix -f -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File merged_vcf = "~{prefix}.vcf.gz"
+        File merged_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 4 * ceil(size(vcfs, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeVcfsPerShard {
     input {
         File vcf
         File vcf_idx
@@ -126,33 +202,42 @@ task MergeVcfsPerContig {
     command <<<
         set -euo pipefail
 
-        # Ensure index is co-located
         VCF="~{vcf}"
         VCF_IDX="~{vcf_idx}"
         if [[ "$VCF_IDX" != "${VCF}.tbi" ]]; then
             ln -sf "$VCF_IDX" "${VCF}.tbi"
         fi
 
+        bcftools view -i 'INFO/allele_type=="trv"' -Oz -o trv.vcf.gz "$VCF"
+        bcftools view -i 'INFO/allele_type!="trv"' -Oz -o non_trv.vcf.gz "$VCF"
+        tabix -f -p vcf trv.vcf.gz
+        tabix -f -p vcf non_trv.vcf.gz
+
         python3 <<'PYEOF'
+import os
 import pysam
 import subprocess
-import os
-import sys
 from collections import defaultdict
 
-VCF_PATH = "~{vcf}"
 CONTIG = "~{contig}"
 MIN_TRUVARI = ~{min_truvari_match}
 PREFIX = "~{prefix}"
+TRV_VCF = "trv.vcf.gz"
+NON_TRV_VCF = "non_trv.vcf.gz"
 
-# ── helpers ─────────────────────────────────────────────────────────────────
-
-BASIC_TYPES = {"ins", "del", "snv"}
+def read_records(path):
+    with pysam.VariantFile(path) as vcf_in:
+        header = vcf_in.header.copy()
+        samples = list(vcf_in.header.samples)
+        records = [record.copy() for record in vcf_in]
+    return header, samples, records
 
 def get_allele_length(record):
     val = record.info.get("allele_length", 0)
     if isinstance(val, (list, tuple)):
         val = val[0]
+    if val in (None, ".", ""):
+        return 0
     return int(val)
 
 def get_allele_type(record):
@@ -161,15 +246,7 @@ def get_allele_type(record):
         val = val[0]
     return str(val)
 
-def pick_allele_type(types):
-    """Return a non-basic type if present, else any."""
-    for t in types:
-        if t.lower() not in BASIC_TYPES:
-            return t
-    return types[0]
-
-def merge_info(records, header):
-    """Merge INFO fields across records, with allele_length and allele_type logic."""
+def merge_info(records):
     merged = {}
     for record in records:
         for key in record.info:
@@ -177,23 +254,9 @@ def merge_info(records, header):
                 val = record.info[key]
                 merged[key] = list(val) if isinstance(val, tuple) else val
 
-    # allele_length: largest value
-    lengths = []
-    for record in records:
-        if "allele_length" in record.info:
-            lengths.append(get_allele_length(record))
-    if lengths:
-        merged["allele_length"] = max(lengths, key=abs)
-
-    # allele_type: non-basic wins
-    types = [get_allele_type(r) for r in records if "allele_type" in r.info]
-    if types:
-        merged["allele_type"] = pick_allele_type(types)
-
     return merged
 
 def recalc_ac_an_af(record):
-    """Recalculate AC, AN, AF from genotypes in-place."""
     an = 0
     ac_counts = defaultdict(int)
     for sample in record.samples:
@@ -218,36 +281,6 @@ def recalc_ac_an_af(record):
     if "AF" in record.header.info:
         record.info["AF"] = tuple(af)
 
-# ── read all records, tag with source index ─────────────────────────────────
-
-vcf_in = pysam.VariantFile(VCF_PATH)
-header = vcf_in.header
-samples = list(header.samples)
-
-all_records = []
-for record in vcf_in.fetch(CONTIG):
-    all_records.append(record.copy())
-vcf_in.close()
-
-n_input = len(all_records)
-
-# Partition
-trv_records = []       # allele_type == "trv"
-exact_records = []     # non-trv, abs(allele_length) < MIN_TRUVARI
-truvari_records = []   # non-trv, abs(allele_length) >= MIN_TRUVARI
-
-for rec in all_records:
-    at = get_allele_type(rec)
-    al = abs(get_allele_length(rec))
-    if at == "trv":
-        trv_records.append(rec)
-    elif al < MIN_TRUVARI:
-        exact_records.append(rec)
-    else:
-        truvari_records.append(rec)
-
-# ── merge helpers ────────────────────────────────────────────────────────────
-
 def group_by_key(records, key_fn):
     groups = defaultdict(list)
     order = []
@@ -260,15 +293,9 @@ def group_by_key(records, key_fn):
         groups[k].append(rec)
     return order, groups
 
-def build_merged_record(group, header, combined_alts=None):
-    """
-    Merge a group of records into one. combined_alts overrides ALT list (for trv).
-    All sample GTs are placed into the single output record.
-    Returns a new VariantRecord.
-    """
+def build_merged_record(group, header, samples, combined_alts=None):
     rep = group[0]
 
-    # Build unified allele list
     if combined_alts is not None:
         all_alts = combined_alts
     else:
@@ -283,8 +310,7 @@ def build_merged_record(group, header, combined_alts=None):
     out.qual = rep.qual
     out.filter.add("PASS")
 
-    # Merge INFO
-    merged_info = merge_info(group, header)
+    merged_info = merge_info(group)
     for key, val in merged_info.items():
         if key in header.info:
             try:
@@ -295,7 +321,6 @@ def build_merged_record(group, header, combined_alts=None):
             except Exception:
                 pass
 
-    # Build per-record alt-index mapping (only needed for trv where alts differ)
     alt_index_maps = []
     for rec in group:
         if rec.alts:
@@ -304,12 +329,11 @@ def build_merged_record(group, header, combined_alts=None):
                 if a in all_alts:
                     idx_map[i + 1] = all_alts.index(a) + 1
                 else:
-                    idx_map[i + 1] = i + 1  # fallback
+                    idx_map[i + 1] = i + 1
         else:
             idx_map = {}
         alt_index_maps.append(idx_map)
 
-    # Collect sample GTs: last non-missing value wins
     sample_gts = {}
     for rec, idx_map in zip(group, alt_index_maps):
         for sample in rec.samples:
@@ -323,7 +347,7 @@ def build_merged_record(group, header, combined_alts=None):
             sample_gts[sample] = remapped
 
     for sample in samples:
-        gt = sample_gts.get(sample, (None,))
+        gt = sample_gts.get(sample, (None, None))
         try:
             out.samples[sample]["GT"] = gt
         except Exception:
@@ -332,7 +356,10 @@ def build_merged_record(group, header, combined_alts=None):
     recalc_ac_an_af(out)
     return out
 
-# ── process trv (match on CHROM+POS+REF) ─────────────────────────────────────
+header, samples, trv_records = read_records(TRV_VCF)
+_, _, non_trv_records = read_records(NON_TRV_VCF)
+
+n_input = len(trv_records) + len(non_trv_records)
 
 def trv_key(rec):
     return (rec.chrom, rec.pos, rec.ref)
@@ -342,7 +369,6 @@ trv_order, trv_groups = group_by_key(trv_records, trv_key)
 merged_trv = []
 for k in trv_order:
     group = trv_groups[k]
-    # Combined ALTs: union preserving order
     seen_alts = []
     seen_set = set()
     for rec in group:
@@ -350,38 +376,37 @@ for k in trv_order:
             if a not in seen_set:
                 seen_alts.append(a)
                 seen_set.add(a)
-    merged_trv.append(build_merged_record(group, header, combined_alts=seen_alts))
-
-# ── process exact non-trv (match on CHROM+POS+REF+ALT) ───────────────────────
+    merged_trv.append(build_merged_record(group, header, samples, combined_alts=seen_alts))
 
 def exact_key(rec):
     alts = ",".join(rec.alts) if rec.alts else "."
     return (rec.chrom, rec.pos, rec.ref, alts)
 
-exact_order, exact_groups = group_by_key(exact_records, exact_key)
+exact_order, exact_groups = group_by_key(non_trv_records, exact_key)
 
-merged_exact = []
+exact_merged_non_trv = []
 for k in exact_order:
-    merged_exact.append(build_merged_record(exact_groups[k], header))
+    exact_merged_non_trv.append(build_merged_record(exact_groups[k], header, samples))
 
-# ── process truvari non-trv (truvari collapse) ────────────────────────────────
+small_non_trv = []
+truvari_inputs = []
+for record in exact_merged_non_trv:
+    if abs(get_allele_length(record)) >= MIN_TRUVARI:
+        truvari_inputs.append(record)
+    else:
+        small_non_trv.append(record)
 
 merged_truvari = []
-n_truvari_input = len(truvari_records)
-n_truvari_merged = 0
+n_truvari_input = len(truvari_inputs)
 
-if truvari_records:
-    # Write subset VCF for truvari collapse
+if truvari_inputs:
     tmp_vcf_path = "tmp_truvari_input.vcf.gz"
     tmp_out = pysam.VariantFile(tmp_vcf_path, "w", header=header)
-    for rec in truvari_records:
+    for rec in truvari_inputs:
         tmp_out.write(rec)
     tmp_out.close()
-    subprocess.run(["tabix", "-p", "vcf", tmp_vcf_path], check=True)
+    subprocess.run(["tabix", "-f", "-p", "vcf", tmp_vcf_path], check=True)
 
-    # Run truvari collapse; -o receives kept variants (with merged GTs), -c receives collapsed-away variants
-    # --sizemin 0 / --sizefilt 0: disable truvari's internal size floor (default 50bp) so all
-    # variants we pass in are analyzed, consistent with TruvariMatch.wdl pattern in this repo
     kept_out = "tmp_truvari_kept.vcf"
     collapsed_out = "tmp_truvari_removed.vcf"
     subprocess.run([
@@ -390,35 +415,28 @@ if truvari_records:
         "-o", kept_out,
         "-c", collapsed_out,
         "--sizemin", "0",
-        "--sizefilt", "0",
     ], check=True)
 
-    # Compress and index kept output
-    subprocess.run(["bgzip", kept_out], check=True)
-    subprocess.run(["tabix", "-p", "vcf", kept_out + ".gz"], check=True)
+    subprocess.run(["bgzip", "-f", kept_out], check=True)
+    subprocess.run(["tabix", "-f", "-p", "vcf", kept_out + ".gz"], check=True)
 
-    # Build index from original records by ID for INFO merging
     orig_by_id = {}
-    for rec in truvari_records:
+    for rec in truvari_inputs:
         if rec.id:
             orig_by_id[rec.id] = rec
 
-    # Read collapsed-away file to get CollapseId -> kept variant mapping
-    # CollapseId in the collapsed file matches CollapseId in the kept file
     collapse_to_kept = defaultdict(list)
     if os.path.exists(collapsed_out):
         c_vcf = pysam.VariantFile(collapsed_out)
-        for rec in c_vcf.fetch():
+        for rec in c_vcf:
             cid = rec.info.get("CollapseId", None)
-            if cid is not None:
+            if cid is not None and rec.id:
                 collapse_to_kept[str(cid)].append(rec.id)
         c_vcf.close()
 
-    # Read kept variants; merge INFO from all originally matching records
     kept_vcf = pysam.VariantFile(kept_out + ".gz")
-    for rec in kept_vcf.fetch():
+    for rec in kept_vcf:
         cid = rec.info.get("CollapseId", None)
-        # Gather original members: the kept variant + any collapsed-away variants
         member_recs = []
         if rec.id and rec.id in orig_by_id:
             member_recs.append(orig_by_id[rec.id])
@@ -429,8 +447,7 @@ if truvari_records:
         if not member_recs:
             member_recs = [rec]
 
-        # Apply INFO merge logic on top of the truvari-collapsed record (which already has merged GTs)
-        merged_info = merge_info(member_recs, header)
+        merged_info = merge_info(member_recs)
         for key, val in merged_info.items():
             if key in header.info:
                 try:
@@ -444,14 +461,8 @@ if truvari_records:
         merged_truvari.append(rec.copy())
     kept_vcf.close()
 
-    n_truvari_merged = len(merged_truvari)
-
-# ── write merged VCF ─────────────────────────────────────────────────────────
-
-all_merged = merged_trv + merged_exact + merged_truvari
-
-# Sort by pos
-all_merged.sort(key=lambda r: (r.chrom, r.pos))
+all_merged = merged_trv + small_non_trv + merged_truvari
+all_merged.sort(key=lambda r: (r.chrom, r.pos, r.ref, ",".join(r.alts or ["."])))
 
 out_vcf_path = PREFIX + ".vcf.gz"
 vcf_out = pysam.VariantFile(out_vcf_path, "w", header=header)
@@ -459,9 +470,7 @@ for rec in all_merged:
     vcf_out.write(rec)
 vcf_out.close()
 
-subprocess.run(["tabix", "-p", "vcf", out_vcf_path], check=True)
-
-# ── summary statistics ────────────────────────────────────────────────────────
+subprocess.run(["tabix", "-f", "-p", "vcf", out_vcf_path], check=True)
 
 def count_by_type(records):
     counts = defaultdict(int)
@@ -469,27 +478,17 @@ def count_by_type(records):
         counts[get_allele_type(rec)] += 1
     return counts
 
-# "exclusive to vcf_0" = variants that are not merged with any other record
-# (groups of size 1 after merging). We track the source vcf index via INFO source tag
-# Since the input is a single merged VCF (distinct samples already combined by caller),
-# we compute per-allele-type merge counts.
-
 n_trv_input = len(trv_records)
 n_trv_merged_out = len(merged_trv)
-n_trv_collapsed = n_trv_input - n_trv_merged_out  # merged away records
+n_trv_collapsed = n_trv_input - n_trv_merged_out
 
-n_exact_input = len(exact_records)
-n_exact_merged_out = len(merged_exact)
+n_exact_input = len(non_trv_records)
+n_exact_merged_out = len(exact_merged_non_trv)
 n_exact_collapsed = n_exact_input - n_exact_merged_out
 
-n_truvari_collapsed = n_truvari_input - n_truvari_merged if truvari_records else 0
+n_truvari_merged = len(merged_truvari)
+n_truvari_collapsed = n_truvari_input - n_truvari_merged
 
-# Per-allele-type input breakdown
-trv_type_counts = count_by_type(trv_records)
-exact_type_counts = count_by_type(exact_records)
-truvari_type_counts = count_by_type(truvari_records)
-
-# Write summary
 with open(PREFIX + ".merge_summary.tsv", "w") as f:
     f.write("\t".join([
         "contig",
@@ -508,11 +507,7 @@ with open(PREFIX + ".merge_summary.tsv", "w") as f:
         "input_by_allele_type",
     ]) + "\n")
 
-    # Aggregate allele_type input counts
-    combined_type_counts = defaultdict(int)
-    for d in [trv_type_counts, exact_type_counts, truvari_type_counts]:
-        for t, c in d.items():
-            combined_type_counts[t] += c
+    combined_type_counts = count_by_type(trv_records + non_trv_records)
     type_str = ";".join(f"{t}:{c}" for t, c in sorted(combined_type_counts.items()))
 
     f.write("\t".join([
@@ -532,7 +527,7 @@ with open(PREFIX + ".merge_summary.tsv", "w") as f:
         type_str,
     ]) + "\n")
 
-print(f"[MergeVcfsPerContig] {CONTIG}: {n_input} input -> {len(all_merged)} output variants")
+print(f"[MergeVcfsPerShard] {CONTIG}: {n_input} input -> {len(all_merged)} output variants")
 PYEOF
     >>>
 

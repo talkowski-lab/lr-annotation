@@ -1402,7 +1402,6 @@ task MergeVcfs {
         String prefix
         String? contig
         String? extra_args
-        Boolean sort_merged = false
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -1410,24 +1409,11 @@ task MergeVcfs {
     command <<<
         set -euo pipefail
 
-        if ~{sort_merged} ; then
-            bcftools merge \
-                -Oz -o ~{prefix}.unsorted.vcf.gz \
-                ~{if defined(contig) then "-r " + contig else ""} \
-                ~{if defined(extra_args) then extra_args else ""} \
-                -l ~{write_lines(vcfs)}
-
-            bcftools sort \
-                -T . \
-                -Oz -o ~{prefix}.vcf.gz \
-                ~{prefix}.unsorted.vcf.gz
-        else
-            bcftools merge \
-                -Oz -o ~{prefix}.vcf.gz \
-                ~{if defined(contig) then "-r " + contig else ""} \
-                ~{if defined(extra_args) then extra_args else ""} \
-                -l ~{write_lines(vcfs)}
-        fi
+        bcftools merge \
+            -Oz -o ~{prefix}.vcf.gz \
+            ~{if defined(contig) then "-r " + contig else ""} \
+            ~{if defined(extra_args) then extra_args else ""} \
+            -l ~{write_lines(vcfs)}
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
