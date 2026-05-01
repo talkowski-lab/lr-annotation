@@ -7,7 +7,7 @@ workflow MergeVcfs {
     input {
         Array[File] contig_vcfs
         Array[File] contig_vcf_idxs
-        Array[String] contigs
+        String contig
 
         Int min_truvari_match = 50
         Int? shard_bin_size
@@ -15,108 +15,99 @@ workflow MergeVcfs {
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_bcftools_merge
         RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset_shard
         RuntimeAttr? runtime_attr_merge_per_contig
         RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_shard_summaries
-        RuntimeAttr? runtime_attr_concat_summaries
     }
 
-    scatter (i in range(length(contigs))) {
-        String contig = contigs[i]
+    # Combine all callset VCFs (distinct samples) into one multi-sample VCF
+    call Helpers.MergeVcfs as MergeCallsets {
+        input:
+            vcfs = contig_vcfs,
+            vcf_idxs = contig_vcf_idxs,
+            contig = contig,
+            prefix = "~{prefix}.callsets_merged",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_bcftools_merge
+    }
 
-        if (defined(shard_bin_size)) {
-            call Helpers.CreateContigShards {
-                input:
-                    vcfs = [contig_vcfs[i]],
-                    vcf_idxs = [contig_vcf_idxs[i]],
-                    contig = contig,
-                    shard_bin_size = select_first([shard_bin_size]),
-                    prefix = "~{prefix}.~{contig}.shards",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_create_shards
-            }
-
-            scatter (j in range(length(CreateContigShards.shard_regions))) {
-                String shard_region = CreateContigShards.shard_regions[j]
-
-                call Helpers.SubsetVcfToRegion as SubsetShard {
-                    input:
-                        vcf = contig_vcfs[i],
-                        vcf_idx = contig_vcf_idxs[i],
-                        region = shard_region,
-                        prefix = "~{prefix}.~{contig}.shard_~{j}",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_subset_shard
-                }
-
-                call MergeVcfsPerContig as MergeVcfsPerShard {
-                    input:
-                        vcf = SubsetShard.subset_vcf,
-                        vcf_idx = SubsetShard.subset_vcf_idx,
-                        contig = contig,
-                        min_truvari_match = min_truvari_match,
-                        prefix = "~{prefix}.~{contig}.shard_~{j}.merged",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_merge_per_contig
-                }
-            }
-
-            call Helpers.ConcatVcfs as ConcatShards {
-                input:
-                    vcfs = MergeVcfsPerShard.merged_vcf,
-                    vcf_idxs = MergeVcfsPerShard.merged_vcf_idx,
-                    allow_overlaps = false,
-                    naive = true,
-                    prefix = "~{prefix}.~{contig}.merged",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards
-            }
-
-            call Helpers.ConcatTsvs as ConcatShardSummaries {
-                input:
-                    tsvs = MergeVcfsPerShard.summary_tsv,
-                    sort_output = false,
-                    preserve_header = true,
-                    prefix = "~{prefix}.~{contig}.merge_summary",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shard_summaries
-            }
+    if (defined(shard_bin_size)) {
+        call Helpers.CreateContigShards {
+            input:
+                vcfs = [MergeCallsets.merged_vcf],
+                vcf_idxs = [MergeCallsets.merged_vcf_idx],
+                contig = contig,
+                shard_bin_size = select_first([shard_bin_size]),
+                prefix = "~{prefix}.shards",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_create_shards
         }
 
-        if (!defined(shard_bin_size)) {
-            call MergeVcfsPerContig {
+        scatter (j in range(length(CreateContigShards.shard_regions))) {
+            call Helpers.SubsetVcfToRegion as SubsetShard {
                 input:
-                    vcf = contig_vcfs[i],
-                    vcf_idx = contig_vcf_idxs[i],
+                    vcf = MergeCallsets.merged_vcf,
+                    vcf_idx = MergeCallsets.merged_vcf_idx,
+                    region = CreateContigShards.shard_regions[j],
+                    prefix = "~{prefix}.shard_~{j}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_shard
+            }
+
+            call MergeVcfsPerContig as MergeVcfsPerShard {
+                input:
+                    vcf = SubsetShard.subset_vcf,
+                    vcf_idx = SubsetShard.subset_vcf_idx,
                     contig = contig,
                     min_truvari_match = min_truvari_match,
-                    prefix = "~{prefix}.~{contig}",
+                    prefix = "~{prefix}.shard_~{j}.merged",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_merge_per_contig
             }
         }
 
-        File contig_merged_vcf = select_first([ConcatShards.concat_vcf, MergeVcfsPerContig.merged_vcf])
-        File contig_merged_vcf_idx = select_first([ConcatShards.concat_vcf_idx, MergeVcfsPerContig.merged_vcf_idx])
-        File contig_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, MergeVcfsPerContig.summary_tsv])
+        call Helpers.ConcatVcfs as ConcatShards {
+            input:
+                vcfs = MergeVcfsPerShard.merged_vcf,
+                vcf_idxs = MergeVcfsPerShard.merged_vcf_idx,
+                allow_overlaps = false,
+                naive = true,
+                prefix = "~{prefix}.merged",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_shards
+        }
+
+        call Helpers.ConcatTsvs as ConcatShardSummaries {
+            input:
+                tsvs = MergeVcfsPerShard.summary_tsv,
+                sort_output = false,
+                preserve_header = true,
+                prefix = "~{prefix}.merge_summary",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_shard_summaries
+        }
     }
 
-    call Helpers.ConcatTsvs as ConcatSummaries {
-        input:
-            tsvs = contig_summary_tsv,
-            sort_output = false,
-            preserve_header = true,
-            prefix = "~{prefix}.merge_summary",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_summaries
+    if (!defined(shard_bin_size)) {
+        call MergeVcfsPerContig {
+            input:
+                vcf = MergeCallsets.merged_vcf,
+                vcf_idx = MergeCallsets.merged_vcf_idx,
+                contig = contig,
+                min_truvari_match = min_truvari_match,
+                prefix = "~{prefix}.merged",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_per_contig
+        }
     }
 
     output {
-        Array[File] merged_vcfs = contig_merged_vcf
-        Array[File] merged_vcf_idxs = contig_merged_vcf_idx
-        File merge_summary_tsv = ConcatSummaries.concatenated_tsv
+        File merged_vcf = select_first([ConcatShards.concat_vcf, MergeVcfsPerContig.merged_vcf])
+        File merged_vcf_idx = select_first([ConcatShards.concat_vcf_idx, MergeVcfsPerContig.merged_vcf_idx])
+        File merge_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, MergeVcfsPerContig.summary_tsv])
     }
 }
 
