@@ -8,6 +8,9 @@ workflow MergeVcfs {
         Array[File] contig_vcf_idxs
         String contig
 
+        File ref_fa
+        File ref_fai
+
         Int min_truvari_match = 20
         Int? shard_bin_size
         String prefix
@@ -73,6 +76,8 @@ workflow MergeVcfs {
                 input:
                     vcfs = SubsetTrvShard.subset_vcf,
                     vcf_idxs = SubsetTrvShard.subset_vcf_idx,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
                     prefix = "~{prefix}.shard_~{j}.trv_merged",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_merge_trv
@@ -82,6 +87,8 @@ workflow MergeVcfs {
                 input:
                     vcfs = SubsetNonTrvShard.subset_vcf,
                     vcf_idxs = SubsetNonTrvShard.subset_vcf_idx,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
                     min_truvari_match = min_truvari_match,
                     contig = contig,
                     prefix = "~{prefix}.shard_~{j}.non_trv_merged",
@@ -150,6 +157,8 @@ workflow MergeVcfs {
             input:
                 vcfs = SubsetTrv.subset_vcf,
                 vcf_idxs = SubsetTrv.subset_vcf_idx,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 prefix = "~{prefix}.trv_merged",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_trv
@@ -159,6 +168,8 @@ workflow MergeVcfs {
             input:
                 vcfs = SubsetNonTrv.subset_vcf,
                 vcf_idxs = SubsetNonTrv.subset_vcf_idx,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 min_truvari_match = min_truvari_match,
                 contig = contig,
                 prefix = "~{prefix}.non_trv_merged",
@@ -189,6 +200,8 @@ task MergeTrvVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
+        File ref_fa
+        File ref_fai
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -205,9 +218,22 @@ task MergeTrvVcfs {
                 ln -sf "$vcf_idx" "${vcf}.tbi"
             fi
 
-            bcftools annotate -x FORMAT/AL -Oz -o "cleaned_${i}.vcf.gz" "$vcf"
+            bcftools annotate \
+                -x FORMAT/AL \
+                -Oz -o "stripped_${i}.vcf.gz" "$vcf"
+            
+            tabix -f -p vcf "stripped_${i}.vcf.gz"
+
+            bcftools norm \
+                --check-ref s \
+                -f ~{ref_fa} \
+                -Oz -o "cleaned_${i}.vcf.gz" \
+                "stripped_${i}.vcf.gz"
+            
             tabix -f -p vcf "cleaned_${i}.vcf.gz"
+
             echo "cleaned_${i}.vcf.gz" >> cleaned_vcfs.list
+
             i=$((i + 1))
         done < vcf_pairs.tsv
 
@@ -216,7 +242,10 @@ task MergeTrvVcfs {
             -Oz -o merged.unsorted.vcf.gz \
             -l cleaned_vcfs.list
 
-        bcftools sort -T . -Oz -o ~{prefix}.vcf.gz merged.unsorted.vcf.gz
+        bcftools sort \
+            -T . \
+            -Oz -o ~{prefix}.vcf.gz \
+            merged.unsorted.vcf.gz
         
         tabix -f -p vcf ~{prefix}.vcf.gz
     >>>
@@ -250,6 +279,8 @@ task MergeNonTrvVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
+        File ref_fa
+        File ref_fai
         Int min_truvari_match
         String contig
         String prefix
@@ -269,7 +300,10 @@ task MergeNonTrvVcfs {
                 ln -sf "$vcf_idx" "${vcf}.tbi"
             fi
 
-            bcftools annotate -x FORMAT/AL -Oz -o "cleaned_${i}.vcf.gz" "$vcf"
+            bcftools annotate -x FORMAT/AL -Oz -o "stripped_${i}.vcf.gz" "$vcf"
+            tabix -f -p vcf "stripped_${i}.vcf.gz"
+
+            bcftools norm --check-ref s -f ~{ref_fa} -Oz -o "cleaned_${i}.vcf.gz" "stripped_${i}.vcf.gz"
             tabix -f -p vcf "cleaned_${i}.vcf.gz"
             echo "cleaned_${i}.vcf.gz" >> cleaned_vcfs.list
             i=$((i + 1))
@@ -316,6 +350,8 @@ task MergeNonTrvVcfs {
             --sizemin 0
 
         bgzip -f large.collapsed.vcf
+        bcftools sort -T . -Oz -o large.collapsed.sorted.vcf.gz large.collapsed.vcf.gz
+        mv large.collapsed.sorted.vcf.gz large.collapsed.vcf.gz
         tabix -f -p vcf large.collapsed.vcf.gz
 
         n_truvari_output=$(bcftools view -H large.collapsed.vcf.gz | wc -l | awk '{print $1}')
