@@ -220,12 +220,14 @@ task MergeTrvVcfs {
 
             bcftools annotate \
                 -x FORMAT/AL \
-                -Oz -o "stripped_${i}.vcf.gz" "$vcf"
+                -Oz -o "stripped_${i}.vcf.gz" \
+                "$vcf"
             
             tabix -f -p vcf "stripped_${i}.vcf.gz"
 
             bcftools norm \
                 --check-ref s \
+                --do-not-normalize \
                 -f ~{ref_fa} \
                 -Oz -o "cleaned_${i}.vcf.gz" \
                 "stripped_${i}.vcf.gz"
@@ -300,12 +302,24 @@ task MergeNonTrvVcfs {
                 ln -sf "$vcf_idx" "${vcf}.tbi"
             fi
 
-            bcftools annotate -x FORMAT/AL -Oz -o "stripped_${i}.vcf.gz" "$vcf"
+            bcftools annotate \
+                -x FORMAT/AL \
+                -Oz -o "stripped_${i}.vcf.gz" \
+                "$vcf"
+
             tabix -f -p vcf "stripped_${i}.vcf.gz"
 
-            bcftools norm --check-ref s -f ~{ref_fa} -Oz -o "cleaned_${i}.vcf.gz" "stripped_${i}.vcf.gz"
+            bcftools norm \
+                --check-ref s \
+                --do-not-normalize \
+                -f ~{ref_fa} \
+                -Oz -o "cleaned_${i}.vcf.gz" \
+                "stripped_${i}.vcf.gz"
+            
             tabix -f -p vcf "cleaned_${i}.vcf.gz"
+
             echo "cleaned_${i}.vcf.gz" >> cleaned_vcfs.list
+
             i=$((i + 1))
         done < vcf_pairs.tsv
 
