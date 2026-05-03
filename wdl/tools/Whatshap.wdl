@@ -9,10 +9,11 @@ workflow Whatshap {
         File bai
         File phased_vcf
         File phased_vcf_idx
-        File ref_fa
-        File ref_fai
         Array[String] contigs
         String prefix
+
+        File ref_fa
+        File ref_fai
 
         String? extra_args
 
@@ -123,7 +124,7 @@ task Haplotag {
     RuntimeAttr default_attr = object {
         cpu_cores: 4,
         mem_gb: 8,
-        disk_gb: 3 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
+        disk_gb: 5 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

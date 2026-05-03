@@ -246,6 +246,11 @@ task MergeTrvVcfs {
                 -Oz -o "tagged_${i}.vcf.gz" "cleaned_${i}.vcf.gz"
             tabix -f -p vcf "tagged_${i}.vcf.gz"
 
+            rm -f \
+                "stripped_${i}.vcf.gz" "stripped_${i}.vcf.gz.tbi" \
+                "cleaned_${i}.vcf.gz" "cleaned_${i}.vcf.gz.tbi" \
+                "mc_${i}.tsv.gz" "mc_${i}.tsv.gz.tbi"
+
             echo "tagged_${i}.vcf.gz" >> tagged_vcfs.list
 
             i=$((i + 1))
@@ -257,18 +262,29 @@ task MergeTrvVcfs {
             -Oz -o merged.unsorted.vcf.gz \
             -l tagged_vcfs.list
 
+        while read -r tagged_vcf; do
+            rm -f "$tagged_vcf" "$tagged_vcf.tbi"
+        done < tagged_vcfs.list
+
         bcftools sort -T . -Oz -o sorted.vcf.gz merged.unsorted.vcf.gz
         tabix -f -p vcf sorted.vcf.gz
+        rm -f merged.unsorted.vcf.gz
 
         # Annotate MERGE_TYPE based on MERGE_COUNT
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MERGE_COUNT\n' sorted.vcf.gz | \
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/MERGE_COUNT\n' \
+            sorted.vcf.gz | \
             awk -F'\t' -v OFS='\t' '{if($5>1) $5="TRV_EXACT"; else $5="UNIQUE"; print}' | \
             bgzip > mt_annot.tsv.gz
+        
         tabix -s1 -b2 -e2 mt_annot.tsv.gz
+
         bcftools annotate \
             -a mt_annot.tsv.gz -h mt_hdr.txt \
             -c CHROM,POS,REF,ALT,MERGE_TYPE \
             -Oz -o ~{prefix}.vcf.gz sorted.vcf.gz
+
+        rm -f sorted.vcf.gz sorted.vcf.gz.tbi mt_annot.tsv.gz mt_annot.tsv.gz.tbi
         
         tabix -f -p vcf ~{prefix}.vcf.gz
     >>>
@@ -281,7 +297,7 @@ task MergeTrvVcfs {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 8,
-        disk_gb: 4 * ceil(size(vcfs, "GB")) + 20,
+        disk_gb: 5 * ceil(size(vcfs, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -351,6 +367,11 @@ task MergeNonTrvVcfs {
                 -Oz -o "tagged_${i}.vcf.gz" "cleaned_${i}.vcf.gz"
             tabix -f -p vcf "tagged_${i}.vcf.gz"
 
+            rm -f \
+                "stripped_${i}.vcf.gz" "stripped_${i}.vcf.gz.tbi" \
+                "cleaned_${i}.vcf.gz" "cleaned_${i}.vcf.gz.tbi" \
+                "mc_${i}.tsv.gz" "mc_${i}.tsv.gz.tbi"
+
             echo "tagged_${i}.vcf.gz" >> tagged_vcfs.list
 
             i=$((i + 1))
@@ -362,38 +383,82 @@ task MergeNonTrvVcfs {
             -Oz -o exact_merged.unsorted.vcf.gz \
             -l tagged_vcfs.list
 
-        bcftools sort -T . -Oz -o exact_merged.vcf.gz exact_merged.unsorted.vcf.gz
+        while read -r tagged_vcf; do
+            rm -f "$tagged_vcf" "$tagged_vcf.tbi"
+        done < tagged_vcfs.list
+
+        bcftools sort \
+            -T . \
+            -Oz -o exact_merged.vcf.gz \
+            exact_merged.unsorted.vcf.gz
+        
         tabix -f -p vcf exact_merged.vcf.gz
+
+        rm -f exact_merged.unsorted.vcf.gz
 
         n_input=$(bcftools view -H exact_merged.vcf.gz | wc -l | awk '{print $1}')
 
         # Split into matched (exact), unmatched large (truvari candidates), and unmatched small (unique)
-        bcftools view -i 'MERGE_COUNT>1' -Oz -o matched.vcf.gz exact_merged.vcf.gz
+        bcftools view \
+            -i 'MERGE_COUNT>1' \
+            -Oz -o matched.vcf.gz \
+            exact_merged.vcf.gz
+        
         bcftools view \
             -i 'MERGE_COUNT=1 && (INFO/allele_length >= ~{min_truvari_match} || INFO/allele_length <= -~{min_truvari_match})' \
             -Oz -o unmatched_large.vcf.gz exact_merged.vcf.gz
+        
         bcftools view \
             -i 'MERGE_COUNT=1 && INFO/allele_length < ~{min_truvari_match} && INFO/allele_length > -~{min_truvari_match}' \
             -Oz -o unmatched_small.vcf.gz exact_merged.vcf.gz
+        
         tabix -f -p vcf matched.vcf.gz
+        
         tabix -f -p vcf unmatched_large.vcf.gz
+        
         tabix -f -p vcf unmatched_small.vcf.gz
+
+        rm -f exact_merged.vcf.gz exact_merged.vcf.gz.tbi
 
         n_truvari_input=$(bcftools view -H unmatched_large.vcf.gz | wc -l | awk '{print $1}')
 
         # Annotate matched with MERGE_TYPE=EXACT
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\tEXACT\n' matched.vcf.gz | bgzip > matched_mt.tsv.gz
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\tEXACT\n' \
+            matched.vcf.gz \
+            | bgzip > matched_mt.tsv.gz
+        
         tabix -s1 -b2 -e2 matched_mt.tsv.gz
-        bcftools annotate -a matched_mt.tsv.gz -h mt_hdr.txt -c CHROM,POS,REF,ALT,MERGE_TYPE \
-            -Oz -o matched.typed.vcf.gz matched.vcf.gz
+
+        bcftools annotate \
+            -a matched_mt.tsv.gz \
+            -h mt_hdr.txt \
+            -c CHROM,POS,REF,ALT,MERGE_TYPE \
+            -Oz -o matched.typed.vcf.gz \
+            matched.vcf.gz
+        
         tabix -f -p vcf matched.typed.vcf.gz
 
+        rm -f matched.vcf.gz matched.vcf.gz.tbi matched_mt.tsv.gz matched_mt.tsv.gz.tbi
+
         # Annotate unmatched_small with MERGE_TYPE=UNIQUE
-        bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\tUNIQUE\n' unmatched_small.vcf.gz | bgzip > small_mt.tsv.gz
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\tUNIQUE\n' \
+            unmatched_small.vcf.gz \
+            | bgzip > small_mt.tsv.gz
+        
         tabix -s1 -b2 -e2 small_mt.tsv.gz
-        bcftools annotate -a small_mt.tsv.gz -h mt_hdr.txt -c CHROM,POS,REF,ALT,MERGE_TYPE \
-            -Oz -o unmatched_small.typed.vcf.gz unmatched_small.vcf.gz
+
+        bcftools annotate \
+            -a small_mt.tsv.gz \
+            -h mt_hdr.txt \
+            -c CHROM,POS,REF,ALT,MERGE_TYPE \
+            -Oz -o unmatched_small.typed.vcf.gz \
+            unmatched_small.vcf.gz
+        
         tabix -f -p vcf unmatched_small.typed.vcf.gz
+
+        rm -f unmatched_small.vcf.gz unmatched_small.vcf.gz.tbi small_mt.tsv.gz small_mt.tsv.gz.tbi
 
         # Truvari collapse on unmatched large variants
         if [[ "$n_truvari_input" -gt 0 ]]; then
@@ -401,11 +466,15 @@ task MergeNonTrvVcfs {
             FMT_FIELDS=$(bcftools view -h unmatched_large.vcf.gz | grep '^##FORMAT' | grep -v 'ID=GT,' | \
                 sed 's/.*ID=\([^,]*\).*/FORMAT\/\1/' | paste -sd',' -)
             if [[ -n "$FMT_FIELDS" ]]; then
-                bcftools annotate -x "$FMT_FIELDS" -Oz -o large.gt_only.vcf.gz unmatched_large.vcf.gz
+                bcftools annotate \
+                    -x "$FMT_FIELDS" \
+                    -Oz -o large.gt_only.vcf.gz \
+                    unmatched_large.vcf.gz
             else
                 cp unmatched_large.vcf.gz large.gt_only.vcf.gz
             fi
             tabix -f -p vcf large.gt_only.vcf.gz
+            rm -f unmatched_large.vcf.gz unmatched_large.vcf.gz.tbi
 
             truvari collapse \
                 -i large.gt_only.vcf.gz \
@@ -415,39 +484,81 @@ task MergeNonTrvVcfs {
                 --sizemin 0
 
             bgzip -f large.collapsed.vcf
-            bcftools sort -T . -Oz -o large.collapsed.sorted.vcf.gz large.collapsed.vcf.gz
+
+            bcftools sort \
+                -T . \
+                -Oz -o large.collapsed.sorted.vcf.gz \
+                large.collapsed.vcf.gz
+            
             mv large.collapsed.sorted.vcf.gz large.collapsed.vcf.gz
+
             tabix -f -p vcf large.collapsed.vcf.gz
 
             # Annotate MERGE_TYPE and MERGE_COUNT from NumCollapsed
-            bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/NumCollapsed\n' large.collapsed.vcf.gz | \
+            bcftools query \
+                -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/NumCollapsed\n' \
+                large.collapsed.vcf.gz | \
                 awk -F'\t' -v OFS='\t' '{
                     nc = ($5 == "." ? 0 : int($5));
                     if (nc >= 1) { print $1,$2,$3,$4,nc+1,"TRUVARI" }
                     else { print $1,$2,$3,$4,1,"UNIQUE" }
                 }' | bgzip > truvari_annot.tsv.gz
+            
             tabix -s1 -b2 -e2 truvari_annot.tsv.gz
+
             bcftools annotate \
                 -a truvari_annot.tsv.gz -h mt_hdr.txt \
                 -c CHROM,POS,REF,ALT,MERGE_COUNT,MERGE_TYPE \
                 -Oz -o large.typed.vcf.gz large.collapsed.vcf.gz
+            
             tabix -f -p vcf large.typed.vcf.gz
+
+            rm -f \
+                large.gt_only.vcf.gz large.gt_only.vcf.gz.tbi \
+                large.collapsed.vcf.gz large.collapsed.vcf.gz.tbi \
+                large.removed.vcf truvari_annot.tsv.gz truvari_annot.tsv.gz.tbi
 
             n_truvari_output=$(bcftools view -H large.typed.vcf.gz | wc -l | awk '{print $1}')
         else
             # No large unmatched variants
-            bcftools view -h unmatched_large.vcf.gz | bgzip > large.typed.vcf.gz
+            bcftools view \
+                -h unmatched_large.vcf.gz \
+                | bgzip > large.typed.vcf.gz
+            
             tabix -f -p vcf large.typed.vcf.gz
+
+            rm -f unmatched_large.vcf.gz unmatched_large.vcf.gz.tbi
+
             n_truvari_output=0
         fi
 
         n_truvari_collapsed=$((n_truvari_input - n_truvari_output))
 
         # Concat all subsets, update AC/AN/AF
-        bcftools concat -a -Oz -o concat.unsorted.vcf.gz \
+        bcftools concat \
+            -a \
+            -Oz -o concat.unsorted.vcf.gz \
             matched.typed.vcf.gz unmatched_small.typed.vcf.gz large.typed.vcf.gz
-        bcftools sort -T . -Oz -o sorted.vcf.gz concat.unsorted.vcf.gz
-        bcftools +fill-tags sorted.vcf.gz -Oz -o ~{prefix}.vcf.gz -- -t AC,AN,AF
+        
+        rm -f \
+            matched.typed.vcf.gz matched.typed.vcf.gz.tbi \
+            unmatched_small.typed.vcf.gz unmatched_small.typed.vcf.gz.tbi \
+            large.typed.vcf.gz large.typed.vcf.gz.tbi
+        
+        bcftools sort \
+            -T . \
+            -Oz -o sorted.vcf.gz \
+            concat.unsorted.vcf.gz
+        
+        rm -f concat.unsorted.vcf.gz
+
+        bcftools +fill-tags \
+            sorted.vcf.gz \
+            -Oz -o ~{prefix}.vcf.gz \
+            -- -t AC,AN,AF
+        
+        rm -f sorted.vcf.gz
+        
         tabix -f -p vcf ~{prefix}.vcf.gz
 
         n_output=$(bcftools view -H ~{prefix}.vcf.gz | wc -l | awk '{print $1}')
@@ -456,8 +567,6 @@ task MergeNonTrvVcfs {
 contig	n_non_trv_input	n_non_trv_output	n_truvari_input	n_truvari_output	n_truvari_collapsed
 ~{contig}	${n_input}	${n_output}	${n_truvari_input}	${n_truvari_output}	${n_truvari_collapsed}
 EOF
-
-        echo "[MergeNonTrvVcfs] ~{contig}: ${n_input} input -> ${n_output} output non-TRV variants (${n_truvari_collapsed} collapsed by truvari)"
     >>>
 
     output {
@@ -469,7 +578,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 16,
-        disk_gb: 4 * ceil(size(vcfs, "GB")) + 20,
+        disk_gb: 5 * ceil(size(vcfs, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
