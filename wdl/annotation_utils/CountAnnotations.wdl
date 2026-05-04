@@ -2,6 +2,7 @@ version 1.0
 
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
+import "IntegrateVcfs.wdl" as IntegrateVcfs
 
 workflow CountAnnotations {
 	input {
@@ -12,9 +13,12 @@ workflow CountAnnotations {
 		Boolean do_per_sample = false
 		Boolean do_per_allele = false
 		Boolean do_per_gene = false
+		Boolean create_variant_attributes = false
 
 		String? subset_vcf_string
 		Int? records_per_shard
+		Int? max_length
+		Int? min_length
 
 		String utils_docker
 
@@ -25,26 +29,11 @@ workflow CountAnnotations {
 	}
 
 	scatter (i in range(length(vcfs))) {
-		if (defined(subset_vcf_string)) {
-			call Helpers.SubsetVcfByArgs {
-				input:
-					vcf = vcfs[i],
-					vcf_idx = vcfs_idx[i],
-					extra_args = select_first([subset_vcf_string]),
-					prefix = "~{prefix}.input_~{i}.subset",
-					docker = utils_docker,
-					runtime_attr_override = runtime_attr_subset
-			}
-		}
-
-		File vcf_to_process = select_first([SubsetVcfByArgs.subset_vcf, vcfs[i]])
-		File vcf_idx_to_process = select_first([SubsetVcfByArgs.subset_vcf_idx, vcfs_idx[i]])
-
 		if (defined(records_per_shard)) {
 			call Helpers.ShardVcfByRecords {
 				input:
-					vcf = vcf_to_process,
-					vcf_idx = vcf_idx_to_process,
+					vcf = vcfs[i],
+					vcf_idx = vcfs_idx[i],
 					records_per_shard = select_first([records_per_shard]),
 					prefix = "~{prefix}.input_~{i}",
 					docker = utils_docker,
@@ -52,17 +41,48 @@ workflow CountAnnotations {
 			}
 		}
 
-		Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [vcf_to_process]])
-		Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcf_idx_to_process]])
+		Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [vcfs[i]]])
+		Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcfs_idx[i]]])
 
 		scatter (j in range(length(shard_vcfs))) {
+			if (create_variant_attributes) {
+				call IntegrateVcfs.AnnotateVariantAttributes as AnnotateShardVariantAttributes {
+					input:
+						vcf = shard_vcfs[j],
+						vcf_idx = shard_vcf_idxs[j],
+						prefix = "~{prefix}.input_~{i}.shard_~{j}.annotated",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_count
+				}
+			}
+
+			File shard_vcf_to_subset = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]])
+			File shard_vcf_idx_to_subset = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]])
+
+			if (defined(subset_vcf_string)) {
+				call Helpers.SubsetVcfByArgs as SubsetShardVcfByArgs {
+					input:
+						vcf = shard_vcf_to_subset,
+						vcf_idx = shard_vcf_idx_to_subset,
+						extra_args = select_first([subset_vcf_string]),
+						prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_subset
+				}
+			}
+
+			File shard_vcf_to_count = select_first([SubsetShardVcfByArgs.subset_vcf, shard_vcf_to_subset])
+			File shard_vcf_idx_to_count = select_first([SubsetShardVcfByArgs.subset_vcf_idx, shard_vcf_idx_to_subset])
+
 			call CountAnnotationShard {
 				input:
-					vcf = shard_vcfs[j],
-					vcf_idx = shard_vcf_idxs[j],
+					vcf = shard_vcf_to_count,
+					vcf_idx = shard_vcf_idx_to_count,
 					do_per_sample = do_per_sample,
 					do_per_allele = do_per_allele,
 					do_per_gene = do_per_gene,
+					max_length = max_length,
+					min_length = min_length,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_count
@@ -146,6 +166,8 @@ task CountAnnotationShard {
 		Boolean do_per_sample
 		Boolean do_per_allele
 		Boolean do_per_gene = false
+		Int? max_length
+		Int? min_length
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -170,6 +192,10 @@ SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 DO_PER_SAMPLE = "~{do_per_sample}".lower() == "true"
 DO_PER_ALLELE = "~{do_per_allele}".lower() == "true"
 DO_PER_GENE = "~{do_per_gene}".lower() == "true"
+MAX_LENGTH = "~{if defined(max_length) then max_length else ""}"
+MIN_LENGTH = "~{if defined(min_length) then min_length else ""}"
+MAX_LENGTH = int(MAX_LENGTH) if MAX_LENGTH else None
+MIN_LENGTH = int(MIN_LENGTH) if MIN_LENGTH else None
 
 COLUMN_BUCKETS = [
 	"SNV",
@@ -509,6 +535,12 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 	writer.writerow(["variant_id", "classification"] + get_list_columns())
 
 	for record in vcf_in:
+		allele_length = get_int_info(record, "allele_length")
+		if MAX_LENGTH is not None and (allele_length is None or allele_length > MAX_LENGTH):
+			continue
+		if MIN_LENGTH is not None and (allele_length is None or allele_length < MIN_LENGTH):
+			continue
+
 		column = determine_column(record)
 		row_weights = determine_row_weights(record, vep_field_indices)
 		
@@ -524,7 +556,6 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		if DO_PER_GENE:
 			af = get_float_info(record, "AF")
 			ac = get_int_info(record, "AC")
-			allele_length = get_int_info(record, "allele_length")
 			
 			is_large = allele_length is not None and allele_length > 50000
 			
