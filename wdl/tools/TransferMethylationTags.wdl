@@ -113,6 +113,7 @@ task ExtractMethylationTags {
 
         python3 <<CODE
 import gzip
+import hashlib
 import pysam
 
 with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
@@ -128,7 +129,8 @@ with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
             except KeyError:
                 ml = ''
             
-            out.write(f"{read.query_name}\t{mm}\t{ml}\n")
+            seq_digest = hashlib.md5(read.query_sequence.encode()).hexdigest()
+            out.write(f"{read.query_name}\t{seq_digest}\t{mm}\t{ml}\n")
 CODE
 
         rm ~{bam_basename}.bam
@@ -173,6 +175,7 @@ task TransferTagsToContig {
         python3 <<CODE
 import array
 import gzip
+import hashlib
 import pysam
 
 # First pass: collect the read names present in this contig to only load relevant tags
@@ -185,19 +188,30 @@ with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
 tags_dict = {}
 with gzip.open("~{tags_tsv}", 'rt') as f:
     for line in f:
-        read_name, mm, ml_str = line.rstrip('\n').split('\t')
+        read_name, seq_digest, mm, ml_str = line.rstrip('\n').split('\t')
         if read_name in contig_read_names:
-            tags_dict[read_name] = (mm, [int(v) for v in ml_str.split(',') if v])
+            tags_dict[read_name] = (seq_digest, mm, [int(v) for v in ml_str.split(',') if v])
 
 # Third pass: stream through contig BAM to add tags for matched reads
+mismatched_read_names = []
 with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
     with pysam.AlignmentFile("~{prefix}.unsorted.bam", "wb", header=abam.header) as outbam:
         for read in abam:
             if read.query_name in tags_dict:
-                mm, ml = tags_dict[read.query_name]
-                read.set_tag('MM', mm)
-                read.set_tag('ML', array.array('B', ml))
+                seq_digest, mm, ml = tags_dict[read.query_name]
+                if hashlib.md5(read.query_sequence.encode()).hexdigest() != seq_digest:
+                    mismatched_read_names.append(read.query_name)
+                elif mm:
+                    read.set_tag('MM', mm)
+                    read.set_tag('ML', array.array('B', ml))
             outbam.write(read)
+
+if mismatched_read_names:
+    examples = ', '.join(mismatched_read_names[:5])
+    raise ValueError(
+        f"Found {len(mismatched_read_names)} read(s) where the target BAM sequence does not match the source methylation tags. "
+        f"Example read IDs: {examples}"
+    )
 CODE
     >>>
 
