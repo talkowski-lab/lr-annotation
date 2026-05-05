@@ -28,6 +28,9 @@ workflow CountAnnotations {
 		RuntimeAttr? runtime_attr_merge
 	}
 
+	Int effective_max_length = select_first([max_length, -1])
+	Int effective_min_length = select_first([min_length, -1])
+
 	scatter (i in range(length(vcfs))) {
 		if (defined(records_per_shard)) {
 			call Helpers.ShardVcfByRecords {
@@ -67,8 +70,8 @@ workflow CountAnnotations {
 					do_per_allele = do_per_allele,
 					do_per_gene = do_per_gene,
 					subset_vcf_string = subset_vcf_string,
-					max_length = max_length,
-					min_length = min_length,
+					max_length = effective_max_length,
+					min_length = effective_min_length,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_count
@@ -153,8 +156,8 @@ task CountAnnotationShard {
 		Boolean do_per_allele
 		Boolean do_per_gene = false
 		String? subset_vcf_string
-		Int? max_length
-		Int? min_length
+		Int max_length = -1
+		Int min_length = -1
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -195,10 +198,10 @@ SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 DO_PER_SAMPLE = "~{do_per_sample}".lower() == "true"
 DO_PER_ALLELE = "~{do_per_allele}".lower() == "true"
 DO_PER_GENE = "~{do_per_gene}".lower() == "true"
-MAX_LENGTH = "~{if defined(max_length) then max_length else ""}"
-MIN_LENGTH = "~{if defined(min_length) then min_length else ""}"
-MAX_LENGTH = int(MAX_LENGTH) if MAX_LENGTH else None
-MIN_LENGTH = int(MIN_LENGTH) if MIN_LENGTH else None
+MAX_LENGTH = ~{max_length}
+MIN_LENGTH = ~{min_length}
+MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
+MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
 
 COLUMN_BUCKETS = [
 	"SNV",
@@ -375,13 +378,16 @@ def extract_all_consequences(record, vep_field_indices):
 				consequences.add(consequence)
 	return consequences
 
-def determine_consequence_label(record, consequences):
+def determine_consequence_labels(record, consequences):
+	labels = set()
 	if has_info(record, "PREDICTED_LOF"):
-		return "LoF (SVAnnotate)"
+		labels.add("LoF (SVAnnotate)")
 	for label, consequence_terms in CONSEQUENCE_PRIORITY:
 		if consequence_terms & consequences:
-			return label
-	return "Other"
+			labels.add(label)
+	if not labels:
+		labels.add("Other")
+	return labels
 
 def determine_column(record):
 	allele_type = get_string_info(record, "allele_type").lower()
@@ -398,6 +404,7 @@ def determine_column(record):
 def determine_row_weights(record, vep_field_indices):
 	allele_type = get_string_info(record, "allele_type").lower()
 	consequences = extract_all_consequences(record, vep_field_indices)
+	consequence_labels = determine_consequence_labels(record, consequences)
 
 	row_weights = {row: 0 for row in ROW_ORDER}
 	row_weights[("", "Total")] = 1
@@ -424,9 +431,9 @@ def determine_row_weights(record, vep_field_indices):
 	if is_numt: row_weights[("Duplication", "NUMT")] = 1
 	if is_tr_parsed: row_weights[("Duplication", "TR Parsed")] = 1
 
-	consequence_label = determine_consequence_label(record, consequences)
 	row_weights[("", "Consequence")] = 1
-	row_weights[("Consequence", consequence_label)] = 1
+	for consequence_label in consequence_labels:
+		row_weights[("Consequence", consequence_label)] = 1
 
 	is_copy_gain = has_info(record, "PREDICTED_COPY_GAIN")
 	is_ied = has_info(record, "PREDICTED_INTRAGENIC_EXON_DUP")
@@ -462,14 +469,14 @@ def determine_row_weights(record, vep_field_indices):
 	else:
 		row_weights[("Matched", "dbGaP/gnomAD Missing")] = 1
 
-	if consequence_label == "LoF (SVAnnotate)":
+	if "LoF (SVAnnotate)" in consequence_labels:
 		if not is_dbgap:
 			row_weights[("Matched", "dbGaP Missing + LoF (SVAnnotate)")] = 1
 		if not is_gnomad_matched:
 			row_weights[("Matched", "gnomAD Missing + LoF (SVAnnotate)")] = 1
 		if not is_dbgap and not is_gnomad_matched:
 			row_weights[("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)")] = 1
-	elif consequence_label == "LoF (VEP)":
+	if "LoF (VEP)" in consequence_labels:
 		if not is_dbgap:
 			row_weights[("Matched", "dbGaP Missing + LoF (VEP)")] = 1
 		if not is_gnomad_matched:
@@ -513,14 +520,18 @@ def get_list_columns():
 def write_table(path, table_data, integer_output):
 	with open(path, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["category", "sub_category", "tr_status", "region"] + COLUMN_BUCKETS)
+		writer.writerow(["category", "sub_category", "tr_status"] + COLUMN_BUCKETS)
 		for key in sorted(table_data.keys()):
+			category, sub_category, tr_status = key
+			display_category = "All" if category == "Total" else category
+			display_sub_category = "All" if sub_category == "Total" else sub_category
+			display_tr_status = "All" if tr_status == "Total" else tr_status
 			values = []
 			for column in COLUMN_BUCKETS:
 				value = table_data[key][column]
 				if integer_output: values.append(str(int(value)))
 				else: values.append(str(value))
-			writer.writerow(list(key) + values)
+			writer.writerow([display_category, display_sub_category, display_tr_status] + values)
 
 site_table = init_table()
 sample_table = init_table()
@@ -548,8 +559,6 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		row_weights = determine_row_weights(record, vep_field_indices)
 		
 		tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
-		region = get_string_info(record, "REGION")
-		if not region: region = "Unknown"
 
 		if DO_PER_SAMPLE or DO_PER_ALLELE:
 			carrier_count, alt_allele_count = get_genotype_weights(record)
@@ -583,7 +592,7 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
 			ann = row_key[1] if row_key[0] else "Total"
-			full_key = (cat, ann, tr_status, region)
+			full_key = (cat, ann, tr_status)
 
 			site_table[full_key][column] += weight
 			if DO_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
@@ -712,7 +721,6 @@ def get_cat_ann(row_key):
 
 header = None
 counts = defaultdict(lambda: [0.0] * 7)
-found_regions = set()
 
 for path in COUNT_FILES:
 	with open(path, "r", newline="") as handle:
@@ -724,11 +732,10 @@ for path in COUNT_FILES:
 			raise ValueError(f"Mismatched headers while merging count tables: {path}")
 
 		for row in reader:
-			key = (row[0], row[1], row[2], row[3])
-			found_regions.add(row[3])
+			key = (row[0], row[1], row[2])
 			if key not in counts:
-				counts[key] = [0.0] * (len(header) - 4)
-			for i, val in enumerate(row[4:]):
+				counts[key] = [0.0] * (len(header) - 3)
+			for i, val in enumerate(row[3:]):
 				counts[key][i] += float(val)
 
 if header is None:
@@ -750,66 +757,40 @@ if MODE != "sites":
 
 	denominator = float(sample_count)
 
-def get_rollup(target_cat, target_ann, target_tr=None, target_reg=None):
-	total = [0.0] * (len(header) - 4)
-	for (c, a, t, r), vals in counts.items():
+def get_rollup(target_cat, target_ann, target_tr=None):
+	total = [0.0] * (len(header) - 3)
+	for (c, a, t), vals in counts.items():
 		if c == target_cat and a == target_ann:
 			if target_tr is None or t == target_tr:
-				if target_reg is None or r == target_reg:
-					for i, v in enumerate(vals):
-						total[i] += v
+				for i, v in enumerate(vals):
+					total[i] += v
 	return total
-
-def region_sort_key(r):
-	order = {"US": 1, "RM": 2, "SD": 3, "SR": 4}
-	return order.get(r, 5), r
-
-all_regions = sorted(list(found_regions), key=region_sort_key)
 
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
-	
-	last_seen = [None, None, None, None]
-	
-	def write_row(c, a, t, r, values):
+
+	def write_row(c, a, t, values):
 		if MODE == "sites":
 			formatted = [str(int(round(v))) for v in values]
 		else:
 			formatted = [f"{v / denominator:.2f}" for v in values]
-		
-		actual_display = [c, "" if a == "Total" else a, "" if t == "Total" else t, "" if r == "Total" else r]
-		final_display = []
 
-		for i in range(4):
-			val = actual_display[i]
-			if val != "":
-				if val == last_seen[i]:
-					final_display.append("")
-				else:
-					final_display.append(val)
-					last_seen[i] = val
-					for j in range(i+1, 4):
-						last_seen[j] = None
-			else:
-				final_display.append("")
+		display_category = "All" if c == "Total" else c
+		display_sub_category = "All" if a == "Total" else a
+		display_tr_status = "All" if t == "Total" else t
 
-		writer.writerow(final_display + formatted)
+		writer.writerow([display_category, display_sub_category, display_tr_status] + formatted)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
 		
 		tot_vals = get_rollup(cat, ann)
-		write_row(cat, ann, "Total", "Total", tot_vals)
+		write_row(cat, ann, "Total", tot_vals)
 		
 		for tr in ["TR", "Not TR"]:
 			tr_vals = get_rollup(cat, ann, target_tr=tr)
-			write_row(cat, ann, tr, "Total", tr_vals)
-			
-			for reg in all_regions:
-				reg_vals = get_rollup(cat, ann, target_tr=tr, target_reg=reg)
-				if sum(reg_vals) > 0:
-					write_row(cat, ann, tr, reg, reg_vals)
+			write_row(cat, ann, tr, tr_vals)
 PYCODE
 	>>>
 

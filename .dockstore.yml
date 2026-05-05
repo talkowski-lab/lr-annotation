@@ -331,6 +331,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PlotPhasingResults
+    primaryDescriptorPath: /wdl/annotation_utils/PlotPhasingResults.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PopulateSVFormatFields
     primaryDescriptorPath: /wdl/annotation_utils/PopulateSVFormatFields.wdl
     filters:
