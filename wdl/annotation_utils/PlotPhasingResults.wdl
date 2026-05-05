@@ -27,8 +27,6 @@ workflow PlotPhasingResults {
 		RuntimeAttr? runtime_attr_aggregate_results
 	}
 
-	File subset_samples_file = write_lines(select_first([subset_samples, []]))
-
 	if (defined(subset_samples)) {
 		call Helpers.SubsetVcfToSamples as SubsetAssignmentVcf {
 			input:
@@ -120,7 +118,7 @@ workflow PlotPhasingResults {
 				backbone_phased_vcf_idx = backbone_phased_vcf_idxs[i],
 				status_tsv_gzs = CompareBackbonePhasingShard.status_tsv_gz,
 				missing_samples_file = AssignSamplesToBaseVcfs.missing_samples,
-				subset_samples_file = subset_samples_file,
+				subset_samples = subset_samples,
 				prefix = "~{prefix}.~{contigs[i]}.variant_status",
 				utils_docker = utils_docker,
 				runtime_attr_override = runtime_attr_build_vcf_table
@@ -419,7 +417,7 @@ task BuildContigVcfTable {
 		File backbone_phased_vcf_idx
 		Array[File] status_tsv_gzs
 		File missing_samples_file
-		File subset_samples_file
+		Array[String]? subset_samples
 		String prefix
 		String utils_docker
 		RuntimeAttr? runtime_attr_override
@@ -478,7 +476,7 @@ def classify_backbone_status(sample_data, comparable_status, is_missing_sample):
 	return "OTH"
 
 
-subset_samples = {line.strip() for line in open("~{subset_samples_file}") if line.strip()}
+subset_samples = {line for line in """~{sep='\n' select_first([subset_samples, []])}""".splitlines() if line}
 missing_samples = {line.strip() for line in open("~{missing_samples_file}") if line.strip()}
 
 status_priority = {"XC": 0, "CN": 1, "SW": 2}
