@@ -56,23 +56,8 @@ workflow CountAnnotations {
 				}
 			}
 
-			File shard_vcf_to_subset = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]])
-			File shard_vcf_idx_to_subset = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]])
-
-			if (defined(subset_vcf_string)) {
-				call Helpers.SubsetVcfByArgs as SubsetShardVcfByArgs {
-					input:
-						vcf = shard_vcf_to_subset,
-						vcf_idx = shard_vcf_idx_to_subset,
-						extra_args = select_first([subset_vcf_string]),
-						prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
-						docker = utils_docker,
-						runtime_attr_override = runtime_attr_subset
-				}
-			}
-
-			File shard_vcf_to_count = select_first([SubsetShardVcfByArgs.subset_vcf, shard_vcf_to_subset])
-			File shard_vcf_idx_to_count = select_first([SubsetShardVcfByArgs.subset_vcf_idx, shard_vcf_idx_to_subset])
+			File shard_vcf_to_count = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]])
+			File shard_vcf_idx_to_count = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]])
 
 			call CountAnnotationShard {
 				input:
@@ -81,6 +66,7 @@ workflow CountAnnotations {
 					do_per_sample = do_per_sample,
 					do_per_allele = do_per_allele,
 					do_per_gene = do_per_gene,
+					subset_vcf_string = subset_vcf_string,
 					max_length = max_length,
 					min_length = min_length,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -166,6 +152,7 @@ task CountAnnotationShard {
 		Boolean do_per_sample
 		Boolean do_per_allele
 		Boolean do_per_gene = false
+		String? subset_vcf_string
 		Int? max_length
 		Int? min_length
 		String prefix
@@ -176,13 +163,28 @@ task CountAnnotationShard {
 	command <<<
 		set -euo pipefail
 
+		SUBSET_VCF_ARGS="~{if defined(subset_vcf_string) then select_first([subset_vcf_string]) else ""}"
+		WORK_VCF="~{vcf}"
+		if [ -n "$SUBSET_VCF_ARGS" ]; then
+			bcftools view "~{vcf}" \
+				$SUBSET_VCF_ARGS \
+				-Oz -o "~{prefix}.subset.vcf.gz"
+			
+			tabix -p vcf "~{prefix}.subset.vcf.gz"
+
+			WORK_VCF="~{prefix}.subset.vcf.gz"
+		fi
+		
+		export WORK_VCF
+
 		python3 <<'PYCODE'
+import os
 import csv
 import re
 from collections import defaultdict
 import pysam
 
-VCF_PATH = "~{vcf}"
+VCF_PATH = os.environ["WORK_VCF"]
 SITE_OUTPUT = "~{prefix}.sites.raw.tsv"
 SAMPLE_OUTPUT = "~{prefix}.samples.raw.tsv"
 ALLELE_OUTPUT = "~{prefix}.alleles.raw.tsv"
