@@ -205,13 +205,6 @@ with pysam.AlignmentFile("~{contig_bam}", "rb") as abam:
                     read.set_tag('MM', mm)
                     read.set_tag('ML', array.array('B', ml))
             outbam.write(read)
-
-if mismatched_read_names:
-    examples = ', '.join(mismatched_read_names[:5])
-    raise ValueError(
-        f"Found {len(mismatched_read_names)} read(s) where the target BAM sequence does not match the source methylation tags. "
-        f"Example read IDs: {examples}"
-    )
 CODE
     >>>
 

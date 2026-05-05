@@ -166,15 +166,16 @@ task CountAnnotationShard {
 		SUBSET_VCF_ARGS="~{if defined(subset_vcf_string) then select_first([subset_vcf_string]) else ""}"
 		WORK_VCF="~{vcf}"
 		if [ -n "$SUBSET_VCF_ARGS" ]; then
-			bcftools view "~{vcf}" \
+			bcftools view \
 				$SUBSET_VCF_ARGS \
-				-Oz -o "~{prefix}.subset.vcf.gz"
+				-Oz -o "~{prefix}.subset.vcf.gz" \
+				"~{vcf}"
 			
 			tabix -p vcf "~{prefix}.subset.vcf.gz"
 
 			WORK_VCF="~{prefix}.subset.vcf.gz"
 		fi
-		
+
 		export WORK_VCF
 
 		python3 <<'PYCODE'
