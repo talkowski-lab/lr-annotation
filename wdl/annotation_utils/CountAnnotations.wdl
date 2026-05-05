@@ -141,9 +141,9 @@ workflow CountAnnotations {
 
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
+		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
-		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_svannotate_tsv = MergeGeneCounts.merged_counts_tsv
 	}
 }
@@ -154,7 +154,7 @@ task CountAnnotationShard {
 		File vcf_idx
 		Boolean do_per_sample
 		Boolean do_per_allele
-		Boolean do_per_gene = false
+		Boolean do_per_gene
 		String? subset_vcf_string
 		Int max_length = -1
 		Int min_length = -1
