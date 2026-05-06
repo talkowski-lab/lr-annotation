@@ -403,6 +403,10 @@ TODO
 TODO
 
 
+### [Vamos](wdl/tools/Vamos.wdl)
+TODO
+
+
 ### [VcfDist](wdl/tools/VcfDist.wdl)
 TODO
 
