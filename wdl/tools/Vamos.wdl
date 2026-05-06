@@ -29,7 +29,7 @@ workflow Vamos {
 		Array[File] local_assembly_bais = select_first([assembly_bais])
 
 		scatter (i in range(length(local_assembly_bams))) {
-			call RunVamos {
+			call RunVamos as RunVamosAssembly {
 				input:
 					bam = local_assembly_bams[i],
 					bai = local_assembly_bais[i],
@@ -58,15 +58,15 @@ workflow Vamos {
 	}
 
 	output {
-		Array[File] vamos_assembly_vcfs = select_first([RunVamos.vamos_vcf, []])
-		Array[File] vamos_assembly_vcf_idxs = select_first([RunVamos.vamos_vcf_idx, []])
+		Array[File] vamos_assembly_vcfs = select_first([RunVamosAssembly.vamos_vcf, []])
+		Array[File] vamos_assembly_vcf_idxs = select_first([RunVamosAssembly.vamos_vcf_idx, []])
 		File? vamos_reads_vcf = RunVamosReads.vamos_vcf
 		File? vamos_reads_vcf_idx = RunVamosReads.vamos_vcf_idx
 	}
 }
 
 task RunVamos {
-	input {
+    input {
 		File bam
 		File bai
 		String prefix
@@ -89,6 +89,7 @@ task RunVamos {
 			-t ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])}
 
 		bgzip -f ~{prefix}.vcf
+
 		tabix -p vcf ~{prefix}.vcf.gz
 	>>>
 
