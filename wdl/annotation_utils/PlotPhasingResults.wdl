@@ -225,7 +225,7 @@ task CompareBackbonePhasingShard {
 
 		bcftools query -l backbone.vcf.gz > backbone.samples.txt
 		bcftools query -f '[%CHROM\t%POS\t%ID\t%REF\t%ALT\t%INFO/allele_type\t%SAMPLE\t%GT\n]' backbone.vcf.gz > backbone.query.tsv
-		bcftools query -f '[%CHROM\t%POS\t%ID\t%REF\t%ALT\t%INFO/allele_type\t%SAMPLE\t%GT\n]' base.vcf.gz > base.query.tsv
+		bcftools query -f '[%CHROM\t%POS\t%ID\t%REF\t%ALT\t%SAMPLE\t%GT\n]' base.vcf.gz > base.query.tsv
 
 		python3 <<CODE
 from collections import defaultdict
@@ -333,8 +333,8 @@ def summarize(points):
 samples = [line.strip() for line in open("backbone.samples.txt") if line.strip()]
 base_calls = defaultdict(dict)
 for line in open("base.query.tsv"):
-	chrom, pos, _variant_id, ref, alt_string, allele_type, sample, gt_string = line.rstrip("\n").split("\t")
-	for call in iter_comparable_calls(chrom, pos, ref, alt_string, allele_type, gt_string, require_phased=True):
+	chrom, pos, _variant_id, ref, alt_string, sample, gt_string = line.rstrip("\n").split("\t")
+	for call in iter_comparable_calls(chrom, pos, ref, alt_string, "", gt_string, require_phased=True):
 		base_calls[sample][call["key"]] = call["gt"]
 
 collection_points = {
