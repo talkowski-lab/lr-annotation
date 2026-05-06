@@ -211,8 +211,11 @@ COLUMN_BUCKETS = [
 	"Other",
 ]
 
+INTERNAL_TOTAL_LABEL = "Total"
+DISPLAY_ALL_LABEL = "All"
+
 ROW_ORDER = [
-	("", "Total"),
+	("", INTERNAL_TOTAL_LABEL),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -405,7 +408,7 @@ def determine_row_weights(record, vep_field_indices):
 	consequence_labels = determine_consequence_labels(record, consequences)
 
 	row_weights = {row: 0 for row in ROW_ORDER}
-	row_weights[("", "Total")] = 1
+	row_weights[("", INTERNAL_TOTAL_LABEL)] = 1
 
 	is_alu = "alu" in allele_type
 	is_line = "line" in allele_type
@@ -498,7 +501,7 @@ def get_genotype_weights(record):
 def format_list_column(row_key):
 	annotation_group, annotation = row_key
 	if annotation_group: return annotation
-	if annotation in PARENT_ROWS: return f"{annotation} - Total"
+	if annotation in PARENT_ROWS: return f"{annotation} - {INTERNAL_TOTAL_LABEL}"
 	return annotation
 
 def get_list_columns():
@@ -521,9 +524,9 @@ def write_table(path, table_data, integer_output):
 		writer.writerow(["category", "sub_category", "tr_status"] + COLUMN_BUCKETS)
 		for key in sorted(table_data.keys()):
 			category, sub_category, tr_status = key
-			display_category = "All" if category == "Total" else category
-			display_sub_category = "All" if sub_category == "Total" else sub_category
-			display_tr_status = "All" if tr_status == "Total" else tr_status
+			display_category = DISPLAY_ALL_LABEL if category == INTERNAL_TOTAL_LABEL else category
+			display_sub_category = DISPLAY_ALL_LABEL if sub_category == INTERNAL_TOTAL_LABEL else sub_category
+			display_tr_status = DISPLAY_ALL_LABEL if tr_status == INTERNAL_TOTAL_LABEL else tr_status
 			values = []
 			for column in COLUMN_BUCKETS:
 				value = table_data[key][column]
@@ -589,7 +592,7 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
-			ann = row_key[1] if row_key[0] else "Total"
+			ann = row_key[1] if row_key[0] else INTERNAL_TOTAL_LABEL
 			full_key = (cat, ann, tr_status)
 
 			site_table[full_key][column] += weight
@@ -669,8 +672,11 @@ SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(","
 MODE = "~{normalization_mode}"
 OUTPUT = "~{prefix}.tsv"
 
+INTERNAL_TOTAL_LABEL = "Total"
+DISPLAY_ALL_LABEL = "All"
+
 ROW_ORDER = [
-	("", "Total"),
+	("", INTERNAL_TOTAL_LABEL),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -714,8 +720,11 @@ ROW_ORDER = [
 def get_cat_ann(row_key):
 	group, ann = row_key
 	if not group:
-		return ann, "Total"
+		return ann, INTERNAL_TOTAL_LABEL
 	return group, ann
+
+def normalize_input_label(value):
+	return INTERNAL_TOTAL_LABEL if value == DISPLAY_ALL_LABEL else value
 
 header = None
 counts = defaultdict(lambda: [0.0] * 7)
@@ -730,7 +739,7 @@ for path in COUNT_FILES:
 			raise ValueError(f"Mismatched headers while merging count tables: {path}")
 
 		for row in reader:
-			key = (row[0], row[1], row[2])
+			key = tuple(normalize_input_label(value) for value in row[:3])
 			if key not in counts:
 				counts[key] = [0.0] * (len(header) - 3)
 			for i, val in enumerate(row[3:]):
@@ -774,9 +783,9 @@ with open(OUTPUT, "w", newline="") as handle:
 		else:
 			formatted = [f"{v / denominator:.2f}" for v in values]
 
-		display_category = "All" if c == "Total" else c
-		display_sub_category = "All" if a == "Total" else a
-		display_tr_status = "All" if t == "Total" else t
+		display_category = DISPLAY_ALL_LABEL if c == INTERNAL_TOTAL_LABEL else c
+		display_sub_category = DISPLAY_ALL_LABEL if a == INTERNAL_TOTAL_LABEL else a
+		display_tr_status = DISPLAY_ALL_LABEL if t == INTERNAL_TOTAL_LABEL else t
 
 		writer.writerow([display_category, display_sub_category, display_tr_status] + formatted)
 
