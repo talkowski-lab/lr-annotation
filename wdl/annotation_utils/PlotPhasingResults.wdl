@@ -223,32 +223,28 @@ task CompareBackbonePhasingShard {
 		ln -s "~{base_vcf}" base.vcf.gz
 		ln -s "~{base_vcf_idx}" base.vcf.gz.tbi
 
-		bcftools query -l backbone.vcf.gz > backbone.samples.txt
-		bcftools query -f '[%CHROM\t%POS\t%ID\t%REF\t%ALT\t%INFO/allele_type\t%SAMPLE\t%GT\n]' backbone.vcf.gz > backbone.query.tsv
-		bcftools query -f '[%CHROM\t%POS\t%ID\t%REF\t%ALT\t%SAMPLE\t%GT\n]' base.vcf.gz > base.query.tsv
-
 		python3 <<CODE
 from collections import defaultdict
 import gzip
+import pysam
 
 
-def parse_sample_gt(gt_string, require_phased=False):
-	sep = "|" if "|" in gt_string else "/"
-	parts = gt_string.split(sep)
-	if len(parts) != 2:
-		return None
-	if "." in parts:
-		return None
+def get_allele_type(record):
 	try:
-		alleles = tuple(int(part) for part in parts)
-	except ValueError:
+		return record.info["allele_type"]
+	except (KeyError, ValueError):
+		return ""
+
+
+def parse_sample_gt(sample_data, require_phased=False):
+	gt = sample_data.get("GT")
+	if gt is None or None in gt or len(gt) != 2:
 		return None
-	if alleles[0] == alleles[1]:
+	if gt[0] == gt[1]:
 		return None
-	phased = sep == "|"
-	if require_phased and not phased:
+	if require_phased and not sample_data.phased:
 		return None
-	return alleles, phased
+	return tuple(int(allele) for allele in gt), sample_data.phased
 
 
 def normalize_biallelic_variant(pos, ref, alt):
@@ -265,41 +261,42 @@ def normalize_biallelic_variant(pos, ref, alt):
 	return pos, ref, alt
 
 
-def iter_comparable_calls(chrom, pos, ref, alt_string, allele_type, gt_string, require_phased=False):
-	parsed = parse_sample_gt(gt_string, require_phased=require_phased)
+def iter_comparable_calls(record, sample_name, require_phased=False):
+	parsed = parse_sample_gt(record.samples[sample_name], require_phased=require_phased)
 	if parsed is None:
 		return []
 	gt, _phased = parsed
-	allele_type = "" if allele_type in ("", ".") else allele_type
-	alt_values = [alt.upper() for alt in alt_string.split(",") if alt]
+	allele_type = get_allele_type(record)
+	alt_values = [alt.upper() for alt in record.alts] if record.alts else []
 	if allele_type == "trv":
 		calls = []
 		for alt_index, alt in enumerate(alt_values, start=1):
 			biallelic_gt = tuple(1 if allele == alt_index else 0 for allele in gt)
 			if biallelic_gt[0] == biallelic_gt[1]:
 				continue
-			norm_pos, norm_ref, norm_alt = normalize_biallelic_variant(pos, ref, alt)
+			norm_pos, norm_ref, norm_alt = normalize_biallelic_variant(record.pos, record.ref, alt)
 			calls.append({
 				"pos": norm_pos,
 				"gt": biallelic_gt,
-				"key": (chrom, norm_pos, norm_ref, (norm_alt,)),
+				"key": (record.contig, norm_pos, norm_ref, (norm_alt,)),
 			})
 		return calls
 
 	return [{
-		"pos": int(pos),
+		"pos": record.pos,
 		"gt": gt,
-		"key": (chrom, int(pos), ref.upper(), tuple(alt_values)),
+		"key": (record.contig, record.pos, record.ref.upper(), tuple(alt_values)),
 	}]
 
 
-def normalize_record_key(chrom, pos, variant_id, ref, alt_string, allele_type):
-	alt_values = [alt.upper() for alt in alt_string.split(",") if alt]
+def normalize_record_key(record):
+	alt_values = [alt.upper() for alt in record.alts] if record.alts else []
+	allele_type = get_allele_type(record)
 	return (
-		chrom,
-		str(pos),
-		variant_id if variant_id else ".",
-		ref.upper(),
+		record.contig,
+		str(record.pos),
+		record.id if record.id else ".",
+		record.ref.upper(),
 		",".join(alt_values),
 		"" if allele_type in ("", ".") else allele_type,
 	)
@@ -330,12 +327,20 @@ def summarize(points):
 	return matched_count, switch_error_count, record_statuses
 
 
-samples = [line.strip() for line in open("backbone.samples.txt") if line.strip()]
-base_calls = defaultdict(dict)
-for line in open("base.query.tsv"):
-	chrom, pos, _variant_id, ref, alt_string, sample, gt_string = line.rstrip("\n").split("\t")
-	for call in iter_comparable_calls(chrom, pos, ref, alt_string, "", gt_string, require_phased=True):
-		base_calls[sample][call["key"]] = call["gt"]
+	with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
+		samples = list(backbone_in.header.samples)
+
+	base_calls = defaultdict(dict)
+	with pysam.VariantFile("base.vcf.gz") as base_in:
+		base_sample_set = set(base_in.header.samples)
+		for record in base_in:
+			if not record.alts:
+				continue
+			for sample in samples:
+				if sample not in base_sample_set:
+					continue
+				for call in iter_comparable_calls(record, sample, require_phased=True):
+					base_calls[sample][call["key"]] = call["gt"]
 
 collection_points = {
 	"outside_tr": defaultdict(list),
@@ -344,44 +349,39 @@ collection_points = {
 
 limit = ~{if defined(max_variants) then max_variants else -1}
 seen_records = 0
-last_record = None
+	with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
+		for record in backbone_in:
+			if not record.alts:
+				continue
+			if limit >= 0 and seen_records >= limit:
+				break
+			seen_records += 1
+			allele_type = get_allele_type(record)
+			collection = "tr_enveloped" if allele_type == "trv" else "outside_tr"
+			normalized_record_key = normalize_record_key(record)
+			for sample in samples:
+				for call in iter_comparable_calls(record, sample, require_phased=True):
+					base_gt = base_calls[sample].get(call["key"])
+					if base_gt is None:
+						continue
+					if call["gt"] == base_gt:
+						state = 1
+					elif call["gt"] == (base_gt[1], base_gt[0]):
+						state = 0
+					else:
+						continue
+					collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
 
-for line in open("backbone.query.tsv"):
-	chrom, pos, variant_id, ref, alt_string, allele_type, sample, gt_string = line.rstrip("\n").split("\t")
-	record_key = (chrom, pos, variant_id, ref, alt_string, allele_type)
-	if record_key != last_record:
-		if limit >= 0 and seen_records >= limit:
-			break
-		seen_records += 1
-		last_record = record_key
-	collection = "tr_enveloped" if allele_type == "trv" else "outside_tr"
-	normalized_record_key = normalize_record_key(chrom, pos, variant_id, ref, alt_string, allele_type)
-	for call in iter_comparable_calls(chrom, pos, ref, alt_string, allele_type, gt_string, require_phased=True):
-		base_gt = base_calls[sample].get(call["key"])
-		if base_gt is None:
-			continue
-		if call["gt"] == base_gt:
-			state = 1
-		elif call["gt"] == (base_gt[1], base_gt[0]):
-			state = 0
-		else:
-			continue
-		collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
-
-status_rows = []
-for collection in ("outside_tr", "tr_enveloped"):
-	with open(f"~{prefix}.{collection}.tsv", "w") as out:
-		out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
-		for sample in samples:
-			matched_count, switch_error_count, record_statuses = summarize(collection_points[collection][sample])
-			out.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\n")
-			for record_key, status in record_statuses.items():
-				status_rows.append((*record_key, sample, status))
-
-with gzip.open("~{prefix}.status.tsv.gz", "wt") as out:
-	out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
-	for row in status_rows:
-		out.write("\t".join(row) + "\n")
+	with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
+		outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+		tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+		status_out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
+		for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_out)):
+			for sample in samples:
+				matched_count, switch_error_count, record_statuses = summarize(collection_points[collection][sample])
+				handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\n")
+				for record_key, status in record_statuses.items():
+					status_out.write("\t".join((*record_key, sample, status)) + "\n")
 CODE
 	>>>
 
