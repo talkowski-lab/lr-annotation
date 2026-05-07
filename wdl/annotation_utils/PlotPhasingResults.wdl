@@ -393,7 +393,7 @@ CODE
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 1,
-		mem_gb: 4,
+		mem_gb: 12,
 		disk_gb: 50 * ceil(size(backbone_phased_vcf, "GiB")) + ceil(size(base_vcf, "GiB")) + 25,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
