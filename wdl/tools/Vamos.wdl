@@ -100,7 +100,7 @@ task RunVamos {
 
 	RuntimeAttr default_attr = object {
 		cpu_cores: 8,
-		mem_gb: 24,
+		mem_gb: 64,
 		disk_gb: 3 * ceil(size(bam, "GB") + size(repeat_catalog_vamos, "GB")) + 25,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
