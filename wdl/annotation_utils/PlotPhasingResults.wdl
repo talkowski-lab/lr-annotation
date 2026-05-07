@@ -327,20 +327,20 @@ def summarize(points):
 	return matched_count, switch_error_count, record_statuses
 
 
-	with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
-		samples = list(backbone_in.header.samples)
+with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
+	samples = list(backbone_in.header.samples)
 
-	base_calls = defaultdict(dict)
-	with pysam.VariantFile("base.vcf.gz") as base_in:
-		base_sample_set = set(base_in.header.samples)
-		for record in base_in:
-			if not record.alts:
+base_calls = defaultdict(dict)
+with pysam.VariantFile("base.vcf.gz") as base_in:
+	base_sample_set = set(base_in.header.samples)
+	for record in base_in:
+		if not record.alts:
+			continue
+		for sample in samples:
+			if sample not in base_sample_set:
 				continue
-			for sample in samples:
-				if sample not in base_sample_set:
-					continue
-				for call in iter_comparable_calls(record, sample, require_phased=True):
-					base_calls[sample][call["key"]] = call["gt"]
+			for call in iter_comparable_calls(record, sample, require_phased=True):
+				base_calls[sample][call["key"]] = call["gt"]
 
 collection_points = {
 	"outside_tr": defaultdict(list),
@@ -349,39 +349,39 @@ collection_points = {
 
 limit = ~{if defined(max_variants) then max_variants else -1}
 seen_records = 0
-	with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
-		for record in backbone_in:
-			if not record.alts:
-				continue
-			if limit >= 0 and seen_records >= limit:
-				break
-			seen_records += 1
-			allele_type = get_allele_type(record)
-			collection = "tr_enveloped" if allele_type == "trv" else "outside_tr"
-			normalized_record_key = normalize_record_key(record)
-			for sample in samples:
-				for call in iter_comparable_calls(record, sample, require_phased=True):
-					base_gt = base_calls[sample].get(call["key"])
-					if base_gt is None:
-						continue
-					if call["gt"] == base_gt:
-						state = 1
-					elif call["gt"] == (base_gt[1], base_gt[0]):
-						state = 0
-					else:
-						continue
-					collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
+with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
+	for record in backbone_in:
+		if not record.alts:
+			continue
+		if limit >= 0 and seen_records >= limit:
+			break
+		seen_records += 1
+		allele_type = get_allele_type(record)
+		collection = "tr_enveloped" if allele_type == "trv" else "outside_tr"
+		normalized_record_key = normalize_record_key(record)
+		for sample in samples:
+			for call in iter_comparable_calls(record, sample, require_phased=True):
+				base_gt = base_calls[sample].get(call["key"])
+				if base_gt is None:
+					continue
+				if call["gt"] == base_gt:
+					state = 1
+				elif call["gt"] == (base_gt[1], base_gt[0]):
+					state = 0
+				else:
+					continue
+				collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
 
-	with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
-		outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
-		tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
-		status_out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
-		for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_out)):
-			for sample in samples:
-				matched_count, switch_error_count, record_statuses = summarize(collection_points[collection][sample])
-				handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\n")
-				for record_key, status in record_statuses.items():
-					status_out.write("\t".join((*record_key, sample, status)) + "\n")
+with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
+	outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+	tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+	status_out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
+	for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_out)):
+		for sample in samples:
+			matched_count, switch_error_count, record_statuses = summarize(collection_points[collection][sample])
+			handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\n")
+			for record_key, status in record_statuses.items():
+				status_out.write("\t".join((*record_key, sample, status)) + "\n")
 CODE
 	>>>
 
