@@ -10,9 +10,11 @@ workflow CountAnnotations {
 		Array[File] vcfs_idx
 		String prefix
 
-		Boolean do_per_sample = false
-		Boolean do_per_allele = false
-		Boolean do_per_gene = false
+		Boolean create_per_sample = false
+		Boolean create_per_allele = false
+		Boolean create_functional = false
+		Boolean create_list = false
+		Boolean split_by_region = false
 		Boolean create_variant_attributes = false
 
 		String? subset_vcf_string
@@ -81,9 +83,11 @@ workflow CountAnnotations {
 				input:
 					vcf = final_shard_vcf_to_count,
 					vcf_idx = final_shard_vcf_idx_to_count,
-					do_per_sample = do_per_sample,
-					do_per_allele = do_per_allele,
-					do_per_gene = do_per_gene,
+					create_per_sample = create_per_sample,
+					create_per_allele = create_per_allele,
+					create_functional = create_functional,
+					create_list = create_list,
+					split_by_region = split_by_region,
 					max_length = effective_max_length,
 					min_length = effective_min_length,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -96,7 +100,7 @@ workflow CountAnnotations {
 	Array[File] site_count_tables = flatten(CountAnnotationShard.site_counts_tsv)
 	Array[File] sample_count_tables = flatten(CountAnnotationShard.sample_counts_tsv)
 	Array[File] allele_count_tables = flatten(CountAnnotationShard.allele_counts_tsv)
-	Array[File] annotation_list_tables = flatten(CountAnnotationShard.annotation_list_tsv)
+	Array[File] list_tables = flatten(CountAnnotationShard.list_tsv)
 	Array[File] sample_count_files = flatten(CountAnnotationShard.sample_count_file)
 
 	call MergeAnnotationCountTables as MergeSiteCounts {
@@ -104,50 +108,55 @@ workflow CountAnnotations {
 			count_tsvs = site_count_tables,
 			sample_count_files = sample_count_files,
 			normalization_mode = "sites",
-			prefix = "~{prefix}.annotation_counts_sites",
+			split_by_region = split_by_region,
+			prefix = "~{prefix}.counts_sites",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_merge
 	}
 
-	if (do_per_sample) {
+	if (create_per_sample) {
 		call MergeAnnotationCountTables as MergeSampleCounts {
 			input:
 				count_tsvs = sample_count_tables,
 				sample_count_files = sample_count_files,
 				normalization_mode = "samples",
-				prefix = "~{prefix}.annotation_counts_samples",
+				split_by_region = split_by_region,
+				prefix = "~{prefix}.counts_samples",
 				docker = utils_docker,
 				runtime_attr_override = runtime_attr_merge
 		}
 	}
 
-	if (do_per_allele) {
+	if (create_per_allele) {
 		call MergeAnnotationCountTables as MergeAlleleCounts {
 			input:
 				count_tsvs = allele_count_tables,
 				sample_count_files = sample_count_files,
 				normalization_mode = "alleles",
-				prefix = "~{prefix}.annotation_counts_alleles",
+				split_by_region = split_by_region,
+				prefix = "~{prefix}.counts_alleles",
 				docker = utils_docker,
 				runtime_attr_override = runtime_attr_merge
 		}
 	}
 
-	call MergeAnnotationListTables {
-		input:
-			list_tsvs = annotation_list_tables,
-			prefix = "~{prefix}.annotation_counts_list",
-			docker = utils_docker,
-			runtime_attr_override = runtime_attr_merge
+	if (create_list) {
+		call MergeAnnotationListTables {
+			input:
+				list_tsvs = list_tables,
+				prefix = "~{prefix}.counts_list",
+				docker = utils_docker,
+				runtime_attr_override = runtime_attr_merge
+		}
 	}
 
-	if (do_per_gene) {
+	if (create_functional) {
 		Array[File] gene_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
 		
 		call MergeGeneCountTables as MergeGeneCounts {
 			input:
 				count_tsvs = gene_count_tables,
-				prefix = "~{prefix}.annotation_counts_svannotate",
+				prefix = "~{prefix}.counts_functional",
 				docker = utils_docker,
 				runtime_attr_override = runtime_attr_merge
 		}
@@ -155,10 +164,10 @@ workflow CountAnnotations {
 
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
-		File annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
+		File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
-		File? annotation_counts_svannotate_tsv = MergeGeneCounts.merged_counts_tsv
+		File? annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
 	}
 }
 
@@ -166,9 +175,11 @@ task CountAnnotationShard {
 	input {
 		File vcf
 		File vcf_idx
-		Boolean do_per_sample
-		Boolean do_per_allele
-		Boolean do_per_gene
+		Boolean create_per_sample
+		Boolean create_per_allele
+		Boolean create_functional
+		Boolean create_list
+		Boolean split_by_region
 		Int max_length = -1
 		Int min_length = -1
 		String prefix
@@ -180,7 +191,6 @@ task CountAnnotationShard {
 		set -euo pipefail
 
 		python3 <<'PYCODE'
-import os
 import csv
 import re
 from collections import defaultdict
@@ -193,9 +203,11 @@ ALLELE_OUTPUT = "~{prefix}.alleles.raw.tsv"
 LIST_OUTPUT = "~{prefix}.list.raw.tsv"
 GENE_OUTPUT = "~{prefix}.genes.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
-DO_PER_SAMPLE = "~{do_per_sample}".lower() == "true"
-DO_PER_ALLELE = "~{do_per_allele}".lower() == "true"
-DO_PER_GENE = "~{do_per_gene}".lower() == "true"
+CREATE_PER_SAMPLE = "~{create_per_sample}".lower() == "true"
+CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
+CREATE_FUNCTIONAL = "~{create_functional}".lower() == "true"
+CREATE_LIST = "~{create_list}".lower() == "true"
+SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
@@ -213,6 +225,7 @@ COLUMN_BUCKETS = [
 
 INTERNAL_TOTAL_LABEL = "Total"
 DISPLAY_ALL_LABEL = "All"
+REGION_ORDER = ["US", "RM", "SD", "SR"]
 
 ROW_ORDER = [
 	("", INTERNAL_TOTAL_LABEL),
@@ -288,7 +301,7 @@ CONSEQUENCE_PRIORITY = [
 	}),
 ]
 
-if DO_PER_GENE:
+if CREATE_FUNCTIONAL:
 	gene_counts = defaultdict(lambda: defaultdict(int))
 	PREDICTED_FIELDS = [
 		"PREDICTED_LOF",
@@ -518,21 +531,31 @@ def get_list_columns():
 			list_columns.append(default_label)
 	return list_columns
 
-def write_table(path, table_data, integer_output):
+def write_table(path, table_data, integer_output, split_by_region):
 	with open(path, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["category", "sub_category", "tr_status"] + COLUMN_BUCKETS)
+		header = ["category", "sub_category", "tr_status"]
+		if split_by_region:
+			header.append("region")
+		writer.writerow(header + COLUMN_BUCKETS)
 		for key in sorted(table_data.keys()):
-			category, sub_category, tr_status = key
+			if split_by_region:
+				category, sub_category, tr_status, region = key
+			else:
+				category, sub_category, tr_status = key
 			display_category = DISPLAY_ALL_LABEL if category == INTERNAL_TOTAL_LABEL else category
 			display_sub_category = DISPLAY_ALL_LABEL if sub_category == INTERNAL_TOTAL_LABEL else sub_category
 			display_tr_status = DISPLAY_ALL_LABEL if tr_status == INTERNAL_TOTAL_LABEL else tr_status
+			row_prefix = [display_category, display_sub_category, display_tr_status]
+			if split_by_region:
+				display_region = DISPLAY_ALL_LABEL if region == INTERNAL_TOTAL_LABEL else region
+				row_prefix.append(display_region)
 			values = []
 			for column in COLUMN_BUCKETS:
 				value = table_data[key][column]
 				if integer_output: values.append(str(int(value)))
 				else: values.append(str(value))
-			writer.writerow([display_category, display_sub_category, display_tr_status] + values)
+			writer.writerow(row_prefix + values)
 
 site_table = init_table()
 sample_table = init_table()
@@ -560,13 +583,18 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		row_weights = determine_row_weights(record, vep_field_indices)
 		
 		tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
+		regions = [INTERNAL_TOTAL_LABEL]
+		if SPLIT_BY_REGION:
+			region = get_string_info(record, "REGION")
+			if region in REGION_ORDER:
+				regions.append(region)
 
-		if DO_PER_SAMPLE or DO_PER_ALLELE:
+		if CREATE_PER_SAMPLE or CREATE_PER_ALLELE:
 			carrier_count, alt_allele_count = get_genotype_weights(record)
 		else:
 			carrier_count, alt_allele_count = 0, 0
 
-		if DO_PER_GENE:
+		if CREATE_FUNCTIONAL:
 			af = get_float_info(record, "AF")
 			ac = get_int_info(record, "AC")
 			
@@ -593,22 +621,30 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
 			ann = row_key[1] if row_key[0] else INTERNAL_TOTAL_LABEL
-			full_key = (cat, ann, tr_status)
+			for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
+				if SPLIT_BY_REGION:
+					for current_region in regions:
+						full_key = (cat, ann, current_tr_status, current_region)
+						site_table[full_key][column] += weight
+						if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
+						if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
+				else:
+					full_key = (cat, ann, current_tr_status)
+					site_table[full_key][column] += weight
+					if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
+					if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
 
-			site_table[full_key][column] += weight
-			if DO_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
-			if DO_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
+		if CREATE_LIST:
+			writer.writerow([
+				str(record.id or "."),
+				column,
+			] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
 
-		writer.writerow([
-			str(record.id or "."),
-			column,
-		] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
+write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
+write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
+write_table(ALLELE_OUTPUT, allele_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 
-write_table(SITE_OUTPUT, site_table, integer_output=True)
-write_table(SAMPLE_OUTPUT, sample_table, integer_output=True)
-write_table(ALLELE_OUTPUT, allele_table, integer_output=True)
-
-if DO_PER_GENE:
+if CREATE_FUNCTIONAL:
 	with open(GENE_OUTPUT, "w", newline="") as handle:
 		writer = csv.writer(handle, delimiter="\t")
 		writer.writerow(["gene_name", "category", "count"])
@@ -618,6 +654,10 @@ if DO_PER_GENE:
 else:
 	with open(GENE_OUTPUT, "w", newline="") as handle:
 		pass
+
+if not CREATE_LIST:
+	with open(LIST_OUTPUT, "w", newline="") as handle:
+		pass
 PYCODE
 	>>>
 
@@ -625,7 +665,7 @@ PYCODE
 		File site_counts_tsv = "~{prefix}.sites.raw.tsv"
 		File sample_counts_tsv = "~{prefix}.samples.raw.tsv"
 		File allele_counts_tsv = "~{prefix}.alleles.raw.tsv"
-		File annotation_list_tsv = "~{prefix}.list.raw.tsv"
+		File list_tsv = "~{prefix}.list.raw.tsv"
 		File gene_counts_tsv = "~{prefix}.genes.raw.tsv"
 		File sample_count_file = "~{prefix}.sample_count.txt"
 	}
@@ -655,6 +695,7 @@ task MergeAnnotationCountTables {
 		Array[File] count_tsvs
 		Array[File] sample_count_files
 		String normalization_mode
+		Boolean split_by_region = false
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -670,10 +711,13 @@ from collections import defaultdict
 COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
+SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
 OUTPUT = "~{prefix}.tsv"
 
 INTERNAL_TOTAL_LABEL = "Total"
 DISPLAY_ALL_LABEL = "All"
+TR_ORDER = [INTERNAL_TOTAL_LABEL, "TR", "Not TR"]
+REGION_ORDER = [INTERNAL_TOTAL_LABEL, "US", "RM", "SD", "SR"]
 
 ROW_ORDER = [
 	("", INTERNAL_TOTAL_LABEL),
@@ -728,6 +772,7 @@ def normalize_input_label(value):
 
 header = None
 counts = defaultdict(lambda: [0.0] * 7)
+group_column_count = 4 if SPLIT_BY_REGION else 3
 
 for path in COUNT_FILES:
 	with open(path, "r", newline="") as handle:
@@ -739,10 +784,10 @@ for path in COUNT_FILES:
 			raise ValueError(f"Mismatched headers while merging count tables: {path}")
 
 		for row in reader:
-			key = tuple(normalize_input_label(value) for value in row[:3])
+			key = tuple(normalize_input_label(value) for value in row[:group_column_count])
 			if key not in counts:
-				counts[key] = [0.0] * (len(header) - 3)
-			for i, val in enumerate(row[3:]):
+				counts[key] = [0.0] * (len(header) - group_column_count)
+			for i, val in enumerate(row[group_column_count:]):
 				counts[key][i] += float(val)
 
 if header is None:
@@ -764,20 +809,13 @@ if MODE != "sites":
 
 	denominator = float(sample_count)
 
-def get_rollup(target_cat, target_ann, target_tr=None):
-	total = [0.0] * (len(header) - 3)
-	for (c, a, t), vals in counts.items():
-		if c == target_cat and a == target_ann:
-			if target_tr is None or t == target_tr:
-				for i, v in enumerate(vals):
-					total[i] += v
-	return total
+value_count = len(header) - group_column_count
 
 with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
 
-	def write_row(c, a, t, values):
+	def write_row(c, a, t, region, values):
 		if MODE == "sites":
 			formatted = [str(int(round(v))) for v in values]
 		else:
@@ -786,18 +824,23 @@ with open(OUTPUT, "w", newline="") as handle:
 		display_category = DISPLAY_ALL_LABEL if c == INTERNAL_TOTAL_LABEL else c
 		display_sub_category = DISPLAY_ALL_LABEL if a == INTERNAL_TOTAL_LABEL else a
 		display_tr_status = DISPLAY_ALL_LABEL if t == INTERNAL_TOTAL_LABEL else t
+		row_prefix = [display_category, display_sub_category, display_tr_status]
+		if SPLIT_BY_REGION:
+			display_region = DISPLAY_ALL_LABEL if region == INTERNAL_TOTAL_LABEL else region
+			row_prefix.append(display_region)
 
-		writer.writerow([display_category, display_sub_category, display_tr_status] + formatted)
+		writer.writerow(row_prefix + formatted)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
-		
-		tot_vals = get_rollup(cat, ann)
-		write_row(cat, ann, "Total", tot_vals)
-		
-		for tr in ["TR", "Not TR"]:
-			tr_vals = get_rollup(cat, ann, target_tr=tr)
-			write_row(cat, ann, tr, tr_vals)
+		for tr in TR_ORDER:
+			if SPLIT_BY_REGION:
+				for region in REGION_ORDER:
+					values = counts.get((cat, ann, tr, region), [0.0] * value_count)
+					write_row(cat, ann, tr, region, values)
+			else:
+				values = counts.get((cat, ann, tr), [0.0] * value_count)
+				write_row(cat, ann, tr, INTERNAL_TOTAL_LABEL, values)
 PYCODE
 	>>>
 

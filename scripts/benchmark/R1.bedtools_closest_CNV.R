@@ -119,12 +119,21 @@ if (nrow(dat) == 0) {
 	quit()
 }
 
+query_len_col = 'svlen'
+truth_len_col = 'svlen.1'
+if (!(query_len_col %in% names(dat)) || !(truth_len_col %in% names(dat))) {
+	stop('Expected svlen and svlen.1 columns in bedtools closest output')
+}
 
-dat[,ncol(dat)+1] = apply(dat,1,function(x){return(max(c(as.integer(x[2]), as.integer(x[8]))))})
-dat[,ncol(dat)+1] = apply(dat,1,function(x){return(min(c(as.integer(x[3]), as.integer(x[9]))))})
+dat[,ncol(dat)+1] = apply(dat,1,function(x){return(max(c(as.integer(x['start']), as.integer(x['start.1']))))})
+dat[,ncol(dat)+1] = apply(dat,1,function(x){return(min(c(as.integer(x['end']), as.integer(x['end.1']))))})
 dat[,ncol(dat)+1] = dat[,ncol(dat)]-dat[,ncol(dat)-1]
 colnum = ncol(dat)
-dat[,ncol(dat)+1] = apply(dat,1, function(x){as.integer(x[colnum])/max(c(as.integer(x[6]), as.integer(x[13])))})
+dat[,ncol(dat)+1] = apply(dat,1, function(x){
+	query_len = abs(as.integer(x[query_len_col]))
+	truth_len = abs(as.integer(x[truth_len_col]))
+	return(as.integer(x[colnum])/max(c(query_len, truth_len)))
+})
 svid_stat=data.frame(table(dat[,4]))
 out = dat[dat[,4]%in%svid_stat[svid_stat[,2]==1,][,1],]
 for(j in sort(unique(svid_stat[,2]))){
