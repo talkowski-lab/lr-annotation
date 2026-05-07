@@ -237,6 +237,10 @@ TODO
 TODO
 
 
+### [DropGenotypes](wdl/annotation_utils/DropGenotypes.wdl)
+TODO
+
+
 ### [ExtractSampleVcfs](wdl/annotation_utils/ExtractSampleVcfs.wdl)
 TODO
 
