@@ -1,9 +1,8 @@
-FROM ubuntu:22.04 AS builder
+FROM ubuntu:22.04
 
 LABEL maintainer="Karan Jaisingh"
 
 ENV DEBIAN_FRONTEND=noninteractive
-ARG VAMOS_REF=main
 
 RUN apt-get update && apt-get install -y \
 	build-essential \
@@ -20,42 +19,21 @@ RUN apt-get update && apt-get install -y \
 	pkg-config \
 	wget \
 	zlib1g-dev \
-	&& rm -rf /var/lib/apt/lists/*
-
-WORKDIR /opt
-
-RUN git -c http.version=HTTP/1.1 clone \
-	--branch "${VAMOS_REF}" \
-	--depth 1 \
-	--recurse-submodules \
-	--shallow-submodules \
-	https://github.com/ChaissonLab/vamos.git
-
-WORKDIR /opt/vamos/src
-
-RUN make
-
-FROM ubuntu:22.04
-
-LABEL maintainer="Karan Jaisingh"
-
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y \
-	ca-certificates \
 	libbz2-1.0 \
 	libcurl4 \
 	libhts3 \
 	liblzma5 \
 	samtools \
 	tabix \
-	zlib1g \
-	&& rm -rf /var/lib/apt/lists/*
+	zlib1g 
 
-COPY --from=builder /opt/vamos/src/parasail-dir/lib/libparasail.so /usr/local/lib/libparasail.so
-COPY --from=builder /opt/vamos/src/vamos /usr/local/bin/vamos
+RUN mkdir -p /app && \
+    cd /app && \
+    git clone https://github.com/ChaissonLab/vamos.git && \
+	cd vamos/src/ && \
+    make
 
-RUN ldconfig
+ENV PATH="/app/vamos/src:${PATH}"
 
 WORKDIR /app
 

@@ -79,11 +79,19 @@ task RunVamos {
 
 	command <<<
 		set -euo pipefail
+		
+		samtools quickcheck ~{bam}
+
+		if [[ "~{repeat_catalog_vamos}" == *.gz ]]; then
+			gzip -dc ~{repeat_catalog_vamos} > repeat_catalog.tsv
+		else
+			cp ~{repeat_catalog_vamos} repeat_catalog.tsv
+		fi
 
 		vamos \
 			~{mode} \
-			-b ~{bam} \
-			-r ~{repeat_catalog_vamos} \
+			-b input.bam \
+			-r repeat_catalog.tsv \
 			-s ~{sample_id} \
 			-o ~{prefix}.vcf \
 			-t ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])}
