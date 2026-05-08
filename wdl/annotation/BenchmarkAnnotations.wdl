@@ -16,7 +16,10 @@ workflow BenchmarkAnnotations {
         Array[String] contigs
         String prefix
         
-        Boolean compare_annotations
+        Boolean compare_annotations = true
+        Boolean do_exact = true
+        Boolean do_truvari = true
+        Boolean do_bedtools_closest = true
         Int? records_per_shard
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
@@ -80,6 +83,8 @@ workflow BenchmarkAnnotations {
     }
 
     Boolean single_contig = length(contigs) == 1
+    Boolean any_comparison_enabled = do_exact || do_truvari || do_bedtools_closest
+    Boolean do_annotation_summaries = compare_annotations && any_comparison_enabled
 
     scatter (contig in contigs) {
         if (!single_contig || defined(args_string_vcf)) {
@@ -183,69 +188,91 @@ workflow BenchmarkAnnotations {
         File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, subset_sv_truth_vcf])
         File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, subset_sv_truth_vcf_idx])
 
-        call ExactMatch {
-            input:
-                vcf_eval = eval_vcf_final,
-                vcf_eval_idx = eval_vcf_final_idx,
-                vcf_truth = truth_vcf_final,
-                vcf_truth_idx = truth_vcf_final_idx,
-                prefix = "~{prefix}.~{contig}.exact",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_exact_match
+        if (do_exact) {
+            call ExactMatch {
+                input:
+                    vcf_eval = eval_vcf_final,
+                    vcf_eval_idx = eval_vcf_final_idx,
+                    vcf_truth = truth_vcf_final,
+                    vcf_truth_idx = truth_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.exact",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_exact_match
+            }
         }
 
-        call TruvariMatch.TruvariMatch {
-            input:
-                vcf_eval = ExactMatch.unmatched_vcf,
-                vcf_eval_idx = ExactMatch.unmatched_vcf_idx,
-                vcf_truth = truth_vcf_final,
-                vcf_truth_idx = truth_vcf_final_idx,
-                min_sv_length_eval = min_sv_length_eval_truvari,
-                min_sv_length_truth = min_sv_length_truth_truvari,
-                length_field_eval = length_field_eval,
-                ref_fa = ref_fa,
-                ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.truvari",
-                utils_docker = utils_docker,
-                runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
-                runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
-                runtime_attr_run_truvari = runtime_attr_truvari_run_truvari,
-                runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
+        File post_exact_vcf = select_first([ExactMatch.unmatched_vcf, eval_vcf_final])
+        File post_exact_vcf_idx = select_first([ExactMatch.unmatched_vcf_idx, eval_vcf_final_idx])
+
+        if (do_truvari) {
+            call TruvariMatch.TruvariMatch {
+                input:
+                    vcf_eval = post_exact_vcf,
+                    vcf_eval_idx = post_exact_vcf_idx,
+                    vcf_truth = truth_vcf_final,
+                    vcf_truth_idx = truth_vcf_final_idx,
+                    min_sv_length_eval = min_sv_length_eval_truvari,
+                    min_sv_length_truth = min_sv_length_truth_truvari,
+                    length_field_eval = length_field_eval,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.truvari",
+                    utils_docker = utils_docker,
+                    runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
+                    runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
+                    runtime_attr_run_truvari = runtime_attr_truvari_run_truvari,
+                    runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
+            }
         }
 
-        call BedtoolsClosestSV.BedtoolsClosestSV {
-            input:
-                vcf_eval = TruvariMatch.unmatched_vcf,
-                vcf_eval_idx = TruvariMatch.unmatched_vcf_idx,
-                vcf_sv_truth = sv_truth_vcf_final,
-                vcf_sv_truth_idx = sv_truth_vcf_final_idx,
-                min_sv_length_eval = min_sv_length_eval_bedtools_closest,
-                min_sv_length_truth = min_sv_length_truth_bedtools_closest,
-                type_field_eval = type_field_eval,
-                length_field_eval = length_field_eval,
-                prefix = "~{prefix}.~{contig}.bedtools_closest",
-                benchmark_annotations_docker = benchmark_annotations_docker,
-                utils_docker = utils_docker,
-                runtime_attr_subset_eval = runtime_attr_bedtools_subset_eval,
-                runtime_attr_subset_truth = runtime_attr_bedtools_subset_truth,
-                runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
-                runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
-                runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
-                runtime_attr_compare = runtime_attr_bedtools_compare,
-                runtime_attr_calculate = runtime_attr_bedtools_calculate,
-                runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
+        File post_truvari_vcf = select_first([TruvariMatch.unmatched_vcf, post_exact_vcf])
+        File post_truvari_vcf_idx = select_first([TruvariMatch.unmatched_vcf_idx, post_exact_vcf_idx])
+
+        if (do_bedtools_closest) {
+            call BedtoolsClosestSV.BedtoolsClosestSV {
+                input:
+                    vcf_eval = post_truvari_vcf,
+                    vcf_eval_idx = post_truvari_vcf_idx,
+                    vcf_sv_truth = sv_truth_vcf_final,
+                    vcf_sv_truth_idx = sv_truth_vcf_final_idx,
+                    min_sv_length_eval = min_sv_length_eval_bedtools_closest,
+                    min_sv_length_truth = min_sv_length_truth_bedtools_closest,
+                    type_field_eval = type_field_eval,
+                    length_field_eval = length_field_eval,
+                    prefix = "~{prefix}.~{contig}.bedtools_closest",
+                    benchmark_annotations_docker = benchmark_annotations_docker,
+                    utils_docker = utils_docker,
+                    runtime_attr_subset_eval = runtime_attr_bedtools_subset_eval,
+                    runtime_attr_subset_truth = runtime_attr_bedtools_subset_truth,
+                    runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
+                    runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
+                    runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
+                    runtime_attr_compare = runtime_attr_bedtools_compare,
+                    runtime_attr_calculate = runtime_attr_bedtools_calculate,
+                    runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
+            }
         }
 
-        call Helpers.ConcatTsvs as BuildAnnotationTsv {
-            input:
-                tsvs = [ExactMatch.annotation_tsv, TruvariMatch.annotation_tsv, BedtoolsClosestSV.annotation_tsv],
-                sort_output = true,
-                prefix = "~{prefix}.~{contig}.annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_build_annotation_tsv
+        Array[File] annotation_tsvs_to_merge = select_all([
+            ExactMatch.annotation_tsv,
+            TruvariMatch.annotation_tsv,
+            BedtoolsClosestSV.annotation_tsv,
+        ])
+
+        if (length(annotation_tsvs_to_merge) > 0) {
+            call Helpers.ConcatTsvs as BuildAnnotationTsv {
+                input:
+                    tsvs = annotation_tsvs_to_merge,
+                    sort_output = true,
+                    prefix = "~{prefix}.~{contig}.annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_build_annotation_tsv
+            }
         }
 
-        if (compare_annotations) {
+        File annotation_tsv_for_contig = select_first([BuildAnnotationTsv.concatenated_tsv, write_lines([])])
+
+        if (do_annotation_summaries) {
             call ExtractVepHeader as ExtractTruthVepHeader {
                 input:
                     vcf = truth_vcf_final,
@@ -266,7 +293,7 @@ workflow BenchmarkAnnotations {
 
             call CollectMatchedIDsAndINFO {
                 input:
-                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                    annotation_tsv = annotation_tsv_for_contig,
                     vcf_eval = eval_vcf_final,
                     vcf_eval_idx = eval_vcf_final_idx,
                     vcf_truth_snv = truth_vcf_final,
@@ -282,7 +309,7 @@ workflow BenchmarkAnnotations {
                 input:
                     eval_vcf = eval_vcf_final,
                     eval_vcf_idx = eval_vcf_final_idx,
-                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
+                    annotation_tsv = annotation_tsv_for_contig,
                     matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                     eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                     truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
@@ -336,7 +363,7 @@ workflow BenchmarkAnnotations {
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotationTsvs {
             input:
-                tsvs = select_all(BuildAnnotationTsv.concatenated_tsv),
+                tsvs = annotation_tsv_for_contig,
                 sort_output = false,
                 prefix = "~{prefix}.benchmark_annotations",
                 docker = utils_docker,
@@ -344,7 +371,7 @@ workflow BenchmarkAnnotations {
         }
     }
 
-    if (!single_contig && compare_annotations) {
+    if (!single_contig && do_annotation_summaries) {
         call Helpers.ConcatTsvs as MergeBenchmarkSummaries {
             input:
                 tsvs = select_all(ComputeSummaryForContig.benchmark_summary_tsv),
@@ -374,11 +401,17 @@ workflow BenchmarkAnnotations {
         }
     }
 
+    if (do_annotation_summaries) {
+        File? benchmark_annotations_summary_tsv_local = if single_contig then ComputeSummaryForContig.benchmark_summary_tsv[0] else MergeBenchmarkSummaries.concatenated_tsv
+        File? benchmark_annotations_stats_tsv_local = if single_contig then ComputeSummaryForContig.summary_stats_tsv[0] else MergeSummaryStats.concatenated_tsv
+        File? benchmark_annotations_plots_tarball_local = if single_contig then MergeShardBenchmarks.plot_tarball[0] else MergePlotTarballs.merged_tarball
+    }
+
     output {
-        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, BuildAnnotationTsv.concatenated_tsv[0]])
-        File? benchmark_annotations_summary_tsv = if single_contig then ComputeSummaryForContig.benchmark_summary_tsv[0] else MergeBenchmarkSummaries.concatenated_tsv
-        File? benchmark_annotations_stats_tsv = if single_contig then ComputeSummaryForContig.summary_stats_tsv[0] else MergeSummaryStats.concatenated_tsv
-        File? benchmark_annotations_plots_tarball = if single_contig then MergeShardBenchmarks.plot_tarball[0] else MergePlotTarballs.merged_tarball
+        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, annotation_tsv_for_contig[0]])
+        File? benchmark_annotations_summary_tsv = benchmark_annotations_summary_tsv_local
+        File? benchmark_annotations_stats_tsv = benchmark_annotations_stats_tsv_local
+        File? benchmark_annotations_plots_tarball = benchmark_annotations_plots_tarball_local
     }
 }
 
