@@ -13,6 +13,7 @@ workflow AnnotateVcf {
 
         Array[Boolean]? sort_tsvs
         Array[String]? subset_vcf_strings
+        Array[String]? awk_tsv_conditions
 
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
@@ -65,6 +66,7 @@ workflow AnnotateVcf {
                 vcf_idx = contig_vcf_idx,
                 annotations_tsvs = contig_tsvs,
                 subset_vcf_strings = subset_vcf_strings,
+                awk_tsv_conditions = awk_tsv_conditions,
                 info_names = info_names,
                 info_descriptions = info_descriptions,
                 info_types = info_types,
@@ -100,6 +102,7 @@ task AnnotateSequentially {
         File vcf_idx
         Array[File] annotations_tsvs
         Array[String]? subset_vcf_strings
+        Array[String]? awk_tsv_conditions
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
         Array[Array[String]] info_types
@@ -144,10 +147,20 @@ with open("num_tsvs.txt", "w") as f:
 EOF
 
         current_vcf="~{vcf}"
-        SUBSET_FILE="~{write_lines(resolved_subset_strings)}"        
+        SUBSET_FILE="~{write_lines(resolved_subset_strings)}"
+        AWK_COND_FILE="~{write_lines(resolved_awk_conditions)}"     
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
-            bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
+            AWK_ARG=""
+            if [ -s "$AWK_COND_FILE" ]; then
+                AWK_ARG=$(sed -n "$((i + 1))p" "$AWK_COND_FILE")
+            fi
+
+            if [ -n "$AWK_ARG" ]; then
+                awk -F'\t' "$AWK_ARG" "$tsv_file" | bgzip -c > "annotations_${i}.tsv.gz"
+            else
+                bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
+            fi
             tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
             
             COLUMN_SPEC=$(cat "columns_${i}.txt")
