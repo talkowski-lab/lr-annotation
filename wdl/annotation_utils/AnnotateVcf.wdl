@@ -113,6 +113,7 @@ task AnnotateSequentially {
     }
 
     Array[String] resolved_subset_strings = select_first([subset_vcf_strings, []])
+    Array[String] resolved_awk_conditions = select_first([awk_tsv_conditions, []])
 
     command <<<
         set -euo pipefail
