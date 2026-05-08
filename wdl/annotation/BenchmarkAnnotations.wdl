@@ -20,7 +20,7 @@ workflow BenchmarkAnnotations {
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
-        Int? records_per_shard
+
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
@@ -29,6 +29,8 @@ workflow BenchmarkAnnotations {
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
         String skip_vep_categories = ""
+
+        Int? records_per_shard
 
         String? args_string_vcf
         String? args_string_vcf_truth
@@ -259,18 +261,14 @@ workflow BenchmarkAnnotations {
             BedtoolsClosestSV.annotation_tsv,
         ])
 
-        if (length(annotation_tsvs_to_merge) > 0) {
-            call Helpers.ConcatTsvs as BuildAnnotationTsv {
-                input:
-                    tsvs = annotation_tsvs_to_merge,
-                    sort_output = true,
-                    prefix = "~{prefix}.~{contig}.annotations",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_build_annotation_tsv
-            }
+        call Helpers.ConcatTsvs as BuildAnnotationTsv {
+            input:
+                tsvs = annotation_tsvs_to_merge,
+                sort_output = true,
+                prefix = "~{prefix}.~{contig}.annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_build_annotation_tsv
         }
-
-        File annotation_tsv_for_contig = select_first([BuildAnnotationTsv.concatenated_tsv, write_lines([])])
 
         if (do_annotation_summaries) {
             call ExtractVepHeader as ExtractTruthVepHeader {
@@ -293,7 +291,7 @@ workflow BenchmarkAnnotations {
 
             call CollectMatchedIDsAndINFO {
                 input:
-                    annotation_tsv = annotation_tsv_for_contig,
+                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                     vcf_eval = eval_vcf_final,
                     vcf_eval_idx = eval_vcf_final_idx,
                     vcf_truth_snv = truth_vcf_final,
@@ -309,7 +307,7 @@ workflow BenchmarkAnnotations {
                 input:
                     eval_vcf = eval_vcf_final,
                     eval_vcf_idx = eval_vcf_final_idx,
-                    annotation_tsv = annotation_tsv_for_contig,
+                    annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                     matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                     eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                     truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
@@ -363,7 +361,7 @@ workflow BenchmarkAnnotations {
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotationTsvs {
             input:
-                tsvs = annotation_tsv_for_contig,
+                tsvs = BuildAnnotationTsv.concatenated_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.benchmark_annotations",
                 docker = utils_docker,
@@ -408,7 +406,7 @@ workflow BenchmarkAnnotations {
     }
 
     output {
-        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, annotation_tsv_for_contig[0]])
+        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, BuildAnnotationTsv.concatenated_tsv[0]])
         File? benchmark_annotations_summary_tsv = benchmark_annotations_summary_tsv_local
         File? benchmark_annotations_stats_tsv = benchmark_annotations_stats_tsv_local
         File? benchmark_annotations_plots_tarball = benchmark_annotations_plots_tarball_local

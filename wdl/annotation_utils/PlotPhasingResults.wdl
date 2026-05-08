@@ -102,7 +102,7 @@ workflow PlotPhasingResults {
 					base_vcf = SubsetBaseSamples.subset_vcf,
 					base_vcf_idx = SubsetBaseSamples.subset_vcf_idx,
 					contig = contigs[i],
-					max_variants = max_variants,
+					max_variants = select_first([max_variants, -1]),
 					prefix = "~{prefix}.~{contigs[i]}.base_~{j}",
 					utils_docker = utils_docker,
 					runtime_attr_override = runtime_attr_compare_shard
@@ -209,7 +209,7 @@ task CompareBackbonePhasingShard {
 		File base_vcf
 		File base_vcf_idx
 		String contig
-		Int? max_variants
+		Int max_variants = -1
 		String prefix
 		String utils_docker
 		RuntimeAttr? runtime_attr_override
@@ -347,7 +347,7 @@ collection_points = {
 	"tr_enveloped": defaultdict(list),
 }
 
-limit = ~{if defined(max_variants) then max_variants else -1}
+limit = ~{max_variants}
 seen_records = 0
 with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 	for record in backbone_in:
