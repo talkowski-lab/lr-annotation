@@ -8,9 +8,11 @@ workflow AnnotateVcf {
         File vcf
         File vcf_idx
         Array[File] annotations_tsvs
-        Array[Boolean]? sort_tsvs
         Array[String] contigs
         String prefix
+
+        Array[Boolean]? sort_tsvs
+        Array[String]? subset_vcf_strings
 
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
@@ -45,7 +47,7 @@ workflow AnnotateVcf {
                     input:
                         tsv = annotations_tsvs[i],
                         contig = contig,
-                        sort_output = if length(sort_tsvs_resolved) > i then sort_tsvs_resolved[i] else false,
+                        sort_output = if length(sort_tsvs_resolved) > 0 then sort_tsvs_resolved[i] else false,
                         prefix = "~{prefix}.~{contig}.tsv~{i}",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_subset_tsv
@@ -62,6 +64,7 @@ workflow AnnotateVcf {
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
                 annotations_tsvs = contig_tsvs,
+                subset_vcf_strings = subset_vcf_strings,
                 info_names = info_names,
                 info_descriptions = info_descriptions,
                 info_types = info_types,
@@ -96,6 +99,7 @@ task AnnotateSequentially {
         File vcf
         File vcf_idx
         Array[File] annotations_tsvs
+        Array[String]? subset_vcf_strings
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
         Array[Array[String]] info_types
@@ -104,6 +108,8 @@ task AnnotateSequentially {
         String docker
         RuntimeAttr? runtime_attr_override
     }
+
+    Array[String] resolved_subset_strings = select_first([subset_vcf_strings, []])
 
     command <<<
         set -euo pipefail
@@ -138,18 +144,24 @@ with open("num_tsvs.txt", "w") as f:
 EOF
 
         current_vcf="~{vcf}"
-        
+        SUBSET_FILE="~{write_lines(resolved_subset_strings)}"        
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
             bgzip -c "$tsv_file" > "annotations_${i}.tsv.gz"
             tabix -s1 -b2 -e2 "annotations_${i}.tsv.gz"
             
             COLUMN_SPEC=$(cat "columns_${i}.txt")
+
+            SUBSET_ARG=""
+            if [ -s "$SUBSET_FILE" ]; then
+                SUBSET_ARG=$(sed -n "$((i + 1))p" "$SUBSET_FILE")
+            fi
             
             bcftools annotate \
                 -a "annotations_${i}.tsv.gz" \
                 -h "header_${i}.txt" \
                 -c "$COLUMN_SPEC" \
+                $SUBSET_ARG \
                 -Oz -o "temp_${i}.vcf.gz" \
                 "$current_vcf"
             current_vcf="temp_${i}.vcf.gz"
