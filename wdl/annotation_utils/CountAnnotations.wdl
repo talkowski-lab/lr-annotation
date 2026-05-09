@@ -7,7 +7,7 @@ import "IntegrateVcfs.wdl" as IntegrateVcfs
 workflow CountAnnotations {
 	input {
 		Array[File] vcfs
-		Array[File] vcfs_idx
+		Array[File] vcf_idxs
 		String prefix
 
 		Boolean create_per_sample = false
@@ -38,7 +38,7 @@ workflow CountAnnotations {
 			call Helpers.ShardVcfByRecords {
 				input:
 					vcf = vcfs[i],
-					vcf_idx = vcfs_idx[i],
+					vcf_idx = vcf_idxs[i],
 					records_per_shard = select_first([records_per_shard]),
 					prefix = "~{prefix}.input_~{i}",
 					docker = utils_docker,
@@ -47,7 +47,7 @@ workflow CountAnnotations {
 		}
 
 		Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [vcfs[i]]])
-		Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcfs_idx[i]]])
+		Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcf_idxs[i]]])
 
 		scatter (j in range(length(shard_vcfs))) {
 			if (create_variant_attributes) {
