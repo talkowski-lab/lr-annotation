@@ -392,10 +392,10 @@ def determine_column(record):
 	allele_length = get_int_info(record, "allele_length")
 	variant_id = (record.id or "").upper()
 	if allele_type == "snv": return "SNV"
-	if (allele_type="ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
-	if (allele_type="ins" or "INS" in variant_id) and allele_length >= 50: return "INS >49bp"
-	if (allele_type="del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
-	if (allele_type="del" or "DEL" in variant_id) and allele_length >= 50: return "DEL >49bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 50: return "INS >49bp"
+	if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
+	if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 50: return "DEL >49bp"
 	if allele_type == "trv": return "TRV"
 	return "Other"
 
