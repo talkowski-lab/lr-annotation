@@ -11,10 +11,11 @@ workflow PlotPhasingResults {
 		Array[File] base_vcf_idxs
 		Array[String] contigs
 		String prefix
-		String utils_docker
 
+		Int max_variants = -1
 		Array[String]? subset_samples
-		Int? max_variants
+
+		String utils_docker
 
 		RuntimeAttr? runtime_attr_subset_assignment_samples
 		RuntimeAttr? runtime_attr_assign_samples
@@ -102,7 +103,7 @@ workflow PlotPhasingResults {
 					base_vcf = SubsetBaseSamples.subset_vcf,
 					base_vcf_idx = SubsetBaseSamples.subset_vcf_idx,
 					contig = contigs[i],
-					max_variants = select_first([max_variants, -1]),
+					max_variants = max_variants,
 					prefix = "~{prefix}.~{contigs[i]}.base_~{j}",
 					utils_docker = utils_docker,
 					runtime_attr_override = runtime_attr_compare_shard
@@ -209,7 +210,7 @@ task CompareBackbonePhasingShard {
 		File base_vcf
 		File base_vcf_idx
 		String contig
-		Int max_variants = -1
+		Int max_variants
 		String prefix
 		String utils_docker
 		RuntimeAttr? runtime_attr_override

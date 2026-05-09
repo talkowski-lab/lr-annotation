@@ -14,6 +14,7 @@ workflow CountAnnotations {
 		Boolean create_per_allele = false
 		Boolean create_functional = false
 		Boolean create_list = false
+		
 		Boolean split_by_region = false
 		Boolean create_variant_attributes = false
 
