@@ -17,8 +17,8 @@ workflow CountAnnotations {
 		
 		Boolean split_by_region = false
 		Boolean create_variant_attributes = false
-
-		String? subset_vcf_string
+		String subset_vcf_string = ""
+		
 		Int? records_per_shard
 		Int? max_length
 		Int? min_length
@@ -409,10 +409,10 @@ def determine_column(record):
 	allele_length = get_int_info(record, "allele_length")
 	variant_id = (record.id or "").upper()
 	if allele_type == "snv": return "SNV"
-	if allele_length is not None and "INS" in variant_id and allele_length < 50: return "INS 1-49bp"
-	if allele_length is not None and "DEL" in variant_id and allele_length < 50: return "DEL 1-49bp"
-	if allele_length is not None and "INS" in variant_id and allele_length >= 50: return "INS >49bp"
-	if allele_length is not None and "DEL" in variant_id and allele_length >= 50: return "DEL >49bp"
+	if (allele_type="ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
+	if (allele_type="ins" or "INS" in variant_id) and allele_length >= 50: return "INS >49bp"
+	if (allele_type="del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
+	if (allele_type="del" or "DEL" in variant_id) and allele_length >= 50: return "DEL >49bp"
 	if allele_type == "trv": return "TRV"
 	return "Other"
 
