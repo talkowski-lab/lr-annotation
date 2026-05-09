@@ -70,7 +70,7 @@ workflow CountAnnotations {
 					input:
 						vcf = shard_vcf_to_count,
 						vcf_idx = shard_vcf_idx_to_count,
-						extra_args = select_first([subset_vcf_string]),
+						extra_args = subset_vcf_string,
 						prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
 						docker = utils_docker,
 						runtime_attr_override = runtime_attr_subset
