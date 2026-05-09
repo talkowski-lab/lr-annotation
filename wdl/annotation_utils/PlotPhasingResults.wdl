@@ -556,6 +556,7 @@ task AggregatePhasingResults {
 		python3 <<CODE
 from html import escape
 import csv
+import math
 import random
 
 
@@ -620,10 +621,37 @@ def write_svg(rows, ordered_contigs, title, out_path):
 		grouped_rates[row["contig"]].append(rate_pct)
 
 	all_rates = [rate for rates in grouped_rates.values() for rate in rates]
-	max_rate = max(all_rates) if all_rates else 0.0
-	y_max = max(1.0, max_rate * 1.15)
-	tick_count = 5
-	ticks = [y_max * idx / float(tick_count) for idx in range(tick_count + 1)]
+	positive_rates = [rate for rate in all_rates if rate > 0]
+
+	def build_log_ticks(min_rate, max_rate):
+		if max_rate <= 0:
+			return [0.1, 0.2, 0.5, 1.0]
+		lower_exp = math.floor(math.log10(min_rate))
+		upper_exp = math.ceil(math.log10(max_rate))
+		candidates = []
+		for exp in range(lower_exp - 1, upper_exp + 2):
+			base = 10 ** exp
+			for multiplier in (1, 2, 5):
+				value = multiplier * base
+				if min_rate <= value <= max_rate:
+					candidates.append(value)
+		if not candidates:
+			candidates = [min_rate, max_rate]
+		return sorted(set(candidates))
+
+	if positive_rates:
+		min_positive_rate = min(positive_rates)
+		max_rate = max(positive_rates)
+		y_min = 10 ** math.floor(math.log10(min_positive_rate))
+		y_max = 10 ** math.ceil(math.log10(max_rate))
+		if y_min == y_max:
+			y_min /= 10.0
+			y_max *= 10.0
+		ticks = build_log_ticks(y_min, y_max)
+	else:
+		y_min = 0.1
+		y_max = 1.0
+		ticks = [0.1, 0.2, 0.5, 1.0]
 
 	def x_center(idx):
 		if len(ordered_contigs) == 1:
@@ -631,7 +659,9 @@ def write_svg(rows, ordered_contigs, title, out_path):
 		return margin_left + idx * plot_width / float(len(ordered_contigs) - 1)
 
 	def y_coord(rate_pct):
-		return plot_bottom - (rate_pct / y_max) * plot_height
+		clamped_rate = min(max(rate_pct, y_min), y_max)
+		log_span = math.log10(y_max) - math.log10(y_min)
+		return plot_bottom - ((math.log10(clamped_rate) - math.log10(y_min)) / log_span) * plot_height
 
 	parts = [
 		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
@@ -642,7 +672,7 @@ def write_svg(rows, ordered_contigs, title, out_path):
 	for tick in ticks:
 		y = y_coord(tick)
 		parts.append(f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" stroke="#dddddd" stroke-width="1"/>')
-		parts.append(f'<text x="{margin_left - 10}" y="{y + 4:.2f}" font-size="11" text-anchor="end" font-family="Arial">{tick:.2f}%</text>')
+		parts.append(f'<text x="{margin_left - 10}" y="{y + 4:.2f}" font-size="11" text-anchor="end" font-family="Arial">{tick:g}%</text>')
 
 	parts.append(f'<line x1="{margin_left}" y1="{plot_top}" x2="{margin_left}" y2="{plot_bottom}" stroke="#222222" stroke-width="1.5"/>')
 	parts.append(f'<line x1="{margin_left}" y1="{plot_bottom}" x2="{width - margin_right}" y2="{plot_bottom}" stroke="#222222" stroke-width="1.5"/>')
