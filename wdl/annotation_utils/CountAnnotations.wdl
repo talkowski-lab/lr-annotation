@@ -12,7 +12,6 @@ workflow CountAnnotations {
 
 		Boolean create_per_sample = false
 		Boolean create_per_allele = false
-		Boolean create_functional = false
 		Boolean create_list = false
 		
 		Boolean split_by_region = false
@@ -61,32 +60,23 @@ workflow CountAnnotations {
 						runtime_attr_override = runtime_attr_count
 				}
 			}
-
-			File shard_vcf_to_count = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]])
-			File shard_vcf_idx_to_count = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]])
-
-			if (defined(subset_vcf_string)) {
-				call Helpers.SubsetVcfByArgs as SubsetShardVcf {
-					input:
-						vcf = shard_vcf_to_count,
-						vcf_idx = shard_vcf_idx_to_count,
-						extra_args = subset_vcf_string,
-						prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
-						docker = utils_docker,
-						runtime_attr_override = runtime_attr_subset
-				}
+			
+			call Helpers.SubsetVcfByArgs {
+				input:
+					vcf = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]]),
+					vcf_idx = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]]),
+					extra_args = subset_vcf_string,
+					prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_subset
 			}
-
-			File final_shard_vcf_to_count = select_first([SubsetShardVcf.subset_vcf, shard_vcf_to_count])
-			File final_shard_vcf_idx_to_count = select_first([SubsetShardVcf.subset_vcf_idx, shard_vcf_idx_to_count])
 
 			call CountAnnotationShard {
 				input:
-					vcf = final_shard_vcf_to_count,
-					vcf_idx = final_shard_vcf_idx_to_count,
+					vcf = SubsetVcfByArgs.subset_vcf,
+					vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
 					create_per_sample = create_per_sample,
 					create_per_allele = create_per_allele,
-					create_functional = create_functional,
 					create_list = create_list,
 					split_by_region = split_by_region,
 					max_length = effective_max_length,
@@ -111,6 +101,14 @@ workflow CountAnnotations {
 			normalization_mode = "sites",
 			split_by_region = split_by_region,
 			prefix = "~{prefix}.counts_sites",
+			docker = utils_docker,
+			runtime_attr_override = runtime_attr_merge
+	}
+
+	call MergeGeneCountTables as MergeGeneCounts {
+		input:
+			count_tsvs = flatten(CountAnnotationShard.gene_counts_tsv),
+			prefix = "~{prefix}.counts_functional",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_merge
 	}
@@ -151,24 +149,12 @@ workflow CountAnnotations {
 		}
 	}
 
-	if (create_functional) {
-		Array[File] gene_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
-		
-		call MergeGeneCountTables as MergeGeneCounts {
-			input:
-				count_tsvs = gene_count_tables,
-				prefix = "~{prefix}.counts_functional",
-				docker = utils_docker,
-				runtime_attr_override = runtime_attr_merge
-		}
-	}
-
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
+		File annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
 		File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
-		File? annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
 	}
 }
 
@@ -178,7 +164,6 @@ task CountAnnotationShard {
 		File vcf_idx
 		Boolean create_per_sample
 		Boolean create_per_allele
-		Boolean create_functional
 		Boolean create_list
 		Boolean split_by_region
 		Int max_length = -1
@@ -206,7 +191,6 @@ GENE_OUTPUT = "~{prefix}.genes.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 CREATE_PER_SAMPLE = "~{create_per_sample}".lower() == "true"
 CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
-CREATE_FUNCTIONAL = "~{create_functional}".lower() == "true"
 CREATE_LIST = "~{create_list}".lower() == "true"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
 MAX_LENGTH = ~{max_length}
@@ -302,20 +286,19 @@ CONSEQUENCE_PRIORITY = [
 	}),
 ]
 
-if CREATE_FUNCTIONAL:
-	gene_counts = defaultdict(lambda: defaultdict(int))
-	PREDICTED_FIELDS = [
-		"PREDICTED_LOF",
-		"PREDICTED_COPY_GAIN",
-		"PREDICTED_INTRAGENIC_EXON_DUP",
-		"PREDICTED_PARTIAL_EXON_DUP",
-		"PREDICTED_TSS_DUP",
-		"PREDICTED_DUP_PARTIAL",
-		"PREDICTED_INV_SPAN",
-		"PREDICTED_UTR",
-		"PREDICTED_INTRONIC",
-		"PREDICTED_PROMOTER"
-	]
+gene_counts = defaultdict(lambda: defaultdict(int))
+PREDICTED_FIELDS = [
+	"PREDICTED_LOF",
+	"PREDICTED_COPY_GAIN",
+	"PREDICTED_INTRAGENIC_EXON_DUP",
+	"PREDICTED_PARTIAL_EXON_DUP",
+	"PREDICTED_TSS_DUP",
+	"PREDICTED_DUP_PARTIAL",
+	"PREDICTED_INV_SPAN",
+	"PREDICTED_UTR",
+	"PREDICTED_INTRONIC",
+	"PREDICTED_PROMOTER"
+]
 
 def init_table():
 	return defaultdict(lambda: {column: 0.0 for column in COLUMN_BUCKETS})
@@ -595,29 +578,28 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		else:
 			carrier_count, alt_allele_count = 0, 0
 
-		if CREATE_FUNCTIONAL:
-			af = get_float_info(record, "AF")
-			ac = get_int_info(record, "AC")
-			
-			is_large = allele_length is not None and allele_length > 50000
-			
-			buckets = []
-			if ac == 1:
-				buckets.append("singleton")
-			if af is not None and af < 0.001:
-				buckets.append("ultra_rare")
-			if af is not None and af < 0.01:
-				buckets.append("rare")
-				if is_large:
-					buckets.append("rare_large")
-			if af is not None and af > 0.05:
-				buckets.append("common")
-			
-			for field in PREDICTED_FIELDS:
-				if has_info(record, field):
-					for gene_name in get_info_gene_names(record, field):
-						for bucket in buckets:
-							gene_counts[gene_name][f"{field}.{bucket}"] += 1
+		af = get_float_info(record, "AF")
+		ac = get_int_info(record, "AC")
+		
+		is_large = allele_length is not None and allele_length > 50000
+		
+		buckets = []
+		if ac == 1:
+			buckets.append("singleton")
+		if af is not None and af < 0.001:
+			buckets.append("ultra_rare")
+		if af is not None and af < 0.01:
+			buckets.append("rare")
+			if is_large:
+				buckets.append("rare_large")
+		if af is not None and af > 0.05:
+			buckets.append("common")
+		
+		for field in PREDICTED_FIELDS:
+			if has_info(record, field):
+				for gene_name in get_info_gene_names(record, field):
+					for bucket in buckets:
+						gene_counts[gene_name][f"{field}.{bucket}"] += 1
 
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
@@ -645,16 +627,12 @@ write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_
 write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 write_table(ALLELE_OUTPUT, allele_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 
-if CREATE_FUNCTIONAL:
-	with open(GENE_OUTPUT, "w", newline="") as handle:
-		writer = csv.writer(handle, delimiter="\t")
-		writer.writerow(["gene_name", "category", "count"])
-		for gene, counts in gene_counts.items():
-			for cat, count in counts.items():
-				writer.writerow([gene, cat, str(count)])
-else:
-	with open(GENE_OUTPUT, "w", newline="") as handle:
-		pass
+with open(GENE_OUTPUT, "w", newline="") as handle:
+	writer = csv.writer(handle, delimiter="\t")
+	writer.writerow(["gene_name", "category", "count"])
+	for gene, counts in gene_counts.items():
+		for cat, count in counts.items():
+			writer.writerow([gene, cat, str(count)])
 
 if not CREATE_LIST:
 	with open(LIST_OUTPUT, "w", newline="") as handle:
