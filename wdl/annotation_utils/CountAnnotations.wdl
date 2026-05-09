@@ -33,6 +33,7 @@ workflow CountAnnotations {
 
 	Int effective_max_length = select_first([max_length, -1])
 	Int effective_min_length = select_first([min_length, -1])
+	String resolved_subset_vcf_string = if defined(subset_vcf_string) then select_first([subset_vcf_string]) else ""
 
 	scatter (i in range(length(vcfs))) {
 		if (defined(records_per_shard)) {
@@ -70,7 +71,7 @@ workflow CountAnnotations {
 					input:
 						vcf = shard_vcf_to_count,
 						vcf_idx = shard_vcf_idx_to_count,
-						extra_args = select_first([subset_vcf_string]),
+						extra_args = resolved_subset_vcf_string,
 						prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
 						docker = utils_docker,
 						runtime_attr_override = runtime_attr_subset
