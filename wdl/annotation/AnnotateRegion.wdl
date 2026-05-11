@@ -16,8 +16,7 @@ workflow AnnotateRegion {
         File seg_dup_bed
         File repeat_masked_bed
 
-        File annotate_genomic_context_script
-
+        String annotate_region_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -68,9 +67,8 @@ workflow AnnotateRegion {
                     simple_repeats_bed = simple_repeats_bed,
                     seg_dup_bed = seg_dup_bed,
                     repeat_masked_bed = repeat_masked_bed,
-                    annotate_genomic_context_script = annotate_genomic_context_script,
                     prefix = "~{prefix}.~{contig}.region_annotated.shard_~{i}",
-                    docker = utils_docker,
+                    docker = annotate_region_docker,
                     runtime_attr_override = runtime_attr_annotate_region
             }
         }
@@ -112,7 +110,6 @@ task AnnotateGenomicContext {
         File simple_repeats_bed
         File seg_dup_bed
         File repeat_masked_bed
-        File annotate_genomic_context_script
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -167,8 +164,8 @@ task AnnotateGenomicContext {
             bedtools coverage -a ${TMPPATH}/lg_cnv -b ~{repeat_masked_bed}  > ${TMPPATH}/lg_cnv.vs.RM
         fi
 
-        # Run R script to assign genomic context
-        Rscript ~{annotate_genomic_context_script} \
+        # Run script to assign genomic context
+        Rscript /opt/gnomad-lr/scripts/annotation/annotate_genomic_context.R \
             -i ${TMPPATH}/tmp.sites \
             -o ~{prefix}.annotations.tsv \
             -p ${TMPPATH}
