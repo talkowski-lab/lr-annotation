@@ -419,6 +419,10 @@ TODO
 TODO
 
 
+### [VcfDistCohort](wdl/tools/VcfDistCohort.wdl)
+TODO
+
+
 ### [Whatshap](wdl/tools/Whatshap.wdl)
 TODO
 

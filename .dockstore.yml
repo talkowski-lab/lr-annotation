@@ -613,6 +613,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: VcfDistCohort
+    primaryDescriptorPath: /wdl/tools/VcfDistCohort.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: Whatshap
     primaryDescriptorPath: /wdl/tools/Whatshap.wdl
     filters:
