@@ -260,38 +260,23 @@ task SplitQueryVcf {
     command <<<
         set -euo pipefail
 
-        echo -e "#chrom\tstart\tend\tname\tsvtype\tsvlen" > header
+        svtk vcf2bed \
+            --no-samples \
+            -i ~{length_field} \
+            ~{vcf} \
+            ~{prefix}.bed
 
-        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%ALT\t%INFO/~{length_field}\n' ~{vcf} \
-            | awk 'BEGIN{OFS="\t"} {
-                start = $2 - 1
-                end = $3
-                alt = $5
-                if (alt ~ /^</) {
-                    gsub(/[<>]/, "", alt)
-                    svtype = toupper(alt)
-                } else if (alt ~ /[\[\]]/) {
-                    svtype = "BND"
-                } else {
-                    svtype = "UNKNOWN"
-                }
-                if (svtype ~ /^INS/) svtype = "INS"
-                else if (svtype ~ /^DEL/) svtype = "DEL"
-                else if (svtype ~ /^DUP/) svtype = "DUP"
-                len = $6 + 0
-                if (len < 0) len = -len
-                print $1, start, end, $4, svtype, len
-            }' > body.bed
+        set +o pipefail
 
-        cat header body.bed > ~{prefix}.bed
+        head -1 ~{prefix}.bed > header
 
-        cat header <(awk '$5 == "DEL"' body.bed) > ~{prefix}.DEL.bed
-        cat header <(awk '$5 == "DUP"' body.bed) > ~{prefix}.DUP.bed
-        cat header <(awk '$5 == "INS"' body.bed) > ~{prefix}.INS.bed
-        cat header <(awk '$5 == "INV" || $5 == "CPX"' body.bed) > ~{prefix}.INV_CPX.bed
-        cat header <(awk '$5 == "BND" || $5 == "CTX"' body.bed) > ~{prefix}.BND_CTX.bed
+        set -o pipefail
 
-        rm header body.bed
+        cat header <(awk '$5 == "DEL"' ~{prefix}.bed) > ~{prefix}.DEL.bed
+        cat header <(awk '$5 == "DUP"' ~{prefix}.bed) > ~{prefix}.DUP.bed
+        cat header <(awk '$5 ~ /^INS/' ~{prefix}.bed) > ~{prefix}.INS.bed
+        cat header <(awk '$5 == "INV" || $5 == "CPX"' ~{prefix}.bed) > ~{prefix}.INV_CPX.bed
+        cat header <(awk '$5 == "BND" || $5 == "CTX"' ~{prefix}.bed) > ~{prefix}.BND_CTX.bed
     >>>
 
     output {

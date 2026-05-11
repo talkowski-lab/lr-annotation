@@ -614,8 +614,6 @@ header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 for allele_type in present_types:
     if allele_type not in header.alts:
         header.add_line(f'##ALT=<ID={allele_type},Description="{allele_type} variant">')
-    if allele_type == 'BND' and 'BND_ALT' not in header.info:
-        header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
 
 # Second pass: convert records
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
@@ -624,9 +622,6 @@ for record in vcf_in:
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
     allele_type = map_type(raw)
-
-    if allele_type == 'BND':
-        record.info['BND_ALT'] = record.alts[0]
     record.ref = 'N'
     record.alts = (f'<{allele_type}>',)
 
@@ -1632,8 +1627,6 @@ for record in vcf_in:
         ref, alts = original_data[record.id]
         record.ref = ref
         record.alts = alts
-        if 'BND_ALT' in record.info:
-            del record.info['BND_ALT']
     vcf_out.write(record)
 
 vcf_in.close()
