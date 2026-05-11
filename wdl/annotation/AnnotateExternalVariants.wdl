@@ -171,53 +171,44 @@ task SplitEvalVcf {
         set -euo pipefail
 
         python3 <<CODE
-import sys
-from pysam import VariantFile
-
-vcf_in = VariantFile("~{vcf}")
-beds = {}
-for svtype in ["DEL", "DUP", "INS"]:
-    beds[svtype] = open(f"~{prefix}.{svtype}.bed", "w")
-    beds[svtype].write("#chrom\tstart\tend\tname\tsvtype\tsvlen\n")
-
-for rec in vcf_in.fetch():
-    allele_type = rec.info.get("allele_type", None)
-    if allele_type is None:
-        continue
-    allele_type = allele_type.lower()
-
-    allele_length = rec.info.get("allele_length", 0)
-    if isinstance(allele_length, tuple):
-        allele_length = allele_length[0]
-
-    if "del" in allele_type:
-        svtype = "DEL"
-        svlen = abs(allele_length)
-        start = rec.pos
-        end = rec.pos + svlen
-    elif "dup" in allele_type:
-        svtype = "DUP"
-        svlen = abs(allele_length)
-        start = rec.pos
-        end = rec.pos + svlen
-    elif "ins" in allele_type:
-        svtype = "INS"
-        svlen = abs(allele_length)
-        start = rec.pos
-        end = rec.pos + 1
-    else:
-        svtype = "INS"
-        svlen = abs(allele_length)
-        start = rec.pos
-        end = rec.pos + 1
-
-    if svlen == 0:
-        continue
-
-    beds[svtype].write(f"{rec.chrom}\t{start}\t{end}\t{rec.id}\t{svtype}\t{svlen}\n")
-
-for f in beds.values():
-    f.close()
+        import sys
+        from pysam import VariantFile
+        vcf_in = VariantFile("~{vcf}")
+        beds = {}
+        for svtype in ["DEL", "DUP", "INS"]:
+            beds[svtype] = open(f"~{prefix}.{svtype}.bed", "w")
+            beds[svtype].write("#chrom\tstart\tend\tname\tsvtype\tsvlen\n")
+        for rec in vcf_in.fetch():
+            allele_type = rec.info.get("allele_type", None)
+            if allele_type is None:
+                continue
+            allele_type = allele_type.lower()
+            allele_length = rec.info.get("allele_length", 0)
+            if isinstance(allele_length, tuple):
+                allele_length = allele_length[0]
+            if "del" in allele_type:
+                svtype = "DEL"
+                svlen = abs(allele_length)
+                start = rec.pos
+                end = rec.pos + svlen
+            elif "dup" in allele_type:
+                svtype = "DUP"
+                svlen = abs(allele_length)
+                start = rec.pos
+                end = rec.pos + svlen
+            elif "ins" in allele_type:
+                svtype = "INS"
+                svlen = abs(allele_length)
+                start = rec.pos
+                end = rec.pos + 1
+            else:
+                svtype = "INS"
+                svlen = abs(allele_length)
+                start = rec.pos
+                end = rec.pos + 1
+            beds[svtype].write(f"{rec.chrom}\t{start}\t{end}\t{rec.id}\t{svtype}\t{svlen}\n")
+        for f in beds.values():
+            f.close()
         CODE
     >>>
 
@@ -439,28 +430,24 @@ task CollectMatches {
         set -euo pipefail
 
         python3 <<CODE
-import csv
-from pysam import VariantFile
-
-# Read all comparison files and collect query_svid -> ref_svid mappings
-matches = {}
-for comp_file in ["~{labeled_del}", "~{labeled_dup}", "~{labeled_ins}", "~{labeled_dup_as_ins}", "~{labeled_ins_as_dup}"]:
-    with open(comp_file) as f:
-        reader = csv.DictReader(f, delimiter="\t")
-        for row in reader:
-            qid = row["query_svid"]
-            rid = row["ref_svid"]
-            if qid not in matches:
-                matches[qid] = rid
-
-# Write output TSV with eval VCF variant info + matched truth ID
-vcf_in = VariantFile("~{vcf_eval}")
-with open("~{prefix}.matched_variants.tsv", "w") as out:
-    out.write("CHROM\tPOS\tREF\tALT\tID\tMATCHED_ID\n")
-    for rec in vcf_in.fetch():
-        if rec.id in matches:
-            alt = ",".join(str(a) for a in rec.alts) if rec.alts else "."
-            out.write(f"{rec.chrom}\t{rec.pos}\t{rec.ref}\t{alt}\t{rec.id}\t{matches[rec.id]}\n")
+        import csv
+        from pysam import VariantFile
+        matches = {}
+        for comp_file in ["~{labeled_del}", "~{labeled_dup}", "~{labeled_ins}", "~{labeled_dup_as_ins}", "~{labeled_ins_as_dup}"]:
+            with open(comp_file) as f:
+                reader = csv.DictReader(f, delimiter="\t")
+                for row in reader:
+                    qid = row["query_svid"]
+                    rid = row["ref_svid"]
+                    if qid not in matches:
+                        matches[qid] = rid
+        vcf_in = VariantFile("~{vcf_eval}")
+        with open("~{prefix}.matched_variants.tsv", "w") as out:
+            out.write("CHROM\tPOS\tREF\tALT\tID\tMATCHED_ID\n")
+            for rec in vcf_in.fetch():
+                if rec.id in matches:
+                    alt = ",".join(str(a) for a in rec.alts) if rec.alts else "."
+                    out.write(f"{rec.chrom}\t{rec.pos}\t{rec.ref}\t{alt}\t{rec.id}\t{matches[rec.id]}\n")
         CODE
     >>>
 
