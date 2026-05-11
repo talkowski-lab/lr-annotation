@@ -113,7 +113,7 @@ workflow VcfDistCohort {
 					contig = contigs[i],
 					ref_fa = ref_fa,
 					bed_regions = bed_regions,
-					vcfdist_args = vcfdist_args,
+					vcfdist_args = select_first([vcfdist_args, ""]),
 					prefix = "~{prefix}.~{contigs[i]}.truth_~{j}",
 					docker = vcfdist_docker,
 					runtime_attr_override = runtime_attr_vcfdist_shard

@@ -27,7 +27,8 @@ RUN apt-get update && apt-get install --no-install-recommends --yes \
     libssl-dev \
     openssl \
     libffi-dev \
-    time
+    time \
+    grabix
 
 # Install htslib
 ENV HTSLIB_VERSION="1.23"
@@ -37,8 +38,9 @@ RUN wget -q https://github.com/samtools/htslib/releases/download/${HTSLIB_VERSIO
 	&& cd htslib-${HTSLIB_VERSION} \
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
-	&& make install \
-	&& make clean
+    && make install \
+    && cd / \
+    && rm -rf htslib-${HTSLIB_VERSION}
 
 # Install samtools
 ENV SAMTOOLS_VERSION="1.23"
@@ -48,8 +50,9 @@ RUN wget -q https://github.com/samtools/samtools/releases/download/${SAMTOOLS_VE
 	&& cd samtools-${SAMTOOLS_VERSION} \
 	&& ./configure --enable-libcurl --enable-gcs --enable-s3 \
 	&& make \
-	&& make install \
-	&& make clean
+    && make install \
+    && cd / \
+    && rm -rf samtools-${SAMTOOLS_VERSION}
 
 # Install bcftools
 ENV BCFTOOLS_VERSION="1.23"
@@ -59,24 +62,27 @@ RUN wget -q https://github.com/samtools/bcftools/releases/download/${BCFTOOLS_VE
 	&& cd bcftools-${BCFTOOLS_VERSION} \
 	&& ./configure \
 	&& make \
-	&& make install \
-	&& make clean
+    && make install \
+    && cd / \
+    && rm -rf bcftools-${BCFTOOLS_VERSION}
 
 # Install bedtools
 ENV BED_TOOLS_VERSION="2.31.0"
 RUN wget https://github.com/arq5x/bedtools2/releases/download/v${BED_TOOLS_VERSION}/bedtools.static \
-	&& chmod 777 bedtools.static \
+    && chmod 755 bedtools.static \
 	&& mv bedtools.static /usr/bin/bedtools
 
 # Install python3.9
-RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3-distutils \
-	&& curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
-	&& python3 get-pip.py
+RUN apt-get update && apt-get install --no-install-recommends --yes python3.9 python3.9-dev python3-distutils \
+    && curl https://bootstrap.pypa.io/pip/3.9/get-pip.py -o get-pip.py \
+    && python3 get-pip.py \
+    && rm get-pip.py
 
 # Install gcloud
-ENV GCLOUD_SDK_VERISON="531.0.0"
-RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
-    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERISON}-linux-x86_64.tar.gz \
+ENV GCLOUD_SDK_VERSION="531.0.0"
+RUN wget -q https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && tar xzf google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
+    && rm google-cloud-sdk-${GCLOUD_SDK_VERSION}-linux-x86_64.tar.gz \
     && /google-cloud-sdk/install.sh -q \
     && /google-cloud-sdk/bin/gcloud components update --quiet
 
@@ -84,13 +90,17 @@ ENV PATH=/google-cloud-sdk/bin:$PATH
 
 # Install TRF
 RUN wget -q https://github.com/Benson-Genomics-Lab/TRF/releases/download/v4.09.1/trf409.linux64 \
-    && chmod 777 trf409.linux64 \
+    && chmod 755 trf409.linux64 \
     && mv trf409.linux64 /usr/bin/trf
+
+RUN python3 -m pip install --no-cache-dir git+https://github.com/bw2/trviz@9068d9abc50ec9b8ba478505d3d19496e1f431b9 pyarrow
 
 
 ADD "https://www.random.org/cgi-bin/randbyte?nbytes=10&format=h" skipcache
 
 ENV HTSLIB_CONFIGURE_OPTIONS="--enable-s3 --enable-gcs --enable-libcurl --with-libdeflate"
-RUN python3 -m pip install --upgrade --no-cache-dir git+https://github.com/kjaisingh/str-analysis
+RUN python3 -m pip install --upgrade --no-cache-dir \
+    configargparse \
+    git+https://github.com/kjaisingh/str-analysis
 
 ENV PYTHONPATH=/:.:$PYTHONPATH
