@@ -57,7 +57,6 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            type_field = type_field_eval,
             length_field = length_field_eval,
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
@@ -80,7 +79,6 @@ workflow BedtoolsClosestSV {
         input:
             vcf = SubsetTruth.subset_vcf,
             vcf_idx = SubsetTruth.subset_vcf_idx,
-            type_field = "SVTYPE",
             length_field = "SVLEN",
             prefix = "~{prefix}.truth",
             docker = benchmark_annotations_docker,
@@ -173,17 +171,24 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    # Cross-type comparisons: INS eval vs DUP truth, DUP eval vs INS truth
+    call CollapseRangedToPoint as CollapseTruthDUP {
+        input:
+            bed = SplitTruth.dup_bed,
+            prefix = "~{prefix}.truth.DUP_as_point",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
     call Helpers.BedtoolsClosest as CompareINS_DUP {
         input:
             bed_a = SplitEval.ins_bed,
-            bed_b = SplitTruth.dup_bed,
+            bed_b = CollapseTruthDUP.point_bed,
             prefix = "~{prefix}.INS_DUP",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
 
-    call SelectMatchedSVs as CalcuINS_DUP {
+    call SelectMatchedINSs as CalcuINS_DUP {
         input:
             input_bed = CompareINS_DUP.output_bed,
             prefix = "~{prefix}.INS_DUP",
@@ -191,24 +196,24 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    call ExpandPointBedToRanged {
+    call CollapseRangedToPoint as CollapseEvalDUP {
         input:
-            bed = SplitTruth.ins_bed,
-            prefix = "~{prefix}.truth.INS_expanded",
+            bed = SplitEval.dup_bed,
+            prefix = "~{prefix}.eval.DUP_as_point",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
     call Helpers.BedtoolsClosest as CompareDUP_INS {
         input:
-            bed_a = SplitEval.dup_bed,
-            bed_b = ExpandPointBedToRanged.expanded_bed,
+            bed_a = CollapseEvalDUP.point_bed,
+            bed_b = SplitTruth.ins_bed,
             prefix = "~{prefix}.DUP_INS",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
 
-    call SelectMatchedSVs as CalcuDUP_INS {
+    call SelectMatchedINSs as CalcuDUP_INS {
         input:
             input_bed = CompareDUP_INS.output_bed,
             prefix = "~{prefix}.DUP_INS",
@@ -246,7 +251,6 @@ task SplitQueryVcf {
     input {
         File vcf
         File vcf_idx
-        String type_field
         String length_field
         String prefix
         String docker
@@ -256,25 +260,38 @@ task SplitQueryVcf {
     command <<<
         set -euo pipefail
 
-        svtk vcf2bed \
-            -i ~{type_field} \
-            -i ~{length_field} \
-            ~{vcf} \
-            tmp.bed
-        
-        cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
+        echo -e "#chrom\tstart\tend\tname\tsvtype\tsvlen" > header
 
-        set +o pipefail
+        bcftools query -f '%CHROM\t%POS\t%END\t%ID\t%ALT\t%INFO/~{length_field}\n' ~{vcf} \
+            | awk 'BEGIN{OFS="\t"} {
+                start = $2 - 1
+                end = $3
+                alt = $5
+                if (alt ~ /^</) {
+                    gsub(/[<>]/, "", alt)
+                    svtype = toupper(alt)
+                } else if (alt ~ /[\[\]]/) {
+                    svtype = "BND"
+                } else {
+                    svtype = "UNKNOWN"
+                }
+                if (svtype ~ /^INS/) svtype = "INS"
+                else if (svtype ~ /^DEL/) svtype = "DEL"
+                else if (svtype ~ /^DUP/) svtype = "DUP"
+                len = $6 + 0
+                if (len < 0) len = -len
+                print $1, start, end, $4, svtype, len
+            }' > body.bed
 
-        head -1 ~{prefix}.bed > header
+        cat header body.bed > ~{prefix}.bed
 
-        set -o pipefail
+        cat header <(awk '$5 == "DEL"' body.bed) > ~{prefix}.DEL.bed
+        cat header <(awk '$5 == "DUP"' body.bed) > ~{prefix}.DUP.bed
+        cat header <(awk '$5 == "INS"' body.bed) > ~{prefix}.INS.bed
+        cat header <(awk '$5 == "INV" || $5 == "CPX"' body.bed) > ~{prefix}.INV_CPX.bed
+        cat header <(awk '$5 == "BND" || $5 == "CTX"' body.bed) > ~{prefix}.BND_CTX.bed
 
-        cat header <(awk 'toupper($5) == "DEL"' ~{prefix}.bed) > ~{prefix}.DEL.bed
-        cat header <(awk 'toupper($5) == "DUP"' ~{prefix}.bed) > ~{prefix}.DUP.bed
-        cat header <(awk 'toupper($5) ~ /^(INS|INS:ME|INS:ME:ALU|INS:ME:LINE1|INS:ME:SVA|ALU|LINE1|SVA|HERVK)$/' ~{prefix}.bed) > ~{prefix}.INS.bed
-        cat header <(awk 'toupper($5) == "INV" || toupper($5) == "CPX"' ~{prefix}.bed) > ~{prefix}.INV_CPX.bed
-        cat header <(awk 'toupper($5) == "BND" || toupper($5) == "CTX"' ~{prefix}.bed) > ~{prefix}.BND_CTX.bed
+        rm header body.bed
     >>>
 
     output {
@@ -386,7 +403,7 @@ task SelectMatchedINSs {
     }
 }
 
-task ExpandPointBedToRanged {
+task CollapseRangedToPoint {
     input {
         File bed
         String prefix
@@ -398,11 +415,12 @@ task ExpandPointBedToRanged {
         set -euo pipefail
 
         head -1 ~{bed} > ~{prefix}.bed
-        awk 'NR>1 {OFS="\t"; len=$6; if(len<0) len=-len; $3=$2+len; print}' ~{bed} >> ~{prefix}.bed
+
+        awk 'NR>1 {OFS="\t"; $3=$2+1; print}' ~{bed} >> ~{prefix}.bed
     >>>
 
     output {
-        File expanded_bed = "~{prefix}.bed"
+        File point_bed = "~{prefix}.bed"
     }
 
     RuntimeAttr default_attr = object {
