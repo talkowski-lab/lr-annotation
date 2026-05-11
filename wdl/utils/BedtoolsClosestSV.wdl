@@ -53,10 +53,11 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
-    call SplitQueryVcf as SplitEval {
+    call SplitVcf as SplitEval {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
+            split_cpx = false,
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
@@ -74,10 +75,11 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_subset_truth
     }
 
-    call SplitQueryVcf as SplitTruth {
+    call SplitVcf as SplitTruth {
         input:
             vcf = SubsetTruth.subset_vcf,
             vcf_idx = SubsetTruth.subset_vcf_idx,
+            split_cpx = true,
             prefix = "~{prefix}.truth",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_truth
@@ -245,10 +247,11 @@ workflow BedtoolsClosestSV {
     }
 }
 
-task SplitQueryVcf {
+task SplitVcf {
     input {
         File vcf
         File vcf_idx
+        Boolean split_cpx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -257,7 +260,12 @@ task SplitQueryVcf {
     command <<<
         set -euo pipefail
 
-        svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
+        svtk vcf2bed \
+            -i SVTYPE \
+            -i SVLEN \
+            ~{if split_cpx then "--split-cpx" else ""}
+            ~{vcf} \
+            tmp.bed
         
         cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
 

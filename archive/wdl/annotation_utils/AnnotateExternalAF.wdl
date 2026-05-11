@@ -497,4 +497,3 @@ task PostprocessVcf {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-

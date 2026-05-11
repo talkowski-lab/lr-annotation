@@ -143,8 +143,6 @@ workflow PlotPhasingResults {
 	output {
 		File outside_tr_table = AggregatePhasingResults.outside_tr_table
 		File tr_enveloped_table = AggregatePhasingResults.tr_enveloped_table
-		File outside_tr_plot = AggregatePhasingResults.outside_tr_plot
-		File tr_enveloped_plot = AggregatePhasingResults.tr_enveloped_plot
 		File missing_samples = AssignSamplesToBaseVcfs.missing_samples
 		Array[File] vcf_tables = variant_status_tables
 	}
@@ -308,24 +306,48 @@ def summarize(points):
 	states = [state for _pos, state, _record_key in points]
 	matched_count = len(states)
 	if matched_count == 0:
-		return 0, 0, {}
+		return 0, 0, 0, {}
 	if sum(states) < matched_count / 2.0:
 		states = [1 - state for state in states]
-	status_priority = {"XC": 0, "CN": 1, "SW": 2}
+	
+	status_priority = {"XC": 0, "CN": 1, "FL": 2, "SW": 3}
 	record_statuses = {}
 	switch_error_count = 0
-	for idx, (_pos, _state, record_key) in enumerate(points):
+	flip_error_count = 0
+	
+	idx = 0
+	while idx < len(points):
+		_pos, _state, record_key = points[idx]
+		status = "XC" if states[idx] == 1 else "CN"
+		
 		if idx > 0 and states[idx] != states[idx - 1]:
-			status = "SW"
-			switch_error_count += 1
-		elif states[idx] == 1:
-			status = "XC"
-		else:
-			status = "CN"
+			if idx + 1 < len(states) and states[idx + 1] == states[idx - 1]:
+				status = "FL"
+				flip_error_count += 1
+				current = record_statuses.get(record_key)
+				if current is None or status_priority[status] > status_priority.get(current, -1):
+					record_statuses[record_key] = status
+				
+				idx += 1
+				_pos2, _state2, record_key2 = points[idx]
+				status2 = "XC" if states[idx] == 1 else "CN"
+				current2 = record_statuses.get(record_key2)
+				if current2 is None or status_priority[status2] > status_priority.get(current2, -1):
+					record_statuses[record_key2] = status2
+				
+				idx += 1
+				continue
+			else:
+				status = "SW"
+				switch_error_count += 1
+
 		current = record_statuses.get(record_key)
-		if current is None or status_priority[status] > status_priority[current]:
+		if current is None or status_priority[status] > status_priority.get(current, -1):
 			record_statuses[record_key] = status
-	return matched_count, switch_error_count, record_statuses
+			
+		idx += 1
+		
+	return matched_count, switch_error_count, flip_error_count, record_statuses
 
 
 with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
@@ -374,15 +396,13 @@ with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 				collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
 
 with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
-	outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
-	tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+	outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
+	tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
 	status_out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
 	for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_out)):
 		for sample in samples:
-			matched_count, switch_error_count, record_statuses = summarize(collection_points[collection][sample])
-			handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\n")
-			for record_key, status in record_statuses.items():
-				status_out.write("\t".join((*record_key, sample, status)) + "\n")
+			matched_count, switch_error_count, flip_error_count, record_statuses = summarize(collection_points[collection][sample])
+			handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\t{flip_error_count}\n")
 CODE
 	>>>
 
@@ -480,7 +500,7 @@ def classify_backbone_status(sample_data, comparable_status, is_missing_sample):
 subset_samples = {line for line in """~{sep='\n' select_first([subset_samples, []])}""".splitlines() if line}
 missing_samples = {line.strip() for line in open("~{missing_samples_file}") if line.strip()}
 
-status_priority = {"XC": 0, "CN": 1, "SW": 2}
+status_priority = {"XC": 0, "CN": 1, "FL": 2, "SW": 3}
 status_by_key = {}
 with open("~{write_lines(status_tsv_gzs)}") as manifest:
 	for path in manifest:
@@ -554,11 +574,7 @@ task AggregatePhasingResults {
 		set -euo pipefail
 
 		python3 <<CODE
-from html import escape
 import csv
-import math
-import random
-
 
 def contig_sort_key(contig):
 	value = contig[3:] if contig.lower().startswith("chr") else contig
@@ -573,7 +589,6 @@ def contig_sort_key(contig):
 		return (1, 25, contig)
 	return (2, lower_value, contig)
 
-
 def load_rows(paths):
 	rows_by_key = {}
 	for path in paths:
@@ -581,136 +596,25 @@ def load_rows(paths):
 			reader = csv.DictReader(handle, delimiter="\t")
 			for row in reader:
 				key = (row["contig"], row["sample"])
-				rows_by_key[key] = {
-					"contig": row["contig"],
-					"sample": row["sample"],
-					"matched_count": rows_by_key.get(key, {}).get("matched_count", 0) + int(row["matched_count"]),
-					"switch_error_count": rows_by_key.get(key, {}).get("switch_error_count", 0) + int(row["switch_error_count"]),
-				}
+				if key not in rows_by_key:
+					rows_by_key[key] = {
+						"contig": row["contig"],
+						"sample": row["sample"],
+						"matched_count": 0,
+						"switch_error_count": 0,
+						"flip_error_count": 0
+					}
+				rows_by_key[key]["matched_count"] += int(row["matched_count"])
+				rows_by_key[key]["switch_error_count"] += int(row["switch_error_count"])
+				rows_by_key[key]["flip_error_count"] += int(row.get("flip_error_count", 0))
 	return list(rows_by_key.values())
-
 
 def write_rows(rows, out_path):
 	rows.sort(key=lambda row: (contig_sort_key(row["contig"]), row["sample"]))
 	with open(out_path, "w") as out:
-		out.write("contig\tsample\tmatched_count\tswitch_error_count\n")
+		out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
 		for row in rows:
-			out.write(
-				f"{row['contig']}\t{row['sample']}\t{row['matched_count']}\t{row['switch_error_count']}\n"
-			)
-
-
-def write_svg(rows, ordered_contigs, title, out_path):
-	rng = random.Random(0)
-	width = max(900, 140 * max(1, len(ordered_contigs)))
-	height = 520
-	margin_left = 80
-	margin_right = 30
-	margin_top = 55
-	margin_bottom = 125
-	plot_width = width - margin_left - margin_right
-	plot_height = height - margin_top - margin_bottom
-	plot_bottom = height - margin_bottom
-	plot_top = margin_top
-
-	grouped_rates = {contig: [] for contig in ordered_contigs}
-	for row in rows:
-		if row["matched_count"] <= 0:
-			continue
-		rate_pct = 100.0 * row["switch_error_count"] / float(row["matched_count"])
-		grouped_rates[row["contig"]].append(rate_pct)
-
-	all_rates = [rate for rates in grouped_rates.values() for rate in rates]
-	positive_rates = [rate for rate in all_rates if rate > 0]
-
-	def build_log_ticks(min_rate, max_rate):
-		if max_rate <= 0:
-			return [0.1, 0.2, 0.5, 1.0]
-		lower_exp = math.floor(math.log10(min_rate))
-		upper_exp = math.ceil(math.log10(max_rate))
-		candidates = []
-		for exp in range(lower_exp - 1, upper_exp + 2):
-			base = 10 ** exp
-			for multiplier in (1, 2, 5):
-				value = multiplier * base
-				if min_rate <= value <= max_rate:
-					candidates.append(value)
-		if not candidates:
-			candidates = [min_rate, max_rate]
-		return sorted(set(candidates))
-
-	if positive_rates:
-		min_positive_rate = min(positive_rates)
-		max_rate = max(positive_rates)
-		y_min = 10 ** math.floor(math.log10(min_positive_rate))
-		y_max = 10 ** math.ceil(math.log10(max_rate))
-		if y_min == y_max:
-			y_min /= 10.0
-			y_max *= 10.0
-		ticks = build_log_ticks(y_min, y_max)
-	else:
-		y_min = 0.1
-		y_max = 1.0
-		ticks = [0.1, 0.2, 0.5, 1.0]
-
-	def x_center(idx):
-		if len(ordered_contigs) == 1:
-			return margin_left + plot_width / 2.0
-		return margin_left + idx * plot_width / float(len(ordered_contigs) - 1)
-
-	def y_coord(rate_pct):
-		clamped_rate = min(max(rate_pct, y_min), y_max)
-		log_span = math.log10(y_max) - math.log10(y_min)
-		return plot_bottom - ((math.log10(clamped_rate) - math.log10(y_min)) / log_span) * plot_height
-
-	parts = [
-		f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" viewBox="0 0 {width} {height}">',
-		'<rect width="100%" height="100%" fill="white"/>',
-		f'<text x="{width / 2:.2f}" y="28" font-size="18" text-anchor="middle" font-family="Arial">{escape(title)}</text>',
-	]
-
-	for tick in ticks:
-		y = y_coord(tick)
-		parts.append(f'<line x1="{margin_left}" y1="{y:.2f}" x2="{width - margin_right}" y2="{y:.2f}" stroke="#dddddd" stroke-width="1"/>')
-		parts.append(f'<text x="{margin_left - 10}" y="{y + 4:.2f}" font-size="11" text-anchor="end" font-family="Arial">{tick:g}%</text>')
-
-	parts.append(f'<line x1="{margin_left}" y1="{plot_top}" x2="{margin_left}" y2="{plot_bottom}" stroke="#222222" stroke-width="1.5"/>')
-	parts.append(f'<line x1="{margin_left}" y1="{plot_bottom}" x2="{width - margin_right}" y2="{plot_bottom}" stroke="#222222" stroke-width="1.5"/>')
-	parts.append(f'<text x="{width / 2:.2f}" y="{height - 25}" font-size="14" text-anchor="middle" font-family="Arial">Chromosome</text>')
-	parts.append(f'<text x="24" y="{height / 2:.2f}" font-size="14" text-anchor="middle" transform="rotate(-90 24 {height / 2:.2f})" font-family="Arial">Switch Error Rate</text>')
-
-	for idx, contig in enumerate(ordered_contigs):
-		x = x_center(idx)
-		parts.append(f'<text x="{x:.2f}" y="{plot_bottom + 18}" font-size="11" text-anchor="middle" font-family="Arial">{escape(contig)}</text>')
-		rates = grouped_rates[contig]
-		for rate_pct in rates:
-			jitter = rng.uniform(-0.18, 0.18)
-			jitter_span = plot_width / float(max(2, len(ordered_contigs)))
-			cx = x + jitter * jitter_span
-			cy = y_coord(rate_pct)
-			parts.append(f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="4" fill="#4c78a8" fill-opacity="0.55"/>')
-		if rates:
-			mean_rate = sum(rates) / float(len(rates))
-			cy = y_coord(mean_rate)
-			diamond = [
-				(f"{x:.2f}", f"{cy - 7:.2f}"),
-				(f"{x + 7:.2f}", f"{cy:.2f}"),
-				(f"{x:.2f}", f"{cy + 7:.2f}"),
-				(f"{x - 7:.2f}", f"{cy:.2f}"),
-			]
-			parts.append('<polygon points="' + ' '.join(','.join(point) for point in diamond) + '" fill="#c44e52"/>')
-			parts.append(f'<text x="{x:.2f}" y="{plot_bottom + 34:.2f}" font-size="11" text-anchor="middle" fill="#c44e52" font-family="Arial">{mean_rate:.2f}%</text>')
-
-	if not all_rates:
-		parts.append(f'<text x="{width / 2:.2f}" y="{height / 2:.2f}" font-size="14" text-anchor="middle" font-family="Arial">No comparable phased het genotypes found</text>')
-
-	parts.append('</svg>')
-	with open(out_path, "w") as out:
-		out.write("\n".join(parts))
-
-
-with open("~{write_lines(contigs)}") as handle:
-	ordered_contigs = sorted({line.strip() for line in handle if line.strip()}, key=contig_sort_key)
+			out.write(f"{row['contig']}\t{row['sample']}\t{row['matched_count']}\t{row['switch_error_count']}\t{row['flip_error_count']}\n")
 
 with open("~{write_lines(outside_tr_tsvs)}") as handle:
 	outside_paths = [line.strip() for line in handle if line.strip()]
@@ -723,16 +627,12 @@ tr_enveloped_rows = load_rows(tr_enveloped_paths)
 
 write_rows(outside_rows, "~{prefix}.outside_tr.tsv")
 write_rows(tr_enveloped_rows, "~{prefix}.tr_enveloped.tsv")
-write_svg(outside_rows, ordered_contigs, "Outside TR", "~{prefix}.outside_tr.svg")
-write_svg(tr_enveloped_rows, ordered_contigs, "TR Enveloped", "~{prefix}.tr_enveloped.svg")
 CODE
 	>>>
 
 	output {
 		File outside_tr_table = "~{prefix}.outside_tr.tsv"
 		File tr_enveloped_table = "~{prefix}.tr_enveloped.tsv"
-		File outside_tr_plot = "~{prefix}.outside_tr.svg"
-		File tr_enveloped_plot = "~{prefix}.tr_enveloped.svg"
 	}
 
 	RuntimeAttr default_attr = object {

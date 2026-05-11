@@ -90,10 +90,6 @@ TODO
 TODO
 
 
-### [AnnotateExternalAF](wdl/annotation/AnnotateExternalAF.wdl)
-TODO
-
-
 ### [AnnotateGnomADSTR](wdl/annotation/AnnotateGnomADSTR.wdl)
 TODO
 

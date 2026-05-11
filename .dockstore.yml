@@ -22,24 +22,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateExternalAF
-    primaryDescriptorPath: /wdl/annotation/AnnotateExternalAF.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: AnnotateExternalVariants
-    primaryDescriptorPath: /wdl/annotation/AnnotateExternalVariants.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateIndelTRs
     primaryDescriptorPath: /wdl/annotation/AnnotateIndelTRs.wdl
     filters:

@@ -15,14 +15,14 @@ workflow AnnotateRegion {
         File simple_repeats_bed
         File seg_dup_bed
         File repeat_masked_bed
-        Float min_coverage
+
+        File annotate_genomic_context_script
 
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_shard
-        RuntimeAttr? runtime_attr_label_regions
-        RuntimeAttr? runtime_attr_set_unique
+        RuntimeAttr? runtime_attr_annotate_region
         RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
@@ -61,56 +61,24 @@ workflow AnnotateRegion {
         Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
-            call LabelVariantRegions as LabelSimpleRepeats {
+            call AnnotateGenomicContext {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
-                    region_bed = simple_repeats_bed,
-                    region_name = "SR",
-                    min_coverage = min_coverage,
-                    prefix = "~{prefix}.~{contig}.simple_repeats.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_label_regions
-            }
-
-            call LabelVariantRegions as LabelSegDups {
-                input:
-                    vcf = LabelSimpleRepeats.labeled_vcf,
-                    vcf_idx = LabelSimpleRepeats.labeled_vcf_idx,
-                    region_bed = seg_dup_bed,
-                    region_name = "SD",
-                    min_coverage = min_coverage,
-                    prefix = "~{prefix}.~{contig}.seg_dups.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_label_regions
-            }
-
-            call LabelVariantRegions as LabelRepeatMasked {
-                input:
-                    vcf = LabelSegDups.labeled_vcf,
-                    vcf_idx = LabelSegDups.labeled_vcf_idx,
-                    region_bed = repeat_masked_bed,
-                    region_name = "RM",
-                    min_coverage = min_coverage,
-                    prefix = "~{prefix}.~{contig}.repeat_masker.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_label_regions
-            }
-
-            call SetUniqueRegion {
-                input:
-                    vcf = LabelRepeatMasked.labeled_vcf,
-                    vcf_idx = LabelRepeatMasked.labeled_vcf_idx,
+                    simple_repeats_bed = simple_repeats_bed,
+                    seg_dup_bed = seg_dup_bed,
+                    repeat_masked_bed = repeat_masked_bed,
+                    annotate_genomic_context_script = annotate_genomic_context_script,
                     prefix = "~{prefix}.~{contig}.region_annotated.shard_~{i}",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_set_unique
+                    runtime_attr_override = runtime_attr_annotate_region
             }
         }
 
         if (defined(records_per_shard)) {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
-                    tsvs = SetUniqueRegion.annotations_tsv,
+                    tsvs = AnnotateGenomicContext.annotations_tsv,
                     sort_output = false,
                     prefix = "~{prefix}.~{contig}.region_annotated",
                     docker = utils_docker,
@@ -118,7 +86,7 @@ workflow AnnotateRegion {
             }
         }
 
-        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, SetUniqueRegion.annotations_tsv[0]])
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, AnnotateGenomicContext.annotations_tsv[0]])
     }
 
     if (!single_contig) {
@@ -137,13 +105,14 @@ workflow AnnotateRegion {
     }
 }
 
-task LabelVariantRegions {
+task AnnotateGenomicContext {
     input {
         File vcf
         File vcf_idx
-        File region_bed
-        String region_name
-        Float min_coverage
+        File simple_repeats_bed
+        File seg_dup_bed
+        File repeat_masked_bed
+        File annotate_genomic_context_script
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -152,95 +121,49 @@ task LabelVariantRegions {
     command <<<
         set -euo pipefail
 
-        # Add REGION to header if not already present
-        touch header.lines
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=REGION'; then
-            echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context.">' \
-                > header.lines
+        TMPPATH=$(mktemp -d)
+
+        # Extract variant sites from VCF: chr, start(0-based), end, ID, SVTYPE, SVLEN
+        bcftools query \
+            -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/SVTYPE\t%INFO/SVLEN\n' \
+            ~{vcf} \
+        > ${TMPPATH}/tmp.sites
+
+        # Create left breakpoint BED: chr, start, start, ID, SVTYPE, SVLEN
+        awk '{print $1"\t"$2"\t"$2"\t"$4"\t"$5"\t"$6}' ${TMPPATH}/tmp.sites \
+            | grep -v "^#" | sort -k1,1 -k2,2n > ${TMPPATH}/le_bp
+
+        # Create right breakpoint BED: chr, end, end, ID, SVTYPE, SVLEN
+        awk '{print $1"\t"$3"\t"$3"\t"$4"\t"$5"\t"$6}' ${TMPPATH}/tmp.sites \
+            | grep -v "^#" | sort -k1,1 -k2,2n > ${TMPPATH}/ri_bp
+
+        # Extract large CNVs (DEL/DUP/CNV > 5kb)
+        awk '{if ($5=="DEL" || $5=="DUP" || $5=="CNV") print}' ${TMPPATH}/tmp.sites \
+            | awk '{if ($3-$2 > 5000) print}' \
+            | cut -f1-5 \
+            | sort -k1,1 -k2,2n > ${TMPPATH}/lg_cnv
+
+        # Breakpoint coverage against each region type
+        bedtools coverage -a ${TMPPATH}/le_bp -b ~{simple_repeats_bed} | awk '{if ($NF>0) print}' > ${TMPPATH}/le_bp.vs.SR
+        bedtools coverage -a ${TMPPATH}/le_bp -b ~{seg_dup_bed}        | awk '{if ($NF>0) print}' > ${TMPPATH}/le_bp.vs.SD
+        bedtools coverage -a ${TMPPATH}/le_bp -b ~{repeat_masked_bed}  | awk '{if ($NF>0) print}' > ${TMPPATH}/le_bp.vs.RM
+
+        bedtools coverage -a ${TMPPATH}/ri_bp -b ~{simple_repeats_bed} | awk '{if ($NF>0) print}' > ${TMPPATH}/ri_bp.vs.SR
+        bedtools coverage -a ${TMPPATH}/ri_bp -b ~{seg_dup_bed}        | awk '{if ($NF>0) print}' > ${TMPPATH}/ri_bp.vs.SD
+        bedtools coverage -a ${TMPPATH}/ri_bp -b ~{repeat_masked_bed}  | awk '{if ($NF>0) print}' > ${TMPPATH}/ri_bp.vs.RM
+
+        # Large CNV body coverage
+        if [ "$(wc -l < ${TMPPATH}/lg_cnv)" -gt 0 ]; then
+            bedtools coverage -a ${TMPPATH}/lg_cnv -b ~{simple_repeats_bed} > ${TMPPATH}/lg_cnv.vs.SR
+            bedtools coverage -a ${TMPPATH}/lg_cnv -b ~{seg_dup_bed}        > ${TMPPATH}/lg_cnv.vs.SD
+            bedtools coverage -a ${TMPPATH}/lg_cnv -b ~{repeat_masked_bed}  > ${TMPPATH}/lg_cnv.vs.RM
         fi
 
-        bcftools annotate \
-            -h header.lines \
-            -Oz -o with_header.vcf.gz \
-            ~{vcf}
-        
-        tabix -p vcf with_header.vcf.gz
-
-        # Extract variants
-        bcftools query \
-            -f '%CHROM\t%POS0\t%END\t%ID\t%REF\t%ALT\n' \
-            -e 'INFO/REGION!="."' \
-            with_header.vcf.gz \
-        | awk -F'\t' '{print $1"\t"$2"\t"$3"\t"$4"\t"($3-$2)"\t"$5"\t"$6}' \
-        | sort -k1,1 -k2,2n > variants.bed
-
-        # Intersect variants with regions
-        bedtools intersect \
-            -a variants.bed \
-            -b ~{region_bed} \
-            -wo \
-        | awk -v min_cov=~{min_coverage} -v region="~{region_name}" \
-            '{ vid=$4; vlen=($5>0?$5:1); overlap=$NF
-               if (overlap/vlen >= min_cov && !seen[vid]++)
-                   print $1"\t"($2+1)"\t"$6"\t"$7"\t"vid"\t"region }' \
-        | sort -k1,1 -k2,2n \
-        | bgzip -c > annot.txt.gz
-
-        tabix -s1 -b2 -e2 annot.txt.gz
-
-        # Annotate flagged variants
-        bcftools annotate \
-            -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/REGION \
-            with_header.vcf.gz \
-            -Oz -o ~{prefix}.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File labeled_vcf = "~{prefix}.vcf.gz"
-        File labeled_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(region_bed, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SetUniqueRegion {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        # Extract all variants with their REGION, defaulting to US for unset
-        bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/REGION\n' \
-            ~{vcf} \
-        | awk 'BEGIN{OFS="\t"} {if ($6 == ".") $6 = "US"; print}' \
-            > ~{prefix}.annotations.tsv
+        # Run R script to assign genomic context
+        Rscript ~{annotate_genomic_context_script} \
+            -i ${TMPPATH}/tmp.sites \
+            -o ~{prefix}.annotations.tsv \
+            -p ${TMPPATH}
     >>>
 
     output {
@@ -250,7 +173,7 @@ task SetUniqueRegion {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(simple_repeats_bed, "GB") + size(seg_dup_bed, "GB") + size(repeat_masked_bed, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
