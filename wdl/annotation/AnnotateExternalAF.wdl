@@ -106,7 +106,7 @@ task SubsetVcf {
         disk_gb: disk_size,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 1
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -125,7 +125,6 @@ task PreprocessMergedVcf {
         File vcf
         File vcf_index
         String prefix
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -133,7 +132,7 @@ task PreprocessMergedVcf {
         set -euo pipefail
 
         # DUP TO INS, retaining original info in tag
-        python /opt/gnomad-lr/scripts/helpers/dup_to_ins.py ~{vcf} | \
+        python /dup_to_ins_LR.py ~{vcf} | \
             bcftools view -Oz > ~{prefix}.vcf.gz
 
         tabix ~{prefix}.vcf.gz
@@ -148,8 +147,8 @@ task PreprocessMergedVcf {
         mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB")),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -171,7 +170,6 @@ task AnnotateFunctionalConsequences {
         File noncoding_bed
         File coding_gtf
         String prefix
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -179,7 +177,9 @@ task AnnotateFunctionalConsequences {
         set -euo pipefail
 
         gatk --java-options "-Xmx~{java_mem_mb}m" SVAnnotate -V ~{vcf} --non-coding-bed ~{noncoding_bed} --protein-coding-gtf ~{coding_gtf} -O ~{prefix}.vcf
+
         bcftools view -Oz ~{prefix}.vcf > ~{prefix}.vcf.gz
+
         tabix ~{prefix}.vcf.gz
     >>>
 
@@ -192,8 +192,8 @@ task AnnotateFunctionalConsequences {
         mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 5),
         cpu_cores: 2,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -214,15 +214,16 @@ task CollapseDoubledDups {
         File vcf
         File vcf_index
         String prefix
-
         RuntimeAttr? runtime_attr_override
     }
 
     command <<<
         set -euo pipefail
 
-        # collapse the doubled DUPs back to INS, transferring over functional annotations
-        python /ins_to_dup_collapse.py ~{vcf} | bcftools view -Oz > ~{prefix}.vcf.gz
+        python /ins_to_dup_collapse.py \
+            ~{vcf} \
+        | bcftools view -Oz > ~{prefix}.vcf.gz
+
         tabix ~{prefix}.vcf.gz
 
     >>>
@@ -236,8 +237,8 @@ task CollapseDoubledDups {
         mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 2),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -261,7 +262,6 @@ task AnnotateExternalAFs {
         String prefix
         String contig
         String pipeline_docker
-
         RuntimeAttr? runtime_attr_override
     }
 
@@ -381,8 +381,8 @@ task AnnotateExternalAFs {
         mem_gb: 4,
         disk_gb: ceil(10 + 5*(size(vcf, "GB") + size(ref_beds, "GB"))),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -439,8 +439,8 @@ task ConcatVcfs {
         mem_gb: 4,
         disk_gb: ceil(10 + size(vcfs, "GB") * 2),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -468,7 +468,8 @@ task PostprocessVcf {
         set -euo pipefail
 
         # set variants originally called as DUP back to DUP
-        python /opt/gnomad-lr/scripts/helpers/orig_dup_to_dup.py ~{vcf} | bcftools view -Oz > ~{prefix}.vcf.gz
+        python /orig_dup_to_dup.py ~{vcf} | bcftools view -Oz > ~{prefix}.vcf.gz
+
         tabix ~{prefix}.vcf.gz
     >>>
 
@@ -481,8 +482,8 @@ task PostprocessVcf {
         mem_gb: 4,
         disk_gb: ceil(10 + size(vcf, "GB") * 3),
         cpu_cores: 1,
-        preemptible_tries: 3,
-        max_retries: 1,
+        preemptible_tries: 2,
+        max_retries: 0,
         boot_disk_gb: 10
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
