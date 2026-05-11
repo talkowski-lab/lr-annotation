@@ -610,6 +610,10 @@ header = vcf_in.header
 
 if 'END' not in header.info:
     header.add_line('##INFO=<ID=END,Number=.,Type=Integer,Description="End position of the variant">')
+if 'SVTYPE' not in header.info:
+    header.add_line('##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">')
+if 'SVLEN' not in header.info:
+    header.add_line('##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">')
 header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 for allele_type in present_types:
     if allele_type not in header.alts:
@@ -629,6 +633,8 @@ for record in vcf_in:
     if isinstance(allele_length, (list, tuple)):
         allele_length = allele_length[0]
     record.stop = record.pos + abs(allele_length)
+    record.info['SVTYPE'] = allele_type
+    record.info['SVLEN'] = abs(allele_length)
 
     vcf_out.write(record)
 
@@ -1617,16 +1623,29 @@ import pysam
 original_data = {}
 with pysam.VariantFile("~{original_vcf}") as orig_vcf:
     for record in orig_vcf:
-        original_data[record.id] = (record.ref, record.alts)
+        original_data[record.id] = {
+            'ref': record.ref,
+            'alts': record.alts,
+            'svtype': record.info.get('SVTYPE', None),
+            'svlen': record.info.get('SVLEN', None),
+        }
 
 # Revert symbolic alleles in annotated VCF
 vcf_in = pysam.VariantFile("~{annotated_vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
 for record in vcf_in:
     if record.id in original_data:
-        ref, alts = original_data[record.id]
-        record.ref = ref
-        record.alts = alts
+        orig = original_data[record.id]
+        record.ref = orig['ref']
+        record.alts = orig['alts']
+        if orig['svtype'] is not None:
+            record.info['SVTYPE'] = orig['svtype']
+        elif 'SVTYPE' in record.info:
+            del record.info['SVTYPE']
+        if orig['svlen'] is not None:
+            record.info['SVLEN'] = orig['svlen']
+        elif 'SVLEN' in record.info:
+            del record.info['SVLEN']
     vcf_out.write(record)
 
 vcf_in.close()

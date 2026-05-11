@@ -57,7 +57,6 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            length_field = length_field_eval,
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
@@ -79,7 +78,6 @@ workflow BedtoolsClosestSV {
         input:
             vcf = SubsetTruth.subset_vcf,
             vcf_idx = SubsetTruth.subset_vcf_idx,
-            length_field = "SVLEN",
             prefix = "~{prefix}.truth",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_truth
@@ -251,7 +249,6 @@ task SplitQueryVcf {
     input {
         File vcf
         File vcf_idx
-        String length_field
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -262,7 +259,7 @@ task SplitQueryVcf {
 
         svtk vcf2bed \
             --no-samples \
-            -i ~{length_field} \
+            -i SVLEN \
             ~{vcf} \
             ~{prefix}.bed
 
