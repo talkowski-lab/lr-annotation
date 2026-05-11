@@ -14,7 +14,7 @@ workflow AnnotateRegion {
 
         File simple_repeats_bed
         File seg_dup_bed
-        File repeat_masker_bed
+        File repeat_masked_bed
         Float min_coverage
 
         String utils_docker
@@ -85,11 +85,11 @@ workflow AnnotateRegion {
                     runtime_attr_override = runtime_attr_label_regions
             }
 
-            call LabelVariantRegions as LabelRepeatMasker {
+            call LabelVariantRegions as LabelRepeatMasked {
                 input:
                     vcf = LabelSegDups.labeled_vcf,
                     vcf_idx = LabelSegDups.labeled_vcf_idx,
-                    region_bed = repeat_masker_bed,
+                    region_bed = repeat_masked_bed,
                     region_name = "RM",
                     min_coverage = min_coverage,
                     prefix = "~{prefix}.~{contig}.repeat_masker.shard_~{i}",
@@ -99,8 +99,8 @@ workflow AnnotateRegion {
 
             call SetUniqueRegion {
                 input:
-                    vcf = LabelRepeatMasker.labeled_vcf,
-                    vcf_idx = LabelRepeatMasker.labeled_vcf_idx,
+                    vcf = LabelRepeatMasked.labeled_vcf,
+                    vcf_idx = LabelRepeatMasked.labeled_vcf_idx,
                     prefix = "~{prefix}.~{contig}.region_annotated.shard_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_set_unique
@@ -152,16 +152,18 @@ task LabelVariantRegions {
     command <<<
         set -euo pipefail
 
-        # Add REGION header if not already present
+        # Add REGION to header if not already present
         touch header.lines
         if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=REGION'; then
             echo '##INFO=<ID=REGION,Number=1,Type=String,Description="Genomic region context.">' \
                 > header.lines
         fi
+
         bcftools annotate \
             -h header.lines \
             -Oz -o with_header.vcf.gz \
             ~{vcf}
+        
         tabix -p vcf with_header.vcf.gz
 
         # Extract variants

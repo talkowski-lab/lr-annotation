@@ -51,7 +51,7 @@ task AddFilter {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -108,7 +108,7 @@ task AddInfo {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -155,7 +155,7 @@ task BedtoolsClosest {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(bed_a, "GB") + size(bed_b, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -214,7 +214,7 @@ task CheckSampleConsistency {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -273,7 +273,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -368,7 +368,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -442,7 +442,7 @@ task ConcatTsvs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -492,7 +492,7 @@ task ConcatVcfs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -550,7 +550,7 @@ task ConcatVcfsLR {
         mem_gb: 8,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -654,7 +654,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -725,7 +725,7 @@ CODE
         mem_gb: 4,
         disk_gb: ceil(2 * size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -771,7 +771,7 @@ task DropVcfFields {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -822,7 +822,7 @@ task ExtractSample {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -901,7 +901,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(original_vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -942,7 +942,7 @@ task ExtractVcfCoords {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -983,7 +983,7 @@ task IndexVcf {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1023,7 +1023,7 @@ task FinalizeToDir {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(files, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1065,7 +1065,7 @@ task FinalizeToFile {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(file, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1102,7 +1102,7 @@ task GetContigsFromTsv {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1152,7 +1152,7 @@ CODE
         mem_gb: 4,
         disk_gb: 25,
         cpu_cores: 1,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0,
         boot_disk_gb: 10
     }
@@ -1199,7 +1199,7 @@ task MakeWindows {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(ref_fai, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1293,7 +1293,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1341,7 +1341,7 @@ task MergeBams {
         mem_gb: 4,
         disk_gb: ceil(2.5 * size(bams, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1380,7 +1380,7 @@ task MergeHeaderLines {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(header_files, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1428,7 +1428,7 @@ task MergeVcfs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1483,7 +1483,7 @@ task NormalizeVcf {
         mem_gb: 4,
         disk_gb: 10 * ceil(size(vcf, "GB") + size(ref_fa, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1541,7 +1541,7 @@ task RenameVariantIds {
         mem_gb: 4, 
         disk_gb: 8 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10, 
-        preemptible_tries: 2, 
+        preemptible_tries: 1, 
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1586,7 +1586,7 @@ task ResetVcfFilters {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1653,7 +1653,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(annotated_vcf, "GB") + size(original_vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1711,7 +1711,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsv, "GB") + size(coords_tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1755,7 +1755,7 @@ task SetMissingFiltersToPass {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1800,7 +1800,7 @@ task SplitBam {
 		mem_gb: 4,
 		disk_gb: 3 * ceil(size(bam, "GB")) + 10,
 		boot_disk_gb: 10,
-		preemptible_tries: 2,
+		preemptible_tries: 1,
 		max_retries: 0
 	}
 	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1845,7 +1845,7 @@ task StripGenotypes {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1903,7 +1903,7 @@ task SubsetBamToContig {
         mem_gb: 2,
         disk_gb: 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1952,7 +1952,7 @@ task SubsetTsvToContig {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2001,7 +2001,7 @@ task SubsetVcfByArgs {
         mem_gb: 4,
         disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2052,7 +2052,7 @@ task SubsetVcfByLength {
         mem_gb: 4,
         disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2103,7 +2103,7 @@ task SubsetVcfToContig {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2154,7 +2154,7 @@ task SubsetVcfToRegion {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2211,7 +2211,7 @@ EOF
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2262,7 +2262,7 @@ task SwapSampleIds {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2320,7 +2320,7 @@ task ShardVcfByRecords {
         mem_gb: 4,
         disk_gb: ceil(10 + 3 * size(vcf, "GB")),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2435,7 +2435,7 @@ CODE
         mem_gb: 8,
         disk_gb: 4 * ceil(size(vcf, "GB") + size(select_first([ref_fa, vcf]), "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
