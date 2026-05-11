@@ -257,11 +257,9 @@ task SplitQueryVcf {
     command <<<
         set -euo pipefail
 
-        svtk vcf2bed \
-            --no-samples \
-            -i SVLEN \
-            ~{vcf} \
-            ~{prefix}.bed
+        svtk vcf2bed -i SVTYPE -i SVLEN ~{vcf} tmp.bed
+        
+        cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
 
         set +o pipefail
 

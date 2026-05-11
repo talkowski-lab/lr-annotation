@@ -628,12 +628,12 @@ for record in vcf_in:
     allele_type = map_type(raw)
     record.ref = 'N'
     record.alts = (f'<{allele_type}>',)
+    record.info['SVTYPE'] = allele_type
 
     allele_length = record.info["~{length_field}"]
     if isinstance(allele_length, (list, tuple)):
         allele_length = allele_length[0]
     record.stop = record.pos + abs(allele_length)
-    record.info['SVTYPE'] = allele_type
     record.info['SVLEN'] = abs(allele_length)
 
     vcf_out.write(record)
@@ -1638,14 +1638,17 @@ for record in vcf_in:
         orig = original_data[record.id]
         record.ref = orig['ref']
         record.alts = orig['alts']
+
         if orig['svtype'] is not None:
             record.info['SVTYPE'] = orig['svtype']
         elif 'SVTYPE' in record.info:
             del record.info['SVTYPE']
+        
         if orig['svlen'] is not None:
             record.info['SVLEN'] = orig['svlen']
         elif 'SVLEN' in record.info:
             del record.info['SVLEN']
+        
     vcf_out.write(record)
 
 vcf_in.close()
