@@ -170,7 +170,7 @@ task SplitEvalVcf {
     command <<<
         set -euo pipefail
 
-        python3 <<'PYEOF'
+        python3 <<CODE
 import sys
 from pysam import VariantFile
 
@@ -218,7 +218,7 @@ for rec in vcf_in.fetch():
 
 for f in beds.values():
     f.close()
-PYEOF
+        CODE
     >>>
 
     output {
@@ -438,7 +438,7 @@ task CollectMatches {
     command <<<
         set -euo pipefail
 
-        python3 <<'PYEOF'
+        python3 <<CODE
 import csv
 from pysam import VariantFile
 
@@ -461,7 +461,7 @@ with open("~{prefix}.matched_variants.tsv", "w") as out:
         if rec.id in matches:
             alt = ",".join(str(a) for a in rec.alts) if rec.alts else "."
             out.write(f"{rec.chrom}\t{rec.pos}\t{rec.ref}\t{alt}\t{rec.id}\t{matches[rec.id]}\n")
-PYEOF
+        CODE
     >>>
 
     output {
