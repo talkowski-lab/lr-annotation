@@ -123,22 +123,30 @@ task AnnotateGenomicContext {
 
         TMPPATH=$(mktemp -d)
 
-        # Extract variant sites from VCF: chr, start(0-based), end, ID, SVTYPE, SVLEN
+        # Extract variant sites and normalize to match GATK-SV representation
         bcftools query \
-            -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/SVTYPE\t%INFO/SVLEN\n' \
+            -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/allele_type\t%INFO/allele_length\n' \
             ~{vcf} \
-        > ${TMPPATH}/tmp.sites
+        | awk 'BEGIN{OFS="\t"} {
+            t = toupper($5)
+            if (index(t, "DEL") > 0) $5 = "DEL"
+            else if (index(t, "INS") > 0) $5 = "INS"
+            else if (index(t, "DUP") > 0 || index(t, "NUMT") > 0) $5 = "DUP"
+            else $5 = "SNV"
+            if ($6 < 0) $6 = -$6
+            print
+        }' > ${TMPPATH}/tmp.sites
 
-        # Create left breakpoint BED: chr, start, start, ID, SVTYPE, SVLEN
+        # Create left breakpoint BED
         awk '{print $1"\t"$2"\t"$2"\t"$4"\t"$5"\t"$6}' ${TMPPATH}/tmp.sites \
             | grep -v "^#" | sort -k1,1 -k2,2n > ${TMPPATH}/le_bp
 
-        # Create right breakpoint BED: chr, end, end, ID, SVTYPE, SVLEN
+        # Create right breakpoint BED
         awk '{print $1"\t"$3"\t"$3"\t"$4"\t"$5"\t"$6}' ${TMPPATH}/tmp.sites \
             | grep -v "^#" | sort -k1,1 -k2,2n > ${TMPPATH}/ri_bp
 
-        # Extract large CNVs (DEL/DUP/CNV > 5kb)
-        awk '{if ($5=="DEL" || $5=="DUP" || $5=="CNV") print}' ${TMPPATH}/tmp.sites \
+        # Extract large DEL/DUP (> 5kb by span)
+        awk '{if ($5=="DEL" || $5=="DUP") print}' ${TMPPATH}/tmp.sites \
             | awk '{if ($3-$2 > 5000) print}' \
             | cut -f1-5 \
             | sort -k1,1 -k2,2n > ${TMPPATH}/lg_cnv
