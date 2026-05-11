@@ -263,7 +263,7 @@ task SplitVcf {
         svtk vcf2bed \
             -i SVTYPE \
             -i SVLEN \
-            ~{if split_cpx then "--split-cpx" else ""}
+            ~{if split_cpx then "--split-cpx" else ""} \
             ~{vcf} \
             tmp.bed
         
