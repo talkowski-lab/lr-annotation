@@ -76,7 +76,11 @@ if (nrow(sr_ri) > 0) {
 }
 
 colnames(dat)[ncol(dat)] = 'GC'
-colnames(dat)[4] = 'SVID'
+colnames(dat)[1] = 'CHROM'
+colnames(dat)[4] = 'ID'
+colnames(dat)[7] = 'POS'
+colnames(dat)[8] = 'REF'
+colnames(dat)[9] = 'ALT'
 
 # Override with large CNV body coverage if available
 if (file.exists(paste(opt$path, 'lg_cnv.vs.SR', sep='/'))) {
@@ -85,7 +89,7 @@ if (file.exists(paste(opt$path, 'lg_cnv.vs.SR', sep='/'))) {
     lg_cnv_rm = read.table(paste(opt$path, 'lg_cnv.vs.RM', sep='/'))
     lg_cnv = cbind(lg_cnv_sr[, c(4, ncol(lg_cnv_sr))], lg_cnv_sd[, ncol(lg_cnv_sd)], lg_cnv_rm[, ncol(lg_cnv_rm)])
     lg_cnv[, ncol(lg_cnv)+1] = 1 - rowSums(lg_cnv[, c(2:4)])
-    colnames(lg_cnv) = c('SVID', 'SR', 'SD', 'RM', 'US')
+    colnames(lg_cnv) = c('ID', 'SR', 'SD', 'RM', 'US')
     lg_cnv[, ncol(lg_cnv)+1] = 'US'
 
     if (nrow(lg_cnv[lg_cnv$RM > .5,]) > 0) {
@@ -98,8 +102,8 @@ if (file.exists(paste(opt$path, 'lg_cnv.vs.SR', sep='/'))) {
         lg_cnv[lg_cnv$SR > .5,][, ncol(lg_cnv)] = 'SR'
     }
 
-    dat = merge(dat, lg_cnv[, c(1,6)], by='SVID', all=T)
+    dat = merge(dat, lg_cnv[, c(1,6)], by='ID', all=T)
     dat[!is.na(dat[, ncol(dat)]),][, ncol(dat)-1] = dat[!is.na(dat[, ncol(dat)]),][, ncol(dat)]
 }
 
-write.table(dat[, c('SVID', 'GC')], opt$output, quote=F, sep='\t', col.names=F, row.names=F)
+write.table(dat[, c('CHROM', 'POS', 'REF', 'ALT', 'ID', 'GC')], opt$output, quote=F, sep='\t', col.names=T, row.names=F)

@@ -16,7 +16,6 @@ workflow VcfDistCohort {
 		File ref_fa
 
 		Array[String]? subset_samples
-		File? bed_regions
 		String? vcfdist_args
 
 		String utils_docker
@@ -112,7 +111,6 @@ workflow VcfDistCohort {
 					truth_vcf_idx = SubsetTruthSamples.subset_vcf_idx,
 					contig = contigs[i],
 					ref_fa = ref_fa,
-					bed_regions = bed_regions,
 					vcfdist_args = select_first([vcfdist_args, ""]),
 					prefix = "~{prefix}.~{contigs[i]}.truth_~{j}",
 					docker = vcfdist_docker,
@@ -206,7 +204,6 @@ task RunVcfDistCohortShard {
 		File truth_vcf_idx
 		String contig
 		File ref_fa
-		File? bed_regions
 		String? vcfdist_args
 		String prefix
 		String docker
@@ -280,7 +277,6 @@ truth_samples = split_vcf("truth.vcf.gz", "per_sample", "truth")
 common_samples = sorted(set(eval_samples) & set(truth_samples))
 
 contig = "~{contig}"
-bed_regions = "~{if defined(bed_regions) then bed_regions else ""}"
 vcfdist_extra = "~{if defined(vcfdist_args) then vcfdist_args else ""}"
 
 phasing_rows = []
@@ -293,8 +289,6 @@ for sample in common_samples:
 	os.makedirs(result_dir, exist_ok=True)
 
 	cmd = ["vcfdist", eval_path, truth_path, "ref.fa", "-p", result_dir]
-	if bed_regions:
-		cmd.extend(["-b", bed_regions])
 	if vcfdist_extra:
 		cmd.extend(vcfdist_extra.split())
 

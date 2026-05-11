@@ -120,17 +120,23 @@ task AnnotateGenomicContext {
 
         TMPPATH=$(mktemp -d)
 
-        # Extract variant sites and normalize to match GATK-SV representation
+        # Extract variant sites: CHROM, POS0, END, ID, allele_type, allele_length, POS, REF, ALT
+        # Normalize type and length to match GATK-SV representation
         bcftools query \
-            -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/allele_type\t%INFO/allele_length\n' \
+            -f '%CHROM\t%POS0\t%END\t%ID\t%INFO/allele_type\t%INFO/allele_length\t%POS\t%REF\t%ALT\n' \
             ~{vcf} \
         | awk 'BEGIN{OFS="\t"} {
-            t = toupper($5)
-            if (index(t, "DEL") > 0) $5 = "DEL"
-            else if (index(t, "INS") > 0) $5 = "INS"
-            else if (index(t, "DUP") > 0 || index(t, "NUMT") > 0) $5 = "DUP"
-            else $5 = "SNV"
-            if ($6 < 0) $6 = -$6
+            if (tolower($5) == "trv") {
+                $5 = "SNV"
+                $6 = length($8)
+            } else {
+                t = toupper($5)
+                if (index(t, "DEL") > 0) $5 = "DEL"
+                else if (index(t, "INS") > 0) $5 = "INS"
+                else if (index(t, "DUP") > 0 || index(t, "NUMT") > 0) $5 = "DUP"
+                else $5 = "SNV"
+                if ($6 < 0) $6 = -$6
+            }
             print
         }' > ${TMPPATH}/tmp.sites
 
