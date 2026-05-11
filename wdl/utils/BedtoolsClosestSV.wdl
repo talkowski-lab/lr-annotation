@@ -172,11 +172,54 @@ workflow BedtoolsClosestSV {
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_calculate
     }
-    
+
+    # Cross-type comparisons: INS eval vs DUP truth, DUP eval vs INS truth
+    call Helpers.BedtoolsClosest as CompareINS_DUP {
+        input:
+            bed_a = SplitEval.ins_bed,
+            bed_b = SplitTruth.dup_bed,
+            prefix = "~{prefix}.INS_DUP",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+
+    call SelectMatchedSVs as CalcuINS_DUP {
+        input:
+            input_bed = CompareINS_DUP.output_bed,
+            prefix = "~{prefix}.INS_DUP",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
+    call ExpandPointBedToRanged {
+        input:
+            bed = SplitTruth.ins_bed,
+            prefix = "~{prefix}.truth.INS_expanded",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
+    call Helpers.BedtoolsClosest as CompareDUP_INS {
+        input:
+            bed_a = SplitEval.dup_bed,
+            bed_b = ExpandPointBedToRanged.expanded_bed,
+            prefix = "~{prefix}.DUP_INS",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+
+    call SelectMatchedSVs as CalcuDUP_INS {
+        input:
+            input_bed = CompareDUP_INS.output_bed,
+            prefix = "~{prefix}.DUP_INS",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
     # Postprocessing
     call Helpers.ConcatTsvs {
         input:
-            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp, CalcuINV.output_comp, CalcuBND.output_comp],
+            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp, CalcuINV.output_comp, CalcuBND.output_comp, CalcuINS_DUP.output_comp, CalcuDUP_INS.output_comp],
             sort_output = true,
             prefix = "~{prefix}.comparison",
             docker = utils_docker,
@@ -327,6 +370,45 @@ task SelectMatchedINSs {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ExpandPointBedToRanged {
+    input {
+        File bed
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        head -1 ~{bed} > ~{prefix}.bed
+        awk 'NR>1 {OFS="\t"; len=$6; if(len<0) len=-len; $3=$2+len; print}' ~{bed} >> ~{prefix}.bed
+    >>>
+
+    output {
+        File expanded_bed = "~{prefix}.bed"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
