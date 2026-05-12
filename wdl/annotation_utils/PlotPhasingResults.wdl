@@ -112,6 +112,7 @@ workflow PlotPhasingResults {
 
 		Array[File] contig_outside_tr_tsvs = CompareBackbonePhasingShard.outside_tr_tsv
 		Array[File] contig_tr_enveloped_tsvs = CompareBackbonePhasingShard.tr_enveloped_tsv
+		Array[File] contig_trv_tsvs = CompareBackbonePhasingShard.trv_tsv
 
 		call BuildContigVcfTable {
 			input:
@@ -128,13 +129,14 @@ workflow PlotPhasingResults {
 
 	Array[File] outside_tr_tsvs = flatten(contig_outside_tr_tsvs)
 	Array[File] tr_enveloped_tsvs = flatten(contig_tr_enveloped_tsvs)
+	Array[File] trv_tsvs = flatten(contig_trv_tsvs)
 	Array[File] variant_status_tables = BuildContigVcfTable.vcf_table_tsv_gz
 
 	call AggregatePhasingResults {
 		input:
 			outside_tr_tsvs = outside_tr_tsvs,
 			tr_enveloped_tsvs = tr_enveloped_tsvs,
-			contigs = contigs,
+			trv_tsvs = trv_tsvs,
 			prefix = prefix,
 			utils_docker = utils_docker,
 			runtime_attr_override = runtime_attr_aggregate_results
@@ -143,6 +145,7 @@ workflow PlotPhasingResults {
 	output {
 		File outside_tr_table = AggregatePhasingResults.outside_tr_table
 		File tr_enveloped_table = AggregatePhasingResults.tr_enveloped_table
+		File trv_table = AggregatePhasingResults.trv_table
 		File missing_samples = AssignSamplesToBaseVcfs.missing_samples
 		Array[File] vcf_tables = variant_status_tables
 	}
@@ -301,6 +304,33 @@ def normalize_record_key(record):
 	)
 
 
+def get_trid(record):
+	value = record.info.get("TRID")
+	if isinstance(value, (list, tuple)):
+		value = value[0] if value else None
+	if value in (None, ""):
+		return None
+	return str(value)
+
+
+def is_tr_enveloped(record, trv_trids):
+	if get_allele_type(record) == "trv":
+		return False
+	if "TR_ENVELOPED" not in record.info:
+		return False
+	trid = get_trid(record)
+	return trid is not None and trid in trv_trids
+
+
+def get_collection(record, trv_trids):
+	allele_type = get_allele_type(record)
+	if allele_type == "trv":
+		return "trv"
+	if is_tr_enveloped(record, trv_trids):
+		return "tr_enveloped"
+	return "outside_tr"
+
+
 def summarize(points):
 	points.sort(key=lambda item: item[0])
 	states = [state for _pos, state, _record_key in points]
@@ -314,44 +344,47 @@ def summarize(points):
 	record_statuses = {}
 	switch_error_count = 0
 	flip_error_count = 0
-	
+	status_by_index = ["XC" if state == 1 else "CN" for state in states]
+	switch_indices = [idx for idx in range(1, matched_count) if states[idx] != states[idx - 1]]
+	flip_indices = set()
 	idx = 0
-	while idx < len(points):
-		_pos, _state, record_key = points[idx]
-		status = "XC" if states[idx] == 1 else "CN"
-		
-		if idx > 0 and states[idx] != states[idx - 1]:
-			if idx + 1 < len(states) and states[idx + 1] == states[idx - 1]:
-				status = "FL"
-				flip_error_count += 1
-				current = record_statuses.get(record_key)
-				if current is None or status_priority[status] > status_priority.get(current, -1):
-					record_statuses[record_key] = status
-				
-				idx += 1
-				_pos2, _state2, record_key2 = points[idx]
-				status2 = "XC" if states[idx] == 1 else "CN"
-				current2 = record_statuses.get(record_key2)
-				if current2 is None or status_priority[status2] > status_priority.get(current2, -1):
-					record_statuses[record_key2] = status2
-				
-				idx += 1
-				continue
-			else:
-				status = "SW"
-				switch_error_count += 1
+	while idx < len(switch_indices):
+		current_index = switch_indices[idx]
+		if idx + 1 < len(switch_indices) and switch_indices[idx + 1] == current_index + 1:
+			flip_indices.add(current_index)
+			flip_indices.add(current_index + 1)
+			flip_error_count += 1
+			idx += 2
+		else:
+			status_by_index[current_index] = "SW"
+			switch_error_count += 1
+			idx += 1
 
+	for flip_index in flip_indices:
+		status_by_index[flip_index] = "FL"
+
+	for idx, (_pos, _state, record_key) in enumerate(points):
+		status = status_by_index[idx]
 		current = record_statuses.get(record_key)
 		if current is None or status_priority[status] > status_priority.get(current, -1):
 			record_statuses[record_key] = status
-			
-		idx += 1
 		
 	return matched_count, switch_error_count, flip_error_count, record_statuses
 
 
 with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 	samples = list(backbone_in.header.samples)
+
+trv_trids = set()
+with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
+	for record in backbone_in:
+		if not record.alts:
+			continue
+		if get_allele_type(record) != "trv":
+			continue
+		trid = get_trid(record)
+		if trid is not None:
+			trv_trids.add(trid)
 
 base_calls = defaultdict(dict)
 with pysam.VariantFile("base.vcf.gz") as base_in:
@@ -368,6 +401,7 @@ with pysam.VariantFile("base.vcf.gz") as base_in:
 collection_points = {
 	"outside_tr": defaultdict(list),
 	"tr_enveloped": defaultdict(list),
+	"trv": defaultdict(list),
 }
 
 limit = ~{max_variants}
@@ -379,8 +413,7 @@ with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 		if limit >= 0 and seen_records >= limit:
 			break
 		seen_records += 1
-		allele_type = get_allele_type(record)
-		collection = "tr_enveloped" if allele_type == "trv" else "outside_tr"
+		collection = get_collection(record, trv_trids)
 		normalized_record_key = normalize_record_key(record)
 		for sample in samples:
 			for call in iter_comparable_calls(record, sample, require_phased=True):
@@ -395,20 +428,24 @@ with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 					continue
 				collection_points[collection][sample].append((call["pos"], state, normalized_record_key))
 
-with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
+with open("~{prefix}.outside_tr.tsv", "w") as outside_out, open("~{prefix}.tr_enveloped.tsv", "w") as tr_env_out, open("~{prefix}.trv.tsv", "w") as trv_out, gzip.open("~{prefix}.status.tsv.gz", "wt") as status_out:
 	outside_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
-	tr_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
+	tr_env_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
+	trv_out.write("contig\tsample\tmatched_count\tswitch_error_count\tflip_error_count\n")
 	status_out.write("chrom\tpos\tvariant_id\tref\talt\tallele_type\tsample\tstatus\n")
-	for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_out)):
+	for collection, handle in (("outside_tr", outside_out), ("tr_enveloped", tr_env_out), ("trv", trv_out)):
 		for sample in samples:
 			matched_count, switch_error_count, flip_error_count, record_statuses = summarize(collection_points[collection][sample])
 			handle.write(f"~{contig}\t{sample}\t{matched_count}\t{switch_error_count}\t{flip_error_count}\n")
+			for record_key, status in record_statuses.items():
+				status_out.write("\t".join((*record_key, sample, status)) + "\n")
 CODE
 	>>>
 
 	output {
 		File outside_tr_tsv = "~{prefix}.outside_tr.tsv"
 		File tr_enveloped_tsv = "~{prefix}.tr_enveloped.tsv"
+		File trv_tsv = "~{prefix}.trv.tsv"
 		File status_tsv_gz = "~{prefix}.status.tsv.gz"
 	}
 
@@ -564,7 +601,7 @@ task AggregatePhasingResults {
 	input {
 		Array[File] outside_tr_tsvs
 		Array[File] tr_enveloped_tsvs
-		Array[String] contigs
+		Array[File] trv_tsvs
 		String prefix
 		String utils_docker
 		RuntimeAttr? runtime_attr_override
@@ -622,17 +659,23 @@ with open("~{write_lines(outside_tr_tsvs)}") as handle:
 with open("~{write_lines(tr_enveloped_tsvs)}") as handle:
 	tr_enveloped_paths = [line.strip() for line in handle if line.strip()]
 
+with open("~{write_lines(trv_tsvs)}") as handle:
+	trv_paths = [line.strip() for line in handle if line.strip()]
+
 outside_rows = load_rows(outside_paths)
 tr_enveloped_rows = load_rows(tr_enveloped_paths)
+trv_rows = load_rows(trv_paths)
 
 write_rows(outside_rows, "~{prefix}.outside_tr.tsv")
 write_rows(tr_enveloped_rows, "~{prefix}.tr_enveloped.tsv")
+write_rows(trv_rows, "~{prefix}.trv.tsv")
 CODE
 	>>>
 
 	output {
 		File outside_tr_table = "~{prefix}.outside_tr.tsv"
 		File tr_enveloped_table = "~{prefix}.tr_enveloped.tsv"
+		File trv_table = "~{prefix}.trv.tsv"
 	}
 
 	RuntimeAttr default_attr = object {

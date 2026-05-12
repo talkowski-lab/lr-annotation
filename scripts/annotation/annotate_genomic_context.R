@@ -106,4 +106,4 @@ if (file.exists(paste(opt$path, 'lg_cnv.vs.SR', sep='/'))) {
     dat[!is.na(dat[, ncol(dat)]),][, ncol(dat)-1] = dat[!is.na(dat[, ncol(dat)]),][, ncol(dat)]
 }
 
-write.table(dat[, c('CHROM', 'POS', 'REF', 'ALT', 'ID', 'GC')], opt$output, quote=F, sep='\t', col.names=T, row.names=F)
+write.table(dat[, c('CHROM', 'POS', 'REF', 'ALT', 'ID', 'GC')], opt$output, quote=F, sep='\t', col.names=F, row.names=F)
