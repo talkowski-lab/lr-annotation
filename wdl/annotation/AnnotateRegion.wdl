@@ -77,7 +77,7 @@ workflow AnnotateRegion {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = AnnotateGenomicContext.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.region_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
@@ -173,8 +173,10 @@ task AnnotateGenomicContext {
         # Run script to assign genomic context
         Rscript /opt/gnomad-lr/scripts/annotation/annotate_genomic_context.R \
             -i ${TMPPATH}/tmp.sites \
-            -o ~{prefix}.annotations.tsv \
+            -o ${TMPPATH}/annotations.unsorted.tsv \
             -p ${TMPPATH}
+
+        sort -k1,1 -k2,2n ${TMPPATH}/annotations.unsorted.tsv > ~{prefix}.annotations.tsv
     >>>
 
     output {

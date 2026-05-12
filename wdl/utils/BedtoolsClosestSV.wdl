@@ -207,7 +207,6 @@ workflow BedtoolsClosestSV {
     }
 
     output {
-        File closest_bed = PrioritizedConcatComparisons.merged_tsv
         File annotation_tsv = CreateBedtoolsAnnotationTsv.annotation_tsv
     }
 }
@@ -474,7 +473,8 @@ task CreateBedtoolsAnnotationTsv {
 
         awk -F'\t' 'BEGIN{OFS="\t"} {
             print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV"
-        }' joined.tsv > ~{prefix}.bedtools_matched.tsv
+        }' joined.tsv \
+        | sort -k1,1V -k2,2n > ~{prefix}.bedtools_matched.tsv
     >>>
 
     output {
