@@ -38,7 +38,7 @@ workflow CountAnnotations {
 	Int effective_min_length = select_first([min_length, -1])
 
 	scatter (i in range(length(vcfs))) {
-		if (defined(shard_bin_size) && defined(ref_fai)) {
+		if (defined(shard_bin_size)) {
 			call Helpers.CreateShardsFromVcfIndex {
 				input:
 					vcf_idx = vcf_idxs[i],
