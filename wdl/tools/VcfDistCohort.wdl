@@ -142,11 +142,11 @@ workflow VcfDistCohort {
 				}
 			}
 
-			Array[File] shard_phasing_summary_tsvs = AnnotateVcfDistResults.phasing_summary_tsv
-			Array[File] shard_precision_recall_summary_tsvs = AnnotateVcfDistResults.precision_recall_summary_tsv
-			Array[File] shard_precision_recall_tsvs = AnnotateVcfDistResults.precision_recall_tsv
-			Array[File] shard_switchflips_tsvs = AnnotateVcfDistResults.switchflips_tsv
-			Array[File] shard_phase_blocks_tsvs = AnnotateVcfDistResults.phase_blocks_tsv
+			Array[File] shard_phasing_summary_tsvs = AnnotateVcfDistResults.annotated_phasing_summary_tsv
+			Array[File] shard_precision_recall_summary_tsvs = AnnotateVcfDistResults.annotated_precision_recall_summary_tsv
+			Array[File] shard_precision_recall_tsvs = AnnotateVcfDistResults.annotated_precision_recall_tsv
+			Array[File] shard_switchflips_tsvs = AnnotateVcfDistResults.annotated_switchflips_tsv
+			Array[File] shard_phase_blocks_tsvs = AnnotateVcfDistResults.annotated_phase_blocks_tsv
 		}
 
 		Array[File] contig_phasing_summary_tsvs = flatten(shard_phasing_summary_tsvs)
@@ -290,11 +290,11 @@ CODE
 	>>>
 
 	output {
-		File phasing_summary_tsv = "~{prefix}.phasing_summary.tsv"
-		File precision_recall_summary_tsv = "~{prefix}.precision_recall_summary.tsv"
-		File precision_recall_tsv = "~{prefix}.precision_recall.tsv"
-		File switchflips_tsv = "~{prefix}.switchflips.tsv"
-		File phase_blocks_tsv = "~{prefix}.phase_blocks.tsv"
+		File annotated_phasing_summary_tsv = "~{prefix}.phasing_summary.tsv"
+		File annotated_precision_recall_summary_tsv = "~{prefix}.precision_recall_summary.tsv"
+		File annotated_precision_recall_tsv = "~{prefix}.precision_recall.tsv"
+		File annotated_switchflips_tsv = "~{prefix}.switchflips.tsv"
+		File annotated_phase_blocks_tsv = "~{prefix}.phase_blocks.tsv"
 	}
 
 	RuntimeAttr default_attr = object {
