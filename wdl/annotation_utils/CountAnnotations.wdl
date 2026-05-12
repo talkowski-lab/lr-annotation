@@ -19,6 +19,8 @@ workflow CountAnnotations {
 		String subset_vcf_string = ""
 		
 		Int? records_per_shard
+		Int? shard_bin_size
+		File? ref_fai
 		Int? max_length
 		Int? min_length
 
@@ -26,6 +28,8 @@ workflow CountAnnotations {
 
 		RuntimeAttr? runtime_attr_subset
 		RuntimeAttr? runtime_attr_shard
+		RuntimeAttr? runtime_attr_create_shards
+		RuntimeAttr? runtime_attr_region_subset
 		RuntimeAttr? runtime_attr_count
 		RuntimeAttr? runtime_attr_merge
 	}
@@ -34,7 +38,31 @@ workflow CountAnnotations {
 	Int effective_min_length = select_first([min_length, -1])
 
 	scatter (i in range(length(vcfs))) {
-		if (defined(records_per_shard)) {
+		if (defined(shard_bin_size) && defined(ref_fai)) {
+			call Helpers.CreateShardsFromVcfIndex {
+				input:
+					vcf_idx = vcf_idxs[i],
+					ref_fai = select_first([ref_fai]),
+					shard_bin_size = select_first([shard_bin_size]),
+					prefix = "~{prefix}.input_~{i}.shards",
+					docker = utils_docker,
+					runtime_attr_override = runtime_attr_create_shards
+			}
+
+			scatter (k in range(length(CreateShardsFromVcfIndex.shard_regions))) {
+				call Helpers.SubsetVcfToRegionStreaming {
+					input:
+						vcf = vcfs[i],
+						vcf_idx = vcf_idxs[i],
+						region = CreateShardsFromVcfIndex.shard_regions[k],
+						prefix = "~{prefix}.input_~{i}.region_~{k}",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_region_subset
+				}
+			}
+		}
+
+		if (!defined(shard_bin_size) && defined(records_per_shard)) {
 			call Helpers.ShardVcfByRecords {
 				input:
 					vcf = vcfs[i],
@@ -46,8 +74,8 @@ workflow CountAnnotations {
 			}
 		}
 
-		Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [vcfs[i]]])
-		Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcf_idxs[i]]])
+		Array[File] shard_vcfs = select_first([SubsetVcfToRegionStreaming.subset_vcf, ShardVcfByRecords.shards, [vcfs[i]]])
+		Array[File] shard_vcf_idxs = select_first([SubsetVcfToRegionStreaming.subset_vcf_idx, ShardVcfByRecords.shard_idxs, [vcf_idxs[i]]])
 
 		scatter (j in range(length(shard_vcfs))) {
 			if (create_variant_attributes) {

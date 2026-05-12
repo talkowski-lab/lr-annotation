@@ -77,7 +77,7 @@ workflow AnnotateRegion {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = AnnotateGenomicContext.annotations_tsv,
-                    sort_output = true,
+                    sort_output = false,
                     prefix = "~{prefix}.~{contig}.region_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
