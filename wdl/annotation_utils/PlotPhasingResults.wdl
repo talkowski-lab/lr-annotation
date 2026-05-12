@@ -382,9 +382,7 @@ with pysam.VariantFile("backbone.vcf.gz") as backbone_in:
 			continue
 		if get_allele_type(record) != "trv":
 			continue
-		trid = get_trid(record)
-		if trid is not None:
-			trv_trids.add(trid)
+		trv_trids.add(record.id)
 
 base_calls = defaultdict(dict)
 with pysam.VariantFile("base.vcf.gz") as base_in:
