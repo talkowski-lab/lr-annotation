@@ -137,40 +137,6 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    call Helpers.BedtoolsClosest as CompareINV {
-        input:
-            bed_a = SplitEval.inv_bed,
-            bed_b = SplitTruth.inv_bed,
-            prefix = "~{prefix}.INV",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedSVs as CalcuINV {
-        input:
-            input_bed = CompareINV.output_bed,
-            prefix = "~{prefix}.INV",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareBND {
-        input:
-            bed_a = SplitEval.bnd_bed,
-            bed_b = SplitTruth.bnd_bed,
-            prefix = "~{prefix}.BND",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedINSs as CalcuBND {
-        input:
-            input_bed = CompareBND.output_bed,
-            prefix = "~{prefix}.BND",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
     call CollapseRangedToPoint as CollapseTruthDUP {
         input:
             bed = SplitTruth.dup_bed,
@@ -221,11 +187,10 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    # Postprocessing
-    call Helpers.ConcatTsvs {
+    call PrioritizedConcatComparisons {
         input:
-            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp, CalcuINV.output_comp, CalcuBND.output_comp, CalcuINS_DUP.output_comp, CalcuDUP_INS.output_comp],
-            sort_output = true,
+            primary_tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp],
+            secondary_tsvs = [CalcuINS_DUP.output_comp, CalcuDUP_INS.output_comp],
             prefix = "~{prefix}.comparison",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
@@ -235,14 +200,14 @@ workflow BedtoolsClosestSV {
         input:
             truvari_unmatched_vcf = SubsetEval.subset_vcf,
             truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
-            closest_bed = ConcatTsvs.concatenated_tsv,
+            closest_bed = PrioritizedConcatComparisons.merged_tsv,
             prefix = "~{prefix}.bedtools_closest_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
     output {
-        File closest_bed = ConcatTsvs.concatenated_tsv
+        File closest_bed = PrioritizedConcatComparisons.merged_tsv
         File annotation_tsv = CreateBedtoolsAnnotationTsv.annotation_tsv
     }
 }
@@ -415,6 +380,51 @@ task CollapseRangedToPoint {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size(bed, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task PrioritizedConcatComparisons {
+    input {
+        Array[File] primary_tsvs
+        Array[File] secondary_tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        cat ~{sep=" " primary_tsvs} > ~{prefix}.comparison
+
+        grep -v "query_svid" ~{prefix}.comparison | cut -f1 | sort -u > seen_ids.txt
+
+        for f in ~{sep=" " secondary_tsvs}; do
+            awk -F'\t' 'NR==FNR{seen[$1]=1; next} !($1 in seen)' seen_ids.txt "$f" >> ~{prefix}.comparison
+        done
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.comparison"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
