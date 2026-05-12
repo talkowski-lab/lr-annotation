@@ -3,6 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl" as Helpers
 import "../utils/Structs.wdl"
 import "BackbonePhase.wdl" as BackbonePhase
+import "VcfDist.wdl" as VcfDist
 
 workflow VcfDistCohort {
 	input {
@@ -27,7 +28,10 @@ workflow VcfDistCohort {
 		RuntimeAttr? runtime_attr_subset_truth_contig
 		RuntimeAttr? runtime_attr_subset_truth_samples
 		RuntimeAttr? runtime_attr_subset_eval_samples
-		RuntimeAttr? runtime_attr_vcfdist_shard
+		RuntimeAttr? runtime_attr_extract_eval_sample
+		RuntimeAttr? runtime_attr_extract_truth_sample
+		RuntimeAttr? runtime_attr_vcfdist
+		RuntimeAttr? runtime_attr_annotate_vcfdist_results
 		RuntimeAttr? runtime_attr_aggregate_results
 	}
 
@@ -70,7 +74,7 @@ workflow VcfDistCohort {
 		}
 	}
 
-	# For each contig x truth VCF pair, subset to common samples and run vcfdist
+	# For each contig x truth VCF pair, subset to common samples and run vcfdist per sample
 	scatter (i in range(length(eval_vcfs))) {
 		scatter (j in range(length(truth_vcfs))) {
 			call Helpers.SubsetVcfToContig {
@@ -103,23 +107,59 @@ workflow VcfDistCohort {
 					runtime_attr_override = runtime_attr_subset_eval_samples
 			}
 
-			call RunVcfDistCohortShard {
-				input:
-					eval_vcf = SubsetEvalSamples.subset_vcf,
-					eval_vcf_idx = SubsetEvalSamples.subset_vcf_idx,
-					truth_vcf = SubsetTruthSamples.subset_vcf,
-					truth_vcf_idx = SubsetTruthSamples.subset_vcf_idx,
-					contig = contigs[i],
-					ref_fa = ref_fa,
-					vcfdist_args = select_first([vcfdist_args, ""]),
-					prefix = "~{prefix}.~{contigs[i]}.truth_~{j}",
-					docker = vcfdist_docker,
-					runtime_attr_override = runtime_attr_vcfdist_shard
+			scatter (sample in ExtractAssignedSamples.assigned_samples[j]) {
+				call Helpers.ExtractSample as ExtractEvalSample {
+					input:
+						vcf = SubsetEvalSamples.subset_vcf,
+						vcf_idx = SubsetEvalSamples.subset_vcf_idx,
+						sample = sample,
+						prefix = "~{prefix}.eval_~{contigs[i]}.truth_~{j}.~{sample}",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_extract_eval_sample
+				}
+
+				call Helpers.ExtractSample as ExtractTruthSample {
+					input:
+						vcf = SubsetTruthSamples.subset_vcf,
+						vcf_idx = SubsetTruthSamples.subset_vcf_idx,
+						sample = sample,
+						prefix = "~{prefix}.truth_~{j}.~{contigs[i]}.~{sample}",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_extract_truth_sample
+				}
+
+				call VcfDist.RunVcfDist {
+					input:
+						vcf_eval = ExtractEvalSample.subset_vcf,
+						vcf_eval_idx = ExtractEvalSample.subset_vcf_idx,
+						vcf_truth = ExtractTruthSample.subset_vcf,
+						vcf_truth_idx = ExtractTruthSample.subset_vcf_idx,
+						prefix = "~{prefix}.~{contigs[i]}.truth_~{j}.~{sample}",
+						ref_fa = ref_fa,
+						vcfdist_args = select_first([vcfdist_args, ""]),
+						docker = vcfdist_docker,
+						runtime_attr_override = runtime_attr_vcfdist
+				}
+
+				call AnnotateVcfDistResults {
+					input:
+						phasing_summary_tsv = RunVcfDist.phasing_summary_tsv,
+						precision_recall_summary_tsv = RunVcfDist.precision_recall_summary_tsv,
+						phase_blocks_tsv = RunVcfDist.phase_blocks_tsv,
+						contig = contigs[i],
+						sample = sample,
+						prefix = "~{prefix}.~{contigs[i]}.truth_~{j}.~{sample}",
+						docker = utils_docker,
+						runtime_attr_override = runtime_attr_annotate_vcfdist_results
+				}
 			}
+
+			Array[File] shard_phasing_tsvs = AnnotateVcfDistResults.phasing_tsv
+			Array[File] shard_precision_recall_tsvs = AnnotateVcfDistResults.precision_recall_tsv
 		}
 
-		Array[File] contig_phasing_tsvs = RunVcfDistCohortShard.phasing_tsv
-		Array[File] contig_precision_recall_tsvs = RunVcfDistCohortShard.precision_recall_tsv
+		Array[File] contig_phasing_tsvs = flatten(shard_phasing_tsvs)
+		Array[File] contig_precision_recall_tsvs = flatten(shard_precision_recall_tsvs)
 	}
 
 	Array[File] all_phasing_tsvs = flatten(contig_phasing_tsvs)
@@ -196,15 +236,13 @@ CODE
 	}
 }
 
-task RunVcfDistCohortShard {
+task AnnotateVcfDistResults {
 	input {
-		File eval_vcf
-		File eval_vcf_idx
-		File truth_vcf
-		File truth_vcf_idx
+		File phasing_summary_tsv
+		File precision_recall_summary_tsv
+		File phase_blocks_tsv
 		String contig
-		File ref_fa
-		String? vcfdist_args
+		String sample
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override
@@ -213,144 +251,43 @@ task RunVcfDistCohortShard {
 	command <<<
 		set -euo pipefail
 
-		ln -s "~{eval_vcf}" eval.vcf.gz
-		ln -s "~{eval_vcf_idx}" eval.vcf.gz.tbi
-		ln -s "~{truth_vcf}" truth.vcf.gz
-		ln -s "~{truth_vcf_idx}" truth.vcf.gz.tbi
-		ln -s "~{ref_fa}" ref.fa
-
 		python3 <<CODE
-import gzip
-import subprocess
-import os
 import csv
 
-
-def split_vcf(input_vcf, output_dir, suffix):
-	"""Split a multi-sample VCF into per-sample single-sample VCFs in one pass."""
-	os.makedirs(output_dir, exist_ok=True)
-	meta_headers = []
-	samples = []
-	handles = {}
-	sample_cols = {}
-
-	with gzip.open(input_vcf, "rt") as f:
-		for line in f:
-			if line.startswith("##"):
-				meta_headers.append(line)
-			elif line.startswith("#CHROM"):
-				fields = line.rstrip("\n").split("\t")
-				samples = fields[9:]
-				fixed = "\t".join(fields[:9])
-				for i, sample in enumerate(samples):
-					sample_cols[sample] = i + 9
-					path = os.path.join(output_dir, f"{sample}.{suffix}.vcf")
-					handle = open(path, "w")
-					for mh in meta_headers:
-						handle.write(mh)
-					handle.write(fixed + "\t" + sample + "\n")
-					handles[sample] = handle
-			else:
-				fields = line.rstrip("\n").split("\t")
-				fixed = "\t".join(fields[:9])
-				for sample, col in sample_cols.items():
-					gt = fields[col].split(":")[0]
-					alleles = gt.replace("|", "/").split("/")
-					if all(a in ("0", ".") for a in alleles):
-						continue
-					handles[sample].write(fixed + "\t" + fields[col] + "\n")
-
-	for h in handles.values():
-		h.close()
-
-	for sample in samples:
-		path = os.path.join(output_dir, f"{sample}.{suffix}.vcf")
-		subprocess.run(["bgzip", path], check=True)
-		subprocess.run(["tabix", "-p", "vcf", f"{path}.gz"], check=True)
-
-	return samples
-
-
-# Split multi-sample VCFs into per-sample VCFs
-eval_samples = split_vcf("eval.vcf.gz", "per_sample", "eval")
-truth_samples = split_vcf("truth.vcf.gz", "per_sample", "truth")
-common_samples = sorted(set(eval_samples) & set(truth_samples))
+total_sc = 0
+with open("~{phase_blocks_tsv}") as f:
+	reader = csv.DictReader(f, delimiter="\t")
+	for row in reader:
+		total_sc += int(row.get("SUPERCLUSTERS", 0))
 
 contig = "~{contig}"
-vcfdist_extra = "~{if defined(vcfdist_args) then vcfdist_args else ""}"
-
-phasing_rows = []
-pr_rows = []
-
-for sample in common_samples:
-	eval_path = f"per_sample/{sample}.eval.vcf.gz"
-	truth_path = f"per_sample/{sample}.truth.vcf.gz"
-	result_dir = f"results/{sample}/"
-	os.makedirs(result_dir, exist_ok=True)
-
-	cmd = ["vcfdist", eval_path, truth_path, "ref.fa", "-p", result_dir]
-	if vcfdist_extra:
-		cmd.extend(vcfdist_extra.split())
-
-	result = subprocess.run(cmd, capture_output=True, text=True)
-	if result.returncode != 0:
-		print(f"WARNING: vcfdist failed for {sample}: {result.stderr}", flush=True)
-		continue
-
-	# Collect phasing summary
-	phasing_file = f"{result_dir}phasing-summary.tsv"
-	if os.path.exists(phasing_file):
-		with open(phasing_file) as f:
-			reader = csv.DictReader(f, delimiter="\t")
-			for row in reader:
-				row["contig"] = contig
-				row["sample"] = sample
-				phasing_rows.append(dict(row))
-
-	# Sum superclusters across phase blocks for rate computation
-	phase_blocks_file = f"{result_dir}phase-blocks.tsv"
-	total_sc = 0
-	if os.path.exists(phase_blocks_file):
-		with open(phase_blocks_file) as f:
-			reader = csv.DictReader(f, delimiter="\t")
-			for row in reader:
-				total_sc += int(row.get("SUPERCLUSTERS", 0))
-	if phasing_rows and phasing_rows[-1]["sample"] == sample:
-		phasing_rows[-1]["TOTAL_SUPERCLUSTERS"] = str(total_sc)
-
-	# Collect precision-recall summary
-	pr_file = f"{result_dir}precision-recall-summary.tsv"
-	if os.path.exists(pr_file):
-		with open(pr_file) as f:
-			reader = csv.DictReader(f, delimiter="\t")
-			for row in reader:
-				row["contig"] = contig
-				row["sample"] = sample
-				pr_rows.append(dict(row))
-
+sample = "~{sample}"
 prefix = "~{prefix}"
 
-# Write shard phasing TSV
-with open(f"{prefix}.phasing.tsv", "w") as f:
-	if phasing_rows:
-		base_cols = [k for k in phasing_rows[0] if k not in ("contig", "sample")]
-		cols = ["contig", "sample"] + base_cols
-		f.write("\t".join(cols) + "\n")
-		for row in phasing_rows:
-			f.write("\t".join(str(row.get(c, "")) for c in cols) + "\n")
-	else:
-		f.write("contig\tsample\n")
+with open("~{phasing_summary_tsv}") as f:
+	reader = csv.DictReader(f, delimiter="\t")
+	rows = list(reader)
+	orig_fields = reader.fieldnames or []
+cols = ["contig", "sample"] + [c for c in orig_fields] + ["TOTAL_SUPERCLUSTERS"]
+with open(f"{prefix}.phasing.tsv", "w") as out:
+	out.write("\t".join(cols) + "\n")
+	for row in rows:
+		row["contig"] = contig
+		row["sample"] = sample
+		row["TOTAL_SUPERCLUSTERS"] = str(total_sc)
+		out.write("\t".join(str(row.get(c, "")) for c in cols) + "\n")
 
-# Write shard precision-recall TSV
-with open(f"{prefix}.precision_recall.tsv", "w") as f:
-	if pr_rows:
-		base_cols = [k for k in pr_rows[0] if k not in ("contig", "sample")]
-		cols = ["contig", "sample"] + base_cols
-		f.write("\t".join(cols) + "\n")
-		for row in pr_rows:
-			f.write("\t".join(str(row.get(c, "")) for c in cols) + "\n")
-	else:
-		f.write("contig\tsample\n")
+with open("~{precision_recall_summary_tsv}") as f:
+	reader = csv.DictReader(f, delimiter="\t")
+	pr_rows = list(reader)
+	pr_fields = reader.fieldnames or []
+pr_cols = ["contig", "sample"] + [c for c in pr_fields]
+with open(f"{prefix}.precision_recall.tsv", "w") as out:
+	out.write("\t".join(pr_cols) + "\n")
+	for row in pr_rows:
+		row["contig"] = contig
+		row["sample"] = sample
+		out.write("\t".join(str(row.get(c, "")) for c in pr_cols) + "\n")
 CODE
 	>>>
 
@@ -360,9 +297,9 @@ CODE
 	}
 
 	RuntimeAttr default_attr = object {
-		cpu_cores: 4,
-		mem_gb: 32,
-		disk_gb: 4 * (ceil(size(eval_vcf, "GiB")) + ceil(size(truth_vcf, "GiB"))) + ceil(size(ref_fa, "GiB")) + 50,
+		cpu_cores: 1,
+		mem_gb: 2,
+		disk_gb: 10,
 		boot_disk_gb: 10,
 		preemptible_tries: 2,
 		max_retries: 0
