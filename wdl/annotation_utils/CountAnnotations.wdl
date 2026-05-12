@@ -230,8 +230,10 @@ COLUMN_BUCKETS = [
 	"SNV",
 	"INS 1-49bp",
 	"DEL 1-49bp",
-	"INS >49bp",
-	"DEL >49bp",
+	"INS 50-499bp",
+	"INS >499bp",
+	"DEL 50-499bp",
+	"DEL >499bp",
 	"TRV",
 	"Other",
 ]
@@ -421,9 +423,11 @@ def determine_column(record):
 	variant_id = (record.id or "").upper()
 	if allele_type == "snv": return "SNV"
 	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
-	if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 50: return "INS >49bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
 	if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
-	if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 50: return "DEL >49bp"
+	if (allele_type == "del" or "DEL" in variant_id) and allele_length < 500: return "DEL 50-499bp"
+	if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 500: return "DEL >499bp"
 	if allele_type == "trv": return "TRV"
 	return "Other"
 
