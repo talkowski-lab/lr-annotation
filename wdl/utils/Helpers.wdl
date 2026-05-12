@@ -2270,13 +2270,22 @@ task SubsetVcfToRegionStreaming {
     command <<<
         set -euo pipefail
 
-        export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
-
-        bcftools view \
-            -r ~{region} \
-            --threads $(nproc) \
-            ~{vcf} \
-            -Oz -o ~{prefix}.vcf.gz
+        for attempt in 1 2 3; do
+            export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+            if bcftools view \
+                    -r ~{region} \
+                    --threads $(nproc) \
+                    ~{vcf} \
+                    -Oz -o ~{prefix}.vcf.gz; then
+                break
+            fi
+            if [[ $attempt -lt 3 ]]; then
+                sleep $((attempt * 15))
+            else
+                echo "bcftools view failed after 3 attempts" >&2
+                exit 1
+            fi
+        done
 
         tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
