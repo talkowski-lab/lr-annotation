@@ -231,8 +231,8 @@ COLUMN_BUCKETS = [
 	"INS 1-49bp",
 	"DEL 1-49bp",
 	"INS 50-499bp",
-	"INS >499bp",
 	"DEL 50-499bp",
+	"INS >499bp",
 	"DEL >499bp",
 	"TRV",
 	"Other",
@@ -423,10 +423,10 @@ def determine_column(record):
 	variant_id = (record.id or "").upper()
 	if allele_type == "snv": return "SNV"
 	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
-	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
-	if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
 	if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
 	if (allele_type == "del" or "DEL" in variant_id) and allele_length < 500: return "DEL 50-499bp"
+	if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
 	if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 500: return "DEL >499bp"
 	if allele_type == "trv": return "TRV"
 	return "Other"
@@ -717,7 +717,6 @@ task MergeAnnotationCountTables {
 
 		python3 <<'PYCODE'
 import csv
-from collections import defaultdict
 
 COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
@@ -782,7 +781,7 @@ def normalize_input_label(value):
 	return INTERNAL_TOTAL_LABEL if value == DISPLAY_ALL_LABEL else value
 
 header = None
-counts = defaultdict(lambda: [0.0] * 7)
+counts = {}
 group_column_count = 4 if SPLIT_BY_REGION else 3
 
 for path in COUNT_FILES:
@@ -826,21 +825,33 @@ with open(OUTPUT, "w", newline="") as handle:
 	writer = csv.writer(handle, delimiter="\t")
 	writer.writerow(header)
 
-	def write_row(c, a, t, region, values):
+	def get_row_prefix(c, a, t, region, suffix=""):
+		display_category = DISPLAY_ALL_LABEL if c == INTERNAL_TOTAL_LABEL else c
+		display_sub_category = DISPLAY_ALL_LABEL if a == INTERNAL_TOTAL_LABEL else a
+		display_tr_status = DISPLAY_ALL_LABEL if t == INTERNAL_TOTAL_LABEL else t
+		row_prefix = [display_category, f"{display_sub_category}{suffix}", display_tr_status]
+		if SPLIT_BY_REGION:
+			display_region = DISPLAY_ALL_LABEL if region == INTERNAL_TOTAL_LABEL else region
+			row_prefix.append(display_region)
+		return row_prefix
+
+	def write_count_row(c, a, t, region, values):
 		if MODE == "sites":
 			formatted = [str(int(round(v))) for v in values]
 		else:
 			formatted = [f"{v / denominator:.2f}" for v in values]
 
-		display_category = DISPLAY_ALL_LABEL if c == INTERNAL_TOTAL_LABEL else c
-		display_sub_category = DISPLAY_ALL_LABEL if a == INTERNAL_TOTAL_LABEL else a
-		display_tr_status = DISPLAY_ALL_LABEL if t == INTERNAL_TOTAL_LABEL else t
-		row_prefix = [display_category, display_sub_category, display_tr_status]
-		if SPLIT_BY_REGION:
-			display_region = DISPLAY_ALL_LABEL if region == INTERNAL_TOTAL_LABEL else region
-			row_prefix.append(display_region)
+		writer.writerow(get_row_prefix(c, a, t, region) + formatted)
 
-		writer.writerow(row_prefix + formatted)
+	def write_percentage_row(c, a, t, region, values, denominator_values):
+		formatted = []
+		for value, denominator_value in zip(values, denominator_values):
+			if denominator_value == 0:
+				formatted.append("0.00")
+			else:
+				formatted.append(f"{100.0 * value / denominator_value:.2f}")
+
+		writer.writerow(get_row_prefix(c, a, t, region, suffix=" (%)") + formatted)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
@@ -848,10 +859,14 @@ with open(OUTPUT, "w", newline="") as handle:
 			if SPLIT_BY_REGION:
 				for region in REGION_ORDER:
 					values = counts.get((cat, ann, tr, region), [0.0] * value_count)
-					write_row(cat, ann, tr, region, values)
+					denominator_values = counts.get((INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, tr, region), [0.0] * value_count)
+					write_count_row(cat, ann, tr, region, values)
+					write_percentage_row(cat, ann, tr, region, values, denominator_values)
 			else:
 				values = counts.get((cat, ann, tr), [0.0] * value_count)
-				write_row(cat, ann, tr, INTERNAL_TOTAL_LABEL, values)
+				denominator_values = counts.get((INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, tr), [0.0] * value_count)
+				write_count_row(cat, ann, tr, INTERNAL_TOTAL_LABEL, values)
+				write_percentage_row(cat, ann, tr, INTERNAL_TOTAL_LABEL, values, denominator_values)
 PYCODE
 	>>>
 
