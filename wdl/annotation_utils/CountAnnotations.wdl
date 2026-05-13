@@ -847,11 +847,11 @@ with open(OUTPUT, "w", newline="") as handle:
 		formatted = []
 		for value, denominator_value in zip(values, denominator_values):
 			if denominator_value == 0:
-				formatted.append("0.00")
+				formatted.append("0.0000")
 			else:
-				formatted.append(f"{100.0 * value / denominator_value:.2f}")
+				formatted.append(f"{value / denominator_value:.4f}")
 
-		writer.writerow(get_row_prefix(c, a, t, region, suffix=" (%)") + formatted)
+		writer.writerow(get_row_prefix(c, a, t, region, suffix=" (prop)") + formatted)
 
 	for row_key in ROW_ORDER:
 		cat, ann = get_cat_ann(row_key)
