@@ -338,27 +338,33 @@ def first_value(value):
 		return value[0] if value else None
 	return value
 
+def get_info_value(record, key):
+	try:
+		return record.info.get(key)
+	except ValueError:
+		return None
+
 def get_string_info(record, key):
-	value = first_value(record.info.get(key))
+	value = first_value(get_info_value(record, key))
 	return "" if value is None else str(value)
 
 def get_int_info(record, key):
-	value = first_value(record.info.get(key))
+	value = first_value(get_info_value(record, key))
 	if value is None or value == ".":
 		return None
 	return abs(int(value))
 
 def get_float_info(record, key):
-	value = first_value(record.info.get(key))
+	value = first_value(get_info_value(record, key))
 	if value is None or value == ".":
 		return None
 	return float(value)
 
 def has_info(record, key):
-	return key in record.info
+	return get_info_value(record, key) is not None
 
 def get_info_gene_names(record, key):
-	value = record.info.get(key)
+	value = get_info_value(record, key)
 	if isinstance(value, str):
 		values = [value]
 	elif isinstance(value, (list, tuple)):
@@ -392,7 +398,7 @@ def extract_all_consequences(record, vep_field_indices):
 	consequence_idx = vep_field_indices.get("Consequence")
 	if consequence_idx is None or "vep" not in record.info:
 		return set()
-	annotations = record.info.get("vep")
+	annotations = get_info_value(record, "vep")
 	if isinstance(annotations, str):
 		annotations = [annotations]
 	consequences = set()
