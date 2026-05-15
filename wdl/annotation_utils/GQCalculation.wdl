@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow TrioQc {
+workflow GQCalculation {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs

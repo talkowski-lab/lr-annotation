@@ -257,6 +257,10 @@ TODO
 TODO
 
 
+### [GQCalculation](wdl/annotation_utils/GQCalculation.wdl)
+TODO
+
+
 ### [IntegrateVcfs](wdl/annotation_utils/IntegrateHGSVC.wdl)
 TODO
 
@@ -298,10 +302,6 @@ TODO
 
 
 ### [SubsetVcfToPerSample](wdl/annotation_utils/SubsetVcfToPerSample.wdl)
-TODO
-
-
-### [TrioQc](wdl/annotation_utils/TrioQc.wdl)
 TODO
 
 

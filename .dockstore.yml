@@ -322,6 +322,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: GQCalculation
+    primaryDescriptorPath: /wdl/annotation_utils/GQCalculation.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
     filters:
