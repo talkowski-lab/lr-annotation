@@ -358,7 +358,7 @@ def get_float_info(record, key):
 	return float(value)
 
 def has_info(record, key):
-	return get_info_value(record, key) is not None
+	return key in record.info
 
 def get_info_gene_names(record, key):
 	value = get_info_value(record, key)

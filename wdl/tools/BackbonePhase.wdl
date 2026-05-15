@@ -11,7 +11,7 @@ workflow BackbonePhase {
         Array[File] base_vcf_idxs
         String contig
         String prefix
-        Boolean allow_unphased_match_phase = true
+        Boolean allow_unphased_match_phase = false
 
         File? swap_samples_base
 
