@@ -17,12 +17,12 @@ workflow CountAnnotations {
 		Boolean split_by_region = false
 		Boolean create_variant_attributes = false
 		String subset_vcf_string = ""
+		Int max_length = -1
+		Int min_length = -1
 		
 		Int? records_per_shard
 		Int? shard_bin_size
 		File? ref_fai
-		Int? max_length
-		Int? min_length
 
 		String utils_docker
 
@@ -33,9 +33,6 @@ workflow CountAnnotations {
 		RuntimeAttr? runtime_attr_count
 		RuntimeAttr? runtime_attr_merge
 	}
-
-	Int effective_max_length = select_first([max_length, -1])
-	Int effective_min_length = select_first([min_length, -1])
 
 	scatter (i in range(length(vcfs))) {
 		if (defined(shard_bin_size)) {
@@ -107,8 +104,8 @@ workflow CountAnnotations {
 					create_per_allele = create_per_allele,
 					create_list = create_list,
 					split_by_region = split_by_region,
-					max_length = effective_max_length,
-					min_length = effective_min_length,
+					max_length = max_length,
+					min_length = min_length,
 					prefix = "~{prefix}.input_~{i}.shard_~{j}",
 					docker = utils_docker,
 					runtime_attr_override = runtime_attr_count
@@ -194,8 +191,8 @@ task CountAnnotationShard {
 		Boolean create_per_allele
 		Boolean create_list
 		Boolean split_by_region
-		Int max_length = -1
-		Int min_length = -1
+		Int max_length
+		Int min_length
 		String prefix
 		String docker
 		RuntimeAttr? runtime_attr_override

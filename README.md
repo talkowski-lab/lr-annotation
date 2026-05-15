@@ -301,6 +301,10 @@ TODO
 TODO
 
 
+### [TrioQc](wdl/annotation_utils/TrioQc.wdl)
+TODO
+
+
 ### [UpdateGenotypes](wdl/annotation_utils/UpdateGenotypes.wdl)
 TODO
 

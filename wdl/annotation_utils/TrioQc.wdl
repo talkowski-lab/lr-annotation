@@ -1,0 +1,562 @@
+version 1.0
+
+import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
+
+workflow TrioQc {
+    input {
+        Array[File] vcfs
+        Array[File] vcf_idxs
+        Array[File] truth_vcfs
+        Array[File] truth_vcf_idxs
+        String prefix
+
+        File ped
+
+        String utils_docker
+
+        RuntimeAttr? runtime_attr_find_trios
+        RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_trio_analysis
+        RuntimeAttr? runtime_attr_truth_analysis
+        RuntimeAttr? runtime_attr_merge_trio
+        RuntimeAttr? runtime_attr_merge_truth
+    }
+
+    # Find valid trios from PED file + VCF samples
+    call FindTrios {
+        input:
+            vcf = vcfs[0],
+            vcf_idx = vcf_idxs[0],
+            ped = ped,
+            prefix = prefix,
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_find_trios
+    }
+
+    Array[String] trio_samples = read_lines(FindTrios.trio_sample_ids_file)
+
+    # Trio de novo analysis
+    scatter (i in range(length(vcfs))) {
+        call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
+            input:
+                vcf = vcfs[i],
+                vcf_idx = vcf_idxs[i],
+                samples = trio_samples,
+                prefix = "~{prefix}.trio_subset.~{i}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_subset_vcf
+        }
+
+        call TrioDeNovoAnalysis {
+            input:
+                vcf = SubsetToTrioSamples.subset_vcf,
+                vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
+                trio_definitions = FindTrios.trio_definitions,
+                prefix = "~{prefix}.trio_denovo.~{i}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_trio_analysis
+        }
+    }
+
+    call MergeTrioResults {
+        input:
+            tsvs = TrioDeNovoAnalysis.trio_denovo_tsv,
+            prefix = "~{prefix}.trio_denovo",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_merge_trio
+    }
+
+    # Truth set concordance analysis
+    scatter (i in range(length(vcfs))) {
+        call TruthSetAnalysis {
+            input:
+                vcf = vcfs[i],
+                vcf_idx = vcf_idxs[i],
+                truth_vcf = truth_vcfs[i],
+                truth_vcf_idx = truth_vcf_idxs[i],
+                prefix = "~{prefix}.truth.~{i}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_truth_analysis
+        }
+    }
+
+    call MergeTruthResults {
+        input:
+            tsvs = TruthSetAnalysis.truth_concordance_tsv,
+            prefix = "~{prefix}.truth_concordance",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_merge_truth
+    }
+
+    output {
+        File trio_definitions = FindTrios.trio_definitions
+        File trio_denovo_tsv = MergeTrioResults.merged_tsv
+        File truth_concordance_tsv = MergeTruthResults.merged_tsv
+    }
+}
+
+
+task FindTrios {
+    input {
+        File vcf
+        File vcf_idx
+        File ped
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+vcf = pysam.VariantFile("~{vcf}")
+vcf_samples = set(vcf.header.samples)
+vcf.close()
+
+trios = []
+with open("~{ped}") as f:
+    for line in f:
+        if line.startswith("#"):
+            continue
+        fields = line.strip().split("\t")
+        sample, father, mother = fields[1], fields[2], fields[3]
+        if father != "0" and mother != "0":
+            if sample in vcf_samples and father in vcf_samples and mother in vcf_samples:
+                trios.append((sample, father, mother))
+
+with open("~{prefix}.trio_definitions.tsv", "w") as out:
+    for child, father, mother in trios:
+        out.write(f"{child}\t{father}\t{mother}\n")
+
+all_samples = set()
+for child, father, mother in trios:
+    all_samples.update([child, father, mother])
+
+with open("~{prefix}.trio_sample_ids.txt", "w") as out:
+    for sample in sorted(all_samples):
+        out.write(sample + "\n")
+CODE
+    >>>
+
+    output {
+        File trio_definitions = "~{prefix}.trio_definitions.tsv"
+        File trio_sample_ids_file = "~{prefix}.trio_sample_ids.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task TrioDeNovoAnalysis {
+    input {
+        File vcf
+        File vcf_idx
+        File trio_definitions
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+from collections import defaultdict
+
+trios = []
+with open("~{trio_definitions}") as f:
+    for line in f:
+        child, father, mother = line.strip().split("\t")
+        trios.append((child, father, mother))
+
+SIZE_BUCKETS = [(50, "<50"), (100, "50-99"), (500, "100-499"), (5000, "500-4999"), (50000, "5000-49999")]
+SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+
+def get_type(variant_id):
+    vid = (variant_id or "").upper()
+    if "INS" in vid:
+        return "INS"
+    elif "DEL" in vid:
+        return "DEL"
+    elif "TRV" in vid:
+        return "TRV"
+    return "SNV"
+
+def get_size_bucket(allele_length):
+    size = abs(allele_length)
+    for threshold, label in SIZE_BUCKETS:
+        if size < threshold:
+            return label
+    return "50000+"
+
+def is_nonref(gt):
+    return gt is not None and any(a is not None and a != 0 for a in gt)
+
+# (bucket_type, bucket_size, gq) -> [count, count_inherited, count_de_novo]
+counts = defaultdict(lambda: [0, 0, 0])
+
+vcf = pysam.VariantFile("~{vcf}")
+for record in vcf:
+    al = record.info.get("allele_length")
+    if al is None:
+        al = 0
+    elif isinstance(al, (list, tuple)):
+        al = al[0]
+
+    variant_type = get_type(record.id)
+    size_bucket = get_size_bucket(al)
+
+    for child, father, mother in trios:
+        child_gt = record.samples[child]["GT"]
+        if not is_nonref(child_gt):
+            continue
+
+        gq = record.samples[child].get("GQ")
+        if gq is None:
+            gq = 0
+
+        inherited = is_nonref(record.samples[father]["GT"]) or is_nonref(record.samples[mother]["GT"])
+        key = (variant_type, size_bucket, gq)
+        counts[key][0] += 1
+        if inherited:
+            counts[key][1] += 1
+        else:
+            counts[key][2] += 1
+
+vcf.close()
+
+with open("~{prefix}.tsv", "w") as out:
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\tDE_NOVO_RATE\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
+        bt, bs, gq = key
+        count, inherited, de_novo = counts[key]
+        rate = de_novo / count if count > 0 else 0.0
+        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\t{rate:.6f}\n")
+CODE
+    >>>
+
+    output {
+        File trio_denovo_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task MergeTrioResults {
+    input {
+        Array[File] tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+from collections import defaultdict
+
+SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+
+counts = defaultdict(lambda: [0, 0, 0])
+input_files = "~{sep=',' tsvs}".split(",")
+
+for f in input_files:
+    with open(f) as fh:
+        next(fh)
+        for line in fh:
+            fields = line.strip().split("\t")
+            key = (fields[0], fields[1], int(fields[2]))
+            counts[key][0] += int(fields[3])
+            counts[key][1] += int(fields[4])
+            counts[key][2] += int(fields[5])
+
+with open("~{prefix}.tsv", "w") as out:
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\tDE_NOVO_RATE\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
+        bt, bs, gq = key
+        count, inherited, de_novo = counts[key]
+        rate = de_novo / count if count > 0 else 0.0
+        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\t{rate:.6f}\n")
+CODE
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task TruthSetAnalysis {
+    input {
+        File vcf
+        File vcf_idx
+        File truth_vcf
+        File truth_vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        # Subset base VCF to common samples
+        bcftools query -l ~{vcf} | sort > vcf_samples.txt
+        bcftools query -l ~{truth_vcf} | sort > truth_samples.txt
+        comm -12 vcf_samples.txt truth_samples.txt > common_samples.txt
+
+        bcftools view -S common_samples.txt --min-ac 1 -Oz -o subset.vcf.gz ~{vcf}
+        tabix -p vcf subset.vcf.gz
+
+        python3 <<CODE
+import pysam
+from collections import defaultdict
+
+SIZE_BUCKETS = [(50, "<50"), (100, "50-99"), (500, "100-499"), (5000, "500-4999"), (50000, "5000-49999")]
+SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+
+def get_type(variant_id):
+    vid = (variant_id or "").upper()
+    if "INS" in vid:
+        return "INS"
+    elif "DEL" in vid:
+        return "DEL"
+    elif "TRV" in vid:
+        return "TRV"
+    return "SNV"
+
+def get_size_bucket(allele_length):
+    size = abs(allele_length)
+    for threshold, label in SIZE_BUCKETS:
+        if size < threshold:
+            return label
+    return "50000+"
+
+def is_nonref(gt):
+    return gt is not None and any(a is not None and a != 0 for a in gt)
+
+with open("common_samples.txt") as f:
+    common_samples = [line.strip() for line in f if line.strip()]
+
+# Build truth lookup: (chrom, pos, ref, alt) -> set of non-ref sample IDs
+truth_lookup = {}
+truth_in = pysam.VariantFile("~{truth_vcf}")
+for record in truth_in:
+    for alt in (record.alts or []):
+        key = (record.chrom, record.pos, record.ref, alt)
+        nonref = set()
+        for s in common_samples:
+            if s in truth_in.header.samples:
+                gt = record.samples[s]["GT"]
+                if is_nonref(gt):
+                    nonref.add(s)
+        truth_lookup[key] = nonref
+truth_in.close()
+
+# Per (bucket_type, bucket_size, gq) tracking
+variant_sites = defaultdict(set)
+variant_match_sites = defaultdict(set)
+match_call_count = defaultdict(int)
+match_concordant_count = defaultdict(int)
+
+vcf_in = pysam.VariantFile("subset.vcf.gz")
+for record in vcf_in:
+    al = record.info.get("allele_length")
+    if al is None:
+        al = 0
+    elif isinstance(al, (list, tuple)):
+        al = al[0]
+
+    variant_type = get_type(record.id)
+    size_bucket = get_size_bucket(al)
+
+    # Check truth match
+    has_match = False
+    truth_nonref = set()
+    for alt in (record.alts or []):
+        key = (record.chrom, record.pos, record.ref, alt)
+        if key in truth_lookup:
+            has_match = True
+            truth_nonref |= truth_lookup[key]
+
+    for s in common_samples:
+        gt = record.samples[s]["GT"]
+        if not is_nonref(gt):
+            continue
+
+        gq = record.samples[s].get("GQ")
+        if gq is None:
+            gq = 0
+
+        bucket_key = (variant_type, size_bucket, gq)
+        variant_sites[bucket_key].add(record.id)
+
+        if has_match:
+            variant_match_sites[bucket_key].add(record.id)
+            match_call_count[bucket_key] += 1
+            if s in truth_nonref:
+                match_concordant_count[bucket_key] += 1
+
+vcf_in.close()
+
+all_keys = sorted(variant_sites.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2]))
+with open("~{prefix}.tsv", "w") as out:
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tVARIANT_COUNT\tVARIANT_MATCH_COUNT\tMATCH_CALL_COUNT\tMATCH_CALL_CONCORDANT_COUNT\tMATCH_CALL_DISCORDANT_COUNT\n")
+    for key in all_keys:
+        bt, bs, gq = key
+        vc = len(variant_sites[key])
+        vmc = len(variant_match_sites.get(key, set()))
+        mcc = match_call_count.get(key, 0)
+        mccc = match_concordant_count.get(key, 0)
+        out.write(f"{bt}\t{bs}\t{gq}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
+CODE
+    >>>
+
+    output {
+        File truth_concordance_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 2 * ceil(size(truth_vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+
+task MergeTruthResults {
+    input {
+        Array[File] tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+from collections import defaultdict
+
+SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+
+# (bucket_type, bucket_size, gq) -> [variant_count, variant_match_count, match_call_count, match_concordant_count]
+counts = defaultdict(lambda: [0, 0, 0, 0])
+input_files = "~{sep=',' tsvs}".split(",")
+
+for f in input_files:
+    with open(f) as fh:
+        next(fh)
+        for line in fh:
+            fields = line.strip().split("\t")
+            key = (fields[0], fields[1], int(fields[2]))
+            counts[key][0] += int(fields[3])
+            counts[key][1] += int(fields[4])
+            counts[key][2] += int(fields[5])
+            counts[key][3] += int(fields[6])
+
+with open("~{prefix}.tsv", "w") as out:
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tVARIANT_COUNT\tVARIANT_MATCH_COUNT\tMATCH_CALL_COUNT\tMATCH_CALL_CONCORDANT_COUNT\tMATCH_CALL_DISCORDANT_COUNT\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
+        bt, bs, gq = key
+        vc, vmc, mcc, mccc = counts[key]
+        out.write(f"{bt}\t{bs}\t{gq}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
+CODE
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
