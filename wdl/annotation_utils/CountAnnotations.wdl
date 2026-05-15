@@ -118,6 +118,9 @@ workflow CountAnnotations {
 	Array[File] allele_count_tables = flatten(CountAnnotationShard.allele_counts_tsv)
 	Array[File] list_tables = flatten(CountAnnotationShard.list_tsv)
 	Array[File] sample_count_files = flatten(CountAnnotationShard.sample_count_file)
+	Array[File] functional_site_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
+	Array[File] functional_sample_count_tables = flatten(CountAnnotationShard.gene_sample_counts_tsv)
+	Array[File] functional_allele_count_tables = flatten(CountAnnotationShard.gene_allele_counts_tsv)
 
 	call MergeAnnotationCountTables as MergeSiteCounts {
 		input:
@@ -132,13 +135,21 @@ workflow CountAnnotations {
 
 	call MergeGeneCountTables as MergeGeneCounts {
 		input:
-			count_tsvs = flatten(CountAnnotationShard.gene_counts_tsv),
+			count_tsvs = functional_site_count_tables,
 			prefix = "~{prefix}.counts_functional",
 			docker = utils_docker,
 			runtime_attr_override = runtime_attr_merge
 	}
 
 	if (create_per_sample) {
+		call MergeGeneCountTables as MergeGeneSampleCounts {
+			input:
+				count_tsvs = functional_sample_count_tables,
+				prefix = "~{prefix}.counts_functional_samples",
+				docker = utils_docker,
+				runtime_attr_override = runtime_attr_merge
+		}
+
 		call MergeAnnotationCountTables as MergeSampleCounts {
 			input:
 				count_tsvs = sample_count_tables,
@@ -152,6 +163,14 @@ workflow CountAnnotations {
 	}
 
 	if (create_per_allele) {
+		call MergeGeneCountTables as MergeGeneAlleleCounts {
+			input:
+				count_tsvs = functional_allele_count_tables,
+				prefix = "~{prefix}.counts_functional_alleles",
+				docker = utils_docker,
+				runtime_attr_override = runtime_attr_merge
+		}
+
 		call MergeAnnotationCountTables as MergeAlleleCounts {
 			input:
 				count_tsvs = allele_count_tables,
@@ -177,6 +196,8 @@ workflow CountAnnotations {
 	output {
 		File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
 		File annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
+		File? annotation_counts_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
+		File? annotation_counts_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
 		File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
 		File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
 		File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
@@ -213,6 +234,8 @@ SAMPLE_OUTPUT = "~{prefix}.samples.raw.tsv"
 ALLELE_OUTPUT = "~{prefix}.alleles.raw.tsv"
 LIST_OUTPUT = "~{prefix}.list.raw.tsv"
 GENE_OUTPUT = "~{prefix}.genes.raw.tsv"
+GENE_SAMPLE_OUTPUT = "~{prefix}.genes.samples.raw.tsv"
+GENE_ALLELE_OUTPUT = "~{prefix}.genes.alleles.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
 CREATE_PER_SAMPLE = "~{create_per_sample}".lower() == "true"
 CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
@@ -267,18 +290,18 @@ ROW_ORDER = [
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
 	("", "Matched"),
-	("Matched", "dbGaP Matched"),
-	("Matched", "dbGaP Missing"),
-	("Matched", "dbGaP Missing + LoF (SVAnnotate)"),
-	("Matched", "dbGaP Missing + LoF (VEP)"),
+	("Matched", "dbSNP Matched"),
+	("Matched", "dbSNP Missing"),
+	("Matched", "dbSNP Missing + LoF (SVAnnotate)"),
+	("Matched", "dbSNP Missing + LoF (VEP)"),
 	("Matched", "gnomAD Matched"),
 	("Matched", "gnomAD Missing"),
 	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
 	("Matched", "gnomAD Missing + LoF (VEP)"),
-	("Matched", "dbGaP/gnomAD Matched"),
-	("Matched", "dbGaP/gnomAD Missing"),
-	("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "dbGaP/gnomAD Missing + LoF (VEP)"),
+	("Matched", "dbSNP/gnomAD Matched"),
+	("Matched", "dbSNP/gnomAD Missing"),
+	("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "dbSNP/gnomAD Missing + LoF (VEP)"),
 ]
 
 PARENT_ROWS = {"ME", "Duplication", "Consequence", "SVAnnotate", "Matched"}
@@ -314,6 +337,8 @@ CONSEQUENCE_PRIORITY = [
 ]
 
 gene_counts = defaultdict(lambda: defaultdict(int))
+gene_sample_counts = defaultdict(lambda: defaultdict(int))
+gene_allele_counts = defaultdict(lambda: defaultdict(int))
 PREDICTED_FIELDS = [
 	"PREDICTED_LOF",
 	"PREDICTED_COPY_GAIN",
@@ -474,7 +499,7 @@ def determine_row_weights(record, vep_field_indices):
 	is_tssd = has_info(record, "PREDICTED_TSS_DUP")
 	is_dp = has_info(record, "PREDICTED_DUP_PARTIAL")
 	is_utr = has_info(record, "PREDICTED_UTR")
-	is_dbgap = has_info(record, "dbGaP_ID")
+	is_dbsnp = has_info(record, "dbSNP_ID")
 	is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
 	has_svannotate = is_copy_gain or is_ied or is_ped or is_tssd or is_dp or is_utr
 
@@ -487,35 +512,35 @@ def determine_row_weights(record, vep_field_indices):
 	if is_utr: row_weights[("SVAnnotate", "UTR")] = 1
 
 	row_weights[("", "Matched")] = 1
-	if is_dbgap:
-		row_weights[("Matched", "dbGaP Matched")] = 1
+	if is_dbsnp:
+		row_weights[("Matched", "dbSNP Matched")] = 1
 	else:
-		row_weights[("Matched", "dbGaP Missing")] = 1
+		row_weights[("Matched", "dbSNP Missing")] = 1
 
 	if is_gnomad_matched:
 		row_weights[("Matched", "gnomAD Matched")] = 1
 	else:
 		row_weights[("Matched", "gnomAD Missing")] = 1
 
-	if is_dbgap or is_gnomad_matched:
-		row_weights[("Matched", "dbGaP/gnomAD Matched")] = 1
+	if is_dbsnp or is_gnomad_matched:
+		row_weights[("Matched", "dbSNP/gnomAD Matched")] = 1
 	else:
-		row_weights[("Matched", "dbGaP/gnomAD Missing")] = 1
+		row_weights[("Matched", "dbSNP/gnomAD Missing")] = 1
 
 	if "LoF (SVAnnotate)" in consequence_labels:
-		if not is_dbgap:
-			row_weights[("Matched", "dbGaP Missing + LoF (SVAnnotate)")] = 1
+		if not is_dbsnp:
+			row_weights[("Matched", "dbSNP Missing + LoF (SVAnnotate)")] = 1
 		if not is_gnomad_matched:
 			row_weights[("Matched", "gnomAD Missing + LoF (SVAnnotate)")] = 1
-		if not is_dbgap and not is_gnomad_matched:
-			row_weights[("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)")] = 1
+		if not is_dbsnp and not is_gnomad_matched:
+			row_weights[("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)")] = 1
 	if "LoF (VEP)" in consequence_labels:
-		if not is_dbgap:
-			row_weights[("Matched", "dbGaP Missing + LoF (VEP)")] = 1
+		if not is_dbsnp:
+			row_weights[("Matched", "dbSNP Missing + LoF (VEP)")] = 1
 		if not is_gnomad_matched:
 			row_weights[("Matched", "gnomAD Missing + LoF (VEP)")] = 1
-		if not is_dbgap and not is_gnomad_matched:
-			row_weights[("Matched", "dbGaP/gnomAD Missing + LoF (VEP)")] = 1
+		if not is_dbsnp and not is_gnomad_matched:
+			row_weights[("Matched", "dbSNP/gnomAD Missing + LoF (VEP)")] = 1
 
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
@@ -576,6 +601,14 @@ def write_table(path, table_data, integer_output, split_by_region):
 				else: values.append(str(value))
 			writer.writerow(row_prefix + values)
 
+def write_gene_counts(path, gene_count_data):
+	with open(path, "w", newline="") as handle:
+		writer = csv.writer(handle, delimiter="\t")
+		writer.writerow(["gene_name", "category", "count"])
+		for gene in gene_count_data:
+			for category, count in gene_count_data[gene].items():
+				writer.writerow([gene, category, str(count)])
+
 site_table = init_table()
 sample_table = init_table()
 allele_table = init_table()
@@ -634,7 +667,12 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 			if has_info(record, field):
 				for gene_name in get_info_gene_names(record, field):
 					for bucket in buckets:
-						gene_counts[gene_name][f"{field}.{bucket}"] += 1
+						category = f"{field}.{bucket}"
+						gene_counts[gene_name][category] += 1
+						if CREATE_PER_SAMPLE:
+							gene_sample_counts[gene_name][category] += carrier_count
+						if CREATE_PER_ALLELE:
+							gene_allele_counts[gene_name][category] += alt_allele_count
 
 		for row_key, weight in row_weights.items():
 			cat = row_key[0] if row_key[0] else row_key[1]
@@ -661,13 +699,9 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 write_table(ALLELE_OUTPUT, allele_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
-
-with open(GENE_OUTPUT, "w", newline="") as handle:
-	writer = csv.writer(handle, delimiter="\t")
-	writer.writerow(["gene_name", "category", "count"])
-	for gene, counts in gene_counts.items():
-		for cat, count in counts.items():
-			writer.writerow([gene, cat, str(count)])
+write_gene_counts(GENE_OUTPUT, gene_counts)
+write_gene_counts(GENE_SAMPLE_OUTPUT, gene_sample_counts)
+write_gene_counts(GENE_ALLELE_OUTPUT, gene_allele_counts)
 
 if not CREATE_LIST:
 	with open(LIST_OUTPUT, "w", newline="") as handle:
@@ -681,6 +715,8 @@ PYCODE
 		File allele_counts_tsv = "~{prefix}.alleles.raw.tsv"
 		File list_tsv = "~{prefix}.list.raw.tsv"
 		File gene_counts_tsv = "~{prefix}.genes.raw.tsv"
+		File gene_sample_counts_tsv = "~{prefix}.genes.samples.raw.tsv"
+		File gene_allele_counts_tsv = "~{prefix}.genes.alleles.raw.tsv"
 		File sample_count_file = "~{prefix}.sample_count.txt"
 	}
 
@@ -760,18 +796,18 @@ ROW_ORDER = [
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
 	("", "Matched"),
-	("Matched", "dbGaP Matched"),
-	("Matched", "dbGaP Missing"),
-	("Matched", "dbGaP Missing + LoF (SVAnnotate)"),
-	("Matched", "dbGaP Missing + LoF (VEP)"),
+	("Matched", "dbSNP Matched"),
+	("Matched", "dbSNP Missing"),
+	("Matched", "dbSNP Missing + LoF (SVAnnotate)"),
+	("Matched", "dbSNP Missing + LoF (VEP)"),
 	("Matched", "gnomAD Matched"),
 	("Matched", "gnomAD Missing"),
 	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
 	("Matched", "gnomAD Missing + LoF (VEP)"),
-	("Matched", "dbGaP/gnomAD Matched"),
-	("Matched", "dbGaP/gnomAD Missing"),
-	("Matched", "dbGaP/gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "dbGaP/gnomAD Missing + LoF (VEP)"),
+	("Matched", "dbSNP/gnomAD Matched"),
+	("Matched", "dbSNP/gnomAD Missing"),
+	("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Matched", "dbSNP/gnomAD Missing + LoF (VEP)"),
 ]
 
 def get_cat_ann(row_key):

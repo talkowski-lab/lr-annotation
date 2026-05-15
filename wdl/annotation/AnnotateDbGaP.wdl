@@ -3,30 +3,30 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow AnnotateDbGaP {
+workflow AnnotateDbSNP {
     input {
         File vcf
         File vcf_idx
-        File dbgap_vcf
-        File dbgap_vcf_idx
+        File dbsnp_vcf
+        File dbsnp_vcf_idx
         Array[String] contigs
         String prefix
 
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_subset_dbgap_vcf
+        RuntimeAttr? runtime_attr_subset_dbsnp_vcf
         RuntimeAttr? runtime_attr_annotate
         RuntimeAttr? runtime_attr_concat
     }
 
-    call RenameDbGaPContigs {
+    call RenameDbSNPContigs {
         input:
-            vcf = dbgap_vcf,
-            vcf_idx = dbgap_vcf_idx,
-            prefix = "~{prefix}.dbgap_renamed",
+            vcf = dbsnp_vcf,
+            vcf_idx = dbsnp_vcf_idx,
+            prefix = "~{prefix}.dbsnp_renamed",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_dbgap_vcf
+            runtime_attr_override = runtime_attr_subset_dbsnp_vcf
     }
 
     Boolean single_contig = length(contigs) == 1
@@ -43,28 +43,28 @@ workflow AnnotateDbGaP {
                     runtime_attr_override = runtime_attr_subset_vcf
             }
 
-            call Helpers.SubsetVcfToContig as SubsetDbGaPVcf {
+            call Helpers.SubsetVcfToContig as SubsetDbSNPVcf {
                 input:
-                    vcf = RenameDbGaPContigs.renamed_vcf,
-                    vcf_idx = RenameDbGaPContigs.renamed_vcf_idx,
+                    vcf = RenameDbSNPContigs.renamed_vcf,
+                    vcf_idx = RenameDbSNPContigs.renamed_vcf_idx,
                     contig = contig,
-                    prefix = "~{prefix}.~{contig}.dbgap",
+                    prefix = "~{prefix}.~{contig}.dbsnp",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_dbgap_vcf
+                    runtime_attr_override = runtime_attr_subset_dbsnp_vcf
             }
         }
 
         File contig_vcf = select_first([SubsetVcf.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcf.subset_vcf_idx, vcf_idx])
-        File contig_dbgap_vcf = select_first([SubsetDbGaPVcf.subset_vcf, RenameDbGaPContigs.renamed_vcf])
-        File contig_dbgap_vcf_idx = select_first([SubsetDbGaPVcf.subset_vcf_idx, RenameDbGaPContigs.renamed_vcf_idx])
+        File contig_dbsnp_vcf = select_first([SubsetDbSNPVcf.subset_vcf, RenameDbSNPContigs.renamed_vcf])
+        File contig_dbsnp_vcf_idx = select_first([SubsetDbSNPVcf.subset_vcf_idx, RenameDbSNPContigs.renamed_vcf_idx])
 
-        call AnnotateDbGaPIds {
+        call AnnotateDbSNPIds {
             input:
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
-                dbgap_vcf = contig_dbgap_vcf,
-                dbgap_vcf_idx = contig_dbgap_vcf_idx,
+                dbsnp_vcf = contig_dbsnp_vcf,
+                dbsnp_vcf_idx = contig_dbsnp_vcf_idx,
                 prefix = "~{prefix}.~{contig}.annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
@@ -74,20 +74,20 @@ workflow AnnotateDbGaP {
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = AnnotateDbGaPIds.annotations_tsv,
+                tsvs = AnnotateDbSNPIds.annotations_tsv,
                 sort_output = false,
-                prefix = "~{prefix}.dbgap_annotated",
+                prefix = "~{prefix}.dbsnp_annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat
         }
     }
 
     output {
-        File annotations_tsv_dbgap = select_first([ConcatTsvs.concatenated_tsv, AnnotateDbGaPIds.annotations_tsv[0]])
+        File annotations_tsv_dbsnp = select_first([ConcatTsvs.concatenated_tsv, AnnotateDbSNPIds.annotations_tsv[0]])
     }
 }
 
-task RenameDbGaPContigs {
+task RenameDbSNPContigs {
     input {
         File vcf
         File vcf_idx
@@ -159,12 +159,12 @@ EOF
     }
 }
 
-task AnnotateDbGaPIds {
+task AnnotateDbSNPIds {
     input {
         File vcf
         File vcf_idx
-        File dbgap_vcf
-        File dbgap_vcf_idx
+        File dbsnp_vcf
+        File dbsnp_vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -179,13 +179,13 @@ task AnnotateDbGaPIds {
             ~{vcf} \
             > input_variants.txt
 
-        # Extract all variants from dbGaP VCF
+        # Extract all variants from dbSNP VCF
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
-            ~{dbgap_vcf} \
-            > dbgap_variants.txt
+            ~{dbsnp_vcf} \
+            > dbsnp_variants.txt
 
-        # Match variants with dbGaP variants on CHROM, POS, REF and any matching ALT
+        # Match variants with dbSNP variants on CHROM, POS, REF and any matching ALT
         awk 'BEGIN{OFS="\t"} 
         NR==FNR {
             chrom = $1
@@ -196,16 +196,16 @@ task AnnotateDbGaPIds {
             n = split(alt_string, alts, ",")
             for (i = 1; i <= n; i++) {
                 key = chrom "\t" pos "\t" ref "\t" alts[i]
-                dbgap[key] = id
+                dbsnp[key] = id
             }
             next
         } 
         {
             key = $1 "\t" $2 "\t" $3 "\t" $4
-            if (key in dbgap) {
-                print $1, $2, $3, $4, $5, dbgap[key]
+            if (key in dbsnp) {
+                print $1, $2, $3, $4, $5, dbsnp[key]
             }
-        }' dbgap_variants.txt input_variants.txt \
+        }' dbsnp_variants.txt input_variants.txt \
             > ~{prefix}.annotations.tsv
     >>>
 
@@ -216,7 +216,7 @@ task AnnotateDbGaPIds {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size([vcf, dbgap_vcf], "GB")) + 10,
+        disk_gb: 2 * ceil(size([vcf, dbsnp_vcf], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

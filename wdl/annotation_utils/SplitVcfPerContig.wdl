@@ -11,7 +11,7 @@ workflow SplitVcfPerContig {
 
         Boolean create_no_geno = false
         Boolean modify_snv_ids = false
-        Boolean rename_dbgap_contigs = false
+        Boolean rename_dbsnp_contigs = false
 
         String utils_docker
 
@@ -26,7 +26,7 @@ workflow SplitVcfPerContig {
             prefix = prefix,
             create_no_geno = create_no_geno,
             modify_snv_ids = modify_snv_ids,
-            rename_dbgap_contigs = rename_dbgap_contigs,
+            rename_dbsnp_contigs = rename_dbsnp_contigs,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
@@ -47,7 +47,7 @@ task SplitByContig {
         String prefix
         Boolean create_no_geno
         Boolean modify_snv_ids
-        Boolean rename_dbgap_contigs
+        Boolean rename_dbsnp_contigs
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -55,8 +55,7 @@ task SplitByContig {
     command <<<
         set -euo pipefail
 
-        # Optionally rename dbGaP contig names to standard chr notation before splitting
-        if ~{rename_dbgap_contigs}; then
+        if ~{rename_dbsp_contigs}; then
             cat > chr_name_mapping.txt <<EOF
 NC_000001.11 chr1
 NC_000002.12 chr2

@@ -13,8 +13,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateDbGaP
-    primaryDescriptorPath: /wdl/annotation/AnnotateDbGaP.wdl
+    name: AnnotateDbSNP
+    primaryDescriptorPath: /wdl/annotation/AnnotateDbSNP.wdl
     filters:
       branches:
         - main
