@@ -55,7 +55,7 @@ task SplitByContig {
     command <<<
         set -euo pipefail
 
-        if ~{rename_dbsp_contigs}; then
+        if ~{rename_dbsnp_contigs}; then
             cat > chr_name_mapping.txt <<EOF
 NC_000001.11 chr1
 NC_000002.12 chr2
