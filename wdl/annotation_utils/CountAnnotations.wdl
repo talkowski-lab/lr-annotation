@@ -499,7 +499,7 @@ def determine_row_weights(record, vep_field_indices):
 	is_tssd = has_info(record, "PREDICTED_TSS_DUP")
 	is_dp = has_info(record, "PREDICTED_DUP_PARTIAL")
 	is_utr = has_info(record, "PREDICTED_UTR")
-	is_dbsnp = has_info(record, "dbSNP_ID")
+	is_dbsnp = has_info(record, "dbSNP_ID") or has_info(record, "dbGaP_ID")
 	is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
 	has_svannotate = is_copy_gain or is_ied or is_ped or is_tssd or is_dp or is_utr
 

@@ -90,7 +90,6 @@ workflow GQCalculation {
     }
 
     output {
-        File trio_definitions = FindTrios.trio_definitions
         File trio_denovo_tsv = MergeTrioResults.merged_tsv
         File truth_concordance_tsv = MergeTruthResults.merged_tsv
     }
