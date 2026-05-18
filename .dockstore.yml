@@ -340,6 +340,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergeSites
+    primaryDescriptorPath: /wdl/annotation_utils/MergeSites.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: MergeVcfs
     primaryDescriptorPath: /wdl/annotation_utils/MergeVcfs.wdl
     filters:

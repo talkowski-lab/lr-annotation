@@ -265,6 +265,10 @@ TODO
 TODO
 
 
+### [MergeSites](wdl/annotation_utils/MergeSites.wdl)
+TODO
+
+
 ### [MergeVcfs](wdl/annotation_utils/MergeVcfs.wdl)
 TODO
 
