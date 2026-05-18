@@ -651,17 +651,25 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
 		
 		is_large = allele_length is not None and allele_length > 50000
 		
-		buckets = []
+		buckets = ["all"]
+		if is_large:
+			buckets.append("all_large")
 		if ac == 1:
 			buckets.append("singleton")
+			if is_large:
+				buckets.append("singleton_large")
 		if af is not None and af < 0.001:
 			buckets.append("ultra_rare")
+			if is_large:
+				buckets.append("ultra_rare_large")
 		if af is not None and af < 0.01:
 			buckets.append("rare")
 			if is_large:
 				buckets.append("rare_large")
 		if af is not None and af > 0.05:
 			buckets.append("common")
+			if is_large:
+				buckets.append("common_large")
 		
 		for field in PREDICTED_FIELDS:
 			if has_info(record, field):
@@ -1050,7 +1058,18 @@ PREDICTED_FIELDS = [
 	"PREDICTED_PROMOTER"
 ]
 
-BUCKETS = ["rare", "ultra_rare", "singleton", "rare_large", "common"]
+BUCKETS = [
+	"all",
+	"common",
+	"rare",
+	"ultra_rare",
+	"singleton",
+	"all_large",
+	"common_large",
+	"rare_large",
+	"ultra_rare_large",
+	"singleton_large",
+]
 
 new_columns = []
 for f in PREDICTED_FIELDS:

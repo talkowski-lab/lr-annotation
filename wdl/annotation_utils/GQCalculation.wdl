@@ -1,17 +1,18 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
-import "../utils/Structs.wdl"
 
 workflow GQCalculation {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-        Array[File] truth_vcfs
-        Array[File] truth_vcf_idxs
+        Array[File]? truth_vcfs
+        Array[File]? truth_vcf_idxs
         String prefix
 
-        File ped
+        File? ped
+        Boolean run_trio_qc = true
+        Boolean run_truth_qc = true
 
         String utils_docker
 
@@ -23,75 +24,77 @@ workflow GQCalculation {
         RuntimeAttr? runtime_attr_merge_truth
     }
 
-    # Find valid trios from PED file + VCF samples
-    call FindTrios {
-        input:
-            vcf = vcfs[0],
-            vcf_idx = vcf_idxs[0],
-            ped = ped,
-            prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_find_trios
-    }
-
-    Array[String] trio_samples = read_lines(FindTrios.trio_sample_ids_file)
-
-    # Trio de novo analysis
-    scatter (i in range(length(vcfs))) {
-        call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
+    if (run_trio_qc) {
+        # Find valid trios from PED file + VCF samples
+        call FindTrios {
             input:
-                vcf = vcfs[i],
-                vcf_idx = vcf_idxs[i],
-                samples = trio_samples,
-                prefix = "~{prefix}.trio_subset.~{i}",
+                vcf = vcfs[0],
+                vcf_idx = vcf_idxs[0],
+                ped = select_first([ped]),
+                prefix = prefix,
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_vcf
+                runtime_attr_override = runtime_attr_find_trios
         }
 
-        call TrioDeNovoAnalysis {
-            input:
-                vcf = SubsetToTrioSamples.subset_vcf,
-                vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
-                trio_definitions = FindTrios.trio_definitions,
-                prefix = "~{prefix}.trio_denovo.~{i}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_trio_analysis
+        # Trio de novo analysis
+        scatter (i in range(length(vcfs))) {
+            call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
+                input:
+                    vcf = vcfs[i],
+                    vcf_idx = vcf_idxs[i],
+                    samples = read_lines(FindTrios.trio_sample_ids_file),
+                    prefix = "~{prefix}.trio_subset.~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_vcf
+            }
+
+            call TrioDeNovoAnalysis {
+                input:
+                    vcf = SubsetToTrioSamples.subset_vcf,
+                    vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
+                    trio_definitions = FindTrios.trio_definitions,
+                    prefix = "~{prefix}.trio_denovo.~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_trio_analysis
+            }
         }
-    }
 
-    call MergeTrioResults {
-        input:
-            tsvs = TrioDeNovoAnalysis.trio_denovo_tsv,
-            prefix = "~{prefix}.trio_denovo",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_trio
-    }
-
-    # Truth set concordance analysis
-    scatter (i in range(length(vcfs))) {
-        call TruthSetAnalysis {
+        call MergeTrioResults {
             input:
-                vcf = vcfs[i],
-                vcf_idx = vcf_idxs[i],
-                truth_vcf = truth_vcfs[i],
-                truth_vcf_idx = truth_vcf_idxs[i],
-                prefix = "~{prefix}.truth.~{i}",
+                tsvs = TrioDeNovoAnalysis.trio_denovo_tsv,
+                prefix = "~{prefix}.trio_denovo",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_truth_analysis
+                runtime_attr_override = runtime_attr_merge_trio
         }
     }
 
-    call MergeTruthResults {
-        input:
-            tsvs = TruthSetAnalysis.truth_concordance_tsv,
-            prefix = "~{prefix}.truth_concordance",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_truth
+    if (run_truth_qc) {
+        # Truth set concordance analysis
+        scatter (i in range(length(select_first([truth_vcfs])))) {
+            call TruthSetAnalysis {
+                input:
+                    vcf = vcfs[i],
+                    vcf_idx = vcf_idxs[i],
+                    truth_vcf = select_first([truth_vcfs])[i],
+                    truth_vcf_idx = select_first([truth_vcf_idxs])[i],
+                    prefix = "~{prefix}.truth.~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_truth_analysis
+            }
+        }
+
+        call MergeTruthResults {
+            input:
+                tsvs = TruthSetAnalysis.truth_concordance_tsv,
+                prefix = "~{prefix}.truth_concordance",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_truth
+        }
     }
 
     output {
-        File trio_denovo_tsv = MergeTrioResults.merged_tsv
-        File truth_concordance_tsv = MergeTruthResults.merged_tsv
+        File? trio_denovo_tsv = MergeTrioResults.merged_tsv
+        File? truth_concordance_tsv = MergeTruthResults.merged_tsv
     }
 }
 
@@ -210,7 +213,7 @@ def get_size_bucket(allele_length):
             return label
     return "50000+"
 
-def is_nonref(gt):
+def is_nonref_unphased(gt):
     return gt is not None and any(a is not None and a != 0 for a in gt)
 
 # (bucket_type, bucket_size, gq) -> [count, count_inherited, count_de_novo]
@@ -229,14 +232,14 @@ for record in vcf:
 
     for child, father, mother in trios:
         child_gt = record.samples[child]["GT"]
-        if not is_nonref(child_gt):
+        if not is_nonref_unphased(child_gt):
             continue
 
         gq = record.samples[child].get("GQ")
         if gq is None:
             gq = 0
 
-        inherited = is_nonref(record.samples[father]["GT"]) or is_nonref(record.samples[mother]["GT"])
+        inherited = is_nonref_unphased(record.samples[father]["GT"]) or is_nonref_unphased(record.samples[mother]["GT"])
         key = (variant_type, size_bucket, gq)
         counts[key][0] += 1
         if inherited:
@@ -391,7 +394,7 @@ def get_size_bucket(allele_length):
             return label
     return "50000+"
 
-def is_nonref(gt):
+def is_nonref_unphased(gt):
     return gt is not None and any(a is not None and a != 0 for a in gt)
 
 with open("common_samples.txt") as f:
@@ -407,7 +410,7 @@ for record in truth_in:
         for s in common_samples:
             if s in truth_in.header.samples:
                 gt = record.samples[s]["GT"]
-                if is_nonref(gt):
+                if is_nonref_unphased(gt):
                     nonref.add(s)
         truth_lookup[key] = nonref
 truth_in.close()
@@ -440,7 +443,7 @@ for record in vcf_in:
 
     for s in common_samples:
         gt = record.samples[s]["GT"]
-        if not is_nonref(gt):
+        if not is_nonref_unphased(gt):
             continue
 
         gq = record.samples[s].get("GQ")
