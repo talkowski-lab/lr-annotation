@@ -234,16 +234,14 @@ kept_vcf.close()
 out_vcf.close()
 CODE
 
-        # Sort and index the final output
-        bcftools sort -T . -Oz -o sorted.vcf.gz ~{prefix}.vcf.gz
+        bcftools sort \
+            -T . \
+            -Oz -o sorted.vcf.gz \
+            ~{prefix}.vcf.gz
+        
         mv sorted.vcf.gz ~{prefix}.vcf.gz
+        
         tabix -f -p vcf ~{prefix}.vcf.gz
-
-        n_output=$(bcftools view -H ~{prefix}.vcf.gz | wc -l | awk '{print $1}')
-        n_collapsed=$((n_input - n_output))
-
-        echo -e "variant_type\tn_input\tn_output\tn_collapsed" > ~{prefix}.summary.tsv
-        echo -e "~{variant_type}\t${n_input}\t${n_output}\t${n_collapsed}" >> ~{prefix}.summary.tsv
     >>>
 
     output {
