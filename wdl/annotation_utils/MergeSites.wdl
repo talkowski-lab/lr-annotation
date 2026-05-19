@@ -112,8 +112,6 @@ workflow MergeSites {
     output {
         File merged_vcf = ConcatVcfs.concat_vcf
         File merged_vcf_idx = ConcatVcfs.concat_vcf_idx
-        File del_collapse_summary = CollapseDels.summary_tsv
-        File ins_collapse_summary = CollapseIns.summary_tsv
     }
 }
 
