@@ -57,7 +57,7 @@ workflow MergeSites {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
-            include_args = 'INFO/allele_type!~"del" && INFO/allele_type!~"ins"',
+            include_args = 'INFO/allele_type!~"del" && INFO/allele_type!~"ins" && INFO/allele_type!~"dup"',
             prefix = "~{prefix}.other",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_by_type
