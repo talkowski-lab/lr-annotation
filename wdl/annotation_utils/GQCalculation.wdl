@@ -10,9 +10,11 @@ workflow GQCalculation {
         Array[File]? truth_vcf_idxs
         String prefix
 
+        String? subset_vcf_string
         File? ped
         Boolean run_trio_qc = true
         Boolean run_truth_qc = true
+        Boolean skip_trv = true
 
         String utils_docker
 
@@ -25,7 +27,7 @@ workflow GQCalculation {
     }
 
     if (run_trio_qc) {
-        # Find valid trios from PED file + VCF samples
+        # Trio de novo analysis
         call FindTrios {
             input:
                 vcf = vcfs[0],
@@ -36,12 +38,23 @@ workflow GQCalculation {
                 runtime_attr_override = runtime_attr_find_trios
         }
 
-        # Trio de novo analysis
         scatter (i in range(length(vcfs))) {
+            if (defined(subset_vcf_string)) {
+                call Helpers.SubsetVcfByArgs as SubsetTrioVcf {
+                    input:
+                        vcf = vcfs[i],
+                        vcf_idx = vcf_idxs[i],
+                        extra_args = select_first([subset_vcf_string]),
+                        prefix = "~{prefix}.trio_presolved.~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_vcf
+                }
+            }
+
             call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
                 input:
-                    vcf = vcfs[i],
-                    vcf_idx = vcf_idxs[i],
+                    vcf = select_first([SubsetTrioVcf.subset_vcf, vcfs[i]]),
+                    vcf_idx = select_first([SubsetTrioVcf.subset_vcf_idx, vcf_idxs[i]]),
                     samples = read_lines(FindTrios.trio_sample_ids_file),
                     prefix = "~{prefix}.trio_subset.~{i}",
                     docker = utils_docker,
@@ -53,6 +66,7 @@ workflow GQCalculation {
                     vcf = SubsetToTrioSamples.subset_vcf,
                     vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
                     trio_definitions = FindTrios.trio_definitions,
+                    skip_trv = skip_trv,
                     prefix = "~{prefix}.trio_denovo.~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_trio_analysis
@@ -70,13 +84,26 @@ workflow GQCalculation {
 
     if (run_truth_qc) {
         # Truth set concordance analysis
-        scatter (i in range(length(select_first([truth_vcfs])))) {
+        scatter (i in range(length(vcfs))) {
+            if (defined(subset_vcf_string)) {
+                call Helpers.SubsetVcfByArgs as SubsetTruthEvalVcf {
+                    input:
+                        vcf = vcfs[i],
+                        vcf_idx = vcf_idxs[i],
+                        extra_args = select_first([subset_vcf_string]),
+                        prefix = "~{prefix}.truth_presolved.~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_vcf
+                }
+            }
+
             call TruthSetAnalysis {
                 input:
-                    vcf = vcfs[i],
-                    vcf_idx = vcf_idxs[i],
+                    vcf = select_first([SubsetTruthEvalVcf.subset_vcf, vcfs[i]]),
+                    vcf_idx = select_first([SubsetTruthEvalVcf.subset_vcf_idx, vcf_idxs[i]]),
                     truth_vcf = select_first([truth_vcfs])[i],
                     truth_vcf_idx = select_first([truth_vcf_idxs])[i],
+                    skip_trv = skip_trv,
                     prefix = "~{prefix}.truth.~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_truth_analysis
@@ -176,6 +203,7 @@ task TrioDeNovoAnalysis {
         File vcf_idx
         File trio_definitions
         String prefix
+        Boolean skip_trv = true
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -216,11 +244,14 @@ def get_size_bucket(allele_length):
 def is_nonref_unphased(gt):
     return gt is not None and any(a is not None and a != 0 for a in gt)
 
-# (bucket_type, bucket_size, gq) -> [count, count_inherited, count_de_novo]
-counts = defaultdict(lambda: [0, 0, 0])
+# (bucket_type, bucket_size, gq) -> [count_inherited, count_de_novo]
+counts = defaultdict(lambda: [0, 0])
 
 vcf = pysam.VariantFile("~{vcf}")
 for record in vcf:
+    if ~{if skip_trv then "True" else "False"} and "TRV" in (record.id or "").upper():
+        continue
+
     al = record.info.get("allele_length")
     if al is None:
         al = 0
@@ -241,21 +272,20 @@ for record in vcf:
 
         inherited = is_nonref_unphased(record.samples[father]["GT"]) or is_nonref_unphased(record.samples[mother]["GT"])
         key = (variant_type, size_bucket, gq)
-        counts[key][0] += 1
         if inherited:
-            counts[key][1] += 1
+            counts[key][0] += 1
         else:
-            counts[key][2] += 1
+            counts[key][1] += 1
 
 vcf.close()
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\tDE_NOVO_RATE\n")
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
     for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
         bt, bs, gq = key
-        count, inherited, de_novo = counts[key]
-        rate = de_novo / count if count > 0 else 0.0
-        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\t{rate:.6f}\n")
+        inherited, de_novo = counts[key]
+        count = inherited + de_novo
+        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\n")
 CODE
     >>>
 
@@ -300,7 +330,7 @@ from collections import defaultdict
 
 SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
 
-counts = defaultdict(lambda: [0, 0, 0])
+counts = defaultdict(lambda: [0, 0])
 input_files = "~{sep=',' tsvs}".split(",")
 
 for f in input_files:
@@ -309,17 +339,16 @@ for f in input_files:
         for line in fh:
             fields = line.strip().split("\t")
             key = (fields[0], fields[1], int(fields[2]))
-            counts[key][0] += int(fields[3])
-            counts[key][1] += int(fields[4])
-            counts[key][2] += int(fields[5])
+            counts[key][0] += int(fields[4])
+            counts[key][1] += int(fields[5])
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\tDE_NOVO_RATE\n")
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
     for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
         bt, bs, gq = key
-        count, inherited, de_novo = counts[key]
-        rate = de_novo / count if count > 0 else 0.0
-        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\t{rate:.6f}\n")
+        inherited, de_novo = counts[key]
+        count = inherited + de_novo
+        out.write(f"{bt}\t{bs}\t{gq}\t{count}\t{inherited}\t{de_novo}\n")
 CODE
     >>>
 
@@ -355,6 +384,7 @@ task TruthSetAnalysis {
         File truth_vcf
         File truth_vcf_idx
         String prefix
+        Boolean skip_trv = true
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -423,6 +453,9 @@ match_concordant_count = defaultdict(int)
 
 vcf_in = pysam.VariantFile("subset.vcf.gz")
 for record in vcf_in:
+    if ~{if skip_trv then "True" else "False"} and "TRV" in (record.id or "").upper():
+        continue
+
     al = record.info.get("allele_length")
     if al is None:
         al = 0
@@ -463,7 +496,7 @@ vcf_in.close()
 
 all_keys = sorted(variant_sites.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2]))
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tVARIANT_COUNT\tVARIANT_MATCH_COUNT\tMATCH_CALL_COUNT\tMATCH_CALL_CONCORDANT_COUNT\tMATCH_CALL_DISCORDANT_COUNT\n")
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
     for key in all_keys:
         bt, bs, gq = key
         vc = len(variant_sites[key])
@@ -531,7 +564,7 @@ for f in input_files:
             counts[key][3] += int(fields[6])
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tVARIANT_COUNT\tVARIANT_MATCH_COUNT\tMATCH_CALL_COUNT\tMATCH_CALL_CONCORDANT_COUNT\tMATCH_CALL_DISCORDANT_COUNT\n")
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tGQ\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
     for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2])):
         bt, bs, gq = key
         vc, vmc, mcc, mccc = counts[key]
