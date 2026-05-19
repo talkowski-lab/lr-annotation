@@ -186,7 +186,6 @@ with pysam.VariantFile("~{vcf}") as orig_vcf:
         original_records[record.id] = record
 
 # Build mapping of CollapseId -> list of removed record IDs
-# MatchId is Number=. so pysam returns it as a tuple
 collapse_groups = defaultdict(list)
 with pysam.VariantFile("removed.vcf.gz") as removed_vcf:
     for record in removed_vcf:
@@ -240,14 +239,13 @@ CODE
             ~{prefix}.vcf.gz
         
         mv sorted.vcf.gz ~{prefix}.vcf.gz
-        
+
         tabix -f -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
         File collapsed_vcf = "~{prefix}.vcf.gz"
         File collapsed_vcf_idx = "~{prefix}.vcf.gz.tbi"
-        File summary_tsv = "~{prefix}.summary.tsv"
     }
 
     RuntimeAttr default_attr = object {
