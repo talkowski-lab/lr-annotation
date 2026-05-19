@@ -12,6 +12,7 @@ workflow GQCalculation {
 
         String? subset_vcf_string
         File? ped
+        File? swap_samples_truth
         Boolean run_trio_qc = true
         Boolean run_truth_qc = true
         Boolean skip_trv = true
@@ -19,6 +20,7 @@ workflow GQCalculation {
         String utils_docker
 
         RuntimeAttr? runtime_attr_find_trios
+        RuntimeAttr? runtime_attr_swap_sample_ids
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_trio_analysis
         RuntimeAttr? runtime_attr_truth_analysis
@@ -85,6 +87,18 @@ workflow GQCalculation {
     if (run_truth_qc) {
         # Truth set concordance analysis
         scatter (i in range(length(vcfs))) {
+            if (defined(swap_samples_truth)) {
+                call Helpers.SwapSampleIds as SwapTruthSampleIds {
+                    input:
+                        vcf = select_first([truth_vcfs])[i],
+                        vcf_idx = select_first([truth_vcf_idxs])[i],
+                        sample_swap_list = select_first([swap_samples_truth]),
+                        prefix = "~{prefix}.truth_swapped.~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_swap_sample_ids
+                }
+            }
+
             if (defined(subset_vcf_string)) {
                 call Helpers.SubsetVcfByArgs as SubsetTruthEvalVcf {
                     input:
@@ -101,8 +115,8 @@ workflow GQCalculation {
                 input:
                     vcf = select_first([SubsetTruthEvalVcf.subset_vcf, vcfs[i]]),
                     vcf_idx = select_first([SubsetTruthEvalVcf.subset_vcf_idx, vcf_idxs[i]]),
-                    truth_vcf = select_first([truth_vcfs])[i],
-                    truth_vcf_idx = select_first([truth_vcf_idxs])[i],
+                    truth_vcf = select_first([SwapTruthSampleIds.swapped_vcf, select_first([truth_vcfs])[i]]),
+                    truth_vcf_idx = select_first([SwapTruthSampleIds.swapped_vcf_idx, select_first([truth_vcf_idxs])[i]]),
                     skip_trv = skip_trv,
                     prefix = "~{prefix}.truth.~{i}",
                     docker = utils_docker,
@@ -513,7 +527,7 @@ CODE
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
+        mem_gb: 16,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 2 * ceil(size(truth_vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
