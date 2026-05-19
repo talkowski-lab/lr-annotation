@@ -16,7 +16,7 @@ workflow MergeSites {
         Int del_size_min = 0
         Int del_size_filt = 0
 
-        Float ins_size_similarity = 2.0
+        Float ins_size_similarity = 0.5
         Int ins_breakpoint_distance = 10
         Float ins_sequence_similarity = 0.5
         Float ins_sample_similarity = 0.5
