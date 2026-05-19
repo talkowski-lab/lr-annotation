@@ -12,17 +12,15 @@ workflow MergeSites {
         Float del_reciprocal_overlap = 0.5
         Float del_sequence_similarity = 0.5
         Float del_sample_similarity = 0.5
-        Int del_size_max = 1000000
+        Int del_size_max = -1
         Int del_size_min = 0
-        Int del_size_filt = 0
 
         Float ins_size_similarity = 0.5
         Int ins_breakpoint_distance = 10
         Float ins_sequence_similarity = 0.5
         Float ins_sample_similarity = 0.5
-        Int ins_size_max = 1000000
+        Int ins_size_max = -1
         Int ins_size_min = 0
-        Int ins_size_filt = 0
 
         String utils_docker
 
@@ -75,7 +73,6 @@ workflow MergeSites {
             refdist = 0,
             sizemax = del_size_max,
             sizemin = del_size_min,
-            sizefilt = del_size_filt,
             variant_type = "DEL",
             prefix = "~{prefix}.dels.collapsed",
             docker = utils_docker,
@@ -94,7 +91,6 @@ workflow MergeSites {
             refdist = ins_breakpoint_distance,
             sizemax = ins_size_max,
             sizemin = ins_size_min,
-            sizefilt = ins_size_filt,
             variant_type = "INS",
             prefix = "~{prefix}.ins.collapsed",
             docker = utils_docker,
@@ -132,7 +128,6 @@ task CollapseSites {
         Int refdist
         Int sizemax
         Int sizemin
-        Int sizefilt
         String variant_type
         String prefix
         String docker
@@ -154,8 +149,7 @@ task CollapseSites {
             --pctsize ~{pctsize} \
             --refdist ~{refdist} \
             --sizemax ~{sizemax} \
-            --sizemin ~{sizemin} \
-            --sizefilt ~{sizefilt}
+            --sizemin ~{sizemin}
 
         bgzip -f collapsed.vcf
         bgzip -f removed.vcf
