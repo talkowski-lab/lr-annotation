@@ -141,9 +141,7 @@ task CollapseSites {
 
     command <<<
         set -euo pipefail
-
-        ln -sf ~{vcf_idx} ~{vcf}.tbi
-
+        
         truvari collapse \
             -i ~{vcf} \
             -o collapsed.vcf \
