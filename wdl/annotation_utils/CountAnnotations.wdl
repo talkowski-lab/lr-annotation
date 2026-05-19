@@ -264,6 +264,17 @@ REGION_ORDER = ["US", "RM", "SD", "SR"]
 
 ROW_ORDER = [
 	("", INTERNAL_TOTAL_LABEL),
+	("", "Concordance"),
+	("Concordance", "dbSNP Missing"),
+	("Concordance", "dbSNP Missing + LoF (SVAnnotate)"),
+	("Concordance", "dbSNP Missing + LoF (VEP)"),
+	("Concordance", "gnomAD Missing"),
+	("Concordance", "gnomAD Missing + LoF (SVAnnotate)"),
+	("Concordance", "gnomAD Missing + LoF (VEP)"),
+	("Concordance", "dbSNP/gnomAD Missing"),
+	("Concordance", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Concordance", "dbSNP/gnomAD Missing + LoF (VEP)"),
+	("", "TR Parsed"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -273,38 +284,24 @@ ROW_ORDER = [
 	("Duplication", "Interspersed"),
 	("Duplication", "Complex"),
 	("Duplication", "NUMT"),
-	("Duplication", "TR Parsed"),
-	("", "Consequence"),
-	("Consequence", "LoF (SVAnnotate)"),
-	("Consequence", "LoF (VEP)"),
-	("Consequence", "Missense"),
-	("Consequence", "Coding"),
-	("Consequence", "Intronic"),
-	("Consequence", "Intergenic"),
-	("Consequence", "Other"),
+	("", "VEP"),
+	("VEP", "LoF"),
+	("VEP", "Missense"),
+	("VEP", "Coding"),
+	("VEP", "Intronic"),
+	("VEP", "Intergenic"),
+	("VEP", "Other"),
 	("", "SVAnnotate"),
+	("SVAnnotate", "LoF"),
 	("SVAnnotate", "Copy Gain"),
 	("SVAnnotate", "IED"),
 	("SVAnnotate", "PED"),
 	("SVAnnotate", "TSSD"),
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
-	("", "Matched"),
-	("Matched", "dbSNP Matched"),
-	("Matched", "dbSNP Missing"),
-	("Matched", "dbSNP Missing + LoF (SVAnnotate)"),
-	("Matched", "dbSNP Missing + LoF (VEP)"),
-	("Matched", "gnomAD Matched"),
-	("Matched", "gnomAD Missing"),
-	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "gnomAD Missing + LoF (VEP)"),
-	("Matched", "dbSNP/gnomAD Matched"),
-	("Matched", "dbSNP/gnomAD Missing"),
-	("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "dbSNP/gnomAD Missing + LoF (VEP)"),
 ]
 
-PARENT_ROWS = {"ME", "Duplication", "Consequence", "SVAnnotate", "Matched"}
+PARENT_ROWS = {"Concordance", "ME", "Duplication", "VEP", "SVAnnotate"}
 
 CONSEQUENCE_PRIORITY = [
 	("LoF (VEP)", {
@@ -481,17 +478,23 @@ def determine_row_weights(record, vep_field_indices):
 	is_numt = "numt" in allele_type
 	is_tr_parsed = has_info(record, "TR_PARSED")
 	
-	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt or is_tr_parsed:
+	if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt:
 		row_weights[("", "Duplication")] = 1
 	if is_dup_tandem: row_weights[("Duplication", "Tandem")] = 1
 	if is_dup_interspersed: row_weights[("Duplication", "Interspersed")] = 1
 	if is_dup_complex: row_weights[("Duplication", "Complex")] = 1
 	if is_numt: row_weights[("Duplication", "NUMT")] = 1
-	if is_tr_parsed: row_weights[("Duplication", "TR Parsed")] = 1
+	if is_tr_parsed: row_weights[("", "TR Parsed")] = 1
 
-	row_weights[("", "Consequence")] = 1
+	row_weights[("", "VEP")] = 1
 	for consequence_label in consequence_labels:
-		row_weights[("Consequence", consequence_label)] = 1
+		if consequence_label == "LoF (SVAnnotate)":
+			row_weights[("", "SVAnnotate")] = 1
+			row_weights[("SVAnnotate", "LoF")] = 1
+		elif consequence_label == "LoF (VEP)":
+			row_weights[("VEP", "LoF")] = 1
+		else:
+			row_weights[("VEP", consequence_label)] = 1
 
 	is_copy_gain = has_info(record, "PREDICTED_COPY_GAIN")
 	is_ied = has_info(record, "PREDICTED_INTRAGENIC_EXON_DUP")
@@ -511,36 +514,36 @@ def determine_row_weights(record, vep_field_indices):
 	if is_dp: row_weights[("SVAnnotate", "DP")] = 1
 	if is_utr: row_weights[("SVAnnotate", "UTR")] = 1
 
-	row_weights[("", "Matched")] = 1
+	row_weights[("", "Concordance")] = 1
 	if is_dbsnp:
-		row_weights[("Matched", "dbSNP Matched")] = 1
+		pass
 	else:
-		row_weights[("Matched", "dbSNP Missing")] = 1
+		row_weights[("Concordance", "dbSNP Missing")] = 1
 
 	if is_gnomad_matched:
-		row_weights[("Matched", "gnomAD Matched")] = 1
+		pass
 	else:
-		row_weights[("Matched", "gnomAD Missing")] = 1
+		row_weights[("Concordance", "gnomAD Missing")] = 1
 
 	if is_dbsnp or is_gnomad_matched:
-		row_weights[("Matched", "dbSNP/gnomAD Matched")] = 1
+		pass
 	else:
-		row_weights[("Matched", "dbSNP/gnomAD Missing")] = 1
+		row_weights[("Concordance", "dbSNP/gnomAD Missing")] = 1
 
 	if "LoF (SVAnnotate)" in consequence_labels:
 		if not is_dbsnp:
-			row_weights[("Matched", "dbSNP Missing + LoF (SVAnnotate)")] = 1
+			row_weights[("Concordance", "dbSNP Missing + LoF (SVAnnotate)")] = 1
 		if not is_gnomad_matched:
-			row_weights[("Matched", "gnomAD Missing + LoF (SVAnnotate)")] = 1
+			row_weights[("Concordance", "gnomAD Missing + LoF (SVAnnotate)")] = 1
 		if not is_dbsnp and not is_gnomad_matched:
-			row_weights[("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)")] = 1
+			row_weights[("Concordance", "dbSNP/gnomAD Missing + LoF (SVAnnotate)")] = 1
 	if "LoF (VEP)" in consequence_labels:
 		if not is_dbsnp:
-			row_weights[("Matched", "dbSNP Missing + LoF (VEP)")] = 1
+			row_weights[("Concordance", "dbSNP Missing + LoF (VEP)")] = 1
 		if not is_gnomad_matched:
-			row_weights[("Matched", "gnomAD Missing + LoF (VEP)")] = 1
+			row_weights[("Concordance", "gnomAD Missing + LoF (VEP)")] = 1
 		if not is_dbsnp and not is_gnomad_matched:
-			row_weights[("Matched", "dbSNP/gnomAD Missing + LoF (VEP)")] = 1
+			row_weights[("Concordance", "dbSNP/gnomAD Missing + LoF (VEP)")] = 1
 
 	return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
 
@@ -778,6 +781,17 @@ REGION_ORDER = [INTERNAL_TOTAL_LABEL, "US", "RM", "SD", "SR"]
 
 ROW_ORDER = [
 	("", INTERNAL_TOTAL_LABEL),
+	("", "Concordance"),
+	("Concordance", "dbSNP Missing"),
+	("Concordance", "dbSNP Missing + LoF (SVAnnotate)"),
+	("Concordance", "dbSNP Missing + LoF (VEP)"),
+	("Concordance", "gnomAD Missing"),
+	("Concordance", "gnomAD Missing + LoF (SVAnnotate)"),
+	("Concordance", "gnomAD Missing + LoF (VEP)"),
+	("Concordance", "dbSNP/gnomAD Missing"),
+	("Concordance", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
+	("Concordance", "dbSNP/gnomAD Missing + LoF (VEP)"),
+	("", "TR Parsed"),
 	("", "ME"),
 	("ME", "ALU"),
 	("ME", "LINE"),
@@ -787,35 +801,21 @@ ROW_ORDER = [
 	("Duplication", "Interspersed"),
 	("Duplication", "Complex"),
 	("Duplication", "NUMT"),
-	("Duplication", "TR Parsed"),
-	("", "Consequence"),
-	("Consequence", "LoF (SVAnnotate)"),
-	("Consequence", "LoF (VEP)"),
-	("Consequence", "Missense"),
-	("Consequence", "Coding"),
-	("Consequence", "Intronic"),
-	("Consequence", "Intergenic"),
-	("Consequence", "Other"),
+	("", "VEP"),
+	("VEP", "LoF"),
+	("VEP", "Missense"),
+	("VEP", "Coding"),
+	("VEP", "Intronic"),
+	("VEP", "Intergenic"),
+	("VEP", "Other"),
 	("", "SVAnnotate"),
+	("SVAnnotate", "LoF"),
 	("SVAnnotate", "Copy Gain"),
 	("SVAnnotate", "IED"),
 	("SVAnnotate", "PED"),
 	("SVAnnotate", "TSSD"),
 	("SVAnnotate", "DP"),
 	("SVAnnotate", "UTR"),
-	("", "Matched"),
-	("Matched", "dbSNP Matched"),
-	("Matched", "dbSNP Missing"),
-	("Matched", "dbSNP Missing + LoF (SVAnnotate)"),
-	("Matched", "dbSNP Missing + LoF (VEP)"),
-	("Matched", "gnomAD Matched"),
-	("Matched", "gnomAD Missing"),
-	("Matched", "gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "gnomAD Missing + LoF (VEP)"),
-	("Matched", "dbSNP/gnomAD Matched"),
-	("Matched", "dbSNP/gnomAD Missing"),
-	("Matched", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
-	("Matched", "dbSNP/gnomAD Missing + LoF (VEP)"),
 ]
 
 def get_cat_ann(row_key):

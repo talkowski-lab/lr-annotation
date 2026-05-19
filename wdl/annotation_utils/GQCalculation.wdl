@@ -9,6 +9,7 @@ workflow GQCalculation {
         Array[File]? truth_vcfs
         Array[File]? truth_vcf_idxs
         String prefix
+        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
 
         String? subset_vcf_string
         File? ped
@@ -68,6 +69,7 @@ workflow GQCalculation {
                     vcf = SubsetToTrioSamples.subset_vcf,
                     vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
                     trio_definitions = FindTrios.trio_definitions,
+                    length_bins = length_bins,
                     skip_trv = skip_trv,
                     prefix = "~{prefix}.trio_denovo.~{i}",
                     docker = utils_docker,
@@ -78,6 +80,7 @@ workflow GQCalculation {
         call MergeTrioResults {
             input:
                 tsvs = TrioDeNovoAnalysis.trio_denovo_tsv,
+                length_bins = length_bins,
                 prefix = "~{prefix}.trio_denovo",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_trio
@@ -117,6 +120,7 @@ workflow GQCalculation {
                     vcf_idx = select_first([SubsetTruthEvalVcf.subset_vcf_idx, vcf_idxs[i]]),
                     truth_vcf = select_first([SwapTruthSampleIds.swapped_vcf, select_first([truth_vcfs])[i]]),
                     truth_vcf_idx = select_first([SwapTruthSampleIds.swapped_vcf_idx, select_first([truth_vcf_idxs])[i]]),
+                    length_bins = length_bins,
                     skip_trv = skip_trv,
                     prefix = "~{prefix}.truth.~{i}",
                     docker = utils_docker,
@@ -127,6 +131,7 @@ workflow GQCalculation {
         call MergeTruthResults {
             input:
                 tsvs = TruthSetAnalysis.truth_concordance_tsv,
+                length_bins = length_bins,
                 prefix = "~{prefix}.truth_concordance",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_truth
@@ -216,6 +221,7 @@ task TrioDeNovoAnalysis {
         File vcf
         File vcf_idx
         File trio_definitions
+        Array[Int] length_bins
         String prefix
         Boolean skip_trv = true
         String docker
@@ -235,8 +241,15 @@ with open("~{trio_definitions}") as f:
         child, father, mother = line.strip().split("\t")
         trios.append((child, father, mother))
 
-SIZE_BUCKETS = [(50, "<50"), (100, "50-99"), (500, "100-499"), (5000, "500-4999"), (50000, "5000-49999")]
-SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+LENGTH_BINS = [~{sep=", " length_bins}]
+
+if not LENGTH_BINS:
+    raise ValueError("length_bins must not be empty")
+if any(left >= right for left, right in zip(LENGTH_BINS, LENGTH_BINS[1:])):
+    raise ValueError("length_bins must be strictly increasing")
+
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
 def get_type(variant_id):
     vid = (variant_id or "").upper()
@@ -250,10 +263,9 @@ def get_type(variant_id):
 
 def get_size_bucket(allele_length):
     size = abs(allele_length)
-    for threshold, label in SIZE_BUCKETS:
-        if size < threshold:
-            return label
-    return "50000+"
+    for index, start in enumerate(LENGTH_BINS):
+        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
+            return SIZE_LABELS[index]
 
 def is_nonref_unphased(gt):
     return gt is not None and any(a is not None and a != 0 for a in gt)
@@ -331,6 +343,7 @@ CODE
 task MergeTrioResults {
     input {
         Array[File] tsvs
+        Array[Int] length_bins
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -342,7 +355,9 @@ task MergeTrioResults {
         python3 <<CODE
 from collections import defaultdict
 
-SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+LENGTH_BINS = [~{sep=", " length_bins}]
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
 counts = defaultdict(lambda: [0, 0])
 input_files = "~{sep=',' tsvs}".split(",")
@@ -397,6 +412,7 @@ task TruthSetAnalysis {
         File vcf_idx
         File truth_vcf
         File truth_vcf_idx
+        Array[Int] length_bins
         String prefix
         Boolean skip_trv = true
         String docker
@@ -418,8 +434,15 @@ task TruthSetAnalysis {
 import pysam
 from collections import defaultdict
 
-SIZE_BUCKETS = [(50, "<50"), (100, "50-99"), (500, "100-499"), (5000, "500-4999"), (50000, "5000-49999")]
-SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+LENGTH_BINS = [~{sep=", " length_bins}]
+
+if not LENGTH_BINS:
+    raise ValueError("length_bins must not be empty")
+if any(left >= right for left, right in zip(LENGTH_BINS, LENGTH_BINS[1:])):
+    raise ValueError("length_bins must be strictly increasing")
+
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
 def get_type(variant_id):
     vid = (variant_id or "").upper()
@@ -433,10 +456,9 @@ def get_type(variant_id):
 
 def get_size_bucket(allele_length):
     size = abs(allele_length)
-    for threshold, label in SIZE_BUCKETS:
-        if size < threshold:
-            return label
-    return "50000+"
+    for index, start in enumerate(LENGTH_BINS):
+        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
+            return SIZE_LABELS[index]
 
 def is_nonref_unphased(gt):
     return gt is not None and any(a is not None and a != 0 for a in gt)
@@ -549,6 +571,7 @@ CODE
 task MergeTruthResults {
     input {
         Array[File] tsvs
+        Array[Int] length_bins
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -560,7 +583,9 @@ task MergeTruthResults {
         python3 <<CODE
 from collections import defaultdict
 
-SIZE_ORDER = {"<50": 0, "50-99": 1, "100-499": 2, "500-4999": 3, "5000-49999": 4, "50000+": 5}
+LENGTH_BINS = [~{sep=", " length_bins}]
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
 # (bucket_type, bucket_size, gq) -> [variant_count, variant_match_count, match_call_count, match_concordant_count]
 counts = defaultdict(lambda: [0, 0, 0, 0])
