@@ -11,9 +11,9 @@ workflow BackbonePhase {
         Array[File] base_vcf_idxs
         String contig
         String prefix
-        Boolean allow_unphased_match_phase = false
 
         File? swap_samples_base
+        Boolean allow_unphased_match_phase = false
 
         String docker
 
@@ -116,7 +116,7 @@ task PrepareBaseVcf {
 
         bcftools norm -m-any ~{vcf} -Oz -o ~{prefix}.vcf.gz
 
-        bcftools index -t ~{prefix}.vcf.gz
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {

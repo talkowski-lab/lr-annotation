@@ -5,12 +5,12 @@ import "../utils/Structs.wdl"
 
 workflow ExtractSampleVcfs {
     input {
-        Array[String] sample_ids
-        Array[String] contigs
         File cohort_vcf
         File cohort_vcf_idx
+        Array[String] contigs
         String prefix
 
+        Array[String] sample_ids
         Int min_sv_length
 
         String utils_docker

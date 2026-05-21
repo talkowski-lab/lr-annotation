@@ -112,7 +112,7 @@ task FilterMEIs {
                 if line.strip() == "FAM_N":
                     fam_n_idx = i + 5
                     break
-        
+
         palmer_set = set()
         with open(palmer_path, 'r') as f:
             reader = csv.reader(f, delimiter='\t')
@@ -133,7 +133,7 @@ task FilterMEIs {
             reader = csv.reader(fin, delimiter='\t')
             writer = csv.writer(fout, delimiter='\t')
             for row in reader:
-                if not row: 
+                if not row:
                     continue
                 me_type = row[5]
                 if me_type == "LINE":
@@ -150,7 +150,7 @@ task FilterMEIs {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
+        cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 2 * ceil(size([tsv_l1meaid, tsv_palmer, tsv_svan], "GB")) + 5,
         boot_disk_gb: 10,

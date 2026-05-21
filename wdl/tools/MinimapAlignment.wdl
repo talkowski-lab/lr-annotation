@@ -6,15 +6,14 @@ workflow MinimapAlignment {
     input {
         File assembly_mat
         File assembly_pat
+        File ref_fa
+        File ref_fai
         String prefix
-        
+
         String sample_id
         String minimap_flags = "-a -x asm20 --cs --eqx"
         Int minimap_threads = 32
         String where_to_save
-
-        File ref_fa
-        File ref_fai
 
         String minimap_docker
         String minimap_finalize_docker
@@ -26,25 +25,15 @@ workflow MinimapAlignment {
     String workflow_name = "MinimapAlignment"
     String save_to_dir = where_to_save + "~{workflow_name}/~{sample_id}/"
 
-    output {
-        File minimap_assembled_bam_mat = save_to_dir + basename(AlignMat.bamOut)
-        File minimap_assembled_bai_mat = save_to_dir + basename(AlignMat.baiOut)
-        File minimap_assembled_paf_mat = save_to_dir + basename(AlignMat.pafOut)
-
-        File minimap_assembled_bam_pat = save_to_dir + basename(AlignPat.bamOut)
-        File minimap_assembled_bai_pat = save_to_dir + basename(AlignPat.baiOut)
-        File minimap_assembled_paf_pat = save_to_dir + basename(AlignPat.pafOut)
-    }
-
     call AlignAssembly as AlignMat {
         input:
             assembly_fa = assembly_mat,
-            sample_id = sample_id,
+            hap = 1,
             flags = minimap_flags,
             threads = minimap_threads,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
-            hap = 1,
+            sample_id = sample_id,
             docker = minimap_docker,
             runtime_attr_override = runtime_attr_align_asm2ref
     }
@@ -52,12 +41,12 @@ workflow MinimapAlignment {
     call AlignAssembly as AlignPat {
         input:
             assembly_fa = assembly_pat,
-            sample_id = sample_id,
+            hap = 2,
             flags = minimap_flags,
             threads = minimap_threads,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
-            hap = 2,
+            sample_id = sample_id,
             docker = minimap_docker,
             runtime_attr_override = runtime_attr_align_asm2ref
     }
@@ -69,17 +58,26 @@ workflow MinimapAlignment {
             docker = minimap_finalize_docker,
             runtime_attr_override = runtime_attr_finalize
     }
+
+    output {
+        File minimap_assembled_bam_mat = save_to_dir + basename(AlignMat.bamOut)
+        File minimap_assembled_bai_mat = save_to_dir + basename(AlignMat.baiOut)
+        File minimap_assembled_paf_mat = save_to_dir + basename(AlignMat.pafOut)
+        File minimap_assembled_bam_pat = save_to_dir + basename(AlignPat.bamOut)
+        File minimap_assembled_bai_pat = save_to_dir + basename(AlignPat.baiOut)
+        File minimap_assembled_paf_pat = save_to_dir + basename(AlignPat.pafOut)
+    }
 }
 
 task AlignAssembly {
     input {
         File assembly_fa
-        String sample_id
         Int hap
         String flags
         Int threads
         File ref_fa
         File ref_fai
+        String sample_id
         String docker
         RuntimeAttr? runtime_attr_override
     }

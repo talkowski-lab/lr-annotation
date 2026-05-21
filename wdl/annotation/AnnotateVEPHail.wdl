@@ -8,15 +8,18 @@ workflow AnnotateVEPHail {
     input {
         File vcf
         File vcf_idx
+        File ref_fa
+        File ref_fai
+        File ref_fa_gz
+        File ref_fai_gz
+        File ref_vep_cache
         String prefix
-        
-        String? subset_vcf_string
 
+        String? subset_vcf_string
         String split_vcf_hail_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/split_vcf_hail.py"
         String vep_annotate_hail_python_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/vep/vep_annotate_hail.py"
         String genome_build = "GRCh38"
         String vep_json_schema = "Struct{allele_string:String,colocated_variants:Array[Struct{allele_string:String,clin_sig:Array[String],clin_sig_allele:String,end:Int32,id:String,phenotype_or_disease:Int32,pubmed:Array[Int32],somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,transcription_factors:Array[String],strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,appris:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,flags:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,mane_select:String,mane_plus_clinical:String,minimised:Int32,pick:Int32,mirna:Array[String],polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,source:String,strand:Int32,swissprot:String,transcript_id:String,trembl:String,tsl:Int32,uniparc:String,uniprot_isoform:Array[String],variant_allele:String}],variant_class:String}"
-
         String normalize_check_ref = "w"
         Boolean normalize_vcf = false
         Boolean localize_vcf = true
@@ -25,17 +28,11 @@ workflow AnnotateVEPHail {
         Boolean split_by_chromosome = false
         Boolean split_into_shards = false
 
-        File ref_vep_cache
-        File ref_fa
-        File ref_fai
-        File ref_fa_gz
-        File ref_fai_gz
-
         String vep_hail_docker
         String hail_docker
         String sv_base_mini_docker
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_index_shard
@@ -69,7 +66,7 @@ workflow AnnotateVEPHail {
                 runtime_attr_override = runtime_attr_subset_vcf
         }
     }
-    
+
     call ScatterVcf.ScatterVcf {
         input:
             file = select_first([SubsetVcfByArgs.subset_vcf, StripGenotypes.stripped_vcf]),
@@ -77,10 +74,10 @@ workflow AnnotateVEPHail {
             prefix = "~{prefix}.scattered",
             genome_build = genome_build,
             localize_vcf = localize_vcf,
-            has_index = has_index,
             get_chromosome_sizes = get_chromosome_sizes,
             split_by_chromosome = split_by_chromosome,
             split_into_shards = split_into_shards,
+            has_index = has_index,
             hail_docker = hail_docker,
             sv_base_mini_docker = sv_base_mini_docker,
             runtime_attr_split_by_chr = runtime_attr_split_by_chr,
@@ -102,7 +99,7 @@ workflow AnnotateVEPHail {
                 input:
                     vcf = vcf_shard,
                     vcf_idx = select_first([IndexShard.vcf_idx]),
-                    prefix = shard_prefix + ".coords",
+                    prefix = "~{shard_prefix}.coords",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_extract_coords
             }
@@ -114,7 +111,7 @@ workflow AnnotateVEPHail {
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     check_ref = normalize_check_ref,
-                    prefix = shard_prefix + ".normalized",
+                    prefix = "~{shard_prefix}.normalized",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_normalize
             }
@@ -123,13 +120,13 @@ workflow AnnotateVEPHail {
         call VepAnnotate {
             input:
                 vcf = select_first([NormalizeVcfShard.normalized_vcf, vcf_shard]),
-                vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 ref_vep_cache = ref_vep_cache,
                 ref_fa_gz = ref_fa_gz,
                 ref_fai_gz = ref_fai_gz,
-                docker = vep_hail_docker,
+                vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 genome_build = genome_build,
                 vep_json_schema = vep_json_schema,
+                docker = vep_hail_docker,
                 runtime_attr_override = runtime_attr_vep_annotate
         }
 
@@ -137,7 +134,7 @@ workflow AnnotateVEPHail {
             call Helpers.CollapseMultiallelics as CollapseShardMultiallelics {
                 input:
                     tsv = VepAnnotate.vep_tsv_file,
-                    prefix = shard_prefix + ".collapsed",
+                    prefix = "~{shard_prefix}.collapsed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_collapse_multiallelics
             }
@@ -146,7 +143,7 @@ workflow AnnotateVEPHail {
                 input:
                     tsv = CollapseShardMultiallelics.collapsed_tsv,
                     coords_tsv = select_first([ExtractShardCoords.coords_tsv]),
-                    prefix = shard_prefix + ".restored",
+                    prefix = "~{shard_prefix}.restored",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_restore_alleles
             }
@@ -165,7 +162,7 @@ workflow AnnotateVEPHail {
     output {
         File annotations_tsv_vep = ConcatShards.concatenated_tsv
     }
-}   
+}
 
 task VepAnnotate {
     input {
@@ -173,9 +170,9 @@ task VepAnnotate {
         File ref_vep_cache
         File ref_fa_gz
         File ref_fai_gz
+        String vep_annotate_hail_python_script
         String genome_build
         String vep_json_schema
-        String vep_annotate_hail_python_script
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -185,7 +182,7 @@ task VepAnnotate {
 
     command <<<
         set -euo pipefail
-        
+
         mkdir -p cache
         tar xzf ~{ref_vep_cache} -C ./cache
 
@@ -198,7 +195,7 @@ task VepAnnotate {
             "--everything",
             "--allele_number",
             "--no_stats",
-            "--cache", 
+            "--cache",
             "--offline",
             "--minimal",
             "--assembly", "~{genome_build}",
@@ -220,7 +217,7 @@ task VepAnnotate {
             --cores ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb])} \
             --build ~{genome_build}
-                
+
         cp $(ls . | grep hail*.log) hail_log.txt
     >>>
 

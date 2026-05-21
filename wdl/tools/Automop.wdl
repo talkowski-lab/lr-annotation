@@ -6,13 +6,17 @@ workflow Automop {
         String workspace_name
         String user
         Boolean dry_run
+
+        String automop_docker
     }
+
     call MopTask {
         input:
             workspace_namespace = workspace_namespace,
             workspace_name = workspace_name,
             user = user,
-            dry_run = dry_run
+            dry_run = dry_run,
+            docker = automop_docker
     }
 }
 
@@ -22,11 +26,12 @@ task MopTask {
         String workspace_name
         String user
         Boolean dry_run
+        String docker
     }
-    
+
     command <<<
-        set -xeuo pipefail
-        
+        set -euo pipefail
+
         cat <<'EOF' > script.py
 import subprocess
 from datetime import datetime
@@ -38,7 +43,7 @@ def main(workspace_namespace, workspace_name, user):
 
     mop_process = subprocess.Popen(['fissfc', '--yes', '--verbose', 'mop', '-w', workspace_name, '-p', workspace_namespace~{if dry_run then ", '--dry-run'" else ""}],
         stdout=subprocess.PIPE)
-    
+
     size_found = False
     run_successful = False
     with open('fissfc_log.log', 'w') as fissfc_log:
@@ -58,13 +63,13 @@ def main(workspace_namespace, workspace_name, user):
             if line.startswith('Operation completed over'):
                 print('Mopping complete!')
                 run_successful = True
-    
+
     if not size_found:
         raise RuntimeError('No total deleted size found in fissfc output.')
-    
+
     if not run_successful:
         raise RuntimeError('Did not receive "Operation completed" message from fissfc output.')
-    
+
     mop_event = {
         'user': user,
         'datetime': datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d-%H-%M-%S'),
@@ -85,11 +90,11 @@ EOF
     output {
         File fissfc_log = "fissfc_log.log"
     }
-    
+
     runtime {
         memory: "16 GB"
         disks: "local-disk 20 HDD"
-        docker: "us.gcr.io/broad-dsde-methods/automop:0.1"
+        docker: docker
         preemptible: 0
     }
 }

@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
 
 workflow GQCalculation {
     input {
@@ -9,8 +10,8 @@ workflow GQCalculation {
         Array[File]? truth_vcfs
         Array[File]? truth_vcf_idxs
         String prefix
-        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
 
+        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
         String? subset_vcf_string
         File? ped
         File? swap_samples_truth
@@ -144,7 +145,6 @@ workflow GQCalculation {
     }
 }
 
-
 task FindTrios {
     input {
         File vcf
@@ -215,15 +215,14 @@ CODE
     }
 }
 
-
 task TrioDeNovoAnalysis {
     input {
         File vcf
         File vcf_idx
         File trio_definitions
         Array[Int] length_bins
-        String prefix
         Boolean skip_trv = true
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -294,7 +293,7 @@ for record in vcf:
 
         gq = record.samples[child].get("GQ")
         if gq is None:
-            gq = 0
+            continue
 
         inherited = is_nonref_unphased(record.samples[father]["GT"]) or is_nonref_unphased(record.samples[mother]["GT"])
         key = (variant_type, size_bucket, gq)
@@ -338,7 +337,6 @@ CODE
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task MergeTrioResults {
     input {
@@ -405,7 +403,6 @@ CODE
     }
 }
 
-
 task TruthSetAnalysis {
     input {
         File vcf
@@ -413,8 +410,8 @@ task TruthSetAnalysis {
         File truth_vcf
         File truth_vcf_idx
         Array[Int] length_bins
-        String prefix
         Boolean skip_trv = true
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -517,7 +514,7 @@ for record in vcf_in:
 
         gq = record.samples[s].get("GQ")
         if gq is None:
-            gq = 0
+            continue
 
         bucket_key = (variant_type, size_bucket, gq)
         variant_sites[bucket_key].add(record.id)
@@ -566,7 +563,6 @@ CODE
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task MergeTruthResults {
     input {

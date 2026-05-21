@@ -9,9 +9,9 @@ workflow AnnotateSVAN {
         File vcf_idx
         Array[String] contigs
         String prefix
-        
+
         Int? records_per_shard
-        
+
         File vntr_bed
         File exons_bed
         File repeats_bed
@@ -100,8 +100,8 @@ workflow AnnotateSVAN {
                 input:
                     vcf = ResetIns.reset_vcf,
                     vcf_idx = ResetIns.reset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.trf",
                     mode = "ins",
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.trf",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_generate_trf_ins
             }
@@ -118,8 +118,8 @@ workflow AnnotateSVAN {
                     mei_fa_indices = mei_fa_indices,
                     ref_fa = ref_fa,
                     ref_fa_indices = ref_fa_indices,
-                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.svan",
                     mode = "ins",
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.svan",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_annotate_ins
             }
@@ -130,9 +130,9 @@ workflow AnnotateSVAN {
                     vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
                     original_vcf = ResetIns.reset_vcf,
                     original_vcf_idx = ResetIns.reset_vcf_idx,
-                    add_header_row = true,
                     prefix = "~{prefix}.~{contig}.ins_shard_~{i}.annotations",
                     docker = utils_docker,
+                    add_header_row = true,
                     runtime_attr_override = runtime_attr_extract_ins
             }
         }
@@ -191,8 +191,8 @@ workflow AnnotateSVAN {
                 input:
                     vcf = ResetDel.reset_vcf,
                     vcf_idx = ResetDel.reset_vcf_idx,
-                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.trf",
                     mode = "del",
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.trf",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_generate_trf_del
             }
@@ -209,8 +209,8 @@ workflow AnnotateSVAN {
                     mei_fa_indices = mei_fa_indices,
                     ref_fa = ref_fa,
                     ref_fa_indices = ref_fa_indices,
-                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.svan",
                     mode = "del",
+                    prefix = "~{prefix}.~{contig}.del_shard_~{i}.svan",
                     docker = svan_docker,
                     runtime_attr_override = runtime_attr_annotate_del
             }
@@ -221,9 +221,9 @@ workflow AnnotateSVAN {
                     vcf_idx = SvanAnnotateDel.annotated_vcf_idx,
                     original_vcf = ResetDel.reset_vcf,
                     original_vcf_idx = ResetDel.reset_vcf_idx,
-                    add_header_row = true,
                     prefix = "~{prefix}.~{contig}.del_shard_~{i}.annotations",
                     docker = utils_docker,
+                    add_header_row = true,
                     runtime_attr_override = runtime_attr_extract_del
             }
         }
@@ -242,7 +242,7 @@ workflow AnnotateSVAN {
 
         File final_del_annotations = select_first([ConcatDelShards.concatenated_tsv, ExtractDel.annotations_tsv[0]])
     }
-    
+
     # Postprocessing
     call Helpers.ConcatAlignedTsvs {
         input:
@@ -262,8 +262,8 @@ task GenerateTRF {
     input {
         File vcf
         File vcf_idx
-        String prefix
         String mode
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -320,8 +320,8 @@ task RunSvanAnnotate {
         Array[File] mei_fa_indices
         File ref_fa
         Array[File] ref_fa_indices
-        String prefix
         String mode
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -337,7 +337,7 @@ task RunSvanAnnotate {
         else
             vcf_input="~{vcf}"
         fi
-        
+
         svan_script_name=""
         if [[ "~{mode}" == "ins" ]]; then
             svan_script_name="SVAN-INS.py"
@@ -363,7 +363,7 @@ task RunSvanAnnotate {
             -T . \
             -Oz -o ~{prefix}.vcf.gz \
             work_dir/svan_annotated.vcf
-        
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 

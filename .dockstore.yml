@@ -13,8 +13,26 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateCallsetOverlap
+    primaryDescriptorPath: /wdl/annotation/AnnotateCallsetOverlap.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateDbSNP
     primaryDescriptorPath: /wdl/annotation/AnnotateDbSNP.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateDbVaR
+    primaryDescriptorPath: /wdl/annotation/AnnotateDbVaR.wdl
     filters:
       branches:
         - main
@@ -139,26 +157,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateTRs
-    primaryDescriptorPath: /wdl/annotation/AnnotateTRs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: BenchmarkAnnotations
-    primaryDescriptorPath: /wdl/annotation/BenchmarkAnnotations.wdl
     filters:
       branches:
         - main
@@ -324,6 +324,15 @@ workflows:
   - subclass: WDL
     name: GQCalculation
     primaryDescriptorPath: /wdl/annotation_utils/GQCalculation.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: IntegrateTRs
+    primaryDescriptorPath: /wdl/annotation_utils/IntegrateTRs.wdl
     filters:
       branches:
         - main

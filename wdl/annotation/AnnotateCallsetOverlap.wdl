@@ -5,7 +5,7 @@ import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 import "../utils/TruvariMatch.wdl"
 
-workflow BenchmarkAnnotations {
+workflow AnnotateCallsetOverlap {
     input {
         File vcf_eval
         File vcf_eval_idx
@@ -13,25 +13,24 @@ workflow BenchmarkAnnotations {
         File vcf_truth_idx
         File vcf_sv_truth
         File vcf_sv_truth_idx
+        File ref_fa
+        File ref_fai
         Array[String] contigs
         String prefix
-        
+
+        Int? records_per_shard
+
         Boolean compare_annotations = true
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
-
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
-
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
         String skip_vep_categories = ""
-
-        Int? records_per_shard
-
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
@@ -42,9 +41,6 @@ workflow BenchmarkAnnotations {
         Boolean? rename_id_strip_chr_vcf_truth
         Boolean? rename_id_strip_chr_vcf_sv_truth
 
-        File ref_fa
-        File ref_fai
-        
         String benchmark_annotations_docker
         String utils_docker
 
@@ -55,7 +51,6 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_rename_eval
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
-
         RuntimeAttr? runtime_attr_exact_match
         RuntimeAttr? runtime_attr_truvari_subset_eval
         RuntimeAttr? runtime_attr_truvari_subset_truth
@@ -69,7 +64,6 @@ workflow BenchmarkAnnotations {
         RuntimeAttr? runtime_attr_bedtools_compare
         RuntimeAttr? runtime_attr_bedtools_calculate
         RuntimeAttr? runtime_attr_bedtools_merge_comparisons
-
         RuntimeAttr? runtime_attr_build_annotation_tsv
         RuntimeAttr? runtime_attr_collect_matched_ids
         RuntimeAttr? runtime_attr_extract_eval_vep_header
@@ -149,9 +143,9 @@ workflow BenchmarkAnnotations {
                 input:
                     vcf = StripGenotypes.stripped_vcf,
                     vcf_idx = StripGenotypes.stripped_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.eval.renamed",
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
-                    prefix = "~{prefix}.~{contig}.eval.renamed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_eval
             }
@@ -162,9 +156,9 @@ workflow BenchmarkAnnotations {
                 input:
                     vcf = subset_truth_vcf,
                     vcf_idx = subset_truth_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.truth.renamed",
                     id_format = select_first([rename_id_string_vcf_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_truth, false]),
-                    prefix = "~{prefix}.~{contig}.truth.renamed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_truth
             }
@@ -175,9 +169,9 @@ workflow BenchmarkAnnotations {
                 input:
                     vcf = subset_sv_truth_vcf,
                     vcf_idx = subset_sv_truth_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.sv_truth.renamed",
                     id_format = select_first([rename_id_string_vcf_sv_truth]),
                     strip_chr = select_first([rename_id_strip_chr_vcf_sv_truth, false]),
-                    prefix = "~{prefix}.~{contig}.sv_truth.renamed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_sv_truth
             }
@@ -213,12 +207,12 @@ workflow BenchmarkAnnotations {
                     vcf_eval_idx = post_exact_vcf_idx,
                     vcf_truth = truth_vcf_final,
                     vcf_truth_idx = truth_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.truvari",
                     min_sv_length_eval = min_sv_length_eval_truvari,
                     min_sv_length_truth = min_sv_length_truth_truvari,
                     length_field_eval = length_field_eval,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
-                    prefix = "~{prefix}.~{contig}.truvari",
                     utils_docker = utils_docker,
                     runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
                     runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
@@ -237,11 +231,11 @@ workflow BenchmarkAnnotations {
                     vcf_eval_idx = post_truvari_vcf_idx,
                     vcf_sv_truth = sv_truth_vcf_final,
                     vcf_sv_truth_idx = sv_truth_vcf_final_idx,
+                    prefix = "~{prefix}.~{contig}.bedtools_closest",
                     min_sv_length_eval = min_sv_length_eval_bedtools_closest,
                     min_sv_length_truth = min_sv_length_truth_bedtools_closest,
                     type_field_eval = type_field_eval,
                     length_field_eval = length_field_eval,
-                    prefix = "~{prefix}.~{contig}.bedtools_closest",
                     benchmark_annotations_docker = benchmark_annotations_docker,
                     utils_docker = utils_docker,
                     runtime_attr_subset_eval = runtime_attr_bedtools_subset_eval,
@@ -336,10 +330,10 @@ workflow BenchmarkAnnotations {
                         matched_shard_tsv = matched_tsvs_to_process[i],
                         eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
                         truth_vep_header = ExtractTruthVepHeader.vep_header_txt,
+                        skip_vep_categories = skip_vep_categories,
                         contig = contig,
                         shard_label = "~{i}",
                         prefix = "~{prefix}.~{contig}.shard_~{i}",
-                        skip_vep_categories = skip_vep_categories,
                         docker = benchmark_annotations_docker,
                         runtime_attr_override = runtime_attr_compute_shard_benchmarks
                 }
@@ -349,9 +343,9 @@ workflow BenchmarkAnnotations {
                 input:
                     af_pair_tsvs = ComputeShardBenchmarks.af_pairs_tsv,
                     vep_pair_tsvs = ComputeShardBenchmarks.vep_pairs_tsv,
+                    skip_vep_categories = skip_vep_categories,
                     contig = contig,
                     prefix = "~{prefix}.~{contig}.merged",
-                    skip_vep_categories = skip_vep_categories,
                     docker = benchmark_annotations_docker,
                     runtime_attr_override = runtime_attr_merge_shard_benchmarks
             }
@@ -433,30 +427,30 @@ task ExactMatch {
             -p isec_matched \
             ~{vcf_eval} \
             ~{vcf_truth}
-        
+
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
             isec_matched/0000.vcf \
             > eval_matched.tsv
-        
+
         bcftools query \
             -f '%ID\n' \
             isec_matched/0001.vcf \
             > truth_matched.tsv
-        
+
         paste eval_matched.tsv truth_matched.tsv \
             | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \
             > ~{prefix}.tsv
-        
+
         bcftools isec \
             -C \
             -c none \
             -p isec_unmatched \
             ~{vcf_eval} \
             ~{vcf_truth}
-        
+
         bgzip -c isec_unmatched/0000.vcf > ~{prefix}.vcf.gz
-        
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
@@ -465,7 +459,7 @@ task ExactMatch {
         File unmatched_vcf = "~{prefix}.vcf.gz"
         File unmatched_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
-    
+
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
@@ -588,7 +582,7 @@ task ExtractVepHeader {
 
     command <<<
         set -euo pipefail
-            
+
         bcftools view \
             -h \
             ~{vcf} \
@@ -630,9 +624,9 @@ task ShardedMatchedVariants {
 
     command <<<
         set -euo pipefail
-        
+
         mkdir -p shards
-        
+
         cat ~{matched_with_info_tsv} \
             | awk 'BEGIN{c=0;f=0} {print > sprintf("shards/matched.%06d.tsv", int(c/~{records_per_shard})) ; c++} END{ }'
     >>>
@@ -725,7 +719,7 @@ task MergeShardBenchmarks {
 
     command <<<
         set -euo pipefail
-        
+
         python3 /opt/gnomad-lr/scripts/benchmark/merge_benchmarks_from_pairs.py \
             --prefix ~{prefix} \
             --contig ~{contig} \

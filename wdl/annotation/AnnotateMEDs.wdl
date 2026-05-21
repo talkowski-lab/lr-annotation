@@ -16,7 +16,6 @@ workflow AnnotateMEDs {
         Float reciprocal_overlap = 0.9
         Int breakpoint_window = 500
         Float sequence_similarity = 0.9
-
         File med_catalog
 
         String utils_docker
@@ -85,8 +84,8 @@ workflow AnnotateMEDs {
                 input:
                     bed_a = ExtractDeletionsToBed.del_bed,
                     bed_b = med_catalog,
-                    prefix = "~{prefix}.~{contig}.shard_~{i}",
                     reciprocal_overlap = reciprocal_overlap,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_bedtools
             }
@@ -94,11 +93,11 @@ workflow AnnotateMEDs {
             call GenerateMedAnnotationTable {
                 input:
                     intersect_bed = IntersectMED.intersect_bed,
-                    prefix = "~{prefix}.~{contig}.shard_~{i}",
                     size_similarity = size_similarity,
                     reciprocal_overlap = reciprocal_overlap,
                     breakpoint_window = breakpoint_window,
                     sequence_similarity = sequence_similarity,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate
             }
@@ -178,8 +177,8 @@ task IntersectMED {
     input {
         File bed_a
         File bed_b
-        String prefix
         Float reciprocal_overlap
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -188,10 +187,12 @@ task IntersectMED {
         set -euo pipefail
 
         bedtools intersect \
-            -wa -wb \
-            -r -f ~{reciprocal_overlap} \
             -a ~{bed_a} \
             -b ~{bed_b} \
+            -wa \
+            -wb \
+            -r \
+            -f ~{reciprocal_overlap} \
             > ~{prefix}.intersect.bed
     >>>
 
@@ -222,11 +223,11 @@ task IntersectMED {
 task GenerateMedAnnotationTable {
     input {
         File intersect_bed
-        String prefix
         Float size_similarity
         Float reciprocal_overlap
         Int breakpoint_window
         Float sequence_similarity
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -250,14 +251,14 @@ def get_me_type(designation):
 def passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
     del_len = abs(del_end - del_start)
     med_len = abs(med_end - med_start)
-    
+
     if del_len == 0 or med_len == 0:
         return False
-        
+
     size_sim = min(del_len, med_len) / max(del_len, med_len)
     overlap = max(0, min(del_end, med_end) - max(del_start, med_start))
     rec_ovl = overlap / min(del_len, med_len)
-    
+
     if size_sim < size_similarity:
         return False
     if rec_ovl < reciprocal_overlap:
@@ -290,9 +291,9 @@ for _, row in bed.iterrows():
     med_end = int(row[8])
     designation = row[11]
     sub_family = row[12]
-    
+
     me_type = get_me_type(designation)
-    
+
     if not me_type:
         continue
 

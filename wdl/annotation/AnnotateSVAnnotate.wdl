@@ -13,7 +13,6 @@ workflow AnnotateSVAnnotate {
         Int? records_per_shard
 
         Int min_length
-        
         File coding_gtf
         File noncoding_bed
 

@@ -6,14 +6,14 @@ workflow MergeVcfs {
     input {
         Array[File] contig_vcfs
         Array[File] contig_vcf_idxs
-        String contig
-
         File ref_fa
         File ref_fai
+        String contig
+        String prefix
+
+        Int? shard_bin_size
 
         Int min_truvari_match = 20
-        Int? shard_bin_size
-        String prefix
 
         String utils_docker
 

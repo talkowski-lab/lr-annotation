@@ -7,9 +7,10 @@ workflow SubsetTsvToColumns {
         File annotations_tsv
         File annotations_header
         Array[String] subset_columns
-        Array[Array[String]]? subset_column_values
-        
         String prefix
+
+        Array[Array[String]]? subset_column_values
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset
@@ -46,70 +47,69 @@ task SubsetAndFilterTsv {
         set -euo pipefail
 
         python3 <<CODE
-        import json
-        import csv
-        import sys
+import json
+import csv
+import sys
 
-        tsv_path = "~{tsv_file}"
-        header_path = "~{header_file}"
-        out_path = "~{prefix}.tsv"
-        
-        with open("~{write_json(columns_to_keep)}") as f:
-            cols_requested = json.load(f)
+tsv_path = "~{tsv_file}"
+header_path = "~{header_file}"
+out_path = "~{prefix}.tsv"
 
-        filter_json_path = "~{write_json(select_first([column_filter_values, []]))}"
-        with open(filter_json_path) as f:
-            filter_vals_list = json.load(f)
+with open("~{write_json(columns_to_keep)}") as f:
+    cols_requested = json.load(f)
 
-        col_name_to_idx = {}
-        with open(header_path, 'r') as f:
-            for i, line in enumerate(f):
-                name = line.strip()
-                if name:
-                    col_name_to_idx[name] = i + 5
-        
-        output_indices = [0, 1, 2, 3, 4]
-        active_filters = {}
-        for i, col_name in enumerate(cols_requested):
-            if col_name not in col_name_to_idx:
-                sys.stderr.write(f"Error: Column '{col_name}' not found in header file.\n")
-                sys.exit(1)
-            tsv_idx = col_name_to_idx[col_name]
-            output_indices.append(tsv_idx)
-            
-            if i < len(filter_vals_list):
-                allowed_values = filter_vals_list[i]
-                if allowed_values:
-                    active_filters[tsv_idx] = set(allowed_values)
-        
-        with open(tsv_path, 'r') as fin, open(out_path, 'w', newline='') as fout:
-            reader = csv.reader(fin, delimiter='\t')
-            writer = csv.writer(fout, delimiter='\t')
+filter_json_path = "~{write_json(select_first([column_filter_values, []]))}"
+with open(filter_json_path) as f:
+    filter_vals_list = json.load(f)
 
-            for row in reader:
-                if not row: 
-                    continue
-                
-                keep_row = True
-                for filter_col_idx, allowed_set in active_filters.items():
-                    if filter_col_idx >= len(row):
-                        keep_row = False 
-                        break
-                    if row[filter_col_idx] not in allowed_set:
-                        keep_row = False
-                        break
-                
-                if keep_row:
-                    out_row = []
-                    for idx in output_indices:
-                        if idx < len(row):
-                            out_row.append(row[idx])
-                        else:
-                            out_row.append(".")
-                    
-                    writer.writerow(out_row)
+col_name_to_idx = {}
+with open(header_path, 'r') as f:
+    for i, line in enumerate(f):
+        name = line.strip()
+        if name:
+            col_name_to_idx[name] = i + 5
 
-        CODE
+output_indices = [0, 1, 2, 3, 4]
+active_filters = {}
+for i, col_name in enumerate(cols_requested):
+    if col_name not in col_name_to_idx:
+        sys.stderr.write(f"Error: Column '{col_name}' not found in header file.\n")
+        sys.exit(1)
+    tsv_idx = col_name_to_idx[col_name]
+    output_indices.append(tsv_idx)
+
+    if i < len(filter_vals_list):
+        allowed_values = filter_vals_list[i]
+        if allowed_values:
+            active_filters[tsv_idx] = set(allowed_values)
+
+with open(tsv_path, 'r') as fin, open(out_path, 'w', newline='') as fout:
+    reader = csv.reader(fin, delimiter='\t')
+    writer = csv.writer(fout, delimiter='\t')
+
+    for row in reader:
+        if not row:
+            continue
+
+        keep_row = True
+        for filter_col_idx, allowed_set in active_filters.items():
+            if filter_col_idx >= len(row):
+                keep_row = False
+                break
+            if row[filter_col_idx] not in allowed_set:
+                keep_row = False
+                break
+
+        if keep_row:
+            out_row = []
+            for idx in output_indices:
+                if idx < len(row):
+                    out_row.append(row[idx])
+                else:
+                    out_row.append(".")
+
+            writer.writerow(out_row)
+CODE
     >>>
 
     output {

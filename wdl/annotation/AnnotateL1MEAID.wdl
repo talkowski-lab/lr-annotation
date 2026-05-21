@@ -11,9 +11,9 @@ workflow AnnotateL1MEAID {
         Array[String] contigs
         String prefix
 
-        Int min_length
-
         Int? records_per_shard
+
+        Int min_length
 
         String utils_docker
         String repeatmasker_docker
@@ -245,9 +245,9 @@ with open(vcf_lookup_file, 'r') as f:
 with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
     for line in f_in:
         parts = line.strip().split('\t')
-        if len(parts) < 12: 
+        if len(parts) < 12:
             continue
-        
+
         classification = parts[8]
         structure = parts[10]
         me_type = None
@@ -257,7 +257,7 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             me_type = "SVA"
         elif classification == "LINE/L1" and (structure == "INTACT" or structure == "INTACT_3end"):
             me_type = "LINE"
-        
+
         if me_type:
             full_id = parts[0]
             full_id_parts = full_id.split(';')

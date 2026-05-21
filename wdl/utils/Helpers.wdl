@@ -467,7 +467,7 @@ task ConcatVcfs {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     command <<<
         set -euo pipefail
         
@@ -964,7 +964,7 @@ CODE
         File annotations_tsv = "~{prefix}.annotations.tsv"
         File annotations_header = "~{prefix}.header.txt"
     }
-    
+
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
@@ -1072,6 +1072,7 @@ task FinalizeToDir {
         Array[File] files
         String outdir
         File? keyfile
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1101,7 +1102,7 @@ task FinalizeToDir {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1113,6 +1114,7 @@ task FinalizeToFile {
         String outdir
         String? name
         File? keyfile
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1143,7 +1145,7 @@ task FinalizeToFile {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-finalize:0.1.2"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -1606,11 +1608,11 @@ task RenameVariantIds {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1, 
-        mem_gb: 4, 
+        cpu_cores: 1,
+        mem_gb: 4,
         disk_gb: 8 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10, 
-        preemptible_tries: 1, 
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1854,48 +1856,48 @@ task SetMissingFiltersToPass {
 }
 
 task SplitBam {
-	input {
-		File bam
-		File bai
-		String prefix
-		Array[String] contigs
-		String docker
-		RuntimeAttr? runtime_attr_override
-	}
+    input {
+        File bam
+        File bai
+        String prefix
+        Array[String] contigs
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
 
-	command <<<
-		set -euo pipefail
+    command <<<
+        set -euo pipefail
 
-		for contig in ~{sep=" " contigs}
-		do
-			samtools view -b ~{bam} $contig > ~{prefix}_${contig}.bam
-			samtools index ~{prefix}_${contig}.bam
-		done
-	>>>
+        for contig in ~{sep=" " contigs}
+        do
+            samtools view -b ~{bam} $contig > ~{prefix}_${contig}.bam
+            samtools index ~{prefix}_${contig}.bam
+        done
+    >>>
 
-	output {
-		Array[File] bams = glob("~{prefix}_*bam")
-		Array[File] bais = glob("~{prefix}_*bai")
-	}
+    output {
+        Array[File] bams = glob("~{prefix}_*bam")
+        Array[File] bais = glob("~{prefix}_*bai")
+    }
 
-	RuntimeAttr default_attr = object {
-		cpu_cores: 1,
-		mem_gb: 4,
-		disk_gb: 3 * ceil(size(bam, "GB")) + 10,
-		boot_disk_gb: 10,
-		preemptible_tries: 1,
-		max_retries: 0
-	}
-	RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-	runtime {
-		cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-		memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-		disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-		bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-		docker: docker
-		preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-		maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-	}
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 3 * ceil(size(bam, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
 }
 
 task StripGenotypes {

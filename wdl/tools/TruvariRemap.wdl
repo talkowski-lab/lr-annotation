@@ -1,23 +1,23 @@
 version 1.0
 
 import "../utils/Structs.wdl"
-import "../utils/Helpers.wdl" as Helpers
+import "../utils/Helpers.wdl"
 
 workflow TruvariRemap {
     input {
         File vcf
         File vcf_idx
-        Array[String] contigs
-        String prefix
-
         File ref_fa
         Array[File] ref_bwa_indices
+        Array[String] contigs
+        String prefix
 
         Int min_length
         Int max_length
         Int mm2_threshold
         Float cov_threshold
 
+        String remap_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_contig
@@ -41,13 +41,14 @@ workflow TruvariRemap {
             input:
                 vcf = SubsetVcfToContig.subset_vcf,
                 vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                ref_fa = ref_fa,
-                ref_bwa_indices = ref_bwa_indices,
                 min_length = min_length,
                 max_length = max_length,
                 mm2_threshold = mm2_threshold,
                 cov_threshold = cov_threshold,
+                ref_fa = ref_fa,
+                ref_bwa_indices = ref_bwa_indices,
                 prefix = "~{prefix}.~{contig}.remapped",
+                docker = remap_docker,
                 runtime_attr_override = runtime_attr_ins_remap
         }
     }
@@ -70,13 +71,14 @@ task InsRemap {
     input {
         File vcf
         File vcf_idx
-        File ref_fa
-        Array[File] ref_bwa_indices
         Int min_length
         Int max_length
         Int mm2_threshold
         Float cov_threshold
+        File ref_fa
+        Array[File] ref_bwa_indices
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -111,7 +113,7 @@ task InsRemap {
         | awk -F'\t' '($6 != "." || $7 != "." || $8 != "." || $9 != ".")' \
         > ~{prefix}.tsv
     >>>
-    
+
     output {
         File annotations_tsv = "~{prefix}.tsv"
     }
@@ -130,7 +132,7 @@ task InsRemap {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "quay.io/ymostovoy/lr-remap:latest"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

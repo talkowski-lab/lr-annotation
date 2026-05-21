@@ -7,24 +7,22 @@ workflow Kanpig {
     input {
         File cohort_vcf
         File cohort_vcf_idx
-        Array[String] sample_ids
         Array[File] bams
         Array[File] bais
-        Array[String] sexes
-        String prefix
-
         File ref_fa
         File ref_fai
         File ploidy_bed_male
         File ploidy_bed_female
+        Array[String] sample_ids
+        Array[String] sexes
+        String prefix
 
+        File? swap_samples
         String merge_args = "--merge id"
         String kanpig_params = "--neighdist 500 --gpenalty 0.04 --hapsim 0.97"
 
         String kanpig_docker
         String utils_docker
-
-        File? swap_samples
 
         RuntimeAttr? runtime_attr_swap_samples
         RuntimeAttr? runtime_attr_subset_cohort_to_samples

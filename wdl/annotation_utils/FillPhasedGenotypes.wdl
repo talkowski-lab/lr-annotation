@@ -15,7 +15,7 @@ workflow FillPhasedGenotypes {
         Int? shard_bin_size
 
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_split
@@ -137,7 +137,6 @@ workflow FillPhasedGenotypes {
         File hiphase_phased_vcf_idx = ConcatVcfs.concat_vcf_idx
     }
 }
-
 
 task FillGenotypes {
     input {

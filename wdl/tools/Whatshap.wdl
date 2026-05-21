@@ -9,11 +9,10 @@ workflow Whatshap {
         File bai
         File phased_vcf
         File phased_vcf_idx
-        Array[String] contigs
-        String prefix
-
         File ref_fa
         File ref_fai
+        Array[String] contigs
+        String prefix
 
         String? extra_args
 
@@ -55,8 +54,8 @@ workflow Whatshap {
                 phased_vcf_idx = SubsetVcfToContig.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.haplotagged",
                 extra_args = extra_args,
+                prefix = "~{prefix}.~{contig}.haplotagged",
                 docker = whatshap_docker,
                 runtime_attr_override = runtime_attr_haplotag
         }
@@ -78,7 +77,6 @@ workflow Whatshap {
     }
 }
 
-
 task Haplotag {
     input {
         File bam
@@ -87,8 +85,8 @@ task Haplotag {
         File phased_vcf_idx
         File ref_fa
         File ref_fai
-        String prefix
         String? extra_args
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }

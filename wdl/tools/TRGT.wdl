@@ -7,19 +7,19 @@ workflow TRGT {
     input {
         File bam
         File bai
-        String prefix
-        
-        String sample_id
-        String sex
-
         File ref_fa
         File ref_fai
         File repeat_catalog_trgt
-        String catalog_name
+        String prefix
 
+        String sample_id
+        String sex
+        String catalog_name
         String gcs_out_dir
+
         String trgt_docker
-        
+        String finalize_docker
+
         RuntimeAttr? runtime_attr_process_with_trgt
         RuntimeAttr? runtime_attr_finalize_vcf
         RuntimeAttr? runtime_attr_finalize_vcf_idx
@@ -33,33 +33,34 @@ workflow TRGT {
             bam = bam,
             bai = bai,
             is_female = is_female,
-            outprefix = sample_id,
+            catalog_name = catalog_name,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             repeat_catalog_trgt = repeat_catalog_trgt,
-            catalog_name = catalog_name,
+            outprefix = sample_id,
             docker = trgt_docker,
             runtime_attr_override = runtime_attr_process_with_trgt
     }
 
-    call Helpers.FinalizeToFile as FinalizeVcf { 
-        input: 
-            outdir = outdir, 
+    call Helpers.FinalizeToFile as FinalizeVcf {
+        input:
             file = ProcessWithTRGT.trgt_output_vcf,
-            runtime_attr_override = runtime_attr_finalize_vcf    
+            outdir = outdir,
+            docker = finalize_docker,
+            runtime_attr_override = runtime_attr_finalize_vcf
     }
 
-    call Helpers.FinalizeToFile as FinalizeTbi { 
-        input: 
-            outdir = outdir, 
+    call Helpers.FinalizeToFile as FinalizeTbi {
+        input:
             file = ProcessWithTRGT.trgt_output_vcf_idx,
+            outdir = outdir,
+            docker = finalize_docker,
             runtime_attr_override = runtime_attr_finalize_vcf_idx
     }
 
     output {
         File trgt_vcf = FinalizeVcf.gcs_path
         File trgt_vcf_idx = FinalizeTbi.gcs_path
-        # File trgt_bam = ProcessWithTRGT.trgt_output_bam
     }
 }
 
@@ -67,13 +68,13 @@ task ProcessWithTRGT {
     input {
         File bam
         File bai
-        String outprefix
-        File repeat_catalog_trgt
-        String catalog_name
         Boolean is_female
         Boolean verbose = false
+        String catalog_name
         File ref_fa
         File ref_fai
+        File repeat_catalog_trgt
+        String outprefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -103,7 +104,7 @@ task ProcessWithTRGT {
             -T . \
             -Ob -o ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz
-        
+
         mv ~{vcf_out_name}.sorted.vcf.gz ~{vcf_out_name}.vcf.gz
 
         tabix -p vcf ~{vcf_out_name}.vcf.gz
@@ -112,7 +113,6 @@ task ProcessWithTRGT {
     output {
         File trgt_output_vcf = "~{vcf_out_name}.vcf.gz"
         File trgt_output_vcf_idx = "~{vcf_out_name}.vcf.gz.tbi"
-        # File trgt_output_bam = "~{vcf_out_name}.spanning.bam"
     }
 
     RuntimeAttr default_attr = object {

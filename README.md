@@ -28,6 +28,8 @@ This repository serves as a home for all scripts, workflows and processes for an
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 - `dbsnp_vcf` (per-contig in data table): [Build 156 variants for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GCF_000001405.40.vcf.gz) from [dbSNP](https://ftp.ncbi.nih.gov/snp/archive/b156/VCF/GCF_000001405.40.gz).
 - `dbsnp_vcf_idx` (per-contig in data table): Index for `dbsnp_vcf`.
+- `dbvar_vcf` (per-contig in data table): [Variants for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/GRCh38.variant_call.all.vcf.gz) from [dbVaR](https://ftp.ncbi.nlm.nih.gov/pub/dbVar/data/Homo_sapiens/by_assembly/GRCh38/vcf/GRCh38.variant_call.all.vcf.gz).
+- `dbvar_vcf_idx` (per-contig in data table): Index for `dbvar_vcf`.
 - `exons_bed`: [Loci for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/EXONS_hg38.bed) from the [references](https://zenodo.org/records/15229020/files/hg38.tar.gz) listed in the SVAN repository.
 - `fix_variant_collisions_java`: [Script for phasing](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/FixVariantCollisions-9daf9b2.java) from the DSP Long-Read SV team.
 - `genetic_maps_tsv`: [Maps for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/genetic_map_b38.tsv) from the [GLIMPSE references](https://github.com/odelaneau/GLIMPSE/tree/master/maps/genetic_maps.b38).
@@ -73,11 +75,11 @@ This repository serves as a home for all scripts, workflows and processes for an
 
 ## Annotation Workflows
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
-This workflow leverages [AnnotateVcf](https://app.terra.bio/#workspaces/broad-firecloud-dsde-methods/GATK-Structural-Variants-Joint-Calling/workflows/broad-firecloud-dsde-methods/20-AnnotateVcf) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
+This workflow leverages [AnnotateVcf](https://github.com/broadinstitute/gatk-sv/blob/main/wdl/AnnotateVcf.wdl) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.
 
 Inputs:
 - `sample_pop_assignments`: Two column file containing sample IDs in the first column and ancestry labels in the second column.
-- `ped_file`: Six column file containing the cohort pedigree, with specifications described in [this article](https://gatk.broadinstitute.org/hc/en-us/articles/360035531972-PED-Pedigree-format).
+- `ped`: Six column file containing the cohort pedigree, with specifications described in [this article](https://gatk.broadinstitute.org/hc/en-us/articles/360035531972-PED-Pedigree-format).
 - `contigs`.
 - `par_bed`.
 
@@ -86,7 +88,26 @@ Inputs:
 TODO
 
 
+### [AnnotateCallsetOverlap](wdl/annotation/AnnotateCallsetOverlap.wdl)
+This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
+
+The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
+1. Exact match across CHROM, POS, REF and ALT.
+2. Truvari match with overlap percentages of 90%, 70% and 50%.
+3. Matching based on `bedtools closest`, finetuned for SVs.
+
+Inputs:
+- `vcf_truth`: VCF containing SNV & indels to evaluate against.
+- `vcf_sv_truth`: VCF containing SVs to evaluate against.
+- `ref_fa`.
+- `ref_fai`.
+
+
 ### [AnnotateDbSNP](wdl/annotation/AnnotateDbSNP.wdl)
+TODO
+
+
+### [AnnotateDbVaR](wdl/annotation/AnnotateDbVaR.wdl)
 TODO
 
 
@@ -106,7 +127,7 @@ TODO
 TODO
 
 
-### [AnnotateL1MEAID](wdl/annotation/AnnotateL1MEAIDFilter.wdl)
+### [AnnotateL1MEAID](wdl/annotation/AnnotateL1MEAID.wdl)
 This workflow first runs _RepeatMasker_ on an input VCF. It then uses its output to run [L1ME-AID](https://github.com/Markloftus/L1ME-AID) and [INTACT_MEI](https://github.com/xzhuo/INTACT_MEI) in order to annotate and filter MEI calls.
 
 TODO
@@ -149,7 +170,7 @@ This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to a
 Inputs:
 - `contigs`.
 - `exons_bed`.
-- `mei_fasta`.
+- `mei_fa`.
 - `ref_fa`.
 - `repeats_bed`.
 - `vntr_bed`.
@@ -164,31 +185,12 @@ Inputs:
 - `noncoding_bed`.
 
 
-### [AnnotateTRs](wdl/annotation/AnnotateTRs.wdl)
-TODO
-
-
 ### [AnnotateVEPHail](wdl/annotation/AnnotateVEPHail.wdl)
 This workflow leverages [the Ensembl Variant Effect Predictor (VEP)](https://useast.ensembl.org/info/docs/tools/vep/index.html) in order to annotate predicted functional effects based on site-level information. It requires numerous references that provide context to these annotations, and uses Hail in order to run this annotation process in a more efficient and scalable manner.
 
 Inputs:
 - `ref_fa`.
 - `ref_vep_cache`.
-
-
-### [BenchmarkAnnotations](wdl/annotation/BenchmarkAnnotations.wdl)
-This workflow ingests two VCFs and finds matching variants across them in order to compare the AF & VEP annotations of these matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to exiting cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
-
-The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
-1. Exact match across CHROM, POS, REF and ALT.
-2. Truvari match with overlap percentages of 90%, 70% and 50%.
-3. Matching based on `bedtools closest`, finetuned for SVs.
-
-Inputs:
-- `vcf_truth`: VCF containing SNV & indels to evaluate against.
-- `vcf_sv_truth`: VCF containing SVs to evaluate against.
-- `ref_fa`.
-- `ref_fai`.
 
 
 
@@ -233,7 +235,7 @@ TODO
 TODO
 
 
-### [CreateReadCountFile](wdl/annotation_utils/CreateReadCountFile.wdl)
+### [CreateReadCountsFile](wdl/annotation_utils/CreateReadCountsFile.wdl)
 TODO
 
 
@@ -257,11 +259,19 @@ TODO
 TODO
 
 
+### [GenerateTRGTJson](wdl/annotation_utils/GenerateTRGTJson.wdl)
+TODO
+
+
 ### [GQCalculation](wdl/annotation_utils/GQCalculation.wdl)
 TODO
 
 
-### [IntegrateVcfs](wdl/annotation_utils/IntegrateHGSVC.wdl)
+### [IntegrateTRs](wdl/annotation_utils/IntegrateTRs.wdl)
+TODO
+
+
+### [IntegrateVcfs](wdl/annotation_utils/IntegrateVcfs.wdl)
 TODO
 
 
@@ -285,11 +295,11 @@ TODO
 TODO
 
 
-### [GenerateTRGTJson](wdl/annotation_utils/GenerateTRGTJson.wdl)
+### [ReplaceSampleCalls](wdl/annotation_utils/ReplaceSampleCalls.wdl)
 TODO
 
 
-### [ReplaceSampleCalls](wdl/annotation_utils/ReplaceSampleCalls.wdl)
+### [SplitVcfPerContig](wdl/annotation_utils/SplitVcfPerContig.wdl)
 TODO
 
 

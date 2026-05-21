@@ -7,6 +7,8 @@ workflow PopulateSVFormatFields {
     input {
         File cohort_vcf
         File cohort_vcf_idx
+        String prefix
+
         Array[String] sample_ids
         Array[File] sample_sv_stats
         Array[File?] cutesv_vcfs
@@ -23,13 +25,11 @@ workflow PopulateSVFormatFields {
         Array[File?] dipcall_vcf_idxs
         Array[File?] hapdiff_vcfs
         Array[File?] hapdiff_vcf_idxs
-        String prefix
-
-        String utils_docker
-
         String merge_args = "--merge id"
         Boolean fuzzy_match_vcf_to_stats = true
         File? swap_samples
+
+        String utils_docker
 
         RuntimeAttr? runtime_attr_compute_counts
         RuntimeAttr? runtime_attr_aggregate_counts
@@ -129,8 +129,8 @@ workflow PopulateSVFormatFields {
         input:
             vcfs = FillFormatFields.filled_vcf,
             vcf_idxs = FillFormatFields.filled_vcf_idx,
-            extra_args = merge_args,
             prefix = "~{prefix}.filled",
+            extra_args = merge_args,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_vcfs
     }

@@ -16,7 +16,6 @@ workflow AnnotateGQMetrics {
         Array[Array[Int]] gq_bins
         Array[String] gq_variant_filters
         Array[Boolean] gq_larger_field
-
         Boolean ab_annotation
         Array[Float] ab_bins
 
@@ -40,7 +39,7 @@ workflow AnnotateGQMetrics {
                     vcf = vcf,
                     vcf_idx = vcf_idx,
                     contig = contig,
-                    prefix = prefix + "." + contig,
+                    prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset_vcf
             }
@@ -55,7 +54,7 @@ workflow AnnotateGQMetrics {
                     vcf = contig_vcf,
                     vcf_idx = contig_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
-                    prefix = prefix + "." + contig + ".gq_annotations",
+                    prefix = "~{prefix}.~{contig}.gq_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_shard
             }
@@ -106,7 +105,7 @@ workflow AnnotateGQMetrics {
                 input:
                     tsvs = MergeShardAnnotations.merged_tsv,
                     sort_output = false,
-                    prefix = prefix + "." + contig + ".gq_annotations",
+                    prefix = "~{prefix}.~{contig}.gq_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
             }
@@ -120,7 +119,7 @@ workflow AnnotateGQMetrics {
             input:
                 tsvs = final_annotations_tsv,
                 sort_output = false,
-                prefix = prefix + ".gq_annotated",
+                prefix = "~{prefix}.gq_annotated",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_vcf
         }
@@ -140,7 +139,6 @@ task GenerateGQAnnotationTsv {
         String gq_variant_filter
         Boolean gq_larger_field
         String prefix
-
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -243,9 +241,7 @@ CODE
         preemptible_tries: 2,
         max_retries: 0
     }
-
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
@@ -263,7 +259,6 @@ task GenerateABAnnotationTsv {
         File vcf_idx
         Array[Float] ab_bins
         String prefix
-
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -338,9 +333,7 @@ CODE
         preemptible_tries: 2,
         max_retries: 0
     }
-
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"

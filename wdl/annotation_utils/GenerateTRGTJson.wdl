@@ -6,10 +6,9 @@ import "../utils/Structs.wdl"
 workflow GenerateTRGTJson {
     input {
         File lps_tsv
+        File metadata_tsv
         Array[String] contigs
         String prefix
-
-        File metadata_tsv
 
         String stranalysis_docker
         String utils_docker

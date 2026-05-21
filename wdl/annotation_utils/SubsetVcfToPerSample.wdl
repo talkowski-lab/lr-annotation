@@ -6,10 +6,10 @@ workflow SubsetVcfToPerSample {
     input {
         Array[File] cohort_vcfs
         Array[File] cohort_vcf_idxs
-        Array[String] sample_ids
         Array[String] contigs
         String prefix
 
+        Array[String] sample_ids
         String? drop_fields
 
         String utils_docker

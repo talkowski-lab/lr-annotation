@@ -10,6 +10,7 @@ workflow CombineTRs {
         Array[String] tr_callers
         Array[String] contigs
         String prefix
+
         String sample_id
 
         String utils_docker

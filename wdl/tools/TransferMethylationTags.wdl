@@ -10,11 +10,12 @@ workflow TransferMethylationTags {
         File aligned_bai
         Array[String] contigs
         String prefix
-        Boolean gcs_paths = false
 
-        String utils_docker
+        Boolean gcs_paths = false
         String mm_tag = "MM"
         String ml_tag = "ML"
+
+        String utils_docker
 
         RuntimeAttr? runtime_attr_extract_tags
         RuntimeAttr? runtime_attr_merge_tags

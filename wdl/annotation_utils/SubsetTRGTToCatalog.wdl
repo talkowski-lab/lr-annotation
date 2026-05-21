@@ -10,15 +10,15 @@ workflow SubsetTRGTToCatalog {
         File trgt_catalog_bed_gz
         Array[String] contigs
         String prefix
-        
+
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_extract_ids
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_filter_to_catalog
         RuntimeAttr? runtime_attr_concat_vcf
     }
-    
+
     scatter (contig in contigs) {
         call ExtractCatalogForContig {
             input:
@@ -28,7 +28,7 @@ workflow SubsetTRGTToCatalog {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_extract_ids
         }
-        
+
         call Helpers.SubsetVcfToContig as SubsetVcf {
             input:
                 vcf = trgt_full_merged_vcf,
@@ -38,7 +38,7 @@ workflow SubsetTRGTToCatalog {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_vcf
         }
-        
+
         call FilterToCatalog {
             input:
                 vcf = SubsetVcf.subset_vcf,
@@ -49,7 +49,7 @@ workflow SubsetTRGTToCatalog {
                 runtime_attr_override = runtime_attr_filter_to_catalog
         }
     }
-    
+
     call Helpers.ConcatVcfs {
         input:
             vcfs = FilterToCatalog.filtered_vcf,
@@ -60,7 +60,7 @@ workflow SubsetTRGTToCatalog {
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_vcf
     }
-    
+
     output {
         File trgt_merged_vcf = ConcatVcfs.concat_vcf
         File trgt_merged_vcf_idx = ConcatVcfs.concat_vcf_idx
@@ -75,10 +75,10 @@ task ExtractCatalogForContig {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     command <<<
         set -euo pipefail
-        
+
         zcat ~{catalog_bed_gz} | \
             awk -F'\t' -v contig="~{contig}" '
                 $1 == contig {
@@ -98,14 +98,14 @@ task ExtractCatalogForContig {
                     }
                 }
             ' > ~{prefix}.txt
-        
+
         echo "Extracted $(wc -l < ~{prefix}.txt) catalog entries for ~{contig}" >&2
     >>>
-    
+
     output {
         File catalog_ids = "~{prefix}.txt"
     }
-    
+
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
@@ -135,10 +135,10 @@ task FilterToCatalog {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     command <<<
         set -euo pipefail
-        
+
         python3 <<CODE
 import pysam
 
@@ -160,7 +160,7 @@ for record in vcf_in:
     if isinstance(trid, tuple):
         trid = ','.join(trid)
     key = (str(trid), str(pos))
-    
+
     if key in catalog and key not in seen:
         seen.add(key)
         vcf_out.write(record)
@@ -168,15 +168,15 @@ for record in vcf_in:
 vcf_in.close()
 vcf_out.close()
 CODE
-        
+
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
-    
+
     output {
         File filtered_vcf = "~{prefix}.vcf.gz"
         File filtered_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
-    
+
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,

@@ -6,10 +6,9 @@ workflow MethylationProfiling {
     input {
         File bam
         File bai
-        String prefix
-
         File ref_fa
         File ref_fai
+        String prefix
 
         String cpg_docker
 

@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow AnnotateTRs {
+workflow IntegrateTRs {
     input {
         File vcf
         File vcf_idx
@@ -13,7 +13,6 @@ workflow AnnotateTRs {
         String prefix
 
         Array[String] sample_ids
-
         Array[File] tr_catalogs
         Array[String] tr_catalog_ids
 

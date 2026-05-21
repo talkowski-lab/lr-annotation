@@ -6,12 +6,12 @@ workflow CreateReadCountsFile {
     input {
         Array[File] mosdepth_bed_files
         Array[File] mosdepth_bed_indices
+        File ref_dict
         Array[String] contigs
         String prefix
-        String sample_id
 
         Int bin_size
-        File ref_dict
+        String sample_id
 
         String utils_docker
 

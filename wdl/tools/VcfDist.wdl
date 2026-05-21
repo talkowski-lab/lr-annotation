@@ -9,16 +9,15 @@ workflow VcfDist {
         File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
-        String prefix
+        File ref_fa
         Array[String] contigs
+        String prefix
 
         File? bed_regions
         String? mode
         Float? threshold
         String? vcfdist_args
 
-        File ref_fa
-        
         String utils_docker
         String vcfdist_docker
 
@@ -54,13 +53,13 @@ workflow VcfDist {
                 vcf_eval_idx = SubsetVcfEval.subset_vcf_idx,
                 vcf_truth = SubsetVcfTruth.subset_vcf,
                 vcf_truth_idx = SubsetVcfTruth.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}",
                 ref_fa = ref_fa,
                 bed_regions = bed_regions,
                 mode = mode,
                 threshold = threshold,
+                prefix = "~{prefix}.~{contig}",
                 docker = vcfdist_docker,
-                runtime_attr_override = runtime_attr_vcfdist,
+                runtime_attr_override = runtime_attr_vcfdist
         }
     }
 
@@ -83,12 +82,12 @@ task RunVcfDist {
         File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
-        String prefix
         File ref_fa
         File? bed_regions
         String? mode
         Float? threshold
         String? vcfdist_args
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }

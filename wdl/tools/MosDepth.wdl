@@ -12,7 +12,7 @@ workflow MosDepth {
 
         Boolean quantize_mode
 
-        String utils_docker
+        String mosdepth_docker
 
         RuntimeAttr? runtime_attr_run_mosdepth
     }
@@ -23,8 +23,9 @@ workflow MosDepth {
                 bam = bam,
                 bai = bai,
                 contig = contig,
-                prefix = "~{prefix}.~{contig}.coverage",
                 quantize_mode = quantize_mode,
+                prefix = "~{prefix}.~{contig}.coverage",
+                docker = mosdepth_docker,
                 runtime_attr_override = runtime_attr_run_mosdepth
         }
     }
@@ -44,8 +45,9 @@ task RunMosDepth {
         File bam
         File bai
         String contig
-        String prefix
         Boolean quantize_mode
+        String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -100,7 +102,7 @@ task RunMosDepth {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/lr-mosdepth:0.3.1"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

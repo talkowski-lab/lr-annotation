@@ -9,18 +9,16 @@ workflow TruvariMatch {
         File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
+        File ref_fa
+        File ref_fai
         String prefix
 
         Int min_sv_length_eval
         Int min_sv_length_truth
-
         String length_field_eval
 
-        File ref_fa
-        File ref_fai
-
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_run_truvari
@@ -31,8 +29,8 @@ workflow TruvariMatch {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
-            min_length = min_sv_length_eval,
             length_field = length_field_eval,
+            min_length = min_sv_length_eval,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
@@ -186,7 +184,3 @@ task RunTruvari {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
-
-
- 

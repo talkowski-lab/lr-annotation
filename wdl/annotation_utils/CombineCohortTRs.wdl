@@ -10,6 +10,7 @@ workflow CombineCohortTRs {
         Array[String] tr_callers
         Array[String] contigs
         String prefix
+
         Array[String] sample_ids
 
         String utils_docker

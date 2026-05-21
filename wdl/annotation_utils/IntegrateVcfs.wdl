@@ -12,9 +12,10 @@ workflow IntegrateVcfs {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Array[String] sample_ids
         Int min_sv_length = 50
-        Int? records_per_shard
         String snv_indel_vcf_source_tag
         String snv_indel_vcf_size_flag
         String snv_indel_vcf_size_flag_description
@@ -23,13 +24,12 @@ workflow IntegrateVcfs {
         String sv_vcf_size_flag_description
         File? swap_samples_snv_indel
         File? swap_samples_sv
-        
+
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_swap_samples_snv_indel
         RuntimeAttr? runtime_attr_swap_samples_sv
         RuntimeAttr? runtime_attr_check_samples
-
         RuntimeAttr? runtime_attr_subset_contig_snv_indel
         RuntimeAttr? runtime_attr_shard_snv_indel
         RuntimeAttr? runtime_attr_split_snv_indel
@@ -38,7 +38,6 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_add_info_snv_indel
         RuntimeAttr? runtime_attr_add_filter_snv_indel
         RuntimeAttr? runtime_attr_concat_snv_indel_shards
-
         RuntimeAttr? runtime_attr_subset_contig_sv
         RuntimeAttr? runtime_attr_shard_sv
         RuntimeAttr? runtime_attr_split_sv
@@ -47,7 +46,6 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_add_info_sv
         RuntimeAttr? runtime_attr_add_filter_sv
         RuntimeAttr? runtime_attr_concat_sv_shards
-        
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_rename_and_filter
         RuntimeAttr? runtime_attr_concat
@@ -76,7 +74,7 @@ workflow IntegrateVcfs {
                 runtime_attr_override = runtime_attr_swap_samples_sv
         }
     }
-    
+
     File final_snv_indel_vcf = select_first([SwapSnvIndel.swapped_vcf, snv_indel_vcf])
     File final_snv_indel_vcf_idx = select_first([SwapSnvIndel.swapped_vcf_idx, snv_indel_vcf_idx])
     File final_sv_vcf = select_first([SwapSv.swapped_vcf, sv_vcf])
@@ -284,7 +282,7 @@ workflow IntegrateVcfs {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_check_samples
         }
-        
+
         call Helpers.ConcatVcfs as MergeContigVcfs {
             input:
                 vcfs = [final_snv_indel_vcf_for_contig, final_sv_vcf_for_contig],

@@ -9,11 +9,12 @@ workflow FillFormatFields {
         File unfilled_vcf_idx
         File filled_vcf
         File filled_vcf_idx
-        String prefix
         String contig
+        String prefix
+
+        Int? shard_bin_size
 
         Array[String] format_fields
-        Int? shard_bin_size
         String? include_field
         String? include_value
         Boolean modify_ev_number = false

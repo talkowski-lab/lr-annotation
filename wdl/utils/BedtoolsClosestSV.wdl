@@ -13,13 +13,12 @@ workflow BedtoolsClosestSV {
 
         Int min_sv_length_eval
         Int min_sv_length_truth
-        
         String type_field_eval
         String length_field_eval
-        
+
         String benchmark_annotations_docker
         String utils_docker
-        
+
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_convert_to_symbolic
@@ -35,8 +34,8 @@ workflow BedtoolsClosestSV {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
-            min_length = min_sv_length_eval,
             length_field = length_field_eval,
+            min_length = min_sv_length_eval,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_eval
@@ -68,8 +67,8 @@ workflow BedtoolsClosestSV {
         input:
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
-            min_length = min_sv_length_truth,
             length_field = "SVLEN",
+            min_length = min_sv_length_truth,
             prefix = "~{prefix}.subset_truth",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_subset_truth
@@ -94,7 +93,7 @@ workflow BedtoolsClosestSV {
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
-    
+
     call SelectMatchedSVs as CalcuDEL {
         input:
             input_bed = CompareDEL.output_bed,
@@ -111,7 +110,7 @@ workflow BedtoolsClosestSV {
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
-    
+
     call SelectMatchedINSs as CalcuINS {
         input:
             input_bed = CompareINS.output_bed,
@@ -128,7 +127,7 @@ workflow BedtoolsClosestSV {
             docker = utils_docker,
             runtime_attr_override = runtime_attr_compare
     }
-    
+
     call SelectMatchedSVs as CalcuDUP {
         input:
             input_bed = CompareDUP.output_bed,
@@ -230,7 +229,7 @@ task SplitVcf {
             ~{if split_cpx then "--split-cpx" else ""} \
             ~{vcf} \
             tmp.bed
-        
+
         cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
 
         set +o pipefail
@@ -293,7 +292,7 @@ task SelectMatchedSVs {
 
     output {
         File output_comp = "~{prefix}.comparison"
-    }    
+    }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
@@ -325,7 +324,7 @@ task SelectMatchedINSs {
 
     command <<<
         set -euo pipefail
-        
+
         Rscript /opt/gnomad-lr/scripts/benchmark/R2.bedtools_closest_INS.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
@@ -462,7 +461,7 @@ task CreateBedtoolsAnnotationTsv {
         grep -v "query_svid" ~{closest_bed} \
             | awk -F'\t' '$1 != "" {print $1"\t"$2}' \
             | sort -k1,1 > matched_ids.tsv
-        
+
         join \
             -1 5 \
             -2 1 \

@@ -7,14 +7,13 @@ workflow CreateCoverageFile {
     input {
         Array[File] mosdepth_bed_files
         Array[File] mosdepth_bed_indices
+        File ref_fai
         Array[String] contigs
         String prefix
 
         Int window_size
         Int bin_size
         Array[Int] thresholds
-
-        File ref_fai
 
         String utils_docker
 

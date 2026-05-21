@@ -9,7 +9,7 @@ workflow SubsetVcfToContigs {
         File vcf_idx
         Array[String] contigs
         String prefix
-        
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf

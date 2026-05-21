@@ -13,9 +13,11 @@ workflow HiPhase {
         File sv_vcf_idx
         File? trgt_vcf
         File? trgt_vcf_idx
+        File ref_fa
+        File ref_fai
         Array[String] contigs
         String prefix
-        
+
         Int? trgt_min_repeat_unit
         Boolean? trgt_normalize
         Int? trgt_min_length_diff
@@ -23,9 +25,8 @@ workflow HiPhase {
         String? hiphase_extra_args
         Boolean run_haplotagging = false
 
-        File ref_fa
-        File ref_fai
-
+        String hiphase_docker
+        String hiphase_preprocess_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_preprocess_vcf
@@ -40,16 +41,17 @@ workflow HiPhase {
         RuntimeAttr? runtime_attr_merge_bams
     }
 
-    call PreprocessVCF { 
+    call PreprocessVCF {
         input:
             vcf = sv_vcf,
             vcf_idx = sv_vcf_idx,
             prefix = "~{prefix}.preprocessed",
+            docker = hiphase_preprocess_docker,
             runtime_attr_override = runtime_attr_preprocess_vcf
     }
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetVcfShort { 
+        call Helpers.SubsetVcfToContig as SubsetVcfShort {
             input:
                 vcf = small_vcf,
                 vcf_idx = small_vcf_idx,
@@ -81,7 +83,7 @@ workflow HiPhase {
         }
 
         if (defined(trgt_vcf) && defined(trgt_vcf_idx)) {
-            call Helpers.SubsetVcfToContig as SubsetVcfTRGT { 
+            call Helpers.SubsetVcfToContig as SubsetVcfTRGT {
                 input:
                     vcf = select_first([trgt_vcf]),
                     vcf_idx = select_first([trgt_vcf_idx]),
@@ -96,31 +98,32 @@ workflow HiPhase {
                     vcf = SubsetVcfTRGT.subset_vcf,
                     vcf_idx = SubsetVcfTRGT.subset_vcf_idx,
                     min_repeat_unit = trgt_min_repeat_unit,
-                    normalize = select_first([trgt_normalize, false]),
                     min_length_diff = trgt_min_length_diff,
                     max_catalog_length = trgt_max_catalog_length,
                     ref_fa = ref_fa,
+                    normalize = select_first([trgt_normalize, false]),
                     prefix = "~{prefix}.~{contig}.trgt.processed",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_process_trgt_vcf
             }
         }
 
-        call HiPhase { 
+        call HiPhase {
             input:
                 bam = bam,
                 bai = bai,
-                unphased_sv_vcf = SyncContigs.synced_vcf,
-                unphased_sv_idx = SyncContigs.synced_idx,
                 unphased_snp_vcf = SubsetVcfShort.subset_vcf,
-                unphased_snp_idx = SubsetVcfShort.subset_vcf_idx,
+                unphased_snp_vcf_idx = SubsetVcfShort.subset_vcf_idx,
+                unphased_sv_vcf = SyncContigs.synced_vcf,
+                unphased_sv_vcf_idx = SyncContigs.synced_vcf_idx,
                 unphased_trgt_vcf = FilterTRGTVcf.processed_vcf,
                 unphased_trgt_vcf_idx = FilterTRGTVcf.processed_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.phased",
                 extra_args = hiphase_extra_args,
                 run_haplotagging = run_haplotagging,
+                prefix = "~{prefix}.~{contig}.phased",
+                docker = hiphase_docker,
                 runtime_attr_override = runtime_attr_hiphase
         }
 
@@ -171,6 +174,7 @@ task PreprocessVCF {
         File vcf
         File vcf_idx
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -186,7 +190,7 @@ task PreprocessVCF {
         tabix -p vcf ~{prefix}.uppercase.vcf.gz
 
         bcftools +setGT ~{prefix}.uppercase.vcf.gz --no-version -Oz -o ~{prefix}.vcf.gz -- --target-gt a --new-gt u
-        tabix -p vcf ~{prefix}.vcf.gz 
+        tabix -p vcf ~{prefix}.vcf.gz
     >>>
 
     output {
@@ -206,9 +210,9 @@ task PreprocessVCF {
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "hangsuunc/cleanvcf:v1"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -241,7 +245,7 @@ task SyncContigs {
 
     output {
         File synced_vcf = "~{prefix}.vcf.gz"
-        File synced_idx = "~{prefix}.vcf.gz.tbi"
+        File synced_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -250,8 +254,7 @@ task SyncContigs {
         disk_gb: 2 * ceil(size(small_vcf, "GB") + size(sv_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0,
-        docker: docker
+        max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
@@ -259,9 +262,9 @@ task SyncContigs {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-        docker: select_first([runtime_attr.docker, default_attr.docker])
     }
 }
 
@@ -270,16 +273,17 @@ task HiPhase {
         File bam
         File bai
         File unphased_snp_vcf
-        File unphased_snp_idx
+        File unphased_snp_vcf_idx
         File unphased_sv_vcf
-        File unphased_sv_idx
+        File unphased_sv_vcf_idx
         File? unphased_trgt_vcf
         File? unphased_trgt_vcf_idx
-        String? extra_args
-        Boolean run_haplotagging
         File ref_fa
         File ref_fai
+        String? extra_args
+        Boolean run_haplotagging
         String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -334,9 +338,9 @@ task HiPhase {
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: 16 + " GiB"
-        disks: "local-disk " +  select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: "us.gcr.io/broad-dsp-lrma/hangsuunc/hiphase:v1.5.0"
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

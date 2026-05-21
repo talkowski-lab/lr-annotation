@@ -17,7 +17,6 @@ workflow AnnotateInSilicoPredictors {
         String phylop_ht
         String revel_ht
         String spliceai_ht
-
         String annotate_in_silico_predictors_script = "https://raw.githubusercontent.com/talkowski-lab/lr-annotation/main/scripts/miscellaneous/annotate_insilico_predictors.py"
         String genome_build = "GRCh38"
 
@@ -69,15 +68,15 @@ workflow AnnotateInSilicoPredictors {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
-                    prefix = "~{prefix}.~{contig}.in_silico_predictors.shard_~{i}",
                     cadd_ht = cadd_ht,
                     pangolin_ht = pangolin_ht,
                     phylop_ht = phylop_ht,
                     revel_ht = revel_ht,
                     spliceai_ht = spliceai_ht,
-                    docker = hail_docker,
                     annotate_in_silico_predictors_script = annotate_in_silico_predictors_script,
                     genome_build = genome_build,
+                    prefix = "~{prefix}.~{contig}.in_silico_predictors.shard_~{i}",
+                    docker = hail_docker,
                     runtime_attr_override = runtime_attr_annotate
             }
         }
@@ -116,18 +115,15 @@ task AnnotateInSilicoPredictorsTask {
     input {
         File vcf
         File vcf_idx
-
-        String prefix
         String cadd_ht
         String pangolin_ht
         String phylop_ht
         String revel_ht
         String spliceai_ht
-
-        String docker
         String annotate_in_silico_predictors_script
         String genome_build = "GRCh38"
-
+        String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 

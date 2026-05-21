@@ -7,14 +7,13 @@ workflow HiPhaseMerge {
     input {
         Array[File] phased_vcfs
         Array[File] phased_vcf_idxs
+        File ref_fa
+        File ref_fai
         Array[String] contigs
         String prefix
 
         Boolean merge_trgt
         String merge_args = "--merge id"
-
-        File ref_fa
-        File ref_fai
 
         String utils_docker
         String trgt_docker
@@ -98,8 +97,8 @@ workflow HiPhaseMerge {
             input:
                 vcfs = select_first([DropVcfFields.dropped_vcf, phased_vcfs]),
                 vcf_idxs = select_first([DropVcfFields.dropped_vcf_idx, phased_vcf_idxs]),
-                contig = contig,
                 prefix = "~{prefix}.~{contig}.integrated",
+                contig = contig,
                 extra_args = merge_args,
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_integrated
@@ -110,10 +109,10 @@ workflow HiPhaseMerge {
                 input:
                     vcfs = select_first([FixALHeader.fixed_vcf]),
                     vcf_idxs = select_first([FixALHeader.fixed_vcf_idx]),
-                    prefix = "~{prefix}.~{contig}.trgt",
                     contig = contig,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.trgt",
                     docker = trgt_docker,
                     runtime_attr_override = runtime_attr_merge_trgt
             }
@@ -346,14 +345,14 @@ task TRGTMergeContig {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
-        String prefix
         String contig
         File ref_fa
         File ref_fai
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     command <<<
         set -euo pipefail
 

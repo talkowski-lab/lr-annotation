@@ -11,33 +11,28 @@ workflow AnnotatePALMER {
         File PALMER_vcf_idx
         Array[String] contigs
         String prefix
-        
+
         Array[String] mei_types
         Int min_length
         File rm_out
         Int rm_buffer
         File ref_fai
-
         Float reciprocal_overlap_ALU = 0.9
         Float reciprocal_overlap_SVA = 0.9
         Float reciprocal_overlap_LINE = 0.9
         Float reciprocal_overlap_HERVK = 0.9
-
         Float size_similarity_ALU = 0.9
         Float size_similarity_SVA = 0.9
         Float size_similarity_LINE = 0.9
         Float size_similarity_HERVK = 0.9
-
         Float sequence_similarity_ALU = 0.9
         Float sequence_similarity_SVA = 0.9
         Float sequence_similarity_LINE = 0.9
         Float sequence_similarity_HERVK = 0.9
-
         Int breakpoint_window_ALU = 100000
         Int breakpoint_window_SVA = 100000
         Int breakpoint_window_LINE = 100000
         Int breakpoint_window_HERVK = 100000
-
         Int min_shared_samples_ALU = 0
         Int min_shared_samples_SVA = 0
         Int min_shared_samples_LINE = 0
@@ -68,15 +63,12 @@ workflow AnnotatePALMER {
             input:
                 vcf = SubsetVcfByLength.subset_vcf,
                 vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                prefix = "~{prefix}.~{contig}.filtered",
                 PALMER_vcf = PALMER_vcf,
                 PALMER_vcf_idx = PALMER_vcf_idx,
                 mei_types = mei_types,
                 rm_out = rm_out,
                 rm_buffer = rm_buffer,
                 ref_fai = ref_fai,
-                docker = annotate_palmer_docker,
-                runtime_attr_override = runtime_attr_filter_palmer,
                 reciprocal_overlap_ALU = reciprocal_overlap_ALU,
                 reciprocal_overlap_LINE = reciprocal_overlap_LINE,
                 reciprocal_overlap_SVA = reciprocal_overlap_SVA,
@@ -96,7 +88,10 @@ workflow AnnotatePALMER {
                 min_shared_samples_ALU = min_shared_samples_ALU,
                 min_shared_samples_LINE = min_shared_samples_LINE,
                 min_shared_samples_SVA = min_shared_samples_SVA,
-                min_shared_samples_HERVK = min_shared_samples_HERVK
+                min_shared_samples_HERVK = min_shared_samples_HERVK,
+                prefix = "~{prefix}.~{contig}.filtered",
+                docker = annotate_palmer_docker,
+                runtime_attr_override = runtime_attr_filter_palmer
         }
     }
 
@@ -120,40 +115,35 @@ task FilterPALMER {
     input {
         File vcf
         File vcf_idx
-        String prefix
         File PALMER_vcf
         File PALMER_vcf_idx
         Array[String] mei_types
         File rm_out
         Int rm_buffer
         File ref_fai
-        String docker
-        RuntimeAttr? runtime_attr_override
-
         Float reciprocal_overlap_ALU
         Float reciprocal_overlap_LINE
         Float reciprocal_overlap_SVA
         Float reciprocal_overlap_HERVK
-
         Float size_similarity_ALU
         Float size_similarity_LINE
         Float size_similarity_SVA
         Float size_similarity_HERVK
-
         Float sequence_similarity_ALU
         Float sequence_similarity_LINE
         Float sequence_similarity_SVA
         Float sequence_similarity_HERVK
-
         Int breakpoint_window_ALU
         Int breakpoint_window_LINE
         Int breakpoint_window_SVA
         Int breakpoint_window_HERVK
-
         Int min_shared_samples_ALU
         Int min_shared_samples_LINE
         Int min_shared_samples_SVA
         Int min_shared_samples_HERVK
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
     }
 
     command <<<
