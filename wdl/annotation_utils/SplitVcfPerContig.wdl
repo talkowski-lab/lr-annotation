@@ -91,7 +91,7 @@ EOF
                 -Oz -o ~{prefix}.renamed.vcf.gz \
                 ~{vcf}
 
-            tabix -p vcf ~{prefix}.renamed.vcf.gz
+            tabix -f -p vcf ~{prefix}.renamed.vcf.gz
 
             input_vcf="~{prefix}.renamed.vcf.gz"
         elif ~{rename_dbvar_contigs}; then
@@ -128,7 +128,7 @@ EOF
                 -Oz -o ~{prefix}.renamed.vcf.gz \
                 ~{vcf}
 
-            tabix -p vcf ~{prefix}.renamed.vcf.gz
+            tabix -f -p vcf ~{prefix}.renamed.vcf.gz
 
             input_vcf="~{prefix}.renamed.vcf.gz"
         else
