@@ -11,7 +11,8 @@ workflow SplitVcfPerContig {
 
         Boolean create_no_geno = false
         Boolean modify_snv_ids = false
-        Boolean rename_contigs = false
+        Boolean rename_dbsnp_contigs = false
+        Boolean rename_dbvar_contigs = false
 
         String utils_docker
 
@@ -26,7 +27,8 @@ workflow SplitVcfPerContig {
             prefix = prefix,
             create_no_geno = create_no_geno,
             modify_snv_ids = modify_snv_ids,
-            rename_contigs = rename_contigs,
+            rename_dbsnp_contigs = rename_dbsnp_contigs,
+            rename_dbvar_contigs = rename_dbvar_contigs,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
@@ -47,7 +49,8 @@ task SplitByContig {
         String prefix
         Boolean create_no_geno
         Boolean modify_snv_ids
-        Boolean rename_contigs
+        Boolean rename_dbsnp_contigs
+        Boolean rename_dbvar_contigs
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -55,7 +58,7 @@ task SplitByContig {
     command <<<
         set -euo pipefail
 
-        if ~{rename_contigs}; then
+        if ~{rename_dbsnp_contigs}; then
             cat > chr_name_mapping.txt <<EOF
 NC_000001.11 chr1
 NC_000002.12 chr2
@@ -87,9 +90,46 @@ EOF
                 --rename-chrs chr_name_mapping.txt \
                 -Oz -o ~{prefix}.renamed.vcf.gz \
                 ~{vcf}
-            
+
             tabix -p vcf ~{prefix}.renamed.vcf.gz
-            
+
+            input_vcf="~{prefix}.renamed.vcf.gz"
+        elif ~{rename_dbvar_contigs}; then
+            cat > chr_name_mapping.txt <<EOF
+1 chr1
+2 chr2
+3 chr3
+4 chr4
+5 chr5
+6 chr6
+7 chr7
+8 chr8
+9 chr9
+10 chr10
+11 chr11
+12 chr12
+13 chr13
+14 chr14
+15 chr15
+16 chr16
+17 chr17
+18 chr18
+19 chr19
+20 chr20
+21 chr21
+22 chr22
+X chrX
+Y chrY
+MT chrM
+EOF
+
+            bcftools annotate \
+                --rename-chrs chr_name_mapping.txt \
+                -Oz -o ~{prefix}.renamed.vcf.gz \
+                ~{vcf}
+
+            tabix -p vcf ~{prefix}.renamed.vcf.gz
+
             input_vcf="~{prefix}.renamed.vcf.gz"
         else
             input_vcf="~{vcf}"
