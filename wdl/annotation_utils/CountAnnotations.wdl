@@ -2,7 +2,6 @@ version 1.0
 
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
-import "IntegrateVcfs.wdl" as IntegrateVcfs
 
 workflow CountAnnotations {
     input {
@@ -18,7 +17,7 @@ workflow CountAnnotations {
         Boolean create_list = false
         Boolean create_functional = false
         Boolean create_variant_attributes = false
-        
+
         Boolean split_by_region = false
         String subset_vcf_string = ""
         Int max_length = -1
@@ -76,21 +75,10 @@ workflow CountAnnotations {
         Array[File] shard_vcf_idxs = select_first([SubsetVcfToRegionStreaming.subset_vcf_idx, ShardVcfByRecords.shard_idxs, [vcf_idxs[i]]])
 
         scatter (j in range(length(shard_vcfs))) {
-            if (create_variant_attributes) {
-                call IntegrateVcfs.AnnotateVariantAttributes as AnnotateShardVariantAttributes {
-                    input:
-                        vcf = shard_vcfs[j],
-                        vcf_idx = shard_vcf_idxs[j],
-                        prefix = "~{prefix}.input_~{i}.shard_~{j}.annotated",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_count
-                }
-            }
-
             call Helpers.SubsetVcfByArgs {
                 input:
-                    vcf = select_first([AnnotateShardVariantAttributes.annotated_vcf, shard_vcfs[j]]),
-                    vcf_idx = select_first([AnnotateShardVariantAttributes.annotated_vcf_idx, shard_vcf_idxs[j]]),
+                    vcf = shard_vcfs[j],
+                    vcf_idx = shard_vcf_idxs[j],
                     extra_args = subset_vcf_string,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
                     docker = utils_docker,
