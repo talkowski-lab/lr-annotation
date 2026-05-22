@@ -14,28 +14,28 @@ workflow SplitVcfPerContig {
         Boolean modify_snv_ids = false
         Boolean rename_dbsnp_contigs = false
         Boolean rename_dbvar_contigs = false
-        String? drop_fields
+        Array[String]? missing_info_header_fields
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_drop_fields
+        RuntimeAttr? runtime_attr_add_header_lines
         RuntimeAttr? runtime_attr_split_vcf
     }
 
-    if (defined(drop_fields)) {
-        call Helpers.DropVcfFields {
+    if (defined(missing_info_header_fields)) {
+        call Helpers.AddMissingInfoHeaderLines {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                drop_fields = select_first([drop_fields]),
-                prefix = "~{prefix}.dropped",
+                info_fields = select_first([missing_info_header_fields]),
+                prefix = "~{prefix}.hdr_fixed",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_drop_fields
+                runtime_attr_override = runtime_attr_add_header_lines
         }
     }
 
-    File base_vcf = select_first([DropVcfFields.dropped_vcf, vcf])
-    File base_vcf_idx = select_first([DropVcfFields.dropped_vcf_idx, vcf_idx])
+    File base_vcf = select_first([AddMissingInfoHeaderLines.annotated_vcf, vcf])
+    File base_vcf_idx = select_first([AddMissingInfoHeaderLines.annotated_vcf_idx, vcf_idx])
 
     call SplitByContig {
         input:
