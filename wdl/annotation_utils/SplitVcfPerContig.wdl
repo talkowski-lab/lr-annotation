@@ -1,5 +1,6 @@
 version 1.0
 
+import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow SplitVcfPerContig {
@@ -13,16 +14,33 @@ workflow SplitVcfPerContig {
         Boolean modify_snv_ids = false
         Boolean rename_dbsnp_contigs = false
         Boolean rename_dbvar_contigs = false
+        String? drop_fields
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_split_vcf
     }
 
+    if (defined(drop_fields)) {
+        call Helpers.DropVcfFields {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                drop_fields = select_first([drop_fields]),
+                prefix = "~{prefix}.dropped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_drop_fields
+        }
+    }
+
+    File base_vcf = select_first([DropVcfFields.dropped_vcf, vcf])
+    File base_vcf_idx = select_first([DropVcfFields.dropped_vcf_idx, vcf_idx])
+
     call SplitByContig {
         input:
-            vcf = vcf,
-            vcf_idx = vcf_idx,
+            vcf = base_vcf,
+            vcf_idx = base_vcf_idx,
             contigs = contigs,
             prefix = prefix,
             create_no_geno = create_no_geno,
@@ -91,7 +109,7 @@ EOF
                 -Oz -o ~{prefix}.renamed.vcf.gz \
                 ~{vcf}
 
-            tabix -f -p vcf ~{prefix}.renamed.vcf.gz
+            tabix -p vcf ~{prefix}.renamed.vcf.gz
 
             input_vcf="~{prefix}.renamed.vcf.gz"
         elif ~{rename_dbvar_contigs}; then
@@ -128,7 +146,7 @@ EOF
                 -Oz -o ~{prefix}.renamed.vcf.gz \
                 ~{vcf}
 
-            tabix -f -p vcf ~{prefix}.renamed.vcf.gz
+            tabix -p vcf ~{prefix}.renamed.vcf.gz
 
             input_vcf="~{prefix}.renamed.vcf.gz"
         else
