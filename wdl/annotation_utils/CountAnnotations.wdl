@@ -16,8 +16,10 @@ workflow CountAnnotations {
         Boolean create_per_sample = false
         Boolean create_per_allele = false
         Boolean create_list = false
-        Boolean split_by_region = false
+        Boolean create_functional = false
         Boolean create_variant_attributes = false
+        
+        Boolean split_by_region = false
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
@@ -103,6 +105,7 @@ workflow CountAnnotations {
                     create_per_allele = create_per_allele,
                     create_list = create_list,
                     split_by_region = split_by_region,
+                    create_variant_attributes = create_variant_attributes,
                     max_length = max_length,
                     min_length = min_length,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -132,23 +135,7 @@ workflow CountAnnotations {
             runtime_attr_override = runtime_attr_merge
     }
 
-    call MergeGeneCountTables as MergeGeneCounts {
-        input:
-            count_tsvs = functional_site_count_tables,
-            prefix = "~{prefix}.counts_functional",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge
-    }
-
     if (create_per_sample) {
-        call MergeGeneCountTables as MergeGeneSampleCounts {
-            input:
-                count_tsvs = functional_sample_count_tables,
-                prefix = "~{prefix}.counts_functional_samples",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge
-        }
-
         call MergeAnnotationCountTables as MergeSampleCounts {
             input:
                 count_tsvs = sample_count_tables,
@@ -162,14 +149,6 @@ workflow CountAnnotations {
     }
 
     if (create_per_allele) {
-        call MergeGeneCountTables as MergeGeneAlleleCounts {
-            input:
-                count_tsvs = functional_allele_count_tables,
-                prefix = "~{prefix}.counts_functional_alleles",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge
-        }
-
         call MergeAnnotationCountTables as MergeAlleleCounts {
             input:
                 count_tsvs = allele_count_tables,
@@ -192,9 +171,39 @@ workflow CountAnnotations {
         }
     }
 
+    if (create_functional) {
+        call MergeGeneCountTables as MergeGeneCounts {
+            input:
+                count_tsvs = functional_site_count_tables,
+                prefix = "~{prefix}.counts_functional",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
+    if (create_per_sample && create_functional) {
+        call MergeGeneCountTables as MergeGeneSampleCounts {
+            input:
+                count_tsvs = functional_sample_count_tables,
+                prefix = "~{prefix}.counts_functional_samples",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
+    if (create_per_allele && create_functional) {
+        call MergeGeneCountTables as MergeGeneAlleleCounts {
+            input:
+                count_tsvs = functional_allele_count_tables,
+                prefix = "~{prefix}.counts_functional_alleles",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
     output {
         File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
-        File annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
+        File? annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
         File? annotation_counts_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
         File? annotation_counts_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
         File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
@@ -211,6 +220,7 @@ task CountAnnotationShard {
         Boolean create_per_allele
         Boolean create_list
         Boolean split_by_region
+        Boolean create_variant_attributes
         Int max_length
         Int min_length
         String prefix
@@ -240,6 +250,7 @@ CREATE_PER_SAMPLE = "~{create_per_sample}".lower() == "true"
 CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
 CREATE_LIST = "~{create_list}".lower() == "true"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
+CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
@@ -441,11 +452,11 @@ def determine_consequence_labels(record, consequences):
         labels.add("Other")
     return labels
 
-def determine_column(record):
-    allele_type = get_string_info(record, "allele_type").lower()
-    allele_length = get_int_info(record, "allele_length")
-    variant_id = (record.id or "").upper()
+def determine_column(allele_type, allele_length, variant_id):
+    allele_type = (allele_type or "").lower()
+    variant_id = (variant_id or "").upper()
     if allele_type == "snv": return "SNV"
+    if allele_length is None: return "Other"
     if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
     if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
     if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
@@ -455,8 +466,8 @@ def determine_column(record):
     if allele_type == "trv": return "TRV"
     return "Other"
 
-def determine_row_weights(record, vep_field_indices):
-    allele_type = get_string_info(record, "allele_type").lower()
+def determine_row_weights(record, allele_type_value, vep_field_indices):
+    allele_type = (allele_type_value or "").lower()
     consequences = extract_all_consequences(record, vep_field_indices)
     consequence_labels = determine_consequence_labels(record, consequences)
 
@@ -557,6 +568,26 @@ def get_genotype_weights(record):
         if alt_alleles > 0: carrier_count += 1
     return carrier_count, alt_allele_count
 
+def get_genotype_weights_for_alt(record, alt_idx_1based):
+    carrier_count = 0
+    alt_allele_count = 0
+    for sample in record.samples.values():
+        genotype = sample.get("GT")
+        if genotype is None: continue
+        n_matching = sum(1 for allele in genotype if allele == alt_idx_1based)
+        alt_allele_count += n_matching
+        if n_matching > 0: carrier_count += 1
+    return carrier_count, alt_allele_count
+
+def compute_allele_attributes(ref, alt):
+    ref_length = len(ref)
+    alt_length = len(alt)
+    if alt_length > ref_length:
+        return "ins", alt_length - ref_length
+    if alt_length < ref_length:
+        return "del", ref_length - alt_length
+    return "snv", 0
+
 def format_list_column(row_key):
     annotation_group, annotation = row_key
     if annotation_group: return annotation
@@ -627,84 +658,103 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
     writer.writerow(["variant_id", "classification"] + get_list_columns())
 
     for record in vcf_in:
-        allele_length = get_int_info(record, "allele_length")
-        if MAX_LENGTH is not None and (allele_length is None or allele_length > MAX_LENGTH):
-            continue
-        if MIN_LENGTH is not None and (allele_length is None or allele_length < MIN_LENGTH):
-            continue
-
-        column = determine_column(record)
-        row_weights = determine_row_weights(record, vep_field_indices)
-        
-        tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
-        regions = [INTERNAL_TOTAL_LABEL]
-        if SPLIT_BY_REGION:
-            region = get_string_info(record, "REGION")
-            if region in REGION_ORDER:
-                regions.append(region)
-
-        if CREATE_PER_SAMPLE or CREATE_PER_ALLELE:
-            carrier_count, alt_allele_count = get_genotype_weights(record)
+        if CREATE_VARIANT_ATTRIBUTES:
+            alts = list(record.alts or [])
+            if not alts:
+                continue
+            iterations = []
+            for idx, alt in enumerate(alts):
+                a_type, a_length = compute_allele_attributes(record.ref, alt)
+                iterations.append((a_type, a_length, idx + 1))
         else:
-            carrier_count, alt_allele_count = 0, 0
+            a_type = get_string_info(record, "allele_type")
+            a_length = get_int_info(record, "allele_length")
+            iterations = [(a_type, a_length, None)]
 
-        af = get_float_info(record, "AF")
-        ac = get_int_info(record, "AC")
-        
-        is_large = allele_length is not None and allele_length > 50000
-        
-        buckets = ["all"]
-        if is_large:
-            buckets.append("all_large")
-        if ac == 1:
-            buckets.append("singleton")
-            if is_large:
-                buckets.append("singleton_large")
-        if af is not None and af < 0.001:
-            buckets.append("ultra_rare")
-            if is_large:
-                buckets.append("ultra_rare_large")
-        if af is not None and af < 0.01:
-            buckets.append("rare")
-            if is_large:
-                buckets.append("rare_large")
-        if af is not None and af > 0.05:
-            buckets.append("common")
-            if is_large:
-                buckets.append("common_large")
-        
-        for field in PREDICTED_FIELDS:
-            if has_info(record, field):
-                for gene_name in get_info_gene_names(record, field):
-                    for bucket in buckets:
-                        category = f"{field}.{bucket}"
-                        gene_counts[gene_name][category] += 1
-                        if CREATE_PER_SAMPLE:
-                            gene_sample_counts[gene_name][category] += carrier_count
-                        if CREATE_PER_ALLELE:
-                            gene_allele_counts[gene_name][category] += alt_allele_count
+        for allele_type_val, allele_length_val, alt_idx_1based in iterations:
+            if MAX_LENGTH is not None and (allele_length_val is None or allele_length_val > MAX_LENGTH):
+                continue
+            if MIN_LENGTH is not None and (allele_length_val is None or allele_length_val < MIN_LENGTH):
+                continue
 
-        for row_key, weight in row_weights.items():
-            cat = row_key[0] if row_key[0] else row_key[1]
-            ann = row_key[1] if row_key[0] else INTERNAL_TOTAL_LABEL
-            for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
-                if SPLIT_BY_REGION:
-                    for current_region in regions:
-                        full_key = (cat, ann, current_tr_status, current_region)
+            column = determine_column(allele_type_val, allele_length_val, record.id)
+            row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
+
+            tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
+            regions = [INTERNAL_TOTAL_LABEL]
+            if SPLIT_BY_REGION:
+                region = get_string_info(record, "REGION")
+                if region in REGION_ORDER:
+                    regions.append(region)
+
+            if CREATE_PER_SAMPLE or CREATE_PER_ALLELE:
+                if alt_idx_1based is not None:
+                    carrier_count, alt_allele_count = get_genotype_weights_for_alt(record, alt_idx_1based)
+                else:
+                    carrier_count, alt_allele_count = get_genotype_weights(record)
+            else:
+                carrier_count, alt_allele_count = 0, 0
+
+            af = get_float_info(record, "AF")
+            ac = get_int_info(record, "AC")
+
+            is_large = allele_length_val is not None and allele_length_val > 50000
+
+            buckets = ["all"]
+            if is_large:
+                buckets.append("all_large")
+            if ac == 1:
+                buckets.append("singleton")
+                if is_large:
+                    buckets.append("singleton_large")
+            if af is not None and af < 0.001:
+                buckets.append("ultra_rare")
+                if is_large:
+                    buckets.append("ultra_rare_large")
+            if af is not None and af < 0.01:
+                buckets.append("rare")
+                if is_large:
+                    buckets.append("rare_large")
+            if af is not None and af > 0.05:
+                buckets.append("common")
+                if is_large:
+                    buckets.append("common_large")
+
+            for field in PREDICTED_FIELDS:
+                if has_info(record, field):
+                    for gene_name in get_info_gene_names(record, field):
+                        for bucket in buckets:
+                            category = f"{field}.{bucket}"
+                            gene_counts[gene_name][category] += 1
+                            if CREATE_PER_SAMPLE:
+                                gene_sample_counts[gene_name][category] += carrier_count
+                            if CREATE_PER_ALLELE:
+                                gene_allele_counts[gene_name][category] += alt_allele_count
+
+            for row_key, weight in row_weights.items():
+                cat = row_key[0] if row_key[0] else row_key[1]
+                ann = row_key[1] if row_key[0] else INTERNAL_TOTAL_LABEL
+                for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
+                    if SPLIT_BY_REGION:
+                        for current_region in regions:
+                            full_key = (cat, ann, current_tr_status, current_region)
+                            site_table[full_key][column] += weight
+                            if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
+                            if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
+                    else:
+                        full_key = (cat, ann, current_tr_status)
                         site_table[full_key][column] += weight
                         if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
                         if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
-                else:
-                    full_key = (cat, ann, current_tr_status)
-                    site_table[full_key][column] += weight
-                    if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
-                    if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
 
-        if CREATE_LIST:
-            writer.writerow([
-                str(record.id or "."),
-                column,
-            ] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
+            if CREATE_LIST:
+                list_id = str(record.id or ".")
+                if CREATE_VARIANT_ATTRIBUTES and len(record.alts or []) > 1:
+                    list_id = f"{list_id}.alt_{alt_idx_1based}"
+                writer.writerow([
+                    list_id,
+                    column,
+                ] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
 
 write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
 write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
