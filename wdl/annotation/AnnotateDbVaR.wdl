@@ -162,6 +162,13 @@ task AnnotateDbVaRIds {
     command <<<
         set -euo pipefail
 
+        if [[ "~{vcf_idx}" != "~{vcf}.tbi" ]]; then
+            ln -sf "~{vcf_idx}" "~{vcf}.tbi"
+        fi
+        if [[ "~{dbvar_vcf_idx}" != "~{dbvar_vcf}.tbi" ]]; then
+            ln -sf "~{dbvar_vcf_idx}" "~{dbvar_vcf}.tbi"
+        fi
+
         python3 <<'EOF'
 import pysam
 
@@ -185,10 +192,7 @@ def parse_svlen(rec):
     if raw is not None:
         if isinstance(raw, (list, tuple)):
             raw = raw[0]
-        try:
-            return abs(int(raw))
-        except (ValueError, TypeError):
-            pass
+        return abs(int(raw))
     return max(0, rec.stop - rec.start)
 
 def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
@@ -239,10 +243,9 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
             region_start = max(0, qs - margin)
             region_end = qe + margin
 
-        try:
-            cands = dbvar.fetch(chrom, region_start, region_end)
-        except (ValueError, KeyError):
+        if chrom not in dbvar.header.contigs:
             continue
+        cands = dbvar.fetch(chrom, region_start, region_end)
 
         matched = []
         for cand in cands:
