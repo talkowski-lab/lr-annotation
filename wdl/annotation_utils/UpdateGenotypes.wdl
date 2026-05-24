@@ -317,6 +317,9 @@ for record in base_reader:
                 if is_heterozygous(base_gt):
                     record.samples[sample]["GT"] = match.samples[sample].get("GT")
                     record.samples[sample].phased = match.samples[sample].phased
+        else:
+            for sample in base_samples:
+                record.samples[sample].phased = False
 
     for sample in base_samples:
         sample_data = record.samples[sample]
