@@ -43,7 +43,7 @@ workflow AnnotateDbVaR {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                include_args = "abs(INFO/allele_length) >= ~{min_length} && (INFO/allele_type = \"del\" || INFO/allele_type = \"ins\" || INFO/allele_type = \"dup\")",
+                include_args = "abs(INFO/allele_length) >= ~{min_length} && (INFO/allele_type != \"trv\")",
                 extra_args = if single_contig then "" else "--regions " + contig,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = utils_docker,
