@@ -192,7 +192,10 @@ def parse_svlen(rec):
     if raw is not None:
         if isinstance(raw, (list, tuple)):
             raw = raw[0]
-        return abs(int(raw))
+        try:
+            return abs(int(raw))
+        except (ValueError, TypeError):
+            pass
     return max(0, rec.stop - rec.start)
 
 def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
