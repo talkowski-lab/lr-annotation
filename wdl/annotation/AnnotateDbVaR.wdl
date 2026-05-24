@@ -94,6 +94,7 @@ workflow AnnotateDbVaR {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
+                    original_vcf = FilterVcf.subset_vcf,
                     dbvar_vcf = contig_dbvar_vcf,
                     dbvar_vcf_idx = contig_dbvar_vcf_idx,
                     del_size_similarity = del_size_similarity,
@@ -144,6 +145,7 @@ task AnnotateDbVaRIds {
     input {
         File vcf
         File vcf_idx
+        File original_vcf
         File dbvar_vcf
         File dbvar_vcf_idx
         Float del_size_similarity
@@ -168,6 +170,8 @@ task AnnotateDbVaRIds {
         if [[ "~{dbvar_vcf_idx}" != "~{dbvar_vcf}.tbi" ]]; then
             ln -sf "~{dbvar_vcf_idx}" "~{dbvar_vcf}.tbi"
         fi
+
+        bcftools query -f '%ID\t%REF\t%ALT\n' ~{original_vcf} > original_ref_alt.tsv
 
         python3 <<'EOF'
 import pysam
@@ -219,6 +223,13 @@ def passes_ins(qs, ql, cs, cl, size_sim, bp_win):
         return False
     return True
 
+original_ref_alt = {}
+with open("original_ref_alt.tsv") as f:
+    for line in f:
+        parts = line.rstrip('\n').split('\t')
+        if len(parts) >= 3:
+            original_ref_alt[parts[0]] = (parts[1], parts[2])
+
 dbvar = pysam.VariantFile("~{dbvar_vcf}")
 query = pysam.VariantFile("~{vcf}")
 
@@ -232,9 +243,8 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
         qs = rec.start
         qe = rec.stop
         ql = parse_svlen(rec)
-        ref = rec.ref if rec.ref else '.'
-        alt = rec.alts[0] if rec.alts else '.'
         var_id = rec.id if rec.id else '.'
+        orig_ref, orig_alt = original_ref_alt.get(var_id, (rec.ref if rec.ref else '.', rec.alts[0] if rec.alts else '.'))
 
         bp_win = params['bp_win']
         size_sim = params['size_sim']
@@ -272,7 +282,7 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
         if matched:
             seen = set()
             uniq = [m for m in matched if not (m in seen or seen.add(m))]
-            out.write(f"{chrom}\t{qs + 1}\t{ref}\t{alt}\t{var_id}\t{','.join(uniq)}\n")
+            out.write(f"{chrom}\t{qs + 1}\t{orig_ref}\t{orig_alt}\t{var_id}\t{','.join(uniq)}\n")
 
 query.close()
 dbvar.close()
@@ -286,7 +296,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size([vcf, dbvar_vcf], "GB")) + 10,
+        disk_gb: 2 * ceil(size([vcf, original_vcf, dbvar_vcf], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
