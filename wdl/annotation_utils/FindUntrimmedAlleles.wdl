@@ -118,6 +118,12 @@ import pysam
 import sys
 
 vcf_in = pysam.VariantFile("~{vcf}")
+if "original_ID" not in vcf_in.header.info:
+    vcf_in.header.add_line(
+        '##INFO=<ID=original_ID,Number=1,Type=String,'
+        'Description="Variant ID prior to REF/ALT trimming">'
+    )
+
 vcf_out = pysam.VariantFile("unsorted.vcf.gz", "wz", header=vcf_in.header)
 
 for rec in vcf_in:
@@ -146,10 +152,22 @@ for rec in vcf_in:
     if ref == rec.ref and a == alt:
         continue
 
+    original_id = rec.id
     new_rec = rec.copy()
     new_rec.pos = rec.pos + pre
     new_rec.ref = ref
     new_rec.alts = (a,)
+    new_rec.info["original_ID"] = original_id
+
+    a_type_raw = new_rec.info.get("allele_type")
+    a_len_raw = new_rec.info.get("allele_length")
+    a_type = str(a_type_raw).upper()
+    a_len = abs(int(a_len_raw))
+    if a_type == "SNV":
+        new_rec.id = f"{new_rec.chrom}-{new_rec.pos}-{new_rec.ref}-{new_rec.alts[0]}"
+    else:
+        new_rec.id = f"{new_rec.chrom}-{new_rec.pos}-{a_type}-{a_len}"
+
     vcf_out.write(new_rec)
 
 vcf_in.close()

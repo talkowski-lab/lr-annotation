@@ -137,6 +137,7 @@ task ClearAnnotateAndSwap {
     command <<<
         set -euo pipefail
 
+        # Create annotation files
         python3 <<EOF
 import sys
 
@@ -172,8 +173,7 @@ with open("info_to_clear.txt", "w") as f:
         f.write(name + "\n")
 EOF
 
-        # Clear the specified INFO fields on the trimmed subset VCF (so any
-        # un-matched re-annotation lookups end up missing rather than stale).
+        # Clear INFO fields on the trimmed subset VCF
         python3 <<EOF
 import pysam
 
@@ -195,8 +195,7 @@ EOF
 
         tabix -p vcf cleared_subset.vcf.gz
 
-        # Sequentially apply each annotation TSV to the cleared subset
-        # (mirrors AnnotateSequentially logic from AnnotateVcf.wdl).
+        # Sequentially annotate subset VCF
         current_vcf="cleared_subset.vcf.gz"
         SUBSET_FILE="~{write_lines(resolved_subset_strings)}"
         AWK_COND_FILE="~{write_lines(resolved_awk_conditions)}"
@@ -235,32 +234,36 @@ EOF
         mv "$current_vcf" annotated_subset.vcf.gz
         tabix -p vcf annotated_subset.vcf.gz
 
-        # Swap: remove the matching IDs from the main VCF, then concat the
-        # re-annotated subset back in. Matches by ID because POS and REF/ALT
-        # have changed on the subset side. Assumes every INFO field listed in
-        # info_names already exists in the main VCF's header, so we don't need
-        # a bcftools annotate -h pass over the full main VCF to align headers.
-        bcftools query -f '%ID\n' annotated_subset.vcf.gz > ids_to_swap.txt
+        # Retrieve original variant IDs
+        bcftools query -f '%INFO/original_ID\n' annotated_subset.vcf.gz \
+            | awk 'NF && $1 != "."' \
+            > original_ids_to_swap.txt
 
-        if [ -s ids_to_swap.txt ]; then
+        # Remove original ID field
+        bcftools annotate \
+            -x INFO/original_ID \
+            -Oz -o subset_for_concat.vcf.gz \
+            annotated_subset.vcf.gz
+        
+        tabix -p vcf subset_for_concat.vcf.gz
+
+        # Remove variants using original IDs
+        if [ -s original_ids_to_swap.txt ]; then
             bcftools view \
-                -e 'ID=@ids_to_swap.txt' \
+                -e 'ID=@original_ids_to_swap.txt' \
                 -Oz -o main_minus.vcf.gz \
                 ~{vcf}
         else
             cp ~{vcf} main_minus.vcf.gz
         fi
+
         tabix -p vcf main_minus.vcf.gz
 
+        # Concatenate retained original variants with subset variants 
         bcftools concat \
             --allow-overlaps \
-            -Oz -o unsorted.vcf.gz \
-            main_minus.vcf.gz annotated_subset.vcf.gz
-
-        bcftools sort \
-            -T . \
             -Oz -o ~{prefix}.vcf.gz \
-            unsorted.vcf.gz
+            main_minus.vcf.gz subset_for_concat.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
