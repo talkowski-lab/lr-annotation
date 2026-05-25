@@ -196,6 +196,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateVcfCleared
+    primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcfCleared.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CombineCohortTRs
     primaryDescriptorPath: /wdl/annotation_utils/CombineCohortTRs.wdl
     filters:
@@ -306,6 +315,15 @@ workflows:
   - subclass: WDL
     name: FilterTRGTCalls
     primaryDescriptorPath: /wdl/annotation_utils/FilterTRGTCalls.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: FindUntrimmedAlleles
+    primaryDescriptorPath: /wdl/annotation_utils/FindUntrimmedAlleles.wdl
     filters:
       branches:
         - main

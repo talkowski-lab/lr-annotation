@@ -207,6 +207,10 @@ TODO
 TODO
 
 
+### [AnnotateVcfCleared](wdl/annotation_utils/AnnotateVcfCleared.wdl)
+TODO
+
+
 ### [CombineCohortTRs](wdl/annotation_utils/CombineCohortTRs.wdl)
 TODO
 
@@ -256,6 +260,10 @@ TODO
 
 
 ### [FilterTRGTCalls](wdl/annotation_utils/FilterTRGTCalls.wdl)
+TODO
+
+
+### [FindUntrimmedAlleles](wdl/annotation_utils/FindUntrimmedAlleles.wdl)
 TODO
 
 
