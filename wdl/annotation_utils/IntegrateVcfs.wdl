@@ -9,6 +9,8 @@ workflow IntegrateVcfs {
         File snv_indel_vcf_idx
         File sv_vcf
         File sv_vcf_idx
+        File ref_fa
+        File ref_fai
         Array[String] contigs
         String prefix
 
@@ -32,7 +34,7 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_check_samples
         RuntimeAttr? runtime_attr_subset_contig_snv_indel
         RuntimeAttr? runtime_attr_shard_snv_indel
-        RuntimeAttr? runtime_attr_split_snv_indel
+        RuntimeAttr? runtime_attr_normalize_snv_indel
         RuntimeAttr? runtime_attr_subset_samples_snv_indel
         RuntimeAttr? runtime_attr_annotate_attributes_snv_indel
         RuntimeAttr? runtime_attr_add_info_snv_indel
@@ -40,7 +42,7 @@ workflow IntegrateVcfs {
         RuntimeAttr? runtime_attr_concat_snv_indel_shards
         RuntimeAttr? runtime_attr_subset_contig_sv
         RuntimeAttr? runtime_attr_shard_sv
-        RuntimeAttr? runtime_attr_split_sv
+        RuntimeAttr? runtime_attr_normalize_sv
         RuntimeAttr? runtime_attr_subset_samples_sv
         RuntimeAttr? runtime_attr_annotate_attributes_sv
         RuntimeAttr? runtime_attr_add_info_sv
@@ -108,19 +110,21 @@ workflow IntegrateVcfs {
         Array[File] snv_indel_vcf_idxs_to_process = select_first([ShardSnvIndel.shard_idxs, [SubsetContigSnvIndel.subset_vcf_idx]])
 
         scatter (i in range(length(snv_indel_vcfs_to_process))) {
-            call SplitMultiallelics as SplitSnvIndel {
+            call Helpers.NormalizeVcf as NormalizeSnvIndel {
                 input:
                     vcf = snv_indel_vcfs_to_process[i],
                     vcf_idx = snv_indel_vcf_idxs_to_process[i],
-                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.split",
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.normalized",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_split_snv_indel
+                    runtime_attr_override = runtime_attr_normalize_snv_indel
             }
 
             call Helpers.SubsetVcfToSamples as SubsetSamplesSnvIndel {
                 input:
-                    vcf = SplitSnvIndel.split_vcf,
-                    vcf_idx = SplitSnvIndel.split_vcf_idx,
+                    vcf = NormalizeSnvIndel.normalized_vcf,
+                    vcf_idx = NormalizeSnvIndel.normalized_vcf_idx,
                     samples = sample_ids,
                     prefix = "~{prefix}.~{contig}.snv_indel.shard_~{i}.subset",
                     docker = utils_docker,
@@ -204,19 +208,21 @@ workflow IntegrateVcfs {
         Array[File] sv_vcf_idxs_to_process = select_first([ShardSv.shard_idxs, [SubsetContigSv.subset_vcf_idx]])
 
         scatter (i in range(length(sv_vcfs_to_process))) {
-            call SplitMultiallelics as SplitSv {
+            call Helpers.NormalizeVcf as NormalizeSv {
                 input:
                     vcf = sv_vcfs_to_process[i],
                     vcf_idx = sv_vcf_idxs_to_process[i],
-                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.split",
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.sv.shard_~{i}.normalized",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_split_sv
+                    runtime_attr_override = runtime_attr_normalize_sv
             }
 
             call Helpers.SubsetVcfToSamples as SubsetSamplesSv {
                 input:
-                    vcf = SplitSv.split_vcf,
-                    vcf_idx = SplitSv.split_vcf_idx,
+                    vcf = NormalizeSv.normalized_vcf,
+                    vcf_idx = NormalizeSv.normalized_vcf_idx,
                     samples = sample_ids,
                     prefix = "~{prefix}.~{contig}.sv.shard_~{i}.subset",
                     docker = utils_docker,
@@ -321,106 +327,6 @@ workflow IntegrateVcfs {
     output {
         File integrated_vcf = ConcatVcfs.concat_vcf
         File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
-    }
-}
-
-task SplitMultiallelics {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-import pysam
-
-vcf_in = pysam.VariantFile("~{vcf}")
-
-r_fields = [k for k, v in vcf_in.header.formats.items() if v.number == 'R']
-g_fields = [k for k, v in vcf_in.header.formats.items() if v.number == 'G']
-
-vcf_out = pysam.VariantFile("temp.vcf.gz", "wz", header=vcf_in.header)
-
-for record in vcf_in:
-    if len(record.alts) <= 1:
-        vcf_out.write(record)
-        continue
-    
-    ids = record.id.split(';')
-    for i, alt_seq in enumerate(record.alts):
-        parts = ids[i].split('_')        
-        new_rec = record.copy()
-        new_rec.chrom = parts[0]
-        new_rec.pos = int(parts[1])
-        new_rec.ref = parts[2]
-        new_rec.alts = (parts[3],)
-        new_rec.id = ids[i]
-        target_allele_idx = i + 1
-
-        t = target_allele_idx
-        g_idx = (0, t * (t + 1) // 2, t * (t + 1) // 2 + t)
-        
-        for sample in record.samples:
-            # Remap GT
-            old_gt = record.samples[sample]['GT']
-            new_rec.samples[sample]['GT'] = tuple(
-                None if allele is None else (1 if allele == target_allele_idx else 0)
-                for allele in old_gt
-            )
-
-            # Subset Number=R fields
-            for field in r_fields:
-                val = record.samples[sample][field]
-                if val is not None and len(val) > target_allele_idx:
-                    new_rec.samples[sample][field] = (val[0], val[target_allele_idx])
-
-            # Subset Number=G fields
-            for field in g_fields:
-                val = record.samples[sample][field]
-                if val is not None and len(val) > max(g_idx):
-                    new_rec.samples[sample][field] = tuple(val[j] for j in g_idx)
-        
-        vcf_out.write(new_rec)
-
-vcf_in.close()
-vcf_out.close()
-CODE
-
-        bcftools sort \
-            -T . \
-            -Oz -o ~{prefix}.vcf.gz \
-            temp.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File split_vcf = "~{prefix}.vcf.gz"
-        File split_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 50 * ceil(size(vcf, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
