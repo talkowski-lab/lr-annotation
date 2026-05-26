@@ -273,6 +273,7 @@ ROW_ORDER = [
     ("Concordance", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
     ("Concordance", "dbSNP/gnomAD Missing + LoF (VEP)"),
     ("", "TR Parsed"),
+    ("", "NUMT"),
     ("", "ME"),
     ("ME", "ALU"),
     ("ME", "LINE"),
@@ -281,7 +282,6 @@ ROW_ORDER = [
     ("Duplication", "Tandem"),
     ("Duplication", "Interspersed"),
     ("Duplication", "Complex"),
-    ("Duplication", "NUMT"),
     ("", "VEP"),
     ("VEP", "LoF"),
     ("VEP", "Missense"),
@@ -476,12 +476,12 @@ def determine_row_weights(record, allele_type_value, vep_field_indices):
     is_numt = "numt" in allele_type
     is_tr_parsed = has_info(record, "TR_PARSED")
     
-    if is_dup_tandem or is_dup_interspersed or is_dup_complex or is_numt:
+    if is_dup_tandem or is_dup_interspersed or is_dup_complex:
         row_weights[("", "Duplication")] = 1
     if is_dup_tandem: row_weights[("Duplication", "Tandem")] = 1
     if is_dup_interspersed: row_weights[("Duplication", "Interspersed")] = 1
     if is_dup_complex: row_weights[("Duplication", "Complex")] = 1
-    if is_numt: row_weights[("Duplication", "NUMT")] = 1
+    if is_numt: row_weights[("", "NUMT")] = 1
     if is_tr_parsed: row_weights[("", "TR Parsed")] = 1
 
     row_weights[("", "VEP")] = 1
@@ -829,6 +829,7 @@ ROW_ORDER = [
     ("Concordance", "dbSNP/gnomAD Missing + LoF (SVAnnotate)"),
     ("Concordance", "dbSNP/gnomAD Missing + LoF (VEP)"),
     ("", "TR Parsed"),
+    ("", "NUMT"),
     ("", "ME"),
     ("ME", "ALU"),
     ("ME", "LINE"),
@@ -837,7 +838,6 @@ ROW_ORDER = [
     ("Duplication", "Tandem"),
     ("Duplication", "Interspersed"),
     ("Duplication", "Complex"),
-    ("Duplication", "NUMT"),
     ("", "VEP"),
     ("VEP", "LoF"),
     ("VEP", "Missense"),

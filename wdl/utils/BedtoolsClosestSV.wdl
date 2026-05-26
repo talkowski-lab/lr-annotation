@@ -199,6 +199,8 @@ workflow BedtoolsClosestSV {
         input:
             truvari_unmatched_vcf = SubsetEval.subset_vcf,
             truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
+            vcf_sv_truth = SubsetTruth.subset_vcf,
+            vcf_sv_truth_idx = SubsetTruth.subset_vcf_idx,
             closest_bed = PrioritizedConcatComparisons.merged_tsv,
             prefix = "~{prefix}.bedtools_closest_annotations",
             docker = utils_docker,
@@ -443,6 +445,8 @@ task CreateBedtoolsAnnotationTsv {
     input {
         File truvari_unmatched_vcf
         File truvari_unmatched_vcf_idx
+        File vcf_sv_truth
+        File vcf_sv_truth_idx
         File closest_bed
         String prefix
         String docker
@@ -458,6 +462,20 @@ task CreateBedtoolsAnnotationTsv {
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{truvari_unmatched_vcf} \
         | sort -k5,5 > vcf_info.tsv
 
+        bcftools query \
+            -f '%ID\t%FILTER\n' ~{vcf_sv_truth} \
+        | awk -F'\t' 'BEGIN{OFS="\t"} {
+            n = split($2, parts, ";")
+            out = ""
+            for (i = 1; i <= n; i++) {
+                if (parts[i] != "." && parts[i] != "PASS") {
+                    out = (out == "" ? parts[i] : out "," parts[i])
+                }
+            }
+            print $1, out
+        }' \
+        | sort -k1,1 > truth_filters.tsv
+
         grep -v "query_svid" ~{closest_bed} \
             | awk -F'\t' '$1 != "" {print $1"\t"$2}' \
             | sort -k1,1 > matched_ids.tsv
@@ -470,9 +488,22 @@ task CreateBedtoolsAnnotationTsv {
             matched_ids.tsv \
             > joined.tsv
 
+        sort -k6,6 joined.tsv > joined_sorted.tsv
+
+        join \
+            -1 6 \
+            -2 1 \
+            -t $'\t' \
+            -a 1 \
+            -e "" \
+            -o '1.1,1.2,1.3,1.4,1.5,1.6,2.2' \
+            joined_sorted.tsv \
+            truth_filters.tsv \
+            > joined_with_filter.tsv
+
         awk -F'\t' 'BEGIN{OFS="\t"} {
-            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV"
-        }' joined.tsv \
+            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV", $7
+        }' joined_with_filter.tsv \
         | sort -k1,1V -k2,2n > ~{prefix}.bedtools_matched.tsv
     >>>
 
@@ -483,7 +514,7 @@ task CreateBedtoolsAnnotationTsv {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(closest_bed, "GB")) + 5,
+        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(vcf_sv_truth, "GB") + size(closest_bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
