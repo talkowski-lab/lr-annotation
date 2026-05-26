@@ -16,6 +16,7 @@ workflow UpdateGenotypes {
         File ped
         Boolean transfer_genotypes = false
         Boolean drop_genotypes = false
+        Boolean decrement_trv_ids = false
         Array[String]? unphase_samples
         Array[String]? drop_samples
 
@@ -123,6 +124,7 @@ workflow UpdateGenotypes {
                         ped = ped,
                         unphase_samples = select_first([unphase_samples, []]),
                         transfer_genotypes = transfer_genotypes,
+                        decrement_trv_ids = decrement_trv_ids,
                         prefix = "~{prefix}.~{contig}.shard_~{i}.genotyped",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_update_genotypes
@@ -151,6 +153,7 @@ workflow UpdateGenotypes {
                     ped = ped,
                     unphase_samples = select_first([unphase_samples, []]),
                     transfer_genotypes = transfer_genotypes,
+                    decrement_trv_ids = decrement_trv_ids,
                     prefix = "~{prefix}.~{contig}.genotyped",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_update_genotypes
@@ -203,6 +206,7 @@ task UpdateContigGenotypes {
         File ped
         Array[String] unphase_samples
         Boolean transfer_genotypes
+        Boolean decrement_trv_ids = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -253,6 +257,19 @@ def right_align_unphased(gt):
     return tuple(sorted(gt, key=lambda allele: (allele is not None, allele if allele is not None else -1)))
 
 
+def decrement_trv_id(trv_id):
+    if not trv_id:
+        return trv_id
+    head, _, tail = trv_id.rpartition("-")
+    if not head.endswith("-TRV"):
+        return trv_id
+    try:
+        ref_len = int(tail)
+    except ValueError:
+        return trv_id
+    return "{}-{}".format(head, ref_len - 1)
+
+
 def make_male_hemizygous(gt, phased):
     if gt is None:
         return gt
@@ -290,6 +307,7 @@ unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)}
 unphase_samples_set = set(unphase_list)
 
 transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
+decrement_trv_ids = ~{true="True" false="False" decrement_trv_ids}
 sex_by_sample = parse_ped("~{ped}")
 
 base_reader = pysam.VariantFile("~{base_vcf}")
@@ -303,6 +321,16 @@ if transfer_genotypes:
 
 for record in base_reader:
     record.translate(output_writer.header)
+
+    if decrement_trv_ids:
+        allele_type = record.info.get("allele_type")
+        if allele_type == "trv":
+            if record.id:
+                record.id = decrement_trv_id(record.id)
+        else:
+            trid = record.info.get("TRID")
+            if trid:
+                record.info["TRID"] = decrement_trv_id(trid)
 
     # Transfer GT field
     if transfer_genotypes:
