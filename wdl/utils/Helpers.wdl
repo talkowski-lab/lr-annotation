@@ -2325,6 +2325,7 @@ task SubsetVcfToRegionStreaming {
 
         for attempt in 1 2 3; do
             export GCS_OAUTH_TOKEN=$(gcloud auth application-default print-access-token)
+
             if bcftools view \
                     -r ~{region} \
                     --threads $(nproc) \
@@ -2332,6 +2333,7 @@ task SubsetVcfToRegionStreaming {
                     -Oz -o ~{prefix}.vcf.gz; then
                 break
             fi
+            
             if [[ $attempt -lt 3 ]]; then
                 sleep $((attempt * 15))
             else
@@ -2349,18 +2351,18 @@ task SubsetVcfToRegionStreaming {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 4,
-        disk_gb: 20,
+        cpu_cores: 1,
+        mem_gb: 6,
+        disk_gb: 15,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        cpu: 1
+        memory: 6 + " GiB"
+        disks: "local-disk " + 15 + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
