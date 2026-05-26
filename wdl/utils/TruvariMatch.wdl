@@ -150,12 +150,22 @@ task RunTruvari {
             | awk 'BEGIN{FS=OFS="\t"} {split($6,a,","); print $1,$2,$3,$4,$5,a[1]}' \
             | LC_ALL=C sort -k6,6 > comp.mid.tsv
 
-        bcftools query -f '%ID\t%INFO/MatchId\n' "~{prefix}_truvari/tp-base.vcf.gz" \
-            | awk 'BEGIN{FS=OFS="\t"} {split($2,a,","); print a[1],$1}' \
+        bcftools query -f '%ID\t%INFO/MatchId\t%FILTER\n' "~{prefix}_truvari/tp-base.vcf.gz" \
+            | awk 'BEGIN{FS=OFS="\t"} {
+                split($2,a,",")
+                n = split($3, parts, ";")
+                out = ""
+                for (i = 1; i <= n; i++) {
+                    if (parts[i] != "." && parts[i] != "PASS") {
+                        out = (out == "" ? parts[i] : out "," parts[i])
+                    }
+                }
+                print a[1],$1,out
+            }' \
             | LC_ALL=C sort -k1,1 > base.mid2id.tsv
 
         LC_ALL=C join -t $'\t' -1 6 -2 1 comp.mid.tsv base.mid2id.tsv \
-            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7,"SNV_indel"}' \
+            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7,"SNV_indel",$8}' \
             > ~{prefix}.annotation.tsv
     >>>
 

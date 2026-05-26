@@ -434,12 +434,21 @@ task ExactMatch {
             > eval_matched.tsv
 
         bcftools query \
-            -f '%ID\n' \
+            -f '%ID\t%FILTER\n' \
             isec_matched/0001.vcf \
-            > truth_matched.tsv
+            | awk -F'\t' 'BEGIN{OFS="\t"} {
+                n = split($2, parts, ";")
+                out = ""
+                for (i = 1; i <= n; i++) {
+                    if (parts[i] != "." && parts[i] != "PASS") {
+                        out = (out == "" ? parts[i] : out "," parts[i])
+                    }
+                }
+                print $1, out
+            }' > truth_matched.tsv
 
         paste eval_matched.tsv truth_matched.tsv \
-            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel"}' \
+            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel",$7}' \
             > ~{prefix}.tsv
 
         bcftools isec \
