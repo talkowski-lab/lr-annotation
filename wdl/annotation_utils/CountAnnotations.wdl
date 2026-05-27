@@ -18,6 +18,7 @@ workflow CountAnnotations {
         Boolean create_functional = false
         Boolean create_variant_attributes = false
 
+        Boolean use_ssd = false
         Boolean split_by_region = false
         String subset_vcf_string = ""
         Int max_length = -1
@@ -41,6 +42,7 @@ workflow CountAnnotations {
                     vcf_idx = vcf_idxs[i],
                     ref_fai = select_first([ref_fai]),
                     shard_bin_size = select_first([shard_bin_size]),
+                    use_ssd = use_ssd,
                     prefix = "~{prefix}.input_~{i}.shards",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_create_shards
@@ -52,6 +54,7 @@ workflow CountAnnotations {
                         vcf = vcfs[i],
                         vcf_idx = vcf_idxs[i],
                         region = CreateShardsFromVcfIndex.shard_regions[k],
+                        use_ssd = use_ssd,
                         prefix = "~{prefix}.input_~{i}.region_~{k}",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_region_subset
@@ -65,6 +68,7 @@ workflow CountAnnotations {
                     vcf = vcfs[i],
                     vcf_idx = vcf_idxs[i],
                     records_per_shard = select_first([records_per_shard]),
+                    use_ssd = use_ssd,
                     prefix = "~{prefix}.input_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_shard
