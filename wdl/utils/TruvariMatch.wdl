@@ -160,6 +160,7 @@ task RunTruvari {
                         out = (out == "" ? parts[i] : out "," parts[i])
                     }
                 }
+                if (out == "") out = "."
                 print a[1],$1,out
             }' \
             | LC_ALL=C sort -k1,1 > base.mid2id.tsv

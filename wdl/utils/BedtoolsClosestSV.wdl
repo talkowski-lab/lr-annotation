@@ -472,6 +472,7 @@ task CreateBedtoolsAnnotationTsv {
                     out = (out == "" ? parts[i] : out "," parts[i])
                 }
             }
+            if (out == "") out = "."
             print $1, out
         }' \
         | sort -k1,1 > truth_filters.tsv
@@ -495,7 +496,7 @@ task CreateBedtoolsAnnotationTsv {
             -2 1 \
             -t $'\t' \
             -a 1 \
-            -e "" \
+            -e "." \
             -o '1.1,1.2,1.3,1.4,1.5,1.6,2.2' \
             joined_sorted.tsv \
             truth_filters.tsv \

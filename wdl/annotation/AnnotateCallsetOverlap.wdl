@@ -444,6 +444,7 @@ task ExactMatch {
                         out = (out == "" ? parts[i] : out "," parts[i])
                     }
                 }
+                if (out == "") out = "."
                 print $1, out
             }' > truth_matched.tsv
 
