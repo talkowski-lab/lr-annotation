@@ -403,6 +403,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: RenameInfoFields
+    primaryDescriptorPath: /wdl/annotation_utils/RenameInfoFields.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: ReplaceSampleCalls
     primaryDescriptorPath: /wdl/annotation_utils/ReplaceSampleCalls.wdl
     filters:
