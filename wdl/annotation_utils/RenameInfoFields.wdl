@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow RenameInfoField {
+workflow RenameInfoFields {
     input {
         File vcf
         File vcf_idx

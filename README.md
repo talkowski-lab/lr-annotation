@@ -303,7 +303,7 @@ TODO
 TODO
 
 
-### [RenameInfoField](wdl/annotation_utils/RenameInfoField.wdl)
+### [RenameInfoFields](wdl/annotation_utils/RenameInfoFields.wdl)
 TODO
 
 
