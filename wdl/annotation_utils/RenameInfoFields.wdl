@@ -9,6 +9,7 @@ workflow RenameInfoFields {
         File vcf_idx
         Array[String] current_info_strings
         Array[String] replace_info_strings
+        Array[String] replace_info_descriptions
         String prefix
 
         Int? records_per_shard
@@ -42,6 +43,7 @@ workflow RenameInfoFields {
                 vcf_idx = vcf_idxs_to_process[i],
                 current_info_strings = current_info_strings,
                 replace_info_strings = replace_info_strings,
+                replace_info_descriptions = replace_info_descriptions,
                 prefix = "~{prefix}.shard_~{i}.renamed",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_rename
@@ -73,6 +75,7 @@ task RenameInfoFields {
         File vcf_idx
         Array[String] current_info_strings
         Array[String] replace_info_strings
+        Array[String] replace_info_descriptions
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -83,11 +86,13 @@ task RenameInfoFields {
 
         CURRENT_FILE="~{write_lines(current_info_strings)}"
         REPLACE_FILE="~{write_lines(replace_info_strings)}"
+        DESC_FILE="~{write_lines(replace_info_descriptions)}"
 
         n_current=$(wc -l < "${CURRENT_FILE}")
         n_replace=$(wc -l < "${REPLACE_FILE}")
-        if [ "${n_current}" != "${n_replace}" ]; then
-            echo "ERROR: current_info_strings (${n_current}) and replace_info_strings (${n_replace}) must have the same length" >&2
+        n_desc=$(wc -l < "${DESC_FILE}")
+        if [ "${n_current}" != "${n_replace}" ] || [ "${n_current}" != "${n_desc}" ]; then
+            echo "ERROR: current_info_strings (${n_current}), replace_info_strings (${n_replace}), and replace_info_descriptions (${n_desc}) must have the same length" >&2
             exit 1
         fi
 
@@ -98,9 +103,18 @@ task RenameInfoFields {
 
         bcftools annotate \
             --rename-annots rename_annots.tsv \
-            -Oz -o ~{prefix}.vcf.gz \
+            -Oz -o renamed.vcf.gz \
             ~{vcf}
 
+        bcftools view -h renamed.vcf.gz > new_header.txt
+
+        paste "${REPLACE_FILE}" "${DESC_FILE}" | while IFS=$'\t' read -r new_id new_desc; do
+            [ -z "${new_id}" ] && continue
+            esc_desc=$(printf '%s' "${new_desc}" | sed -e 's/[\\&|]/\\&/g')
+            sed -i -E "s|(^##INFO=<ID=${new_id},[^>]*Description=\")[^\"]*(\")|\1${esc_desc}\2|" new_header.txt
+        done
+
+        bcftools reheader -h new_header.txt -o ~{prefix}.vcf.gz renamed.vcf.gz
         tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
