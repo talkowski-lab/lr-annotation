@@ -34,6 +34,7 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
+        RuntimeAttr? runtime_attr_reformat_dup_coord_ins
         RuntimeAttr? runtime_attr_extract_ins
         RuntimeAttr? runtime_attr_extract_del
         RuntimeAttr? runtime_attr_concat_ins
@@ -124,10 +125,19 @@ workflow AnnotateSVAN {
                     runtime_attr_override = runtime_attr_annotate_ins
             }
 
-            call Helpers.ExtractVcfAnnotations as ExtractIns {
+            call ReformatDupCoord as ReformatDupCoordIns {
                 input:
                     vcf = SvanAnnotateIns.annotated_vcf,
                     vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.ins_shard_~{i}.dup_coord_reformatted",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_reformat_dup_coord_ins
+            }
+
+            call Helpers.ExtractVcfAnnotations as ExtractIns {
+                input:
+                    vcf = ReformatDupCoordIns.reformatted_vcf,
+                    vcf_idx = ReformatDupCoordIns.reformatted_vcf_idx,
                     original_vcf = ResetIns.reset_vcf,
                     original_vcf_idx = ResetIns.reset_vcf_idx,
                     prefix = "~{prefix}.~{contig}.ins_shard_~{i}.annotations",
@@ -376,6 +386,73 @@ task RunSvanAnnotate {
         cpu_cores: 4,
         mem_gb: 16,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(mei_fa, "GB") + size(mei_fa_indices, "GB") + size(ref_fa, "GB")  + size(ref_fa_indices, "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task ReformatDupCoord {
+    input {
+        File vcf
+        File vcf_idx
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import pysam
+
+vcf_in = pysam.VariantFile("~{vcf}")
+vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
+for record in vcf_in:
+    dup_coord = record.info.get("DUP_COORD")
+    if isinstance(dup_coord, (list, tuple)):
+        dup_coord = dup_coord[0]
+    if dup_coord and dup_coord.startswith("flank_"):
+        body, strand = dup_coord.rsplit("_", 1)
+        _, coord_part = body.rsplit("_", 1)
+        abs_chrom, _, local_range = coord_part.split(":")
+        local_start_str, local_end_str = local_range.split("-")
+        allele_length = record.info["allele_length"]
+        if isinstance(allele_length, (list, tuple)):
+            allele_length = allele_length[0]
+        alt_len = abs(int(allele_length))
+        flank_start = max(1, record.pos - alt_len - 100)
+        abs_start = flank_start + int(local_start_str)
+        abs_end = flank_start + int(local_end_str)
+        record.info["DUP_COORD"] = f"{abs_chrom}:{abs_start}-{abs_end}{strand}"
+    vcf_out.write(record)
+vcf_in.close()
+vcf_out.close()
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File reformatted_vcf = "~{prefix}.vcf.gz"
+        File reformatted_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
