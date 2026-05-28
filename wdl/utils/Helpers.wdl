@@ -602,6 +602,7 @@ task ConsolidateCollapsedSites {
         else
             cp ~{vcf} truvari_input.vcf.gz
         fi
+
         tabix -f -p vcf truvari_input.vcf.gz
 
         truvari collapse \
@@ -615,10 +616,10 @@ task ConsolidateCollapsedSites {
             --refdist ~{refdist} \
             --sizemin ~{sizemin} \
             --sizemax ~{sizemax}
-
+        
         bgzip -f collapsed.vcf
+        
         bgzip -f removed.vcf
-        tabix -f -p vcf collapsed.vcf.gz
 
         # Consolidate INFO and GT from the removed variants into retained records
         python3 <<CODE
