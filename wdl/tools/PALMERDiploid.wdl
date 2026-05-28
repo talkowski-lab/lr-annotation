@@ -265,6 +265,7 @@ task ConvertPALMERToVcf {
             --ref_fai ~{ref_fai} \
             --haplotype "1/1" \
         | bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
         

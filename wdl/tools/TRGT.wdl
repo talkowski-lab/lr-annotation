@@ -101,6 +101,7 @@ task ProcessWithTRGT {
         find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Ob -o ~{vcf_out_name}.sorted.vcf.gz \
             ~{vcf_out_name}.vcf.gz

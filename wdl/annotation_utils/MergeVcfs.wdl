@@ -344,8 +344,14 @@ task MergeTrvVcfs {
             rm -f "$tagged_vcf" "$tagged_vcf.tbi"
         done < tagged_vcfs.list
 
-        bcftools sort -T . -Oz -o sorted.vcf.gz merged.unsorted.vcf.gz
+        bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
+            -T . \
+            -Oz -o sorted.vcf.gz \
+            merged.unsorted.vcf.gz
+        
         tabix -f -p vcf sorted.vcf.gz
+
         rm -f merged.unsorted.vcf.gz
 
         # Annotate MERGE_TYPE based on MERGE_COUNT
@@ -464,6 +470,7 @@ task MergeAndSplitNonTrv {
         done < tagged_vcfs.list
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o exact_merged.vcf.gz \
             exact_merged.unsorted.vcf.gz
@@ -591,6 +598,7 @@ task FinalizeNonTrvMerge {
             ~{matched_vcf} ~{unmatched_small_vcf} ~{consolidated_large_vcf}
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o sorted.vcf.gz \
             concat.unsorted.vcf.gz

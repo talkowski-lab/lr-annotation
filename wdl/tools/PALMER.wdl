@@ -330,6 +330,7 @@ task ConvertPALMERToVcf {
             --ref_fai ~{ref_fai} \
             --haplotype "~{haplotype}" \
         | bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
         
@@ -384,6 +385,7 @@ task TruvariCollapse {
             ~{vcf_pat} \
             ~{vcf_mat} \
         | bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o combined.vcf.gz
         
@@ -398,6 +400,7 @@ task TruvariCollapse {
             ~{collapse_params}
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz \
             ~{sample}.~{mei_type}.merged.vcf.gz

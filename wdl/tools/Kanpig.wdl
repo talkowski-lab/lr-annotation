@@ -159,6 +159,7 @@ task RunKanpig {
             ~{kanpig_params}
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -Oz -o ~{prefix}.vcf.gz \
             ~{prefix}.kanpig.vcf
         

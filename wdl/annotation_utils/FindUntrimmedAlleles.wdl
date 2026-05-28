@@ -175,6 +175,7 @@ vcf_out.close()
 EOF
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o "~{prefix}.vcf.gz" \
             unsorted.vcf.gz

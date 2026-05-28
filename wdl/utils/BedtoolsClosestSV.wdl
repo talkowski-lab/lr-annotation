@@ -29,7 +29,7 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
-    # Preprocess eval VCF
+    # Subset eval VCF by length
     call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
@@ -41,28 +41,53 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_subset_eval
     }
 
-    call Helpers.ConvertToSymbolic {
+    # Convert eval VCF to symbolic, both with and without moving DUPs
+    call Helpers.ConvertToSymbolic as ConvertEvalMoved {
         input:
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
+            move_dup_to_origin = true,
             type_field = type_field_eval,
             length_field = length_field_eval,
-            prefix = "~{prefix}.eval.symbolic",
+            prefix = "~{prefix}.eval.symbolic.moved",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
-    call SplitVcf as SplitEval {
+    call Helpers.ConvertToSymbolic as ConvertEvalUnmoved {
         input:
-            vcf = ConvertToSymbolic.processed_vcf,
-            vcf_idx = ConvertToSymbolic.processed_vcf_idx,
+            vcf = SubsetEval.subset_vcf,
+            vcf_idx = SubsetEval.subset_vcf_idx,
+            move_dup_to_origin = false,
+            type_field = type_field_eval,
+            length_field = length_field_eval,
+            prefix = "~{prefix}.eval.symbolic.unmoved",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_convert_to_symbolic
+    }
+
+    # Split eval VCF
+    call SplitVcf as SplitEvalMoved {
+        input:
+            vcf = ConvertEvalMoved.processed_vcf,
+            vcf_idx = ConvertEvalMoved.processed_vcf_idx,
             split_cpx = false,
-            prefix = "~{prefix}.eval",
+            prefix = "~{prefix}.eval.moved",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
     }
 
-    # Preprocess truth VCF
+    call SplitVcf as SplitEvalUnmoved {
+        input:
+            vcf = ConvertEvalUnmoved.processed_vcf,
+            vcf_idx = ConvertEvalUnmoved.processed_vcf_idx,
+            split_cpx = false,
+            prefix = "~{prefix}.eval.unmoved",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_split_eval
+    }
+
+    # Subset truth VCF
     call Helpers.SubsetVcfByLength as SubsetTruth {
         input:
             vcf = vcf_sv_truth,
@@ -74,6 +99,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_subset_truth
     }
 
+    # Split truth VCF
     call SplitVcf as SplitTruth {
         input:
             vcf = SubsetTruth.subset_vcf,
@@ -84,10 +110,10 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_split_truth
     }
 
-    # Comparisons by variant type
+    # Compare DEL in eval to DEL in truth
     call Helpers.BedtoolsClosest as CompareDEL {
         input:
-            bed_a = SplitEval.del_bed,
+            bed_a = SplitEvalMoved.del_bed,
             bed_b = SplitTruth.del_bed,
             prefix = "~{prefix}.DEL",
             docker = utils_docker,
@@ -102,9 +128,10 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Compare INS in eval to INS in truth
     call Helpers.BedtoolsClosest as CompareINS {
         input:
-            bed_a = SplitEval.ins_bed,
+            bed_a = SplitEvalMoved.ins_bed,
             bed_b = SplitTruth.ins_bed,
             prefix = "~{prefix}.INS",
             docker = utils_docker,
@@ -119,9 +146,10 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Compare moved DUP in eval to DUP in truth
     call Helpers.BedtoolsClosest as CompareDUP {
         input:
-            bed_a = SplitEval.dup_bed,
+            bed_a = SplitEvalMoved.dup_bed,
             bed_b = SplitTruth.dup_bed,
             prefix = "~{prefix}.DUP",
             docker = utils_docker,
@@ -136,6 +164,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Compare INS in eval to DUP-converted-to-INS in truth
     call CollapseRangedToPoint as CollapseTruthDUP {
         input:
             bed = SplitTruth.dup_bed,
@@ -146,7 +175,7 @@ workflow BedtoolsClosestSV {
 
     call Helpers.BedtoolsClosest as CompareINS_DUP {
         input:
-            bed_a = SplitEval.ins_bed,
+            bed_a = SplitEvalMoved.ins_bed,
             bed_b = CollapseTruthDUP.point_bed,
             prefix = "~{prefix}.INS_DUP",
             docker = utils_docker,
@@ -161,9 +190,10 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Compare unmoved DUP-converted-to-INS in eval to INS in truth
     call CollapseRangedToPoint as CollapseEvalDUP {
         input:
-            bed = SplitEval.dup_bed,
+            bed = SplitEvalUnmoved.dup_bed,
             prefix = "~{prefix}.eval.DUP_as_point",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
@@ -186,6 +216,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
+    # Prioritize comparisons
     call PrioritizedConcatComparisons {
         input:
             primary_tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp, CalcuDUP.output_comp],
@@ -195,6 +226,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_merge_comparisons
     }
 
+    # Create output BED
     call CreateBedtoolsAnnotationTsv {
         input:
             truvari_unmatched_vcf = SubsetEval.subset_vcf,

@@ -587,8 +587,7 @@ task ConsolidateCollapsedSites {
     command <<<
         set -euo pipefail
 
-        # Some FORMAT-field combinations (e.g. mixed-arity from bcftools merge) crash truvari;
-        # strip everything except GT when the caller flags this risk.
+        # Optionally strip FORMAT fields except GT
         if [[ "~{strip_format_to_gt}" == "true" ]]; then
             FMT_FIELDS=$(bcftools view -h ~{vcf} | grep '^##FORMAT' | grep -v 'ID=GT,' | \
                 sed 's/.*ID=\([^,]*\).*/FORMAT\/\1/' | paste -sd',' - || true)
@@ -621,9 +620,7 @@ task ConsolidateCollapsedSites {
         bgzip -f removed.vcf
         tabix -f -p vcf collapsed.vcf.gz
 
-        # Consolidate INFO and GT from the truvari-removed peers into each kept record.
-        # The kept record is written from the ORIGINAL input (not the truvari output) so the
-        # final VCF stays clean of truvari-added fields like CollapseId/NumCollapsed.
+        # Consolidate INFO and GT from the removed variants into retained records
         python3 <<CODE
 import pysam
 from collections import defaultdict
@@ -726,6 +723,7 @@ out_vcf.close()
 CODE
 
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o sorted.vcf.gz \
             ~{prefix}.vcf.gz
@@ -764,6 +762,7 @@ task ConvertToSymbolic {
     input {
         File vcf
         File vcf_idx
+        Boolean move_dup_to_origin
         String type_field = "allele_type"
         String length_field = "allele_length"
         String prefix
@@ -774,30 +773,46 @@ task ConvertToSymbolic {
     command <<<
         set -euo pipefail
 
+        bcftools query \
+            -f '%INFO/~{type_field}\n' \
+            ~{vcf} \
+        | sort -u > raw_types.txt
+
         python3 <<CODE
 import pysam
+import re
 import sys
 
 def map_type(raw):
     t = raw.upper()
     if 'DEL' in t:
         return 'DEL'
-    elif 'INS' in t:
-        return 'INS'
-    elif 'DUP' in t or 'NUMT' in t:
+    elif t == 'DUP':
         return 'DUP'
+    elif 'INS' in t or 'DUP' in t or 'NUMT' in t:
+        return 'INS'
     else:
         print(f"Error: unrecognized allele type '{raw}'", file=sys.stderr)
         sys.exit(1)
 
-# First pass: collect mapped types present in the VCF
-present_types = set()
-with pysam.VariantFile("~{vcf}") as vcf_scan:
-    for record in vcf_scan:
-        raw = record.info["~{type_field}"]
-        if isinstance(raw, (list, tuple)):
-            raw = raw[0]
-        present_types.add(map_type(raw))
+ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)')
+
+def extract_origin_pos(origin):
+    if origin is None:
+        return None
+    if isinstance(origin, (list, tuple)):
+        origin = origin[0]
+    first = str(origin).split(',')[0]
+    m = ORIGIN_RE.search(first)
+    if m:
+        return int(m.group(1))
+    return None
+
+move_dup = ~{true="True" false="False" move_dup_to_origin}
+
+# Map allele_type values
+with open("raw_types.txt") as f:
+    present_types = {map_type(line.strip()) for line in f if line.strip()}
 
 # Build updated header
 vcf_in = pysam.VariantFile("~{vcf}")
@@ -809,14 +824,17 @@ if 'SVTYPE' not in header.info:
     header.add_line('##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">')
 if 'SVLEN' not in header.info:
     header.add_line('##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">')
+if move_dup and 'ORIGINAL_POS' not in header.info:
+    header.add_line('##INFO=<ID=ORIGINAL_POS,Number=1,Type=Integer,Description="POS prior to move_dup_to_origin shifting the DUP to its source coordinate">')
 header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 for allele_type in present_types:
     if allele_type not in header.alts:
         header.add_line(f'##ALT=<ID={allele_type},Description="{allele_type} variant">')
 
-# Second pass: convert records
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=header)
+# Convert records
+vcf_out = pysam.VariantFile("unsorted.vcf.gz", 'w', header=header)
 for record in vcf_in:
+    # Map type to set ALT and SVTYPE
     raw = record.info["~{type_field}"]
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
@@ -825,17 +843,40 @@ for record in vcf_in:
     record.alts = (f'<{allele_type}>',)
     record.info['SVTYPE'] = allele_type
 
+    # Set SVLEN
     allele_length = record.info["~{length_field}"]
     if isinstance(allele_length, (list, tuple)):
         allele_length = allele_length[0]
-    record.stop = record.pos + abs(allele_length)
-    record.info['SVLEN'] = abs(allele_length)
+    svlen = abs(allele_length)
+    record.info['SVLEN'] = svlen
+
+    # Set END and reposition DUPs
+    if allele_type == 'DUP':
+        origin = record.info.get('ORIGIN', None)
+        origin_pos = extract_origin_pos(origin)
+        if origin_pos is None:
+            print(f"Error: cannot extract origin position for DUP {record.id} at {record.chrom}:{record.pos} (ORIGIN={origin})", file=sys.stderr)
+            sys.exit(1)
+        if move_dup:
+            record.info['ORIGINAL_POS'] = record.pos
+            record.pos = origin_pos
+        record.stop = origin_pos + svlen
+    elif allele_type == 'INS':
+        record.stop = record.pos + 1
+    else:
+        record.stop = record.pos + svlen
 
     vcf_out.write(record)
 
 vcf_in.close()
 vcf_out.close()
 CODE
+
+        bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
+            -T . \
+            -Oz -o ~{prefix}.vcf.gz \
+            unsorted.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
@@ -1394,6 +1435,7 @@ CODE
             | bgzip -c > normalized.unsorted.vcf.gz
 
             bcftools sort \
+                --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
                 -T . \
                 -Oz -o ~{prefix}.vcf.gz \
                 normalized.unsorted.vcf.gz
@@ -1899,6 +1941,7 @@ task NormalizeVcf {
             ~{vcf}
         
         bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o ~{prefix}.vcf.gz \
             unsorted.vcf.gz
@@ -2056,10 +2099,12 @@ original_data = {}
 with pysam.VariantFile("~{original_vcf}") as orig_vcf:
     for record in orig_vcf:
         original_data[record.id] = {
+            'pos': record.pos,
             'ref': record.ref,
             'alts': record.alts,
             'svtype': record.info.get('SVTYPE', None),
             'svlen': record.info.get('SVLEN', None),
+            'end': record.info.get('END', None),
         }
 
 # Revert symbolic alleles in annotated VCF
@@ -2068,6 +2113,7 @@ vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
 for record in vcf_in:
     if record.id in original_data:
         orig = original_data[record.id]
+        record.pos = orig['pos']
         record.ref = orig['ref']
         record.alts = orig['alts']
 
@@ -2075,12 +2121,20 @@ for record in vcf_in:
             record.info['SVTYPE'] = orig['svtype']
         elif 'SVTYPE' in record.info:
             del record.info['SVTYPE']
-        
+
         if orig['svlen'] is not None:
             record.info['SVLEN'] = orig['svlen']
         elif 'SVLEN' in record.info:
             del record.info['SVLEN']
-        
+
+        if orig['end'] is not None:
+            record.info['END'] = orig['end']
+        elif 'END' in record.info:
+            del record.info['END']
+
+        if 'ORIGINAL_POS' in record.info:
+            del record.info['ORIGINAL_POS']
+
     vcf_out.write(record)
 
 vcf_in.close()

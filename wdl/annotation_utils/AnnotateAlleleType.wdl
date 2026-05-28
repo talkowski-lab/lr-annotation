@@ -165,8 +165,8 @@ task AddHeaders {
 
         bcftools view -h "~{vcf}" | grep "^##" > header.txt
         
-        echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family of mobile element">' >> header.txt
-        echo '##INFO=<ID=ORIGIN,Number=1,Type=String,Description="Origin locus of event">' >> header.txt
+        echo '##INFO=<ID=SUB_FAMILY,Number=1,Type=String,Description="Sub-family of mobile element.">' >> header.txt
+        echo '##INFO=<ID=ORIGIN,Number=1,Type=String,Description="Genomic coordinates for the source of the inserted sequence.">' >> header.txt
         
         bcftools view -h "~{vcf}" | grep "^#CHROM" >> header.txt
 

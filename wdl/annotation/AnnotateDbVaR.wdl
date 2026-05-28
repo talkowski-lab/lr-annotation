@@ -54,6 +54,7 @@ workflow AnnotateDbVaR {
             input:
                 vcf = FilterVcf.subset_vcf,
                 vcf_idx = FilterVcf.subset_vcf_idx,
+                move_dup_to_origin = true,
                 prefix = "~{prefix}.~{contig}.symbolic",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_convert_symbolic
@@ -282,7 +283,14 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
         if matched:
             seen = set()
             uniq = [m for m in matched if not (m in seen or seen.add(m))]
-            out.write(f"{chrom}\t{qs + 1}\t{orig_ref}\t{orig_alt}\t{var_id}\t{','.join(uniq)}\n")
+            out_pos = rec.info.get('ORIGINAL_POS', None)
+            if out_pos is not None:
+                if isinstance(out_pos, (list, tuple)):
+                    out_pos = out_pos[0]
+                out_pos = int(out_pos)
+            else:
+                out_pos = qs + 1
+            out.write(f"{chrom}\t{out_pos}\t{orig_ref}\t{orig_alt}\t{var_id}\t{','.join(uniq)}\n")
 
 query.close()
 dbvar.close()
