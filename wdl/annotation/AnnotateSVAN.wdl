@@ -125,7 +125,7 @@ workflow AnnotateSVAN {
                     runtime_attr_override = runtime_attr_annotate_ins
             }
 
-            call ReformatDupCoord as ReformatDupCoordIns {
+            call ReformatDupCoord {
                 input:
                     vcf = SvanAnnotateIns.annotated_vcf,
                     vcf_idx = SvanAnnotateIns.annotated_vcf_idx,
@@ -136,8 +136,8 @@ workflow AnnotateSVAN {
 
             call Helpers.ExtractVcfAnnotations as ExtractIns {
                 input:
-                    vcf = ReformatDupCoordIns.reformatted_vcf,
-                    vcf_idx = ReformatDupCoordIns.reformatted_vcf_idx,
+                    vcf = ReformatDupCoord.reformatted_vcf,
+                    vcf_idx = ReformatDupCoord.reformatted_vcf_idx,
                     original_vcf = ResetIns.reset_vcf,
                     original_vcf_idx = ResetIns.reset_vcf_idx,
                     prefix = "~{prefix}.~{contig}.ins_shard_~{i}.annotations",
@@ -428,10 +428,7 @@ for record in vcf_in:
         _, coord_part = body.rsplit("_", 1)
         abs_chrom, _, local_range = coord_part.split(":")
         local_start_str, local_end_str = local_range.split("-")
-        allele_length = record.info["allele_length"]
-        if isinstance(allele_length, (list, tuple)):
-            allele_length = allele_length[0]
-        alt_len = abs(int(allele_length))
+        alt_len = abs(len(record.ref) - len(record.alts[0]))
         flank_start = max(1, record.pos - alt_len - 100)
         abs_start = flank_start + int(local_start_str)
         abs_end = flank_start + int(local_end_str)
