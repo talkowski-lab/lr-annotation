@@ -15,6 +15,14 @@ workflow MergeVcfs {
 
         Int min_truvari_match = 20
 
+        Float reciprocal_overlap = 0.0
+        Float sequence_similarity = 0.7
+        Float size_similarity = 0.7
+        Int breakpoint_distance = 500
+        Float sample_similarity = 0.0
+        Int size_min = 20
+        Int size_max = 50000
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_create_shards
@@ -101,14 +109,14 @@ workflow MergeVcfs {
                 input:
                     vcf = MergeAndSplitNonTrvShard.unmatched_large_vcf,
                     vcf_idx = MergeAndSplitNonTrvShard.unmatched_large_vcf_idx,
-                    pctovl = 0.0,
-                    pctseq = 0.7,
-                    pctsize = 0.7,
-                    refdist = 500,
-                    sizemin = 0,
-                    sizemax = 50000,
+                    pctovl = reciprocal_overlap,
+                    pctseq = sequence_similarity,
+                    pctsize = size_similarity,
+                    refdist = breakpoint_distance,
+                    sizemin = size_min,
+                    sizemax = size_max,
                     keep_strategy = "first",
-                    sample_similarity = 0.0,
+                    sample_similarity = sample_similarity,
                     set_merge_annotations = true,
                     strip_format_to_gt = true,
                     prefix = "~{prefix}.shard_~{j}.non_trv.truvari",
@@ -216,14 +224,14 @@ workflow MergeVcfs {
             input:
                 vcf = MergeAndSplitNonTrv.unmatched_large_vcf,
                 vcf_idx = MergeAndSplitNonTrv.unmatched_large_vcf_idx,
-                pctovl = 0.0,
-                pctseq = 0.7,
-                pctsize = 0.7,
-                refdist = 500,
-                sizemin = 0,
-                sizemax = 50000,
+                pctovl = reciprocal_overlap,
+                pctseq = sequence_similarity,
+                pctsize = size_similarity,
+                refdist = breakpoint_distance,
+                sizemin = size_min,
+                sizemax = size_max,
                 keep_strategy = "first",
-                sample_similarity = 0.0,
+                sample_similarity = sample_similarity,
                 set_merge_annotations = true,
                 strip_format_to_gt = true,
                 prefix = "~{prefix}.non_trv.truvari",
