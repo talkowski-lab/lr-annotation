@@ -385,6 +385,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: ParseAbsoluteOrigin
+    primaryDescriptorPath: /wdl/annotation_utils/ParseAbsoluteOrigin.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: PlotPhasingResults
     primaryDescriptorPath: /wdl/annotation_utils/PlotPhasingResults.wdl
     filters:

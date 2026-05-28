@@ -565,6 +565,201 @@ task ConcatVcfsLR {
     }
 }
 
+task ConsolidateCollapsedSites {
+    input {
+        File vcf
+        File vcf_idx
+        Float pctovl
+        Float pctseq
+        Float pctsize
+        Int refdist
+        Int sizemin
+        Int sizemax
+        String keep_strategy
+        Float sample_similarity
+        Boolean set_merge_annotations
+        Boolean strip_format_to_gt
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        # Some FORMAT-field combinations (e.g. mixed-arity from bcftools merge) crash truvari;
+        # strip everything except GT when the caller flags this risk.
+        if [[ "~{strip_format_to_gt}" == "true" ]]; then
+            FMT_FIELDS=$(bcftools view -h ~{vcf} | grep '^##FORMAT' | grep -v 'ID=GT,' | \
+                sed 's/.*ID=\([^,]*\).*/FORMAT\/\1/' | paste -sd',' - || true)
+            if [[ -n "$FMT_FIELDS" ]]; then
+                bcftools annotate \
+                    -x "$FMT_FIELDS" \
+                    -Oz -o truvari_input.vcf.gz \
+                    ~{vcf}
+            else
+                cp ~{vcf} truvari_input.vcf.gz
+            fi
+        else
+            cp ~{vcf} truvari_input.vcf.gz
+        fi
+        tabix -f -p vcf truvari_input.vcf.gz
+
+        truvari collapse \
+            -i truvari_input.vcf.gz \
+            -o collapsed.vcf \
+            -c removed.vcf \
+            --keep ~{keep_strategy} \
+            --pctovl ~{pctovl} \
+            --pctseq ~{pctseq} \
+            --pctsize ~{pctsize} \
+            --refdist ~{refdist} \
+            --sizemin ~{sizemin} \
+            --sizemax ~{sizemax}
+
+        bgzip -f collapsed.vcf
+        bgzip -f removed.vcf
+        tabix -f -p vcf collapsed.vcf.gz
+
+        # Consolidate INFO and GT from the truvari-removed peers into each kept record.
+        # The kept record is written from the ORIGINAL input (not the truvari output) so the
+        # final VCF stays clean of truvari-added fields like CollapseId/NumCollapsed.
+        python3 <<CODE
+import pysam
+from collections import defaultdict
+
+def get_nonref_samples(record):
+    nonref = set()
+    for sample in record.samples:
+        gt = record.samples[sample]['GT']
+        if gt is not None and any(a is not None and a != 0 for a in gt):
+            nonref.add(sample)
+    return nonref
+
+def sample_overlap(set_a, set_b):
+    if not set_a and not set_b:
+        return 1.0
+    if not set_a or not set_b:
+        return 0.0
+    return len(set_a & set_b) / len(set_a | set_b)
+
+sample_sim_threshold = ~{sample_similarity}
+set_merge_annot = ~{true="True" false="False" set_merge_annotations}
+
+original_records = {}
+orig_vcf = pysam.VariantFile("~{vcf}")
+if set_merge_annot:
+    if 'MERGE_COUNT' not in orig_vcf.header.info:
+        orig_vcf.header.add_line(
+            '##INFO=<ID=MERGE_COUNT,Number=1,Type=Integer,'
+            'Description="Number of source records merged into this site">'
+        )
+    if 'MERGE_TYPE' not in orig_vcf.header.info:
+        orig_vcf.header.add_line(
+            '##INFO=<ID=MERGE_TYPE,Number=1,Type=String,'
+            'Description="Merge strategy: EXACT, TRV_EXACT, TRUVARI, or UNIQUE">'
+        )
+orig_header = orig_vcf.header.copy()
+for record in orig_vcf:
+    original_records[record.id] = record
+orig_vcf.close()
+
+collapse_groups = defaultdict(list)
+with pysam.VariantFile("removed.vcf.gz") as rm_vcf:
+    for record in rm_vcf:
+        match_id = record.info.get("MatchId", None)
+        if match_id:
+            key = match_id[0] if isinstance(match_id, (tuple, list)) else match_id
+            collapse_groups[key].append(record.id)
+
+kept_vcf = pysam.VariantFile("collapsed.vcf.gz")
+out_vcf = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=orig_header)
+
+for kept_record in kept_vcf:
+    orig_kept = original_records.get(kept_record.id)
+    if orig_kept is None:
+        continue
+
+    cluster_size = 1
+    collapse_id = kept_record.info.get("CollapseId", None)
+
+    if collapse_id and collapse_id in collapse_groups:
+        kept_nonref = get_nonref_samples(orig_kept)
+        for removed_id in collapse_groups[collapse_id]:
+            orig_removed = original_records.get(removed_id)
+            if orig_removed is None:
+                continue
+            removed_nonref = get_nonref_samples(orig_removed)
+
+            if sample_sim_threshold > 0:
+                overlap = sample_overlap(kept_nonref, removed_nonref)
+                if overlap < sample_sim_threshold:
+                    out_vcf.write(orig_removed)
+                    continue
+
+            # Pull INFO fields that exist on the removed record but not the kept record
+            for info_key in orig_removed.info.keys():
+                if info_key in orig_kept.info:
+                    continue
+                if info_key not in orig_kept.header.info:
+                    continue
+                orig_kept.info[info_key] = orig_removed.info[info_key]
+
+            # Pull non-ref GTs from the removed record for samples missing on kept
+            for sample in orig_kept.samples:
+                kept_gt = orig_kept.samples[sample]['GT']
+                rm_gt = orig_removed.samples[sample]['GT']
+                if kept_gt is None or all(a is None or a == 0 for a in kept_gt):
+                    if rm_gt is not None and any(a is not None and a != 0 for a in rm_gt):
+                        orig_kept.samples[sample]['GT'] = rm_gt
+
+            cluster_size += 1
+
+    if set_merge_annot:
+        orig_kept.info['MERGE_COUNT'] = cluster_size
+        orig_kept.info['MERGE_TYPE'] = 'TRUVARI' if cluster_size > 1 else 'UNIQUE'
+
+    out_vcf.write(orig_kept)
+
+kept_vcf.close()
+out_vcf.close()
+CODE
+
+        bcftools sort \
+            -T . \
+            -Oz -o sorted.vcf.gz \
+            ~{prefix}.vcf.gz
+
+        mv sorted.vcf.gz ~{prefix}.vcf.gz
+
+        tabix -f -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File consolidated_vcf = "~{prefix}.vcf.gz"
+        File consolidated_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: 5 * ceil(size(vcf, "GB")) + 25,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task ConvertToSymbolic {
     input {
         File vcf

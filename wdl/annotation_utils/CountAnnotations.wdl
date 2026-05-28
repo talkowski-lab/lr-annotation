@@ -251,14 +251,14 @@ MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
 COLUMN_BUCKETS = [
     "SNV",
     "INS 1-49bp",
-    "DEL 1-49bp",
     "DUP 1-49bp",
+    "DEL 1-49bp",
     "INS 50-499bp",
-    "DEL 50-499bp",
     "DUP 50-499bp",
+    "DEL 50-499bp",
     "INS >499bp",
-    "DEL >499bp",
     "DUP >499bp",
+    "DEL >499bp",
     "TRV",
     "Other",
 ]

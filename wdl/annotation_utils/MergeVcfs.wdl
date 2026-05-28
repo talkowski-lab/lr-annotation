@@ -21,7 +21,9 @@ workflow MergeVcfs {
         RuntimeAttr? runtime_attr_subset_shard
         RuntimeAttr? runtime_attr_subset_by_type
         RuntimeAttr? runtime_attr_merge_trv
-        RuntimeAttr? runtime_attr_merge_non_trv
+        RuntimeAttr? runtime_attr_merge_and_split_non_trv
+        RuntimeAttr? runtime_attr_consolidate_non_trv
+        RuntimeAttr? runtime_attr_finalize_non_trv
         RuntimeAttr? runtime_attr_concat_merged
         RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_shard_summaries
@@ -83,23 +85,57 @@ workflow MergeVcfs {
                     runtime_attr_override = runtime_attr_merge_trv
             }
 
-            call MergeNonTrvVcfs as MergeNonTrvShard {
+            call MergeAndSplitNonTrv as MergeAndSplitNonTrvShard {
                 input:
                     vcfs = SubsetNonTrvShard.subset_vcf,
                     vcf_idxs = SubsetNonTrvShard.subset_vcf_idx,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     min_truvari_match = min_truvari_match,
+                    prefix = "~{prefix}.shard_~{j}.non_trv",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_merge_and_split_non_trv
+            }
+
+            call Helpers.ConsolidateCollapsedSites as ConsolidateNonTrvShard {
+                input:
+                    vcf = MergeAndSplitNonTrvShard.unmatched_large_vcf,
+                    vcf_idx = MergeAndSplitNonTrvShard.unmatched_large_vcf_idx,
+                    pctovl = 0.0,
+                    pctseq = 0.7,
+                    pctsize = 0.7,
+                    refdist = 500,
+                    sizemin = 0,
+                    sizemax = 50000,
+                    keep_strategy = "first",
+                    sample_similarity = 0.0,
+                    set_merge_annotations = true,
+                    strip_format_to_gt = true,
+                    prefix = "~{prefix}.shard_~{j}.non_trv.truvari",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_consolidate_non_trv
+            }
+
+            call FinalizeNonTrvMerge as FinalizeNonTrvShard {
+                input:
+                    matched_vcf = MergeAndSplitNonTrvShard.matched_vcf,
+                    matched_vcf_idx = MergeAndSplitNonTrvShard.matched_vcf_idx,
+                    unmatched_small_vcf = MergeAndSplitNonTrvShard.unmatched_small_vcf,
+                    unmatched_small_vcf_idx = MergeAndSplitNonTrvShard.unmatched_small_vcf_idx,
+                    consolidated_large_vcf = ConsolidateNonTrvShard.consolidated_vcf,
+                    consolidated_large_vcf_idx = ConsolidateNonTrvShard.consolidated_vcf_idx,
+                    n_non_trv_input = MergeAndSplitNonTrvShard.n_non_trv_input,
+                    n_truvari_input = MergeAndSplitNonTrvShard.n_truvari_input,
                     contig = contig,
                     prefix = "~{prefix}.shard_~{j}.non_trv_merged",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_merge_non_trv
+                    runtime_attr_override = runtime_attr_finalize_non_trv
             }
 
             call Helpers.ConcatVcfs as ConcatMergedTypesShard {
                 input:
-                    vcfs = [MergeTrvShard.merged_vcf, MergeNonTrvShard.merged_vcf],
-                    vcf_idxs = [MergeTrvShard.merged_vcf_idx, MergeNonTrvShard.merged_vcf_idx],
+                    vcfs = [MergeTrvShard.merged_vcf, FinalizeNonTrvShard.merged_vcf],
+                    vcf_idxs = [MergeTrvShard.merged_vcf_idx, FinalizeNonTrvShard.merged_vcf_idx],
                     allow_overlaps = true,
                     naive = false,
                     prefix = "~{prefix}.shard_~{j}.merged",
@@ -121,7 +157,7 @@ workflow MergeVcfs {
 
         call Helpers.ConcatTsvs as ConcatShardSummaries {
             input:
-                tsvs = MergeNonTrvShard.summary_tsv,
+                tsvs = FinalizeNonTrvShard.summary_tsv,
                 sort_output = false,
                 preserve_header = true,
                 prefix = "~{prefix}.merge_summary",
@@ -164,23 +200,57 @@ workflow MergeVcfs {
                 runtime_attr_override = runtime_attr_merge_trv
         }
 
-        call MergeNonTrvVcfs {
+        call MergeAndSplitNonTrv {
             input:
                 vcfs = SubsetNonTrv.subset_vcf,
                 vcf_idxs = SubsetNonTrv.subset_vcf_idx,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 min_truvari_match = min_truvari_match,
+                prefix = "~{prefix}.non_trv",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_and_split_non_trv
+        }
+
+        call Helpers.ConsolidateCollapsedSites as ConsolidateNonTrv {
+            input:
+                vcf = MergeAndSplitNonTrv.unmatched_large_vcf,
+                vcf_idx = MergeAndSplitNonTrv.unmatched_large_vcf_idx,
+                pctovl = 0.0,
+                pctseq = 0.7,
+                pctsize = 0.7,
+                refdist = 500,
+                sizemin = 0,
+                sizemax = 50000,
+                keep_strategy = "first",
+                sample_similarity = 0.0,
+                set_merge_annotations = true,
+                strip_format_to_gt = true,
+                prefix = "~{prefix}.non_trv.truvari",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_consolidate_non_trv
+        }
+
+        call FinalizeNonTrvMerge {
+            input:
+                matched_vcf = MergeAndSplitNonTrv.matched_vcf,
+                matched_vcf_idx = MergeAndSplitNonTrv.matched_vcf_idx,
+                unmatched_small_vcf = MergeAndSplitNonTrv.unmatched_small_vcf,
+                unmatched_small_vcf_idx = MergeAndSplitNonTrv.unmatched_small_vcf_idx,
+                consolidated_large_vcf = ConsolidateNonTrv.consolidated_vcf,
+                consolidated_large_vcf_idx = ConsolidateNonTrv.consolidated_vcf_idx,
+                n_non_trv_input = MergeAndSplitNonTrv.n_non_trv_input,
+                n_truvari_input = MergeAndSplitNonTrv.n_truvari_input,
                 contig = contig,
                 prefix = "~{prefix}.non_trv_merged",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge_non_trv
+                runtime_attr_override = runtime_attr_finalize_non_trv
         }
 
         call Helpers.ConcatVcfs as ConcatMergedTypes {
             input:
-                vcfs = [MergeTrvVcfs.merged_vcf, MergeNonTrvVcfs.merged_vcf],
-                vcf_idxs = [MergeTrvVcfs.merged_vcf_idx, MergeNonTrvVcfs.merged_vcf_idx],
+                vcfs = [MergeTrvVcfs.merged_vcf, FinalizeNonTrvMerge.merged_vcf],
+                vcf_idxs = [MergeTrvVcfs.merged_vcf_idx, FinalizeNonTrvMerge.merged_vcf_idx],
                 allow_overlaps = true,
                 naive = false,
                 prefix = "~{prefix}.merged",
@@ -192,7 +262,7 @@ workflow MergeVcfs {
     output {
         File merged_vcf = select_first([ConcatShards.concat_vcf, ConcatMergedTypes.concat_vcf])
         File merged_vcf_idx = select_first([ConcatShards.concat_vcf_idx, ConcatMergedTypes.concat_vcf_idx])
-        File merge_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, MergeNonTrvVcfs.summary_tsv])
+        File merge_summary_tsv = select_first([ConcatShardSummaries.concatenated_tsv, FinalizeNonTrvMerge.summary_tsv])
     }
 }
 
@@ -225,7 +295,7 @@ task MergeTrvVcfs {
                 -x FORMAT/AL \
                 -Oz -o "stripped_${i}.vcf.gz" \
                 "$vcf"
-            
+
             tabix -f -p vcf "stripped_${i}.vcf.gz"
 
             bcftools norm \
@@ -234,7 +304,7 @@ task MergeTrvVcfs {
                 -f ~{ref_fa} \
                 -Oz -o "cleaned_${i}.vcf.gz" \
                 "stripped_${i}.vcf.gz"
-            
+
             tabix -f -p vcf "cleaned_${i}.vcf.gz"
 
             # Tag with MERGE_COUNT=1
@@ -276,7 +346,7 @@ task MergeTrvVcfs {
             sorted.vcf.gz | \
             awk -F'\t' -v OFS='\t' '{if($5>1) $5="TRV_EXACT"; else $5="UNIQUE"; print}' | \
             bgzip > mt_annot.tsv.gz
-        
+
         tabix -s1 -b2 -e2 mt_annot.tsv.gz
 
         bcftools annotate \
@@ -285,7 +355,7 @@ task MergeTrvVcfs {
             -Oz -o ~{prefix}.vcf.gz sorted.vcf.gz
 
         rm -f sorted.vcf.gz sorted.vcf.gz.tbi mt_annot.tsv.gz mt_annot.tsv.gz.tbi
-        
+
         tabix -f -p vcf ~{prefix}.vcf.gz
     >>>
 
@@ -314,14 +384,13 @@ task MergeTrvVcfs {
     }
 }
 
-task MergeNonTrvVcfs {
+task MergeAndSplitNonTrv {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
         File ref_fa
         File ref_fai
         Int min_truvari_match
-        String contig
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -333,7 +402,6 @@ task MergeNonTrvVcfs {
         echo '##INFO=<ID=MERGE_COUNT,Number=1,Type=Integer,Description="Number of source VCFs containing this variant">' > mc_hdr.txt
         echo '##INFO=<ID=MERGE_TYPE,Number=1,Type=String,Description="Merge strategy: EXACT, TRV_EXACT, TRUVARI, or UNIQUE">' > mt_hdr.txt
 
-        # Clean and merge with exact matching (biallelic only)
         paste ~{write_lines(vcfs)} ~{write_lines(vcf_idxs)} > vcf_pairs.tsv
 
         i=0
@@ -355,7 +423,7 @@ task MergeNonTrvVcfs {
                 -f ~{ref_fa} \
                 -Oz -o "cleaned_${i}.vcf.gz" \
                 "stripped_${i}.vcf.gz"
-            
+
             tabix -f -p vcf "cleaned_${i}.vcf.gz"
 
             # Tag with MERGE_COUNT=1
@@ -391,53 +459,51 @@ task MergeNonTrvVcfs {
             -T . \
             -Oz -o exact_merged.vcf.gz \
             exact_merged.unsorted.vcf.gz
-        
+
         tabix -f -p vcf exact_merged.vcf.gz
 
         rm -f exact_merged.unsorted.vcf.gz
 
-        n_input=$(bcftools view -H exact_merged.vcf.gz | wc -l | awk '{print $1}')
+        bcftools view -H exact_merged.vcf.gz | wc -l | awk '{print $1}' > n_non_trv_input.txt
 
         # Split into matched (exact), unmatched large (truvari candidates), and unmatched small (unique)
         bcftools view \
             -i 'MERGE_COUNT>1' \
             -Oz -o matched.vcf.gz \
             exact_merged.vcf.gz
-        
+
         bcftools view \
             -i 'MERGE_COUNT=1 && (INFO/allele_length >= ~{min_truvari_match} || INFO/allele_length <= -~{min_truvari_match})' \
-            -Oz -o unmatched_large.vcf.gz exact_merged.vcf.gz
-        
+            -Oz -o ~{prefix}.unmatched_large.vcf.gz exact_merged.vcf.gz
+
         bcftools view \
             -i 'MERGE_COUNT=1 && INFO/allele_length < ~{min_truvari_match} && INFO/allele_length > -~{min_truvari_match}' \
             -Oz -o unmatched_small.vcf.gz exact_merged.vcf.gz
-        
+
         tabix -f -p vcf matched.vcf.gz
-        
-        tabix -f -p vcf unmatched_large.vcf.gz
-        
+        tabix -f -p vcf ~{prefix}.unmatched_large.vcf.gz
         tabix -f -p vcf unmatched_small.vcf.gz
 
         rm -f exact_merged.vcf.gz exact_merged.vcf.gz.tbi
 
-        n_truvari_input=$(bcftools view -H unmatched_large.vcf.gz | wc -l | awk '{print $1}')
+        bcftools view -H ~{prefix}.unmatched_large.vcf.gz | wc -l | awk '{print $1}' > n_truvari_input.txt
 
         # Annotate matched with MERGE_TYPE=EXACT
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\tEXACT\n' \
             matched.vcf.gz \
             | bgzip > matched_mt.tsv.gz
-        
+
         tabix -s1 -b2 -e2 matched_mt.tsv.gz
 
         bcftools annotate \
             -a matched_mt.tsv.gz \
             -h mt_hdr.txt \
             -c CHROM,POS,REF,ALT,MERGE_TYPE \
-            -Oz -o matched.typed.vcf.gz \
+            -Oz -o ~{prefix}.matched.vcf.gz \
             matched.vcf.gz
-        
-        tabix -f -p vcf matched.typed.vcf.gz
+
+        tabix -f -p vcf ~{prefix}.matched.vcf.gz
 
         rm -f matched.vcf.gz matched.vcf.gz.tbi matched_mt.tsv.gz matched_mt.tsv.gz.tbi
 
@@ -446,126 +512,99 @@ task MergeNonTrvVcfs {
             -f '%CHROM\t%POS\t%REF\t%ALT\tUNIQUE\n' \
             unmatched_small.vcf.gz \
             | bgzip > small_mt.tsv.gz
-        
+
         tabix -s1 -b2 -e2 small_mt.tsv.gz
 
         bcftools annotate \
             -a small_mt.tsv.gz \
             -h mt_hdr.txt \
             -c CHROM,POS,REF,ALT,MERGE_TYPE \
-            -Oz -o unmatched_small.typed.vcf.gz \
+            -Oz -o ~{prefix}.unmatched_small.vcf.gz \
             unmatched_small.vcf.gz
-        
-        tabix -f -p vcf unmatched_small.typed.vcf.gz
+
+        tabix -f -p vcf ~{prefix}.unmatched_small.vcf.gz
 
         rm -f unmatched_small.vcf.gz unmatched_small.vcf.gz.tbi small_mt.tsv.gz small_mt.tsv.gz.tbi
+    >>>
 
-        # Truvari collapse on unmatched large variants
-        if [[ "$n_truvari_input" -gt 0 ]]; then
-            # Strip FORMAT fields to GT only (truvari crashes on mixed-arity FORMAT from merged VCFs)
-            FMT_FIELDS=$(bcftools view -h unmatched_large.vcf.gz | grep '^##FORMAT' | grep -v 'ID=GT,' | \
-                sed 's/.*ID=\([^,]*\).*/FORMAT\/\1/' | paste -sd',' -)
-            if [[ -n "$FMT_FIELDS" ]]; then
-                bcftools annotate \
-                    -x "$FMT_FIELDS" \
-                    -Oz -o large.gt_only.vcf.gz \
-                    unmatched_large.vcf.gz
-            else
-                cp unmatched_large.vcf.gz large.gt_only.vcf.gz
-            fi
-            tabix -f -p vcf large.gt_only.vcf.gz
-            rm -f unmatched_large.vcf.gz unmatched_large.vcf.gz.tbi
+    output {
+        File matched_vcf = "~{prefix}.matched.vcf.gz"
+        File matched_vcf_idx = "~{prefix}.matched.vcf.gz.tbi"
+        File unmatched_large_vcf = "~{prefix}.unmatched_large.vcf.gz"
+        File unmatched_large_vcf_idx = "~{prefix}.unmatched_large.vcf.gz.tbi"
+        File unmatched_small_vcf = "~{prefix}.unmatched_small.vcf.gz"
+        File unmatched_small_vcf_idx = "~{prefix}.unmatched_small.vcf.gz.tbi"
+        Int n_non_trv_input = read_int("n_non_trv_input.txt")
+        Int n_truvari_input = read_int("n_truvari_input.txt")
+    }
 
-            truvari collapse \
-                -i large.gt_only.vcf.gz \
-                -o large.collapsed.vcf \
-                -c large.removed.vcf \
-                --gt all \
-                --sizemin 0
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: 5 * ceil(size(vcfs, "GB")) + 25,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
 
-            bgzip -f large.collapsed.vcf
+task FinalizeNonTrvMerge {
+    input {
+        File matched_vcf
+        File matched_vcf_idx
+        File unmatched_small_vcf
+        File unmatched_small_vcf_idx
+        File consolidated_large_vcf
+        File consolidated_large_vcf_idx
+        Int n_non_trv_input
+        Int n_truvari_input
+        String contig
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
 
-            bcftools sort \
-                -T . \
-                -Oz -o large.collapsed.sorted.vcf.gz \
-                large.collapsed.vcf.gz
-            
-            mv large.collapsed.sorted.vcf.gz large.collapsed.vcf.gz
+    command <<<
+        set -euo pipefail
 
-            tabix -f -p vcf large.collapsed.vcf.gz
-
-            # Annotate MERGE_TYPE and MERGE_COUNT from NumCollapsed
-            bcftools query \
-                -f '%CHROM\t%POS\t%REF\t%ALT\t%INFO/NumCollapsed\n' \
-                large.collapsed.vcf.gz | \
-                awk -F'\t' -v OFS='\t' '{
-                    nc = ($5 == "." ? 0 : int($5));
-                    if (nc >= 1) { print $1,$2,$3,$4,nc+1,"TRUVARI" }
-                    else { print $1,$2,$3,$4,1,"UNIQUE" }
-                }' | bgzip > truvari_annot.tsv.gz
-            
-            tabix -s1 -b2 -e2 truvari_annot.tsv.gz
-
-            bcftools annotate \
-                -a truvari_annot.tsv.gz -h mt_hdr.txt \
-                -c CHROM,POS,REF,ALT,MERGE_COUNT,MERGE_TYPE \
-                -Oz -o large.typed.vcf.gz large.collapsed.vcf.gz
-            
-            tabix -f -p vcf large.typed.vcf.gz
-
-            rm -f \
-                large.gt_only.vcf.gz large.gt_only.vcf.gz.tbi \
-                large.collapsed.vcf.gz large.collapsed.vcf.gz.tbi \
-                large.removed.vcf truvari_annot.tsv.gz truvari_annot.tsv.gz.tbi
-
-            n_truvari_output=$(bcftools view -H large.typed.vcf.gz | wc -l | awk '{print $1}')
-        else
-            # No large unmatched variants
-            bcftools view \
-                -h unmatched_large.vcf.gz \
-                | bgzip > large.typed.vcf.gz
-            
-            tabix -f -p vcf large.typed.vcf.gz
-
-            rm -f unmatched_large.vcf.gz unmatched_large.vcf.gz.tbi
-
-            n_truvari_output=0
-        fi
-
-        n_truvari_collapsed=$((n_truvari_input - n_truvari_output))
-
-        # Concat all subsets, update AC/AN/AF
         bcftools concat \
             -a \
             -Oz -o concat.unsorted.vcf.gz \
-            matched.typed.vcf.gz unmatched_small.typed.vcf.gz large.typed.vcf.gz
-        
-        rm -f \
-            matched.typed.vcf.gz matched.typed.vcf.gz.tbi \
-            unmatched_small.typed.vcf.gz unmatched_small.typed.vcf.gz.tbi \
-            large.typed.vcf.gz large.typed.vcf.gz.tbi
-        
+            ~{matched_vcf} ~{unmatched_small_vcf} ~{consolidated_large_vcf}
+
         bcftools sort \
             -T . \
             -Oz -o sorted.vcf.gz \
             concat.unsorted.vcf.gz
-        
+
         rm -f concat.unsorted.vcf.gz
 
         bcftools +fill-tags \
             sorted.vcf.gz \
             -Oz -o ~{prefix}.vcf.gz \
             -- -t AC,AN,AF
-        
+
         rm -f sorted.vcf.gz
-        
+
         tabix -f -p vcf ~{prefix}.vcf.gz
 
         n_output=$(bcftools view -H ~{prefix}.vcf.gz | wc -l | awk '{print $1}')
+        n_truvari_output=$(bcftools view -H ~{consolidated_large_vcf} | wc -l | awk '{print $1}')
+        n_truvari_collapsed=$((~{n_truvari_input} - n_truvari_output))
 
         cat > ~{prefix}.merge_summary.tsv <<EOF
 contig	n_non_trv_input	n_non_trv_output	n_truvari_input	n_truvari_output	n_truvari_collapsed
-~{contig}	${n_input}	${n_output}	${n_truvari_input}	${n_truvari_output}	${n_truvari_collapsed}
+~{contig}	~{n_non_trv_input}	${n_output}	~{n_truvari_input}	${n_truvari_output}	${n_truvari_collapsed}
 EOF
     >>>
 
@@ -576,9 +615,9 @@ EOF
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 2,
-        mem_gb: 16,
-        disk_gb: 5 * ceil(size(vcfs, "GB")) + 25,
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 3 * ceil(size(matched_vcf, "GB") + size(unmatched_small_vcf, "GB") + size(consolidated_large_vcf, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
