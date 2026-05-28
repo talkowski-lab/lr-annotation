@@ -237,8 +237,8 @@ def flush_buffer(buf, out_vcf):
 # Update header
 vcf_in = pysam.VariantFile("~{vcf}")
 header = vcf_in.header.copy()
-if "HOMOPOLYMER_TRV" not in header.filters:
-    header.filters.add("HOMOPOLYMER_TRV", None, None, "Tandem repeat call where the shortest motif has length 1.")
+if "HOMOPOLYMER_TRV" not in header.info:
+    header.info.add("HOMOPOLYMER_TRV", 0, "Flag", "Tandem repeat call where the shortest motif has length 1.")
 if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
     header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by a single read in a single sample.")
 
@@ -257,7 +257,7 @@ for record in vcf_in:
 
     # Flag homopolymer TR variants
     if get_scalar(record.info.get("allele_type")) == "trv" and shortest_motif_length(record) == 1:
-        record.filter.add("HOMOPOLYMER_TRV")
+        record.info["HOMOPOLYMER_TRV"] = True
 
     # Flag variants with single read support
     if has_single_read_support(record):
