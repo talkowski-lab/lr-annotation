@@ -183,6 +183,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: RenameVariants
+    primaryDescriptorPath: /wdl/annotation_utils/RenameVariants.wdl
+    filters:
+      branches:
+        - aou_scaling
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: SubsetTRGTToCatalog
     primaryDescriptorPath: /wdl/annotation_utils/SubsetTRGTToCatalog.wdl
     filters:
