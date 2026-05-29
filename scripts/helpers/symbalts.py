@@ -25,32 +25,32 @@ def main():
     if present_types:
         header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 
-    for allele_type in present_types:
-        if allele_type not in header.alts:
-            header.add_line(f'##ALT=<ID={allele_type},Description="{allele_type} variant">')
-        if allele_type == "BND" and "BND_ALT" not in header.info:
+    for svtype in present_types:
+        if svtype not in header.alts:
+            header.add_line(f'##ALT=<ID={svtype},Description="{svtype} variant">')
+        if svtype == "BND" and "BND_ALT" not in header.info:
             header.add_line('##INFO=<ID=BND_ALT,Number=1,Type=String,Description="BND info from ALT field">')
 
     vcf_out = VariantFile(args.output, 'w', header=header)
     for record in vcf_in:
-        if "allele_type" in record.info:
-            allele_type = record.info["allele_type"]
-            if isinstance(allele_type, (list, tuple)):
-                allele_type = allele_type[0]
+        if "SVTYPE" in record.info:
+            svtype = record.info["SVTYPE"]
+            if isinstance(svtype, (list, tuple)):
+                svtype = svtype[0]
 
-            allele_type = allele_type.upper()
-            if allele_type == "BND":
+            svtype = svtype.upper()
+            if svtype == "BND":
                 record.info["BND_ALT"] = record.alts[0]
             record.ref = "N"
-            record.alts = (f"<{allele_type}>", )
+            record.alts = (f"<{svtype}>", )
 
-        if "allele_length" in record.info:
-            allele_length = record.info["allele_length"]
-            if isinstance(allele_length, (list, tuple)):
-                allele_length = allele_length[0]
+        if "SVLEN" in record.info:
+            svlen = record.info["SVLEN"]
+            if isinstance(svlen, (list, tuple)):
+                svlen = svlen[0]
 
-            allele_length = abs(allele_length)
-            record.stop = record.pos + allele_length
+            svlen = abs(svlen)
+            record.stop = record.pos + svlen
 
         vcf_out.write(record)
 
