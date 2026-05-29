@@ -2486,6 +2486,7 @@ task SubsetVcfByArgs {
         String? include_args
         String? exclude_args
         String? extra_args
+        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -2499,8 +2500,9 @@ task SubsetVcfByArgs {
             ~{if defined(include_args) then "-i '~{include_args}'" else ""} \
             ~{if defined(exclude_args) then "-e '~{exclude_args}'" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
+            ~{if sites_only then "-G" else ""} \
             -Oz -o ~{prefix}.vcf.gz
-        
+
         tabix -p vcf "~{prefix}.vcf.gz"
     >>>
 
@@ -2688,6 +2690,7 @@ task SubsetVcfToRegionStreaming {
         File vcf
         File vcf_idx
         String region
+        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -2707,12 +2710,13 @@ task SubsetVcfToRegionStreaming {
 
             if bcftools view \
                     -r ~{region} \
+                    ~{if sites_only then "-G" else ""} \
                     --threads $(nproc) \
                     ~{vcf} \
                     -Oz -o ~{prefix}.vcf.gz; then
                 break
             fi
-            
+
             if [[ $attempt -lt 3 ]]; then
                 sleep $((attempt * 15))
             else
@@ -2862,6 +2866,7 @@ task ShardVcfByRecords {
         File vcf
         File vcf_idx
         Int records_per_shard
+        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -2870,16 +2875,24 @@ task ShardVcfByRecords {
 
     command <<<
         set -euo pipefail
-        
+
         mkdir scatter_output
+
+        if [[ "~{sites_only}" == "true" ]]; then
+            bcftools view -G ~{vcf} -Oz -o scatter_input.vcf.gz
+            tabix -p vcf scatter_input.vcf.gz
+            SCATTER_INPUT=scatter_input.vcf.gz
+        else
+            SCATTER_INPUT=~{vcf}
+        fi
 
         bcftools +scatter \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -n ~{records_per_shard} \
             --prefix ~{prefix}. \
             -Oz -o scatter_output \
-            ~{vcf}
-        
+            "$SCATTER_INPUT"
+
         mkdir shards
         ls scatter_output/*.vcf.gz | sort -k1,1V > vcfs.list
         i=0

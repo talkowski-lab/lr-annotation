@@ -35,6 +35,8 @@ workflow CountAnnotations {
         RuntimeAttr? runtime_attr_merge
     }
 
+    Boolean sites_only = !(create_per_sample || create_per_allele)
+
     scatter (i in range(length(vcfs))) {
         if (defined(shard_bin_size)) {
             call Helpers.CreateShardsFromVcfIndex {
@@ -54,6 +56,7 @@ workflow CountAnnotations {
                         vcf = vcfs[i],
                         vcf_idx = vcf_idxs[i],
                         region = CreateShardsFromVcfIndex.shard_regions[k],
+                        sites_only = sites_only,
                         use_ssd = use_ssd,
                         prefix = "~{prefix}.input_~{i}.region_~{k}",
                         docker = utils_docker,
@@ -68,6 +71,7 @@ workflow CountAnnotations {
                     vcf = vcfs[i],
                     vcf_idx = vcf_idxs[i],
                     records_per_shard = select_first([records_per_shard]),
+                    sites_only = sites_only,
                     use_ssd = use_ssd,
                     prefix = "~{prefix}.input_~{i}",
                     docker = utils_docker,
@@ -84,6 +88,7 @@ workflow CountAnnotations {
                     vcf = shard_vcfs[j],
                     vcf_idx = shard_vcf_idxs[j],
                     extra_args = subset_vcf_string,
+                    sites_only = sites_only,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset
