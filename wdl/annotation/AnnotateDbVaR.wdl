@@ -236,6 +236,7 @@ query = pysam.VariantFile("~{vcf}")
 
 with open("~{prefix}.annotations.tsv", 'w') as out:
     for rec in query:
+        # Structure search criteria
         svtype = rec.info.get('SVTYPE')
         if svtype not in PARAMS:
             continue
@@ -246,7 +247,6 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
         ql = parse_svlen(rec)
         var_id = rec.id if rec.id else '.'
         orig_ref, orig_alt = original_ref_alt.get(var_id, (rec.ref if rec.ref else '.', rec.alts[0] if rec.alts else '.'))
-
         bp_win = params['bp_win']
         size_sim = params['size_sim']
         if svtype == 'INS':
@@ -256,12 +256,13 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
             margin = bp_win + int(ql / size_sim) + 1
             region_start = max(0, qs - margin)
             region_end = qe + margin
-
+        
         if chrom not in dbvar.header.contigs:
             continue
-        cands = dbvar.fetch(chrom, region_start, region_end)
 
+        # Look for a canonical match
         matched = []
+        cands = dbvar.fetch(chrom, region_start, region_end)
         for cand in cands:
             ctype = cand.info.get('SVTYPE')
             if ctype not in params['allowed']:
@@ -280,6 +281,30 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
             if ok:
                 matched.append(str(cand_id))
 
+        # Fallback for DUPs by looking for a match with an INS
+        if svtype == 'DUP' and not matched:
+            orig_pos_info = rec.info.get('ORIGINAL_POS', None)
+            if orig_pos_info is not None:
+                if isinstance(orig_pos_info, (list, tuple)):
+                    orig_pos_info = orig_pos_info[0]
+                ins_qs = int(orig_pos_info) - 1
+                ins_params = PARAMS['INS']
+                ins_bp_win = ins_params['bp_win']
+                ins_size_sim = ins_params['size_sim']
+                ins_region_start = max(0, ins_qs - ins_bp_win)
+                ins_region_end = ins_qs + ins_bp_win + 1
+                for cand in dbvar.fetch(chrom, ins_region_start, ins_region_end):
+                    if cand.info.get('SVTYPE') != 'INS':
+                        continue
+                    cs = cand.start
+                    cl = parse_svlen(cand)
+                    cand_id = cand.id if cand.id else cand.info.get('DBVARID', '.')
+                    if isinstance(cand_id, (list, tuple)):
+                        cand_id = cand_id[0]
+                    if passes_ins(ins_qs, ql, cs, cl, ins_size_sim, ins_bp_win):
+                        matched.append(str(cand_id))
+
+        # Add match to output
         if matched:
             seen = set()
             uniq = [m for m in matched if not (m in seen or seen.add(m))]

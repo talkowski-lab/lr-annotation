@@ -29,7 +29,7 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
-    # Subset eval VCF by length
+    # Subset eval VCF
     call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
@@ -41,7 +41,17 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_subset_eval
     }
 
-    # Convert eval VCF to symbolic, both with and without moving DUPs
+    # Convert and split eval VCF, moving DUPs
+    call SplitVcf as SplitEvalMoved {
+        input:
+            vcf = ConvertEvalMoved.processed_vcf,
+            vcf_idx = ConvertEvalMoved.processed_vcf_idx,
+            split_cpx = false,
+            prefix = "~{prefix}.eval.moved",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_split_eval
+    }
+
     call Helpers.ConvertToSymbolic as ConvertEvalMoved {
         input:
             vcf = SubsetEval.subset_vcf,
@@ -54,6 +64,7 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
+    # Convert and split eval VCF, without moving DUPs
     call Helpers.ConvertToSymbolic as ConvertEvalUnmoved {
         input:
             vcf = SubsetEval.subset_vcf,
@@ -64,17 +75,6 @@ workflow BedtoolsClosestSV {
             prefix = "~{prefix}.eval.symbolic.unmoved",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
-    }
-
-    # Split eval VCF
-    call SplitVcf as SplitEvalMoved {
-        input:
-            vcf = ConvertEvalMoved.processed_vcf,
-            vcf_idx = ConvertEvalMoved.processed_vcf_idx,
-            split_cpx = false,
-            prefix = "~{prefix}.eval.moved",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_split_eval
     }
 
     call SplitVcf as SplitEvalUnmoved {
