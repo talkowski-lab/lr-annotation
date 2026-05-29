@@ -136,11 +136,11 @@ task AnnotateVariantAttributes {
         set -euo pipefail
 
         touch new_headers.txt
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_length'; then
-            echo '##INFO=<ID=allele_length,Number=1,Type=Integer,Description="Allele length">' >> new_headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVLEN'; then
+            echo '##INFO=<ID=SVLEN,Number=.,Type=Integer,Description="Difference in length between REF and ALT alleles">' >> new_headers.txt
         fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_type'; then
-            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
+        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=SVTYPE'; then
+            echo '##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Type of structural variant">' >> new_headers.txt
         fi
 
         bcftools annotate \
@@ -151,31 +151,31 @@ task AnnotateVariantAttributes {
         tabix -p vcf temp.vcf.gz
 
         bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/allele_length\t%INFO/allele_type\n' \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/SVLEN\t%INFO/SVTYPE\n' \
             temp.vcf.gz \
         | awk -F'\t' '{
             ref_length = length($3)            
             alt_len = length($4)
             calc_length = alt_len - ref_length
-            calc_type = "snv"
+            calc_type = "SNV"
 
             if (alt_len > ref_length) {
-                calc_type = "ins"
+                calc_type = "INS"
             } else if (alt_len < ref_length) {
-                calc_type = "del"
+                calc_type = "DEL"
             }
 
-            allele_length = ($6 == ".") ? calc_length : $6
-            allele_type = ($7 == ".") ? calc_type : $7
+            svlen = ($6 == ".") ? calc_length : $6
+            svtype = ($7 == ".") ? calc_type : $7
 
-            print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"allele_length"\t"allele_type
+            print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"svlen"\t"svtype
         }' \
             | bgzip -c > annot.txt.gz
         
         tabix -s1 -b2 -e2 annot.txt.gz
 
         bcftools annotate -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_length,INFO/allele_type \
+            -c CHROM,POS,REF,ALT,~ID,INFO/SVLEN,INFO/SVTYPE \
             -Oz -o ~{prefix}.vcf.gz \
             temp.vcf.gz
 
@@ -461,6 +461,7 @@ task ConcatTsvs {
         String docker
         Boolean preserve_header = false
         Boolean skip_sort = false
+        Boolean sort_output = true
         RuntimeAttr? runtime_attr_override
     }
 
@@ -470,7 +471,7 @@ task ConcatTsvs {
         if [ "~{preserve_header}" == "true" ]; then
             head -n 1 ~{tsvs[0]} > ~{prefix}.tsv
             tail -n +2 -q ~{sep=' ' tsvs} >> ~{prefix}.tsv
-        elif [ "~{skip_sort}" == "true" ]; then
+        elif [ "~{skip_sort}" == "true" ] || [ "~{sort_output}" == "false" ]; then
             cat ~{sep=' ' tsvs} > ~{prefix}.tsv
         else
             cat ~{sep=' ' tsvs} | sort -k1,1 -k2,2n > ~{prefix}.tsv
@@ -655,6 +656,9 @@ task ConvertToSymbolic {
     input {
         File vcf
         File vcf_idx
+        Boolean move_dup_to_origin = false
+        String type_field = "SVTYPE"
+        String length_field = "SVLEN"
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -664,7 +668,7 @@ task ConvertToSymbolic {
         set -euo pipefail
 
         bcftools query \
-            -f '%INFO/allele_type\n' \
+            -f '%INFO/~{type_field}\n' \
             ~{vcf} \
             | sort -u > allele_types.txt
         
@@ -1685,7 +1689,7 @@ task SubsetVcfByLength {
     input {
         File vcf
         File vcf_idx
-        String length_field = "allele_length"
+        String length_field = "SVLEN"
         Int? min_length
         Int? max_length
         String? extra_args

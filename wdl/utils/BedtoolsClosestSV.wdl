@@ -10,10 +10,17 @@ workflow BedtoolsClosestSV {
         File vcf_sv_truth
         File vcf_sv_truth_idx
         String prefix
+
+        Int min_sv_length_eval
+        Int min_sv_length_truth
+        String type_field_eval = "SVTYPE"
+        String length_field_eval = "SVLEN"
         
         String benchmark_annotations_docker
         String utils_docker
         
+        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_convert_to_symbolic
         RuntimeAttr? runtime_attr_split_eval
         RuntimeAttr? runtime_attr_split_truth
@@ -22,11 +29,23 @@ workflow BedtoolsClosestSV {
         RuntimeAttr? runtime_attr_merge_comparisons
     }
 
-    # Preprocessing
-    call Helpers.ConvertToSymbolic {
+    call Helpers.SubsetVcfByLength as SubsetEval {
         input:
             vcf = vcf_eval,
             vcf_idx = vcf_eval_idx,
+            length_field = length_field_eval,
+            min_length = min_sv_length_eval,
+            prefix = "~{prefix}.subset_eval",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_eval
+    }
+
+    call Helpers.ConvertToSymbolic {
+        input:
+            vcf = SubsetEval.subset_vcf,
+            vcf_idx = SubsetEval.subset_vcf_idx,
+            type_field = type_field_eval,
+            length_field = length_field_eval,
             prefix = "~{prefix}.eval.symbolic",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
@@ -36,17 +55,28 @@ workflow BedtoolsClosestSV {
         input:
             vcf = ConvertToSymbolic.processed_vcf,
             vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            type_field = "allele_type",
-            length_field = "allele_length",
+            type_field = "SVTYPE",
+            length_field = "SVLEN",
             prefix = "~{prefix}.eval",
             docker = benchmark_annotations_docker,
             runtime_attr_override = runtime_attr_split_eval
     }
 
-    call SplitQueryVcf as SplitTruth {
+    call Helpers.SubsetVcfByLength as SubsetTruth {
         input:
             vcf = vcf_sv_truth,
             vcf_idx = vcf_sv_truth_idx,
+            length_field = "SVLEN",
+            min_length = min_sv_length_truth,
+            prefix = "~{prefix}.subset_truth",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_truth
+    }
+
+    call SplitQueryVcf as SplitTruth {
+        input:
+            vcf = SubsetTruth.subset_vcf,
+            vcf_idx = SubsetTruth.subset_vcf_idx,
             type_field = "SVTYPE",
             length_field = "SVLEN",
             prefix = "~{prefix}.truth",
@@ -54,7 +84,6 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_split_truth
     }
 
-    # Deletions
     call Helpers.BedtoolsClosest as CompareDEL {
         input:
             bed_a = SplitEval.del_bed,
@@ -72,7 +101,23 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    # Insertions
+    call Helpers.BedtoolsClosest as CompareDUP {
+        input:
+            bed_a = SplitEval.dup_bed,
+            bed_b = SplitTruth.dup_bed,
+            prefix = "~{prefix}.DUP",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+
+    call SelectMatchedSVs as CalcuDUP {
+        input:
+            input_bed = CompareDUP.output_bed,
+            prefix = "~{prefix}.DUP",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
     call Helpers.BedtoolsClosest as CompareINS {
         input:
             bed_a = SplitEval.ins_bed,
@@ -90,10 +135,49 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_calculate
     }
 
-    # Postprocessing
+    call Helpers.BedtoolsClosest as CompareINV {
+        input:
+            bed_a = SplitEval.inv_bed,
+            bed_b = SplitTruth.inv_bed,
+            prefix = "~{prefix}.INV_CPX",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+
+    call SelectMatchedSVs as CalcuINV {
+        input:
+            input_bed = CompareINV.output_bed,
+            prefix = "~{prefix}.INV_CPX",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
+    call Helpers.BedtoolsClosest as CompareBND {
+        input:
+            bed_a = SplitEval.bnd_bed,
+            bed_b = SplitTruth.bnd_bed,
+            prefix = "~{prefix}.BND_CTX",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_compare
+    }
+
+    call SelectMatchedINSs as CalcuBND {
+        input:
+            input_bed = CompareBND.output_bed,
+            prefix = "~{prefix}.BND_CTX",
+            docker = benchmark_annotations_docker,
+            runtime_attr_override = runtime_attr_calculate
+    }
+
     call Helpers.ConcatTsvs {
         input:
-            tsvs = [CalcuDEL.output_comp, CalcuINS.output_comp],
+            tsvs = [
+                CalcuDEL.output_comp,
+                CalcuDUP.output_comp,
+                CalcuINS.output_comp,
+                CalcuINV.output_comp,
+                CalcuBND.output_comp,
+            ],
             prefix = "~{prefix}.comparison",
             skip_sort = true,
             docker = utils_docker,
@@ -102,8 +186,10 @@ workflow BedtoolsClosestSV {
 
     call CreateBedtoolsAnnotationTsv {
         input:
-            truvari_unmatched_vcf = vcf_eval,
-            truvari_unmatched_vcf_idx = vcf_eval_idx,
+            truvari_unmatched_vcf = SubsetEval.subset_vcf,
+            truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
+            vcf_sv_truth = SubsetTruth.subset_vcf,
+            vcf_sv_truth_idx = SubsetTruth.subset_vcf_idx,
             closest_bed = ConcatTsvs.concatenated_tsv,
             prefix = prefix,
             docker = utils_docker,
@@ -264,6 +350,8 @@ task CreateBedtoolsAnnotationTsv {
     input {
         File truvari_unmatched_vcf
         File truvari_unmatched_vcf_idx
+        File vcf_sv_truth
+        File vcf_sv_truth_idx
         File closest_bed
         String prefix
         String docker
@@ -291,9 +379,26 @@ task CreateBedtoolsAnnotationTsv {
             matched_ids.tsv \
             > joined.tsv
 
+        bcftools query \
+            -f '%ID\t%INFO/AF\n' ~{vcf_sv_truth} \
+        | sort -k1,1 > truth_af.tsv
+
+        sort -k6,6 joined.tsv > joined_by_truth.tsv
+
+        join \
+            -1 6 \
+            -2 1 \
+            -t $'\t' \
+            -a 1 \
+            -e "." \
+            -o '1.1,1.2,1.3,1.4,1.5,1.6,2.2' \
+            joined_by_truth.tsv \
+            truth_af.tsv \
+            > joined_with_af.tsv
+
         awk -F'\t' 'BEGIN{OFS="\t"} {
-            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV"
-        }' joined.tsv > ~{prefix}.bedtools_matched.tsv
+            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV", $7
+        }' joined_with_af.tsv > ~{prefix}.bedtools_matched.tsv
     >>>
 
     output {
@@ -303,7 +408,7 @@ task CreateBedtoolsAnnotationTsv {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(closest_bed, "GB")) + 5,
+        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(vcf_sv_truth, "GB") + size(closest_bed, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

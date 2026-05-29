@@ -114,6 +114,15 @@ workflows:
       tags:
         - /.*/
 
+  - subclass: WDL
+    name: AnnotateCallsetOverlap
+    primaryDescriptorPath: /wdl/annotation/AnnotateCallsetOverlap.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
   # --------------------
   # Annotation Utilities
   # --------------------
