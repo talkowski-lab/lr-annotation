@@ -2110,7 +2110,7 @@ with pysam.VariantFile("~{original_vcf}") as orig_vcf:
 
 # Revert symbolic alleles in annotated VCF
 vcf_in = pysam.VariantFile("~{annotated_vcf}")
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", 'w', header=vcf_in.header)
+vcf_out = pysam.VariantFile("unsorted.vcf.gz", 'w', header=vcf_in.header)
 for record in vcf_in:
     if record.id in original_data:
         orig = original_data[record.id]
@@ -2141,6 +2141,12 @@ for record in vcf_in:
 vcf_in.close()
 vcf_out.close()
 CODE
+
+        bcftools sort \
+            --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
+            -T . \
+            -Oz -o ~{prefix}.vcf.gz \
+            unsorted.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
