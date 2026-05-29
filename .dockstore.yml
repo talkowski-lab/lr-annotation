@@ -84,6 +84,7 @@ workflows:
     filters:
       branches:
         - main
+        - aou_scaling
       tags:
         - /.*/
 
@@ -120,6 +121,7 @@ workflows:
     filters:
       branches:
         - main
+        - aou_scaling
       tags:
         - /.*/
 
