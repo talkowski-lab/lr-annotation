@@ -701,7 +701,11 @@ for kept_record in kept_vcf:
                     continue
                 if info_key not in orig_kept.header.info:
                     continue
-                orig_kept.info[info_key] = orig_removed.info[info_key]
+                try:
+                    orig_kept.info[info_key] = orig_removed.info[info_key]
+                except (TypeError, ValueError):
+                    print(f"Unable to set {info_key} - ({orig_kept.info[info_key]}, {orig_removed.info[info_key]})")
+                    continue
 
             # Pull non-ref GTs from the removed record for samples missing on kept
             for sample in orig_kept.samples:
