@@ -129,15 +129,15 @@ task AnnotateFunctionalConsequences {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 5 * ceil(size(vcf, "GB")) + 10,
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: 8 * ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    Int java_mem_mb = 1000 * ceil(0.8 * select_first([runtime_attr.mem_gb, default_attr.mem_gb]))
+    Int java_mem_mb = 1000 * floor(0.75 * select_first([runtime_attr.mem_gb, default_attr.mem_gb]))
 
     command <<<
         set -euo pipefail
