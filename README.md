@@ -582,3 +582,11 @@ TODO
 ### Workspace
 - All reference files - i.e. those not specific to an input callset - should be passed in via workspace data.
 - All dockers should be passed in via workspace data.
+
+
+## Data Table Notes
+- `genotyped_vcf_V1`: Initial run of pipeline.
+- `genotyped_vcf_V2`: After resolving missing gnomAD matches for DELs.
+- `genotyped_vcf_V3`: After renaming `dbGaP_ID` to `dbSNP_ID`.
+- `genotyped_vcf_V4`: After cleaning `INFO/ORIGIN` fields containing `flank_`.
+- `genotyped_vcf_V5`: After re-running gnomAD matching with the cleaned `INFO/ORIGIN` fields.

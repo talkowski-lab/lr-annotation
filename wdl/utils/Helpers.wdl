@@ -623,6 +623,7 @@ task ConsolidateCollapsedSites {
 
         # Consolidate INFO and GT from the removed variants into retained records
         python3 <<CODE
+import sys
 import pysam
 from collections import defaultdict
 
@@ -703,8 +704,16 @@ for kept_record in kept_vcf:
                     continue
                 try:
                     orig_kept.info[info_key] = orig_removed.info[info_key]
-                except (TypeError, ValueError):
-                    print(f"Unable to set {info_key} - ({orig_kept.info[info_key]}, {orig_removed.info[info_key]})")
+                except (TypeError, ValueError) as err:
+                    hdr = orig_kept.header.info[info_key]
+                    print(
+                        f"[ConsolidateCollapsedSites] dropped INFO/{info_key} "
+                        f"(header Number={hdr.number} Type={hdr.type}; "
+                        f"kept {kept_record.id} nalts={len(orig_kept.alts or ())}, "
+                        f"removed {removed_id} nalts={len(orig_removed.alts or ())}, "
+                        f"value={orig_removed.info[info_key]!r}): {err}",
+                        file=sys.stderr,
+                    )
                     continue
 
             # Pull non-ref GTs from the removed record for samples missing on kept
