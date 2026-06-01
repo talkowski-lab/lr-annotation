@@ -221,6 +221,7 @@ task BedtoolsClosest {
         
         paste <(head -1 ~{bed_a}) <(head -1 ~{bed_b}) \
             | sed -e "s/#//g" \
+            | awk 'BEGIN{OFS="\t"} {print $0,"overlap"}' \
             > ~{prefix}.bed
 
         bedtools closest \

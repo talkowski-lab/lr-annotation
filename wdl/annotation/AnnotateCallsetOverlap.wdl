@@ -55,7 +55,6 @@ workflow AnnotateCallsetOverlap {
         RuntimeAttr? runtime_attr_truvari_subset_eval
         RuntimeAttr? runtime_attr_truvari_subset_truth
         RuntimeAttr? runtime_attr_truvari_run_truvari
-        RuntimeAttr? runtime_attr_truvari_concat_matched
         RuntimeAttr? runtime_attr_bedtools_subset_eval
         RuntimeAttr? runtime_attr_bedtools_subset_truth
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
@@ -216,8 +215,7 @@ workflow AnnotateCallsetOverlap {
                     utils_docker = utils_docker,
                     runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
                     runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
-                    runtime_attr_run_truvari = runtime_attr_truvari_run_truvari,
-                    runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
+                    runtime_attr_run_truvari = runtime_attr_truvari_run_truvari
             }
         }
 

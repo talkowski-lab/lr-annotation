@@ -23,7 +23,8 @@ workflow TruvariMatch {
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_run_truvari
-        RuntimeAttr? runtime_attr_concat_matched
+
+        Int truvari_chunksize = 10000
     }
 
     call Helpers.SubsetVcfByLength as SubsetEval {
@@ -47,7 +48,7 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_subset_truth
     }
 
-    call RunTruvari as RunTruvari_09 {
+    call RunTruvari as RunTruvari_07 {
         input:
             vcf_eval = SubsetEval.subset_vcf,
             vcf_eval_idx = SubsetEval.subset_vcf_idx,
@@ -55,43 +56,18 @@ workflow TruvariMatch {
             vcf_truth_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
-            pctseq = 0.9,
-            sizemin = 0,
-            sizefilt = 0,
-            tag_value = "TRUVARI_0.9",
-            prefix = "~{prefix}.0.9",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari
-    }
-
-    call RunTruvari as RunTruvari_07 {
-        input:
-            vcf_eval = RunTruvari_09.unmatched_vcf,
-            vcf_eval_idx = RunTruvari_09.unmatched_vcf_idx,
-            vcf_truth = SubsetTruth.subset_vcf,
-            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
-            ref_fa = ref_fa,
-            ref_fai = ref_fai,
             pctseq = 0.7,
             sizemin = 0,
             sizefilt = 0,
+            chunksize = truvari_chunksize,
             tag_value = "TRUVARI_0.7",
             prefix = "~{prefix}.0.7",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari
     }
 
-    call Helpers.ConcatTsvs as ConcatAnnotationTsvs {
-        input:
-            tsvs = [RunTruvari_09.annotation_tsv, RunTruvari_07.annotation_tsv],
-            prefix = "~{prefix}.truvari_combined",
-            skip_sort = true,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat_matched
-    }
-
     output {
-        File annotation_tsv = ConcatAnnotationTsvs.concatenated_tsv
+        File annotation_tsv = RunTruvari_07.annotation_tsv
         File unmatched_vcf = RunTruvari_07.unmatched_vcf
         File unmatched_vcf_idx = RunTruvari_07.unmatched_vcf_idx
     }
@@ -108,6 +84,7 @@ task RunTruvari {
         Float pctseq
         Int sizemin
         Int sizefilt
+        Int chunksize
         String tag_value
         String prefix
         String docker
@@ -120,7 +97,7 @@ task RunTruvari {
         if [ -d "~{prefix}_truvari" ]; then
             rm -r "~{prefix}_truvari"
         fi
-        
+
         truvari bench \
             -b ~{vcf_truth} \
             -c ~{vcf_eval} \
@@ -129,6 +106,7 @@ task RunTruvari {
             --pctseq ~{pctseq} \
             --sizemin ~{sizemin} \
             --sizefilt ~{sizefilt} \
+            --chunksize ~{chunksize} \
             --dup-to-ins
 
         
@@ -152,12 +130,12 @@ task RunTruvari {
     }
 
     RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
+        cpu_cores: 2,
+        mem_gb: 16,
+        disk_gb: 4 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
