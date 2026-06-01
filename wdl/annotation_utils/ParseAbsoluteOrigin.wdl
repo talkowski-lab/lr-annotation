@@ -100,11 +100,13 @@ vcf_in = pysam.VariantFile("~{vcf}")
 with open("~{prefix}.tsv", "w") as out:
     for record in vcf_in:
         origin = record.info.get("ORIGIN")
-        if isinstance(origin, (list, tuple)):
-            origin = origin[0]
-        if not origin or not origin.startswith("flank_"):
+        if origin is None:
             continue
-        body, strand = origin.rsplit("_", 1)
+        origin_values = origin if isinstance(origin, (list, tuple)) else (origin,)
+        flank_origin = next((v for v in origin_values if v and v.startswith("flank_")), None)
+        if flank_origin is None:
+            continue
+        body, strand = flank_origin.rsplit("_", 1)
         _, coord_part = body.rsplit("_", 1)
         abs_chrom, _, local_range = coord_part.split(":")
         local_start_str, local_end_str = local_range.split("-")

@@ -322,16 +322,6 @@ if transfer_genotypes:
 for record in base_reader:
     record.translate(output_writer.header)
 
-    if decrement_trv_ids:
-        allele_type = record.info.get("allele_type")
-        if allele_type == "trv":
-            if record.id:
-                record.id = decrement_trv_id(record.id)
-        else:
-            trid = record.info.get("TRID")
-            if trid:
-                record.info["TRID"] = decrement_trv_id(trid)
-
     # Transfer GT field
     if transfer_genotypes:
         match = None
@@ -378,6 +368,17 @@ for record in base_reader:
         # Right align unphased calls
         if not sample_data.phased:
             sample_data["GT"] = right_align_unphased(sample_data.get("GT"))
+
+    # Decrement TR IDs
+    if decrement_trv_ids:
+        allele_type = record.info.get("allele_type")
+        if allele_type == "trv":
+            if record.id:
+                record.id = decrement_trv_id(record.id)
+        else:
+            trid = record.info.get("TRID")
+            if trid:
+                record.info["TRID"] = decrement_trv_id(trid)
 
     output_writer.write(record)
 
