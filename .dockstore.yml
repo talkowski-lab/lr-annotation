@@ -421,6 +421,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: ReplaceKanpigGT
+    primaryDescriptorPath: /wdl/annotation_utils/ReplaceKanpigGT.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: ReplaceSampleCalls
     primaryDescriptorPath: /wdl/annotation_utils/ReplaceSampleCalls.wdl
     filters:
