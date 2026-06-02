@@ -349,6 +349,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: GQCutoffs
+    primaryDescriptorPath: /wdl/annotation_utils/GQCutoffs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: IntegrateTRs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateTRs.wdl
     filters:
