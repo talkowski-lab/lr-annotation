@@ -111,7 +111,9 @@ for sid, sf in zip(sample_ids, sample_vcfs):
     site_to_data = {}
     for r in sample_in:
         s = r.samples[sample_name]
-        site_to_data[(r.chrom, r.pos, r.ref, r.alts)] = {'GT': s['GT'], 'AD': s['AD']}
+        ref = r.ref.upper() if r.ref else r.ref
+        alts = tuple(a.upper() for a in r.alts) if r.alts else r.alts
+        site_to_data[(r.chrom, r.pos, ref, alts)] = {'GT': s['GT'], 'AD': s['AD']}
     sample_in.close()
     all_sample_data[sid] = site_to_data
 
@@ -124,7 +126,9 @@ for rec in cohort_in:
         vcf_out.write(rec)
         continue
 
-    key = (rec.chrom, rec.pos, rec.ref, rec.alts)
+    ref_u = rec.ref.upper() if rec.ref else rec.ref
+    alts_u = tuple(a.upper() for a in rec.alts) if rec.alts else rec.alts
+    key = (rec.chrom, rec.pos, ref_u, alts_u)
 
     for sid in sample_ids:
         cs = rec.samples[sid]

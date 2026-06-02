@@ -255,13 +255,19 @@ def ad_is_populated(ad):
 def unphase_gt(gt):
     return tuple(sorted(gt, key=lambda allele: (allele is None, allele if allele is not None else 0)))
 
+def alleles_key(rec):
+    ref = rec.ref.upper() if rec.ref else rec.ref
+    alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
+    return (rec.chrom, rec.pos, rec.id, ref, alts)
+
 for unfilled_rec in unfilled_in:
     # Find matching variant
     unfilled_rec.translate(out_header)
     passes_include = variant_passes_include(unfilled_rec)
     match = None
+    unfilled_key = alleles_key(unfilled_rec)
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
-        if cand.chrom == unfilled_rec.chrom and cand.pos == unfilled_rec.pos and cand.id == unfilled_rec.id and cand.ref == unfilled_rec.ref and cand.alts == unfilled_rec.alts:
+        if alleles_key(cand) == unfilled_key:
             match = cand
             break
 

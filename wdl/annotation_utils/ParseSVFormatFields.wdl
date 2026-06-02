@@ -101,7 +101,6 @@ workflow ParseSVFormatFields {
             tsvs = ParseFormatFields.gq_calls_tsv,
             sort_output = false,
             preserve_header = true,
-            compressed_output = true,
             prefix = "~{prefix}.gq_calls",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_concat_tsvs

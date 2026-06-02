@@ -168,10 +168,16 @@ for key in unphased_in.header.formats:
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=phased_in.header)
 
+def alleles_key(rec):
+    ref = rec.ref.upper() if rec.ref else rec.ref
+    alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
+    return (rec.chrom, rec.pos, ref, alts)
+
 for record in phased_in:
     match = None
+    rec_key = alleles_key(record)
     for cand in unphased_in.fetch(record.chrom, record.start, record.stop):
-        if cand.chrom == record.chrom and cand.pos == record.pos and cand.ref == record.ref and cand.alts == record.alts:
+        if alleles_key(cand) == rec_key:
             match = cand
             break
     

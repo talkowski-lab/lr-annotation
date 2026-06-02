@@ -82,9 +82,8 @@ for record in cohort_in:
             real_alleles = [a for a in cohort_sample['GT'] if a is not None]
             if len(real_alleles) >= 2 and len(set(real_alleles)) > 1:
                 if sample_gt is not None and len(sample_gt) == 2:
-                    # Translate sample ALT indices into cohort ALT index space and set GT directly
-                    sample_alts = match_data['alts'] or ()
-                    cohort_alt_idx = {seq: i + 1 for i, seq in enumerate(record.alts or ())}
+                    sample_alts = tuple(a.upper() for a in (match_data['alts'] or ()))
+                    cohort_alt_idx = {seq.upper(): i + 1 for i, seq in enumerate(record.alts or ())}
                     def translate(a):
                         if a is None or a == 0:
                             return a

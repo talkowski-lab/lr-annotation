@@ -438,12 +438,17 @@ snv_indel_source = "~{snv_indel_vcf_source_tag}"
 sv_source = "~{sv_vcf_source_tag}"
 size_flag = "~{snv_indel_vcf_size_flag}"
 
+def alleles_key(rec):
+    ref = rec.ref.upper() if rec.ref else rec.ref
+    alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
+    return (rec.chrom, rec.pos, ref, alts)
+
 # First pass: collect SV variants for redundancy check
 vcf_in = VariantFile("~{vcf}")
 sv_variants = set()
 for record in vcf_in:
     if record.info.get("SOURCE") == sv_source:
-        sv_variants.add((record.chrom, record.pos, record.ref, tuple(record.alts)))
+        sv_variants.add(alleles_key(record))
 vcf_in.close()
 
 # Second pass: collect ID counts for non-redundant variants
@@ -453,7 +458,7 @@ for record in vcf_in:
     # Skip redundant variants
     if (record.info.get("SOURCE") == snv_indel_source and 
         size_flag in record.filter and 
-        (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants):
+        alleles_key(record) in sv_variants):
         continue
     
     # Rename variant IDs
@@ -475,7 +480,7 @@ for record in vcf_in:
     if (
         record.info.get("SOURCE") == snv_indel_source 
         and size_flag in record.filter
-        and (record.chrom, record.pos, record.ref, tuple(record.alts)) in sv_variants
+        and alleles_key(record) in sv_variants
     ):
         continue
     
