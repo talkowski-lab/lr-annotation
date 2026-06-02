@@ -117,7 +117,7 @@ for sid, sf in zip(sample_ids, sample_vcfs):
 
 cohort_in = pysam.VariantFile("~{cohort_vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=cohort_in.header)
-match_counts = {sid: [0, 0] for sid in sample_ids}
+match_counts = {sid: [0, 0, 0] for sid in sample_ids}
 
 for rec in cohort_in:
     if abs(rec.info.get('allele_length', 0)) < min_sv_length:
@@ -131,15 +131,16 @@ for rec in cohort_in:
         gt = cs['GT']
         if not is_non_ref(gt):
             continue
+        match_counts[sid][0] += 1
 
         sd = all_sample_data[sid].get(key)
         if sd is None:
             continue
-        match_counts[sid][0] += 1
+        match_counts[sid][1] += 1
 
         if count_non_ref(gt) != count_non_ref(sd['GT']):
             continue
-        match_counts[sid][1] += 1
+        match_counts[sid][2] += 1
 
         ad = sd['AD']
         pls = calculate_pl(ad[0], ad[1])
@@ -153,10 +154,10 @@ cohort_in.close()
 vcf_out.close()
 
 with open("~{prefix}.match_counts.tsv", "w") as fh:
-    fh.write("sample_id\tvariant_match_count\tvariant_call_match_count\n")
+    fh.write("sample_id\tvariant_count\tvariant_match_count\tvariant_call_match_count\n")
     for sid in sample_ids:
-        vmc, vcmc = match_counts[sid]
-        fh.write(f"{sid}\t{vmc}\t{vcmc}\n")
+        vc, vmc, vcmc = match_counts[sid]
+        fh.write(f"{sid}\t{vc}\t{vmc}\t{vcmc}\n")
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
