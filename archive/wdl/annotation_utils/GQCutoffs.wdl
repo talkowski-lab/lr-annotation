@@ -17,8 +17,7 @@ workflow GQCutoffs {
         Boolean skip_trv = true
 
         Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
-        Int min_length_heuristic_comparison = 20
-        Int min_length_heuristic_comparison_truth = 10
+        Int min_length_heuristic_comparison = 30
 
         Float del_size_similarity = 0.8
         Float del_reciprocal_overlap = 0.8
@@ -107,7 +106,6 @@ workflow GQCutoffs {
                 ins_size_similarity = ins_size_similarity,
                 ins_breakpoint_window = ins_breakpoint_window,
                 min_length_heuristic_comparison = min_length_heuristic_comparison,
-                min_length_heuristic_comparison_truth = min_length_heuristic_comparison_truth,
                 prefix = "~{prefix}.gq_cutoffs.~{i}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_cutoff_analysis
@@ -215,7 +213,6 @@ task CutoffAnalysis {
         Float ins_size_similarity
         Int ins_breakpoint_window
         Int min_length_heuristic_comparison
-        Int min_length_heuristic_comparison_truth
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -249,7 +246,6 @@ DEL_BP_WIN = int(~{del_breakpoint_window})
 INS_SIZE_SIM = float(~{ins_size_similarity})
 INS_BP_WIN = int(~{ins_breakpoint_window})
 MIN_LEN_HEUR = int(~{min_length_heuristic_comparison})
-MIN_LEN_HEUR_TRUTH = int(~{min_length_heuristic_comparison_truth})
 SKIP_TRV = ~{if skip_trv then "True" else "False"}
 
 def get_type(variant_id):
@@ -340,7 +336,7 @@ for record in truth_in:
         pass
 
     abslen = abs(svlen)
-    if svtype in ("DEL", "INS") and abslen >= MIN_LEN_HEUR_TRUTH:
+    if svtype in ("DEL", "INS") and abslen >= MIN_LEN_HEUR:
         sv_index[svtype][record.chrom].append((record.start, record.stop, abslen, frozenset(nonref)))
         size_bucket = get_size_bucket(svlen)
         truth_total_counts[(svtype, size_bucket)] += len(nonref)

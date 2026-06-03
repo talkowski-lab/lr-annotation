@@ -1011,7 +1011,11 @@ task CreateContigShards {
             if [[ "$vcf_idx" != "$vcf.tbi" ]]; then
                 ln -sf "$vcf_idx" "$vcf.tbi"
             fi
-            pos=$(bcftools query -r ~{contig} -f '%POS\n' "$vcf" | tail -n1 || true)
+            n_records=$(bcftools index --stats "$vcf" | awk -v c="~{contig}" '$1 == c { print $3 }')
+            if [[ -z "$n_records" || "$n_records" == "0" ]]; then
+                continue
+            fi
+            pos=$(bcftools view -H -r ~{contig} "$vcf" | tail -n1 | cut -f2 || true)
             if [[ -n "$pos" ]] && (( pos > max_pos )); then
                 max_pos=$pos
             fi

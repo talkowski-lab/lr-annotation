@@ -16,7 +16,8 @@ workflow AnnotateMEDs {
         Float reciprocal_overlap = 0.9
         Int breakpoint_window = 500
         Float sequence_similarity = 0.9
-        File med_catalog
+
+        File mei_catalog
 
         String utils_docker
 
@@ -83,7 +84,7 @@ workflow AnnotateMEDs {
             call IntersectMED {
                 input:
                     bed_a = ExtractDeletionsToBed.del_bed,
-                    bed_b = med_catalog,
+                    bed_b = mei_catalog,
                     reciprocal_overlap = reciprocal_overlap,
                     prefix = "~{prefix}.~{contig}.shard_~{i}",
                     docker = utils_docker,

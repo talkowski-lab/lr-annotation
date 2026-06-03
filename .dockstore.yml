@@ -112,15 +112,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotatePostProcess
-    primaryDescriptorPath: /wdl/annotation/AnnotatePostProcess.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateRegion
     primaryDescriptorPath: /wdl/annotation/AnnotateRegion.wdl
     filters:
@@ -159,6 +150,15 @@ workflows:
   - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: AnnotateVRS
+    primaryDescriptorPath: /wdl/annotation/AnnotateVRS.wdl
     filters:
       branches:
         - main
@@ -394,6 +394,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PostProcess
+    primaryDescriptorPath: /wdl/annotation_utils/PostProcess.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: RenameInfoFields
     primaryDescriptorPath: /wdl/annotation_utils/RenameInfoFields.wdl
     filters:
@@ -459,15 +468,6 @@ workflows:
   - subclass: WDL
     name: SVAddRawCallers
     primaryDescriptorPath: /wdl/annotation_utils/SVAddRawCallers.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: UpdateGenotypes
-    primaryDescriptorPath: /wdl/annotation_utils/UpdateGenotypes.wdl
     filters:
       branches:
         - main

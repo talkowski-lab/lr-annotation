@@ -11,6 +11,7 @@ workflow SVAddRawCallers {
         Array[String] sexes
         Array[File] kanpig_vcfs
         Array[File] kanpig_vcf_idxs
+        Array[File?] sample_sv_stats
         Array[File?] cutesv_vcfs
         Array[File?] cutesv_vcf_idxs
         Array[File?] sniffles_vcfs
@@ -31,6 +32,7 @@ workflow SVAddRawCallers {
         Float size_similarity = 0.8
         Float sequence_similarity = 0.8
         Int breakpoint_window = 500
+        Boolean fuzzy_match_vcf_to_stats = true
 
         String utils_docker
 
@@ -87,6 +89,7 @@ workflow SVAddRawCallers {
                 subset_vcf_idx = ExtractSample.subset_vcf_idx,
                 kanpig_vcf = kanpig_vcfs[i],
                 kanpig_vcf_idx = kanpig_vcf_idxs[i],
+                sv_stats = sample_sv_stats[i],
                 cutesv_vcf = cutesv_vcfs[i],
                 cutesv_vcf_idx = cutesv_vcf_idxs[i],
                 sniffles_vcf = sniffles_vcfs[i],
@@ -104,6 +107,7 @@ workflow SVAddRawCallers {
                 size_similarity = size_similarity,
                 sequence_similarity = sequence_similarity,
                 breakpoint_window = breakpoint_window,
+                fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
                 prefix = "~{prefix}.~{sample_ids[i]}.added",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_process_sample
@@ -145,6 +149,7 @@ task ProcessSample {
         File subset_vcf_idx
         File kanpig_vcf
         File kanpig_vcf_idx
+        File? sv_stats
         File? cutesv_vcf
         File? cutesv_vcf_idx
         File? sniffles_vcf
@@ -162,6 +167,7 @@ task ProcessSample {
         Float size_similarity
         Float sequence_similarity
         Int breakpoint_window
+        Boolean fuzzy_match_vcf_to_stats
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -171,8 +177,11 @@ task ProcessSample {
         set -euo pipefail
 
         python3 <<CODE
+import bisect
+import gzip
 import math
 import os
+from collections import defaultdict
 from math import comb
 
 import pysam
@@ -180,6 +189,7 @@ import truvari
 
 SKIP_AD_CALLERS = {"dipcall", "hapdiff"}
 PER_CALLER_NAMES = ["cutesv", "sniffles", "delly", "pbsv", "sawfish", "dipcall", "hapdiff"]
+EXCLUDED_SUPP = {"pav", "kanpig"}
 
 sample_id = "~{sample_id}"
 sex = "~{sex}"
@@ -187,6 +197,8 @@ is_male = (sex == "M")
 size_similarity = float(~{size_similarity})
 sequence_similarity = float(~{sequence_similarity})
 breakpoint_window = int(~{breakpoint_window})
+sv_stats_path = "~{sv_stats}"
+fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
 
 caller_files = {
     "cutesv":  ("~{cutesv_vcf}",  "~{cutesv_vcf_idx}"),
@@ -292,6 +304,67 @@ tv_params = truvari.VariantParams(
     no_ref="a",
 )
 
+# sv_stats: optional per-sample BED listing callers supporting each variant.
+# If provided, restrict per-caller truvari search to that subset (excluding pav/kanpig).
+sv_stats_map = {}
+sv_stats_spatial = defaultdict(list)
+if sv_stats_path:
+    with gzip.open(sv_stats_path, "rt") as f:
+        header = None
+        for line in f:
+            line = line.rstrip("\n")
+            if not line:
+                continue
+            if header is None:
+                header = line.lstrip("#").split("\t")
+                continue
+            fields = dict(zip(header, line.split("\t")))
+            callers = tuple(sorted({c.strip() for c in fields["SUPP"].split(",") if c.strip() and c.strip() not in EXCLUDED_SUPP}))
+            stat = {
+                "id": fields["ID"],
+                "chrom": fields["CHROM"],
+                "pos": int(fields["POS"]),
+                "svtype": fields["SVTYPE"],
+                "callers": callers,
+            }
+            sv_stats_map[fields["ID"]] = stat
+            sv_stats_spatial[fields["CHROM"]].append((stat["pos"], stat))
+    for chrom in sv_stats_spatial:
+        sv_stats_spatial[chrom].sort(key=lambda x: x[0])
+
+def find_matching_stat(chrom, pos, svtype, window=500):
+    entries = sv_stats_spatial.get(chrom, [])
+    if not entries:
+        return None
+    lo = bisect.bisect_left(entries, (pos - window,))
+    best = None
+    best_dist = float("inf")
+    for i in range(lo, len(entries)):
+        entry_pos, stat = entries[i]
+        if entry_pos > pos + window:
+            break
+        if stat["svtype"] != svtype or not stat["callers"]:
+            continue
+        dist = abs(entry_pos - pos)
+        if dist < best_dist:
+            best_dist = dist
+            best = stat
+    return best
+
+def callers_for_record(rec):
+    if not sv_stats_map:
+        return None
+    stat = sv_stats_map.get(rec.id)
+    if stat is None and fuzzy_match:
+        rec_svtype = rec.info.get("SVTYPE", None)
+        if isinstance(rec_svtype, tuple):
+            rec_svtype = rec_svtype[0] if rec_svtype else None
+        if rec_svtype:
+            stat = find_matching_stat(rec.chrom, rec.pos, rec_svtype)
+    if stat is None:
+        return None
+    return set(stat["callers"])
+
 # Kanpig: load all records into a dict keyed by (CHROM, POS, REF.upper, ALT.upper, ID).
 # Memory ~ few hundred MB even for whole-genome single sample.
 kp_in = pysam.VariantFile("~{kanpig_vcf}")
@@ -334,7 +407,7 @@ for tag, line in [
 
 out = truvari.VariantFile("~{prefix}.vcf.gz", "w", header=header)
 
-v_count = v_match = v_gt_match = 0
+v_count = v_match = v_gt_match = v_kp_site = v_kp_gt = v_nonkp_site = v_nonkp_gt = 0
 
 for rec in vcf_in:
     rec.translate(out.header)
@@ -384,13 +457,19 @@ for rec in vcf_in:
         supporters = []
         had_any_match = False
         had_gt_match = False
+        had_kp_site = False
+        had_kp_gt = False
+        had_nonkp_site = False
+        had_nonkp_gt = False
 
         kp_rec = kp_index.get(kanpig_key(rec))
         if kp_rec is not None:
             had_any_match = True
+            had_kp_site = True
             kp_s = kp_rec.samples[kp_sample]
             if count_non_ref_or_missing(kp_s["GT"]) == base_state:
                 had_gt_match = True
+                had_kp_gt = True
                 kp_ad = kp_s.get("AD")
                 if kp_ad is not None and len(kp_ad) >= 2 and all(x is not None for x in kp_ad[:2]):
                     supporters.append(("kanpig", (int(kp_ad[0]), int(kp_ad[1]))))
@@ -401,15 +480,20 @@ for rec in vcf_in:
         if isinstance(target_svlen, tuple):
             target_svlen = target_svlen[0] if target_svlen else None
 
+        allowed_callers = callers_for_record(rec)
         for caller, (vf, csample) in caller_handles.items():
+            if allowed_callers is not None and caller not in allowed_callers:
+                continue
             match = best_truvari_match(rec, vf)
             if match is None:
                 continue
             had_any_match = True
+            had_nonkp_site = True
             m_gt = match.samples[csample]["GT"]
             if count_non_ref_or_missing(m_gt) != base_state:
                 continue
             had_gt_match = True
+            had_nonkp_gt = True
             if caller in SKIP_AD_CALLERS:
                 supporters.append((caller, None))
             else:
@@ -420,6 +504,14 @@ for rec in vcf_in:
             v_match += 1
         if had_gt_match:
             v_gt_match += 1
+        if had_kp_site:
+            v_kp_site += 1
+        if had_kp_gt:
+            v_kp_gt += 1
+        if had_nonkp_site:
+            v_nonkp_site += 1
+        if had_nonkp_gt:
+            v_nonkp_gt += 1
 
         if supporters:
             supporters.sort(key=lambda x: x[0])
@@ -440,8 +532,8 @@ for vf, _ in caller_handles.values():
     vf.close()
 
 with open("~{prefix}.match_counts.tsv", "w") as fh:
-    fh.write("sample_id\tvariant_count\tvariant_match_count\tvariant_gt_match_count\n")
-    fh.write(f"{sample_id}\t{v_count}\t{v_match}\t{v_gt_match}\n")
+    fh.write("sample_id\tcount\tcount_match_site\tcount_match_gt\tcount_match_site_kp\tcount_match_gt_kp\tcount_match_site_nonkp\tcount_match_gt_nonkp\n")
+    fh.write(f"{sample_id}\t{v_count}\t{v_match}\t{v_gt_match}\t{v_kp_site}\t{v_kp_gt}\t{v_nonkp_site}\t{v_nonkp_gt}\n")
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz
