@@ -11,21 +11,21 @@ workflow SVAddRawCallers {
         Array[String] sexes
         Array[File] kanpig_vcfs
         Array[File] kanpig_vcf_idxs
-        Array[File?] sample_sv_stats
-        Array[File?] cutesv_vcfs
-        Array[File?] cutesv_vcf_idxs
-        Array[File?] sniffles_vcfs
-        Array[File?] sniffles_vcf_idxs
-        Array[File?] delly_vcfs
-        Array[File?] delly_vcf_idxs
-        Array[File?] pbsv_vcfs
-        Array[File?] pbsv_vcf_idxs
-        Array[File?] sawfish_vcfs
-        Array[File?] sawfish_vcf_idxs
-        Array[File?] dipcall_vcfs
-        Array[File?] dipcall_vcf_idxs
-        Array[File?] hapdiff_vcfs
-        Array[File?] hapdiff_vcf_idxs
+        Array[File?]? sample_sv_stats
+        Array[File?]? cutesv_vcfs
+        Array[File?]? cutesv_vcf_idxs
+        Array[File?]? sniffles_vcfs
+        Array[File?]? sniffles_vcf_idxs
+        Array[File?]? delly_vcfs
+        Array[File?]? delly_vcf_idxs
+        Array[File?]? pbsv_vcfs
+        Array[File?]? pbsv_vcf_idxs
+        Array[File?]? sawfish_vcfs
+        Array[File?]? sawfish_vcf_idxs
+        Array[File?]? dipcall_vcfs
+        Array[File?]? dipcall_vcf_idxs
+        Array[File?]? hapdiff_vcfs
+        Array[File?]? hapdiff_vcf_idxs
         String prefix
 
         File? swap_samples
@@ -33,6 +33,7 @@ workflow SVAddRawCallers {
         Float sequence_similarity = 0.8
         Int breakpoint_window = 500
         Boolean fuzzy_match_vcf_to_stats = true
+        File? null_file
 
         String utils_docker
 
@@ -81,6 +82,22 @@ workflow SVAddRawCallers {
                 runtime_attr_override = runtime_attr_extract_sample
         }
 
+        File? sv_stats_i      = if defined(sample_sv_stats)   then select_first([sample_sv_stats])[i]   else null_file
+        File? cutesv_vcf_i    = if defined(cutesv_vcfs)       then select_first([cutesv_vcfs])[i]       else null_file
+        File? cutesv_idx_i    = if defined(cutesv_vcf_idxs)   then select_first([cutesv_vcf_idxs])[i]   else null_file
+        File? sniffles_vcf_i  = if defined(sniffles_vcfs)     then select_first([sniffles_vcfs])[i]     else null_file
+        File? sniffles_idx_i  = if defined(sniffles_vcf_idxs) then select_first([sniffles_vcf_idxs])[i] else null_file
+        File? delly_vcf_i     = if defined(delly_vcfs)        then select_first([delly_vcfs])[i]        else null_file
+        File? delly_idx_i     = if defined(delly_vcf_idxs)    then select_first([delly_vcf_idxs])[i]    else null_file
+        File? pbsv_vcf_i      = if defined(pbsv_vcfs)         then select_first([pbsv_vcfs])[i]         else null_file
+        File? pbsv_idx_i      = if defined(pbsv_vcf_idxs)     then select_first([pbsv_vcf_idxs])[i]     else null_file
+        File? sawfish_vcf_i   = if defined(sawfish_vcfs)      then select_first([sawfish_vcfs])[i]      else null_file
+        File? sawfish_idx_i   = if defined(sawfish_vcf_idxs)  then select_first([sawfish_vcf_idxs])[i]  else null_file
+        File? dipcall_vcf_i   = if defined(dipcall_vcfs)      then select_first([dipcall_vcfs])[i]      else null_file
+        File? dipcall_idx_i   = if defined(dipcall_vcf_idxs)  then select_first([dipcall_vcf_idxs])[i]  else null_file
+        File? hapdiff_vcf_i   = if defined(hapdiff_vcfs)      then select_first([hapdiff_vcfs])[i]      else null_file
+        File? hapdiff_idx_i   = if defined(hapdiff_vcf_idxs)  then select_first([hapdiff_vcf_idxs])[i]  else null_file
+
         call ProcessSample {
             input:
                 sample_id = sample_ids[i],
@@ -89,21 +106,21 @@ workflow SVAddRawCallers {
                 subset_vcf_idx = ExtractSample.subset_vcf_idx,
                 kanpig_vcf = kanpig_vcfs[i],
                 kanpig_vcf_idx = kanpig_vcf_idxs[i],
-                sv_stats = sample_sv_stats[i],
-                cutesv_vcf = cutesv_vcfs[i],
-                cutesv_vcf_idx = cutesv_vcf_idxs[i],
-                sniffles_vcf = sniffles_vcfs[i],
-                sniffles_vcf_idx = sniffles_vcf_idxs[i],
-                delly_vcf = delly_vcfs[i],
-                delly_vcf_idx = delly_vcf_idxs[i],
-                pbsv_vcf = pbsv_vcfs[i],
-                pbsv_vcf_idx = pbsv_vcf_idxs[i],
-                sawfish_vcf = sawfish_vcfs[i],
-                sawfish_vcf_idx = sawfish_vcf_idxs[i],
-                dipcall_vcf = dipcall_vcfs[i],
-                dipcall_vcf_idx = dipcall_vcf_idxs[i],
-                hapdiff_vcf = hapdiff_vcfs[i],
-                hapdiff_vcf_idx = hapdiff_vcf_idxs[i],
+                sv_stats = sv_stats_i,
+                cutesv_vcf = cutesv_vcf_i,
+                cutesv_vcf_idx = cutesv_idx_i,
+                sniffles_vcf = sniffles_vcf_i,
+                sniffles_vcf_idx = sniffles_idx_i,
+                delly_vcf = delly_vcf_i,
+                delly_vcf_idx = delly_idx_i,
+                pbsv_vcf = pbsv_vcf_i,
+                pbsv_vcf_idx = pbsv_idx_i,
+                sawfish_vcf = sawfish_vcf_i,
+                sawfish_vcf_idx = sawfish_idx_i,
+                dipcall_vcf = dipcall_vcf_i,
+                dipcall_vcf_idx = dipcall_idx_i,
+                hapdiff_vcf = hapdiff_vcf_i,
+                hapdiff_vcf_idx = hapdiff_idx_i,
                 size_similarity = size_similarity,
                 sequence_similarity = sequence_similarity,
                 breakpoint_window = breakpoint_window,
