@@ -264,7 +264,7 @@ from collections import defaultdict
 vcf_in = VariantFile("~{vcf}")
 id_counts = defaultdict(int)
 for record in vcf_in:
-    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)-1}"
     id_counts[new_id] += 1
 vcf_in.close()
 
@@ -272,7 +272,7 @@ vcf_in = VariantFile("~{vcf}")
 vcf_out = VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 id_seen = defaultdict(int)
 for record in vcf_in:
-    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    new_id = f"{record.chrom}-{record.pos}-TRV-{len(record.ref)-1}"
     if id_counts[new_id] > 1:
         id_seen[new_id] += 1
         record.id = f"{new_id}_{id_seen[new_id]}"
@@ -334,7 +334,7 @@ tr_intervals = []
 for record in tr_in:
     tr_start = record.pos
     tr_end = record.pos + len(record.ref)
-    tr_id = record.id if record.id else f"{record.chrom}-{record.pos}-TRV-{len(record.ref)}"
+    tr_id = record.id if record.id else f"{record.chrom}-{record.pos}-TRV-{len(record.ref)-1}"
     tr_intervals.append((tr_start, tr_end, tr_id))
 tr_in.close()
 

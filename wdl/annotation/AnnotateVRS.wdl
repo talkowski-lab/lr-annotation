@@ -10,14 +10,18 @@ workflow AnnotateVRS {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         File seqrepo_tar
 
         String utils_docker
         String vrs_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate_vrs
         RuntimeAttr? runtime_attr_extract
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -39,30 +43,60 @@ workflow AnnotateVRS {
         File contig_vcf = select_first([SubsetVcfToContig.subset_vcf, vcf])
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
 
-        call AnnotateVcfWithVRS {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                seqrepo_tar = seqrepo_tar,
-                prefix = "~{prefix}.~{contig}.vrs",
-                docker = vrs_docker,
-                runtime_attr_override = runtime_attr_annotate_vrs
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.vrs",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
 
-        call ExtractVRSAnnotations {
-            input:
-                vcf = AnnotateVcfWithVRS.annotated_vcf,
-                vcf_idx = AnnotateVcfWithVRS.annotated_vcf_idx,
-                prefix = "~{prefix}.~{contig}.vrs_annotations",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [contig_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call AnnotateVcfWithVRS {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    seqrepo_tar = seqrepo_tar,
+                    prefix = "~{prefix}.~{contig}.vrs.shard_~{i}",
+                    docker = vrs_docker,
+                    runtime_attr_override = runtime_attr_annotate_vrs
+            }
+
+            call ExtractVRSAnnotations {
+                input:
+                    vcf = AnnotateVcfWithVRS.annotated_vcf,
+                    vcf_idx = AnnotateVcfWithVRS.annotated_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.vrs_annotations.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract
+            }
         }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = ExtractVRSAnnotations.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.vrs_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, ExtractVRSAnnotations.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = ExtractVRSAnnotations.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.vrs_annotated",
                 docker = utils_docker,
@@ -71,7 +105,7 @@ workflow AnnotateVRS {
     }
 
     output {
-        File annotations_tsv_vrs = select_first([ConcatTsvs.concatenated_tsv, ExtractVRSAnnotations.annotations_tsv[0]])
+        File annotations_tsv_vrs = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 

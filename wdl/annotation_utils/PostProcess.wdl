@@ -21,27 +21,23 @@ workflow PostProcess {
         Boolean run_flag_homopolymer_trvs
         Boolean run_sorting
         Boolean run_filter_singletons
-        Boolean run_drop_genotypes
         File? ped
         Array[String]? drop_samples
-        Array[String]? unphase_samples
+        Array[String] unphase_samples = []
 
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_base
+        RuntimeAttr? runtime_attr_drop_samples
         RuntimeAttr? runtime_attr_subset_transfer
         RuntimeAttr? runtime_attr_create_shards
-        RuntimeAttr? runtime_attr_update_genotypes
-        RuntimeAttr? runtime_attr_concat_shards
-        RuntimeAttr? runtime_attr_drop_samples
         RuntimeAttr? runtime_attr_post_process
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
-        RuntimeAttr? runtime_attr_strip_genotypes
     }
 
     Boolean single_contig = length(contigs) == 1
-    Boolean run_genotype_update = run_transfer_genotypes || run_unphase_samples || run_normalize_ploidy || run_decrement_trv_ids
-    Boolean run_post_process = run_prune_meis || run_flag_homopolymer_trvs || run_sorting || run_filter_singletons
+    Boolean run_post_process = run_transfer_genotypes || run_unphase_samples || run_normalize_ploidy || run_decrement_trv_ids || run_prune_meis || run_flag_homopolymer_trvs || run_sorting || run_filter_singletons
 
     scatter (contig in contigs) {
         if (!single_contig) {
@@ -59,7 +55,24 @@ workflow PostProcess {
         File contig_base_vcf = select_first([SubsetBase.subset_vcf, vcf])
         File contig_base_vcf_idx = select_first([SubsetBase.subset_vcf_idx, vcf_idx])
 
-        if (run_genotype_update) {
+        if (run_drop_samples) {
+            call Helpers.SubsetVcfToSamples as DropSamples {
+                input:
+                    vcf = contig_base_vcf,
+                    vcf_idx = contig_base_vcf_idx,
+                    samples = select_first([drop_samples]),
+                    keep_samples = false,
+                    filter_to_sample = false,
+                    prefix = "~{prefix}.~{contig}.dropped_samples",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_samples
+            }
+        }
+
+        File pp_input_vcf = select_first([DropSamples.subset_vcf, contig_base_vcf])
+        File pp_input_vcf_idx = select_first([DropSamples.subset_vcf_idx, contig_base_vcf_idx])
+
+        if (run_post_process) {
             if (run_transfer_genotypes && !single_contig) {
                 call Helpers.SubsetVcfToContig as SubsetTransfer {
                     input:
@@ -72,14 +85,14 @@ workflow PostProcess {
                 }
             }
 
-            File transfer_source_vcf = if run_transfer_genotypes then select_first([SubsetTransfer.subset_vcf, transfer_vcf]) else contig_base_vcf
-            File transfer_source_vcf_idx = if run_transfer_genotypes then select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx]) else contig_base_vcf_idx
+            File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, pp_input_vcf])
+            File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, pp_input_vcf_idx])
 
             if (defined(shard_bin_size)) {
                 call Helpers.CreateContigShards {
                     input:
-                        vcfs = [contig_base_vcf, transfer_source_vcf],
-                        vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
+                        vcfs = [pp_input_vcf, transfer_source_vcf],
+                        vcf_idxs = [pp_input_vcf_idx, transfer_source_vcf_idx],
                         contig = contig,
                         shard_bin_size = select_first([shard_bin_size]),
                         prefix = "~{prefix}.~{contig}.shards",
@@ -92,8 +105,8 @@ workflow PostProcess {
 
                     call Helpers.SubsetVcfToRegion as SubsetBaseShard {
                         input:
-                            vcf = contig_base_vcf,
-                            vcf_idx = contig_base_vcf_idx,
+                            vcf = pp_input_vcf,
+                            vcf_idx = pp_input_vcf_idx,
                             region = shard_region,
                             prefix = "~{prefix}.~{contig}.shard_~{i}.base",
                             docker = utils_docker,
@@ -110,91 +123,69 @@ workflow PostProcess {
                             runtime_attr_override = runtime_attr_subset_transfer
                     }
 
-                    call UpdateGenotypes as UpdateGenotypesShard {
+                    call PostProcessTask as PostProcessShard {
                         input:
                             base_vcf = SubsetBaseShard.subset_vcf,
                             base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
                             transfer_vcf = SubsetTransferShard.subset_vcf,
                             transfer_vcf_idx = SubsetTransferShard.subset_vcf_idx,
                             ped = ped,
-                            unphase_samples = if run_unphase_samples then select_first([unphase_samples, []]) else [],
+                            unphase_samples = unphase_samples,
                             transfer_genotypes = run_transfer_genotypes,
+                            unphase = run_unphase_samples,
                             normalize_ploidy = run_normalize_ploidy,
                             decrement_trv_ids = run_decrement_trv_ids,
-                            prefix = "~{prefix}.~{contig}.shard_~{i}.updated",
+                            prune_meis = run_prune_meis,
+                            flag_homopolymer_trvs = run_flag_homopolymer_trvs,
+                            sort_records = run_sorting,
+                            filter_singletons = run_filter_singletons,
+                            prefix = "~{prefix}.~{contig}.shard_~{i}.post_processed",
                             docker = utils_docker,
-                            runtime_attr_override = runtime_attr_update_genotypes
+                            runtime_attr_override = runtime_attr_post_process
                     }
                 }
 
                 call Helpers.ConcatVcfs as ConcatShards {
                     input:
-                        vcfs = UpdateGenotypesShard.updated_vcf,
-                        vcf_idxs = UpdateGenotypesShard.updated_vcf_idx,
+                        vcfs = PostProcessShard.processed_vcf,
+                        vcf_idxs = PostProcessShard.processed_vcf_idx,
                         allow_overlaps = false,
                         naive = true,
-                        prefix = "~{prefix}.~{contig}.updated",
+                        prefix = "~{prefix}.~{contig}.post_processed",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_concat_shards
                 }
             }
 
             if (!defined(shard_bin_size)) {
-                call UpdateGenotypes as UpdateGenotypesNoSharding {
+                call PostProcessTask {
                     input:
-                        base_vcf = contig_base_vcf,
-                        base_vcf_idx = contig_base_vcf_idx,
+                        base_vcf = pp_input_vcf,
+                        base_vcf_idx = pp_input_vcf_idx,
                         transfer_vcf = transfer_source_vcf,
                         transfer_vcf_idx = transfer_source_vcf_idx,
                         ped = ped,
-                        unphase_samples = if run_unphase_samples then select_first([unphase_samples, []]) else [],
+                        unphase_samples = unphase_samples,
                         transfer_genotypes = run_transfer_genotypes,
+                        unphase = run_unphase_samples,
                         normalize_ploidy = run_normalize_ploidy,
                         decrement_trv_ids = run_decrement_trv_ids,
-                        prefix = "~{prefix}.~{contig}.updated",
+                        prune_meis = run_prune_meis,
+                        flag_homopolymer_trvs = run_flag_homopolymer_trvs,
+                        sort_records = run_sorting,
+                        filter_singletons = run_filter_singletons,
+                        prefix = "~{prefix}.~{contig}.post_processed",
                         docker = utils_docker,
-                        runtime_attr_override = runtime_attr_update_genotypes
+                        runtime_attr_override = runtime_attr_post_process
                 }
             }
+
+            File inpass_vcf = select_first([ConcatShards.concat_vcf, PostProcessTask.processed_vcf])
+            File inpass_vcf_idx = select_first([ConcatShards.concat_vcf_idx, PostProcessTask.processed_vcf_idx])
         }
 
-        File step_genotypes_vcf = select_first([ConcatShards.concat_vcf, UpdateGenotypesNoSharding.updated_vcf, contig_base_vcf])
-        File step_genotypes_vcf_idx = select_first([ConcatShards.concat_vcf_idx, UpdateGenotypesNoSharding.updated_vcf_idx, contig_base_vcf_idx])
-
-        if (run_drop_samples) {
-            call Helpers.SubsetVcfToSamples as DropSamples {
-                input:
-                    vcf = step_genotypes_vcf,
-                    vcf_idx = step_genotypes_vcf_idx,
-                    samples = select_first([drop_samples]),
-                    keep_samples = false,
-                    filter_to_sample = false,
-                    prefix = "~{prefix}.~{contig}.dropped_samples",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_drop_samples
-            }
-        }
-
-        File step_drop_vcf = select_first([DropSamples.subset_vcf, step_genotypes_vcf])
-        File step_drop_vcf_idx = select_first([DropSamples.subset_vcf_idx, step_genotypes_vcf_idx])
-
-        if (run_post_process) {
-            call PostProcessVcf {
-                input:
-                    vcf = step_drop_vcf,
-                    vcf_idx = step_drop_vcf_idx,
-                    prune_meis = run_prune_meis,
-                    flag_homopolymer_trvs = run_flag_homopolymer_trvs,
-                    sort_records = run_sorting,
-                    filter_singletons = run_filter_singletons,
-                    prefix = "~{prefix}.~{contig}.post_processed",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_post_process
-            }
-        }
-
-        File contig_processed_vcf = select_first([PostProcessVcf.post_processed_vcf, step_drop_vcf])
-        File contig_processed_vcf_idx = select_first([PostProcessVcf.post_processed_vcf_idx, step_drop_vcf_idx])
+        File contig_processed_vcf = select_first([inpass_vcf, pp_input_vcf])
+        File contig_processed_vcf_idx = select_first([inpass_vcf_idx, pp_input_vcf_idx])
     }
 
     if (!single_contig) {
@@ -210,37 +201,28 @@ workflow PostProcess {
         }
     }
 
-    File merged_vcf = select_first([ConcatVcfs.concat_vcf, contig_processed_vcf[0]])
-    File merged_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, contig_processed_vcf_idx[0]])
-
-    if (run_drop_genotypes) {
-        call Helpers.StripGenotypes {
-            input:
-                vcf = merged_vcf,
-                vcf_idx = merged_vcf_idx,
-                prefix = "~{prefix}.stripped",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_strip_genotypes
-        }
-    }
-
     output {
-        File post_processed_vcf = select_first([StripGenotypes.stripped_vcf, merged_vcf])
-        File post_processed_vcf_idx = select_first([StripGenotypes.stripped_vcf_idx, merged_vcf_idx])
+        File post_processed_vcf = select_first([ConcatVcfs.concat_vcf, contig_processed_vcf[0]])
+        File post_processed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, contig_processed_vcf_idx[0]])
     }
 }
 
-task UpdateGenotypes {
+task PostProcessTask {
     input {
         File base_vcf
         File base_vcf_idx
         File transfer_vcf
         File transfer_vcf_idx
         File? ped
-        Array[String] unphase_samples
+        Array[String] unphase_samples = []
         Boolean transfer_genotypes
+        Boolean unphase
         Boolean normalize_ploidy
         Boolean decrement_trv_ids
+        Boolean prune_meis
+        Boolean flag_homopolymer_trvs
+        Boolean sort_records
+        Boolean filter_singletons
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -251,6 +233,19 @@ task UpdateGenotypes {
 
         python3 <<CODE
 import pysam
+
+
+transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
+unphase = ~{true="True" false="False" unphase}
+normalize_ploidy = ~{true="True" false="False" normalize_ploidy}
+decrement_trv_ids = ~{true="True" false="False" decrement_trv_ids}
+prune_meis = ~{true="True" false="False" prune_meis}
+flag_homopolymer_trvs = ~{true="True" false="False" flag_homopolymer_trvs}
+sort_records = ~{true="True" false="False" sort_records}
+filter_singletons = ~{true="True" false="False" filter_singletons}
+
+unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)} > 0 else []
+unphase_samples_set = set(unphase_list)
 
 
 def parse_ped(path):
@@ -269,6 +264,15 @@ def parse_ped(path):
             else:
                 sex_by_sample[sample_id] = None
     return sex_by_sample
+
+
+def get_scalar(value):
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            if item is not None:
+                return item
+        return None
+    return value
 
 
 def is_heterozygous(gt):
@@ -333,158 +337,6 @@ def make_male_hemizygous(gt, phased):
     new_gt = [None] * len(alleles)
     new_gt[-1] = keep_allele
     return right_align_unphased(tuple(new_gt))
-
-
-unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)} > 0 else []
-unphase_samples_set = set(unphase_list)
-
-transfer_genotypes = ~{true="True" false="False" transfer_genotypes}
-normalize_ploidy = ~{true="True" false="False" normalize_ploidy}
-decrement_trv_ids = ~{true="True" false="False" decrement_trv_ids}
-sex_by_sample = parse_ped("~{default="NONE" ped}") if normalize_ploidy else {}
-
-base_reader = pysam.VariantFile("~{base_vcf}")
-transfer_reader = pysam.VariantFile("~{transfer_vcf}") if transfer_genotypes else None
-
-output_writer = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=base_reader.header)
-base_samples = list(base_reader.header.samples)
-shared_samples = set(base_samples)
-if transfer_genotypes:
-    shared_samples &= set(transfer_reader.header.samples)
-
-for record in base_reader:
-    record.translate(output_writer.header)
-
-    # Transfer GT field from the matched record in the transfer VCF
-    if transfer_genotypes:
-        match = None
-        for candidate in transfer_reader.fetch(record.chrom, record.start, record.stop):
-            if candidate.chrom == record.chrom and candidate.pos == record.pos and candidate.id == record.id and candidate.ref == record.ref and candidate.alts == record.alts:
-                match = candidate
-                break
-        if match is not None:
-            for sample in shared_samples:
-                base_gt = record.samples[sample].get("GT")
-                if is_heterozygous(base_gt):
-                    record.samples[sample]["GT"] = match.samples[sample].get("GT")
-                    record.samples[sample].phased = match.samples[sample].phased
-        else:
-            for sample in base_samples:
-                record.samples[sample].phased = False
-
-    for sample in base_samples:
-        sample_data = record.samples[sample]
-
-        # Unphase listed samples
-        if sample in unphase_samples_set:
-            current_gt = sample_data.get("GT")
-            if current_gt is not None:
-                sample_data.phased = False
-
-        # Normalize ploidy using sample sex
-        if normalize_ploidy:
-            sample_sex = sex_by_sample.get(sample)
-
-            # Clear format fields for females on chrY
-            if record.chrom == "chrY" and sample_sex == "F":
-                clear_format_fields(sample_data)
-                continue
-
-            # Make male calls hemizygous on chrX & chrY
-            if record.chrom in {"chrX", "chrY"} and sample_sex == "M":
-                sample_data["GT"] = make_male_hemizygous(sample_data.get("GT"), sample_data.phased)
-
-            # Ensure diploidy
-            current_gt = sample_data.get("GT")
-            if current_gt is None:
-                sample_data["GT"] = (None, None)
-            elif len(current_gt) == 1:
-                sample_data["GT"] = (None, current_gt[0])
-
-            # Right align unphased calls
-            if not sample_data.phased:
-                sample_data["GT"] = right_align_unphased(sample_data.get("GT"))
-
-    # Decrement TR IDs
-    if decrement_trv_ids:
-        allele_type = record.info.get("allele_type")
-        if allele_type == "trv":
-            if record.id:
-                record.id = decrement_trv_id(record.id)
-        else:
-            trid = record.info.get("TRID")
-            if trid:
-                record.info["TRID"] = decrement_trv_id(trid)
-
-    output_writer.write(record)
-
-base_reader.close()
-output_writer.close()
-if transfer_reader is not None:
-    transfer_reader.close()
-CODE
-
-        tabix -p vcf -f ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File updated_vcf = "~{prefix}.vcf.gz"
-        File updated_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 5 * ceil(size(base_vcf, "GB") + size(transfer_vcf, "GB")) + 25,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task PostProcessVcf {
-    input {
-        File vcf
-        File vcf_idx
-        Boolean prune_meis
-        Boolean flag_homopolymer_trvs
-        Boolean sort_records
-        Boolean filter_singletons
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<CODE
-import pysam
-
-
-prune_meis = ~{true="True" false="False" prune_meis}
-flag_homopolymer_trvs = ~{true="True" false="False" flag_homopolymer_trvs}
-sort_records = ~{true="True" false="False" sort_records}
-filter_singletons = ~{true="True" false="False" filter_singletons}
-
-
-def get_scalar(value):
-    if isinstance(value, (list, tuple)):
-        for item in value:
-            if item is not None:
-                return item
-        return None
-    return value
 
 
 def prune_record_meis(record):
@@ -563,21 +415,90 @@ def flush_buffer(buf, out_vcf):
         out_vcf.write(r)
 
 
-vcf_in = pysam.VariantFile("~{vcf}")
-header = vcf_in.header.copy()
+sex_by_sample = parse_ped("~{default="NONE" ped}") if normalize_ploidy else {}
+
+base_reader = pysam.VariantFile("~{base_vcf}")
+transfer_reader = pysam.VariantFile("~{transfer_vcf}") if transfer_genotypes else None
+
+header = base_reader.header.copy()
 if flag_homopolymer_trvs and "HOMOPOLYMER_TRV" not in header.info:
     header.info.add("HOMOPOLYMER_TRV", 0, "Flag", "Tandem repeat call where the shortest motif has length 1.")
 if filter_singletons and "SINGLE_READ_SUPPORT" not in header.filters:
     header.filters.add("SINGLE_READ_SUPPORT", None, None, "Variant supported by a single read in a single sample.")
 
-vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
+output_writer = pysam.VariantFile("~{prefix}.vcf.gz", "wz", header=header)
+base_samples = list(base_reader.header.samples)
+shared_samples = set(base_samples)
+if transfer_genotypes:
+    shared_samples &= set(transfer_reader.header.samples)
 
 buffer = []
 current_chrom = None
 current_pos = None
 
-for record in vcf_in:
-    record.translate(vcf_out.header)
+for record in base_reader:
+    record.translate(output_writer.header)
+
+    # Transfer genotypes first, matching on the unmodified variant properties
+    if transfer_genotypes:
+        match = None
+        for candidate in transfer_reader.fetch(record.chrom, record.start, record.stop):
+            if candidate.chrom == record.chrom and candidate.pos == record.pos and candidate.id == record.id and candidate.ref == record.ref and candidate.alts == record.alts:
+                match = candidate
+                break
+        if match is not None:
+            for sample in shared_samples:
+                base_gt = record.samples[sample].get("GT")
+                if is_heterozygous(base_gt):
+                    record.samples[sample]["GT"] = match.samples[sample].get("GT")
+                    record.samples[sample].phased = match.samples[sample].phased
+        else:
+            for sample in base_samples:
+                record.samples[sample].phased = False
+
+    if unphase or normalize_ploidy:
+        for sample in base_samples:
+            sample_data = record.samples[sample]
+
+            # Unphase listed samples
+            if unphase and sample in unphase_samples_set:
+                if sample_data.get("GT") is not None:
+                    sample_data.phased = False
+
+            # Normalize ploidy using sample sex
+            if normalize_ploidy:
+                sample_sex = sex_by_sample.get(sample)
+
+                # Clear format fields for females on chrY
+                if record.chrom == "chrY" and sample_sex == "F":
+                    clear_format_fields(sample_data)
+                    continue
+
+                # Make male calls hemizygous on chrX & chrY
+                if record.chrom in {"chrX", "chrY"} and sample_sex == "M":
+                    sample_data["GT"] = make_male_hemizygous(sample_data.get("GT"), sample_data.phased)
+
+                # Ensure diploidy
+                current_gt = sample_data.get("GT")
+                if current_gt is None:
+                    sample_data["GT"] = (None, None)
+                elif len(current_gt) == 1:
+                    sample_data["GT"] = (None, current_gt[0])
+
+                # Right align unphased calls
+                if not sample_data.phased:
+                    sample_data["GT"] = right_align_unphased(sample_data.get("GT"))
+
+    # Decrement TR IDs
+    if decrement_trv_ids:
+        allele_type = record.info.get("allele_type")
+        if allele_type == "trv":
+            if record.id:
+                record.id = decrement_trv_id(record.id)
+        else:
+            trid = record.info.get("TRID")
+            if trid:
+                record.info["TRID"] = decrement_trv_id(trid)
 
     # Revise MEIs outside the expected size range to indels
     if prune_meis:
@@ -592,13 +513,13 @@ for record in vcf_in:
         record.filter.add("SINGLE_READ_SUPPORT")
 
     if not sort_records:
-        vcf_out.write(record)
+        output_writer.write(record)
         continue
 
     # Buffer records to sort those that fall on the exact same coordinate
     if record.chrom != current_chrom or record.pos != current_pos:
         if buffer:
-            flush_buffer(buffer, vcf_out)
+            flush_buffer(buffer, output_writer)
         buffer = [record]
         current_chrom = record.chrom
         current_pos = record.pos
@@ -606,24 +527,26 @@ for record in vcf_in:
         buffer.append(record)
 
 if sort_records and buffer:
-    flush_buffer(buffer, vcf_out)
+    flush_buffer(buffer, output_writer)
 
-vcf_in.close()
-vcf_out.close()
+base_reader.close()
+output_writer.close()
+if transfer_reader is not None:
+    transfer_reader.close()
 CODE
 
         tabix -p vcf -f ~{prefix}.vcf.gz
     >>>
 
     output {
-        File post_processed_vcf = "~{prefix}.vcf.gz"
-        File post_processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File processed_vcf = "~{prefix}.vcf.gz"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: ceil(size(vcf, "GB")) + 5,
-        disk_gb: 3 * ceil(size(vcf, "GB")) + 20,
+        mem_gb: ceil(size(base_vcf, "GB")) + 5,
+        disk_gb: 5 * ceil(size(base_vcf, "GB") + size(transfer_vcf, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
