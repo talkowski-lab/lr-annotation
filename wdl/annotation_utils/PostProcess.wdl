@@ -23,7 +23,7 @@ workflow PostProcess {
         Boolean run_filter_singletons
         File? ped
         Array[String]? drop_samples
-        Array[String] unphase_samples = []
+        Array[String]? unphase_samples
 
         String utils_docker
 
@@ -214,7 +214,7 @@ task PostProcessTask {
         File transfer_vcf
         File transfer_vcf_idx
         File? ped
-        Array[String] unphase_samples = []
+        Array[String]? unphase_samples
         Boolean transfer_genotypes
         Boolean unphase
         Boolean normalize_ploidy
@@ -244,7 +244,7 @@ flag_homopolymer_trvs = ~{true="True" false="False" flag_homopolymer_trvs}
 sort_records = ~{true="True" false="False" sort_records}
 filter_singletons = ~{true="True" false="False" filter_singletons}
 
-unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)} > 0 else []
+unphase_list = ["~{sep='\", \"' select_first([unphase_samples, []])}"] if ~{length(select_first([unphase_samples, []]))} > 0 else []
 unphase_samples_set = set(unphase_list)
 
 
