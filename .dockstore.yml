@@ -340,24 +340,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: GQCalculation
-    primaryDescriptorPath: /wdl/annotation_utils/GQCalculation.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: GQCutoffs
-    primaryDescriptorPath: /wdl/annotation_utils/GQCutoffs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: IntegrateTRs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateTRs.wdl
     filters:
@@ -403,15 +385,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: ParseSVFormatFields
-    primaryDescriptorPath: /wdl/annotation_utils/ParseSVFormatFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: PlotPhasingResults
     primaryDescriptorPath: /wdl/annotation_utils/PlotPhasingResults.wdl
     filters:
@@ -421,26 +394,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: PopulateSVFormatFields
-    primaryDescriptorPath: /wdl/annotation_utils/PopulateSVFormatFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: RenameInfoFields
     primaryDescriptorPath: /wdl/annotation_utils/RenameInfoFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: ReplaceKanpigGT
-    primaryDescriptorPath: /wdl/annotation_utils/ReplaceKanpigGT.wdl
     filters:
       branches:
         - main
@@ -495,6 +450,15 @@ workflows:
   - subclass: WDL
     name: SubsetVcfToPerSample
     primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToPerSample.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: SVAddRawCallers
+    primaryDescriptorPath: /wdl/annotation_utils/SVAddRawCallers.wdl
     filters:
       branches:
         - main

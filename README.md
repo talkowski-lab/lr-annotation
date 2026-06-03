@@ -271,14 +271,6 @@ TODO
 TODO
 
 
-### [GQCalculation](wdl/annotation_utils/GQCalculation.wdl)
-TODO
-
-
-### [GQCutoffs](wdl/annotation_utils/GQCutoffs.wdl)
-TODO
-
-
 ### [IntegrateTRs](wdl/annotation_utils/IntegrateTRs.wdl)
 TODO
 
@@ -299,15 +291,7 @@ TODO
 TODO
 
 
-### [ParseSVForamtFields](wdl/annotation_utils/ParseSVForamtFields.wdl)
-TODO
-
-
 ### [PlotPhasingResults](wdl/annotation_utils/PlotPhasingResults.wdl)
-TODO
-
-
-### [PopulateSVFormatFields](wdl/annotation_utils/PopulateSVFormatFields.wdl)
 TODO
 
 
@@ -316,10 +300,6 @@ TODO
 
 
 ### [RenameInfoFields](wdl/annotation_utils/RenameInfoFields.wdl)
-TODO
-
-
-### [ReplaceKanpigGT](wdl/annotation_utils/ReplaceKanpigGT.wdl)
 TODO
 
 
@@ -344,6 +324,10 @@ TODO
 
 
 ### [SubsetVcfToPerSample](wdl/annotation_utils/SubsetVcfToPerSample.wdl)
+TODO
+
+
+### [SVAddRawCallers](wdl/annotation_utils/SVAddRawCallers.wdl)
 TODO
 
 

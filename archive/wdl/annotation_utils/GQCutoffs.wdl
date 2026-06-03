@@ -11,19 +11,20 @@ workflow GQCutoffs {
         Array[File] truth_vcf_idxs
         String prefix
 
-        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
         String? subset_vcf_string
         File ped
         File? swap_samples_truth
         Boolean skip_trv = true
+
+        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
+        Int min_length_heuristic_comparison = 20
+        Int min_length_heuristic_comparison_truth = 10
 
         Float del_size_similarity = 0.8
         Float del_reciprocal_overlap = 0.8
         Int del_breakpoint_window = 500
         Float ins_size_similarity = 0.8
         Int ins_breakpoint_window = 100
-        Int min_length_heuristic_comparison = 20
-        Int min_length_heuristic_comparison_truth = 10
 
         String utils_docker
 

@@ -1,0 +1,474 @@
+version 1.0
+
+import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
+
+workflow SVAddRawCallers {
+    input {
+        File sv_vcf
+        File sv_vcf_idx
+        Array[String] sample_ids
+        Array[String] sexes
+        Array[File] kanpig_vcfs
+        Array[File] kanpig_vcf_idxs
+        Array[File?] cutesv_vcfs
+        Array[File?] cutesv_vcf_idxs
+        Array[File?] sniffles_vcfs
+        Array[File?] sniffles_vcf_idxs
+        Array[File?] delly_vcfs
+        Array[File?] delly_vcf_idxs
+        Array[File?] pbsv_vcfs
+        Array[File?] pbsv_vcf_idxs
+        Array[File?] sawfish_vcfs
+        Array[File?] sawfish_vcf_idxs
+        Array[File?] dipcall_vcfs
+        Array[File?] dipcall_vcf_idxs
+        Array[File?] hapdiff_vcfs
+        Array[File?] hapdiff_vcf_idxs
+        String prefix
+
+        File? swap_samples
+        Float size_similarity = 0.8
+        Float sequence_similarity = 0.8
+        Int breakpoint_window = 500
+
+        String utils_docker
+
+        RuntimeAttr? runtime_attr_swap_samples
+        RuntimeAttr? runtime_attr_subset_cohort_to_samples
+        RuntimeAttr? runtime_attr_extract_sample
+        RuntimeAttr? runtime_attr_process_sample
+        RuntimeAttr? runtime_attr_merge_vcfs
+        RuntimeAttr? runtime_attr_concat_tsvs
+    }
+
+    if (defined(swap_samples)) {
+        call Helpers.SwapSampleIds {
+            input:
+                vcf = sv_vcf,
+                vcf_idx = sv_vcf_idx,
+                sample_swap_list = select_first([swap_samples]),
+                prefix = "~{prefix}.swapped",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_swap_samples
+        }
+    }
+
+    File final_sv_vcf = select_first([SwapSampleIds.swapped_vcf, sv_vcf])
+    File final_sv_vcf_idx = select_first([SwapSampleIds.swapped_vcf_idx, sv_vcf_idx])
+
+    call Helpers.SubsetVcfToSamples as SubsetCohortToSamples {
+        input:
+            vcf = final_sv_vcf,
+            vcf_idx = final_sv_vcf_idx,
+            samples = sample_ids,
+            prefix = "~{prefix}.subset",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_subset_cohort_to_samples
+    }
+
+    scatter (i in range(length(sample_ids))) {
+        call Helpers.SubsetVcfToSamples as ExtractSample {
+            input:
+                vcf = SubsetCohortToSamples.subset_vcf,
+                vcf_idx = SubsetCohortToSamples.subset_vcf_idx,
+                samples = [sample_ids[i]],
+                filter_to_sample = false,
+                prefix = "~{prefix}.~{sample_ids[i]}.subset",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_extract_sample
+        }
+
+        call ProcessSample {
+            input:
+                sample_id = sample_ids[i],
+                sex = sexes[i],
+                subset_vcf = ExtractSample.subset_vcf,
+                subset_vcf_idx = ExtractSample.subset_vcf_idx,
+                kanpig_vcf = kanpig_vcfs[i],
+                kanpig_vcf_idx = kanpig_vcf_idxs[i],
+                cutesv_vcf = cutesv_vcfs[i],
+                cutesv_vcf_idx = cutesv_vcf_idxs[i],
+                sniffles_vcf = sniffles_vcfs[i],
+                sniffles_vcf_idx = sniffles_vcf_idxs[i],
+                delly_vcf = delly_vcfs[i],
+                delly_vcf_idx = delly_vcf_idxs[i],
+                pbsv_vcf = pbsv_vcfs[i],
+                pbsv_vcf_idx = pbsv_vcf_idxs[i],
+                sawfish_vcf = sawfish_vcfs[i],
+                sawfish_vcf_idx = sawfish_vcf_idxs[i],
+                dipcall_vcf = dipcall_vcfs[i],
+                dipcall_vcf_idx = dipcall_vcf_idxs[i],
+                hapdiff_vcf = hapdiff_vcfs[i],
+                hapdiff_vcf_idx = hapdiff_vcf_idxs[i],
+                size_similarity = size_similarity,
+                sequence_similarity = sequence_similarity,
+                breakpoint_window = breakpoint_window,
+                prefix = "~{prefix}.~{sample_ids[i]}.added",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_process_sample
+        }
+    }
+
+    call Helpers.MergeVcfs {
+        input:
+            vcfs = ProcessSample.processed_vcf,
+            vcf_idxs = ProcessSample.processed_vcf_idx,
+            prefix = "~{prefix}.added",
+            extra_args = "--merge id",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_merge_vcfs
+    }
+
+    call Helpers.ConcatTsvs {
+        input:
+            tsvs = ProcessSample.match_counts_tsv,
+            sort_output = false,
+            preserve_header = true,
+            prefix = "~{prefix}.match_counts",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_tsvs
+    }
+
+    output {
+        File sv_added_vcf = MergeVcfs.merged_vcf
+        File sv_added_vcf_idx = MergeVcfs.merged_vcf_idx
+        File sv_match_counts_tsv = ConcatTsvs.concatenated_tsv
+    }
+}
+
+task ProcessSample {
+    input {
+        String sample_id
+        String sex
+        File subset_vcf
+        File subset_vcf_idx
+        File kanpig_vcf
+        File kanpig_vcf_idx
+        File? cutesv_vcf
+        File? cutesv_vcf_idx
+        File? sniffles_vcf
+        File? sniffles_vcf_idx
+        File? delly_vcf
+        File? delly_vcf_idx
+        File? pbsv_vcf
+        File? pbsv_vcf_idx
+        File? sawfish_vcf
+        File? sawfish_vcf_idx
+        File? dipcall_vcf
+        File? dipcall_vcf_idx
+        File? hapdiff_vcf
+        File? hapdiff_vcf_idx
+        Float size_similarity
+        Float sequence_similarity
+        Int breakpoint_window
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<CODE
+import math
+import os
+from math import comb
+
+import pysam
+import truvari
+
+SKIP_AD_CALLERS = {"dipcall", "hapdiff"}
+PER_CALLER_NAMES = ["cutesv", "sniffles", "delly", "pbsv", "sawfish", "dipcall", "hapdiff"]
+
+sample_id = "~{sample_id}"
+sex = "~{sex}"
+is_male = (sex == "M")
+size_similarity = float(~{size_similarity})
+sequence_similarity = float(~{sequence_similarity})
+breakpoint_window = int(~{breakpoint_window})
+
+caller_files = {
+    "cutesv":  ("~{cutesv_vcf}",  "~{cutesv_vcf_idx}"),
+    "sniffles": ("~{sniffles_vcf}", "~{sniffles_vcf_idx}"),
+    "delly":   ("~{delly_vcf}",   "~{delly_vcf_idx}"),
+    "pbsv":    ("~{pbsv_vcf}",    "~{pbsv_vcf_idx}"),
+    "sawfish": ("~{sawfish_vcf}", "~{sawfish_vcf_idx}"),
+    "dipcall": ("~{dipcall_vcf}", "~{dipcall_vcf_idx}"),
+    "hapdiff": ("~{hapdiff_vcf}", "~{hapdiff_vcf_idx}"),
+}
+
+def is_called(gt):
+    return any(a is not None and a > 0 for a in gt)
+
+def is_missing(gt):
+    return all(a is None for a in gt)
+
+def count_non_ref_or_missing(gt):
+    return sum(1 for a in gt if a is None or a > 0)
+
+def calculate_pl(ref_reads, alt_reads):
+    if ref_reads + alt_reads == 0:
+        return (0, 0, 0)
+    means = [0.03, 0.50, 0.97]
+    priors = [0.33, 0.34, 0.33]
+    log10 = math.log(10)
+    ll = [(math.log(priors[i]) + alt_reads * math.log(means[i]) + ref_reads * math.log(1.0 - means[i])) / log10 for i in range(3)]
+    max_ll = max(ll)
+    return tuple(int(round(-10 * (x - max_ll))) for x in ll)
+
+def calculate_gq(pls):
+    return min(sorted(pls)[1], 99)
+
+def clear_format(rec, sample, n_alleles):
+    rec.samples[sample]["DP"] = None
+    rec.samples[sample]["GQ"] = None
+    rec.samples[sample]["AD"] = tuple(None for _ in range(n_alleles))
+    rec.samples[sample]["PL"] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
+    rec.samples[sample]["GT"] = tuple(None for _ in range(n_alleles))
+
+def kanpig_key(rec):
+    # Exact match key; uppercase REF/ALT to ignore soft-masking case mismatches.
+    ref = rec.ref.upper() if rec.ref else rec.ref
+    alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
+    return (rec.chrom, rec.pos, ref, alts, rec.id)
+
+def get_ad_from_record(record, caller, sample_name, target_svlen=None):
+    fmt = record.samples[sample_name]
+    if caller in ("cutesv", "sniffles"):
+        dr = fmt.get("DR")
+        dv = fmt.get("DV")
+        if dr is not None and dv is not None:
+            return (int(dr), int(dv))
+    elif caller in ("pbsv", "sawfish"):
+        ad = fmt.get("AD")
+        if ad is None or any(x is None for x in ad):
+            return None
+        ad = tuple(int(x) for x in ad)
+        if len(ad) == 2:
+            return ad
+        if len(ad) > 2 and record.alts and target_svlen is not None:
+            ref_len = len(record.ref) if record.ref else 0
+            best_idx, best_diff = 0, float("inf")
+            for i, alt in enumerate(record.alts):
+                diff = abs(abs(len(str(alt)) - ref_len) - abs(int(target_svlen)))
+                if diff < best_diff:
+                    best_diff, best_idx = diff, i
+            return (ad[0], ad[best_idx + 1])
+    elif caller == "delly":
+        rr = fmt.get("RR")
+        rv = fmt.get("RV")
+        if rr is not None and rv is not None:
+            return (int(rr), int(rv))
+    return None
+
+def best_truvari_match(cohort_rec, caller_vf):
+    chrom, pos = cohort_rec.chrom, cohort_rec.pos
+    best = None
+    best_score = -1.0
+    try:
+        for cand in caller_vf.fetch(chrom, max(0, pos - breakpoint_window), pos + breakpoint_window):
+            try:
+                m = cohort_rec.match(cand)
+            except Exception:
+                continue
+            if not m.state:
+                continue
+            score = m.score if m.score is not None else 0.0
+            if score > best_score:
+                best_score, best = score, cand
+    except (ValueError, OSError):
+        pass
+    return best
+
+tv_params = truvari.VariantParams(
+    pctsize=size_similarity,
+    pctseq=sequence_similarity,
+    refdist=breakpoint_window,
+    sizemin=50,
+    sizefilt=50,
+    passonly=False,
+    skip_gt=True,
+    no_ref="a",
+)
+
+# Kanpig: load all records into a dict keyed by (CHROM, POS, REF.upper, ALT.upper, ID).
+# Memory ~ few hundred MB even for whole-genome single sample.
+kp_in = pysam.VariantFile("~{kanpig_vcf}")
+kp_sample = sample_id if sample_id in kp_in.header.samples else list(kp_in.header.samples)[0]
+kp_index = {}
+for r in kp_in:
+    kp_index[kanpig_key(r)] = r
+
+# Per-caller: open via truvari with shared params, symlink so tabix .tbi matches.
+caller_handles = {}
+for c, (path, idx) in caller_files.items():
+    if not path:
+        continue
+    local_vcf = f"caller_{c}.vcf.gz"
+    local_idx = f"caller_{c}.vcf.gz.tbi"
+    os.symlink(path, local_vcf)
+    os.symlink(idx, local_idx)
+    vf = truvari.VariantFile(local_vcf, params=tv_params)
+    samples = list(vf.header.samples)
+    if not samples:
+        continue
+    csample = sample_id if sample_id in samples else samples[0]
+    caller_handles[c] = (vf, csample)
+
+vcf_in = truvari.VariantFile("~{subset_vcf}", params=tv_params)
+header = vcf_in.header
+ev_decl = ('##FORMAT=<ID=EV,Number=.,Type=String,Description='
+           '"Callers supporting this sample call; entries as caller_(refAD_altAD); '
+           'dipcall/hapdiff omit the AD parens">')
+if "EV" not in header.formats:
+    header.add_line(ev_decl)
+for tag, line in [
+    ("AD", '##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">'),
+    ("GQ", '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">'),
+    ("PL", '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">'),
+    ("DP", '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth">'),
+]:
+    if tag not in header.formats:
+        header.add_line(line)
+
+out = truvari.VariantFile("~{prefix}.vcf.gz", "w", header=header)
+
+v_count = v_match = v_gt_match = 0
+
+for rec in vcf_in:
+    rec.translate(out.header)
+    sample_name = list(rec.samples.keys())[0]
+    s = rec.samples[sample_name]
+    gt = s["GT"]
+    n_alleles = len(rec.alts) + 1
+    chrom = rec.chrom
+
+    if not gt or not is_called(gt):
+        # ref or missing call -> Kanpig MergeGenotypes Case 1/2 update
+        kp_rec = kp_index.get(kanpig_key(rec))
+        if kp_rec is not None:
+            kp_s = kp_rec.samples[kp_sample]
+            kp_gt = kp_s["GT"]
+            is_female_y = (not is_male) and chrom == "chrY"
+            is_hemi = is_male and chrom in {"chrX", "chrY"}
+
+            if not is_called(kp_gt) and not is_missing(kp_gt):
+                # Case 1: base ref/missing, kanpig ref
+                if is_female_y:
+                    clear_format(rec, sample_name, n_alleles)
+                else:
+                    s["DP"] = kp_s.get("DP")
+                    kp_ad = kp_s.get("AD")
+                    if kp_ad is not None and len(kp_ad) == n_alleles and all(x is not None for x in kp_ad):
+                        s["AD"] = tuple(int(x) for x in kp_ad)
+                        pls = calculate_pl(int(kp_ad[0]), int(kp_ad[1]))
+                        s["PL"] = pls
+                        s["GQ"] = calculate_gq(pls)
+                    if is_hemi:
+                        s["GT"] = (0, None)
+                    else:
+                        s["GT"] = tuple(0 for _ in range(n_alleles))
+            elif is_missing(kp_gt) or is_called(kp_gt):
+                # Case 2: base ref/missing, kanpig missing or non-ref -> clear
+                clear_format(rec, sample_name, n_alleles)
+
+        cur_gt = s["GT"]
+        if cur_gt is not None:
+            s["GT"] = tuple(sorted(cur_gt, key=lambda a: (a is None, a if a is not None else 0)))
+        s.phased = False
+    else:
+        # non-ref call -> only set EV
+        v_count += 1
+        base_state = count_non_ref_or_missing(gt)
+        supporters = []
+        had_any_match = False
+        had_gt_match = False
+
+        kp_rec = kp_index.get(kanpig_key(rec))
+        if kp_rec is not None:
+            had_any_match = True
+            kp_s = kp_rec.samples[kp_sample]
+            if count_non_ref_or_missing(kp_s["GT"]) == base_state:
+                had_gt_match = True
+                kp_ad = kp_s.get("AD")
+                if kp_ad is not None and len(kp_ad) >= 2 and all(x is not None for x in kp_ad[:2]):
+                    supporters.append(("kanpig", (int(kp_ad[0]), int(kp_ad[1]))))
+                else:
+                    supporters.append(("kanpig", None))
+
+        target_svlen = rec.info.get("SVLEN")
+        if isinstance(target_svlen, tuple):
+            target_svlen = target_svlen[0] if target_svlen else None
+
+        for caller, (vf, csample) in caller_handles.items():
+            match = best_truvari_match(rec, vf)
+            if match is None:
+                continue
+            had_any_match = True
+            m_gt = match.samples[csample]["GT"]
+            if count_non_ref_or_missing(m_gt) != base_state:
+                continue
+            had_gt_match = True
+            if caller in SKIP_AD_CALLERS:
+                supporters.append((caller, None))
+            else:
+                ad = get_ad_from_record(match, caller, csample, target_svlen=target_svlen)
+                supporters.append((caller, ad))
+
+        if had_any_match:
+            v_match += 1
+        if had_gt_match:
+            v_gt_match += 1
+
+        if supporters:
+            supporters.sort(key=lambda x: x[0])
+            ev_entries = []
+            for name, ad in supporters:
+                if name in SKIP_AD_CALLERS or ad is None:
+                    ev_entries.append(name)
+                else:
+                    ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
+            s["EV"] = tuple(ev_entries)
+
+    out.write(rec)
+
+vcf_in.close()
+out.close()
+kp_in.close()
+for vf, _ in caller_handles.values():
+    vf.close()
+
+with open("~{prefix}.match_counts.tsv", "w") as fh:
+    fh.write("sample_id\tvariant_count\tvariant_match_count\tvariant_gt_match_count\n")
+    fh.write(f"{sample_id}\t{v_count}\t{v_match}\t{v_gt_match}\n")
+CODE
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File processed_vcf = "~{prefix}.vcf.gz"
+        File processed_vcf_idx = "~{prefix}.vcf.gz.tbi"
+        File match_counts_tsv = "~{prefix}.match_counts.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: ceil(size(subset_vcf, "GB") + size(kanpig_vcf, "GB") + size(select_all([cutesv_vcf, sniffles_vcf, delly_vcf, pbsv_vcf, sawfish_vcf, dipcall_vcf, hapdiff_vcf]), "GB")) + 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
