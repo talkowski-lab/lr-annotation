@@ -96,6 +96,7 @@ workflow AnnotateDbVaR {
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
                     original_vcf = FilterVcf.subset_vcf,
+                    original_vcf_idx = FilterVcf.subset_vcf_idx,
                     dbvar_vcf = contig_dbvar_vcf,
                     dbvar_vcf_idx = contig_dbvar_vcf_idx,
                     del_size_similarity = del_size_similarity,
@@ -147,6 +148,7 @@ task AnnotateDbVaRIds {
         File vcf
         File vcf_idx
         File original_vcf
+        File original_vcf_idx
         File dbvar_vcf
         File dbvar_vcf_idx
         Float del_size_similarity
@@ -234,7 +236,7 @@ with open("original_ref_alt.tsv") as f:
 dbvar = pysam.VariantFile("~{dbvar_vcf}")
 query = pysam.VariantFile("~{vcf}")
 
-with open("~{prefix}.annotations.tsv", 'w') as out:
+with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
     for rec in query:
         # Structure search criteria
         svtype = rec.info.get('SVTYPE')
@@ -320,6 +322,8 @@ with open("~{prefix}.annotations.tsv", 'w') as out:
 query.close()
 dbvar.close()
 EOF
+
+        sort -k1,1 -k2,2n ~{prefix}.annotations.unsorted.tsv > ~{prefix}.annotations.tsv
     >>>
 
     output {

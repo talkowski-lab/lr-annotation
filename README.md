@@ -895,14 +895,13 @@ Outputs:
 
 
 ### [PostProcess](wdl/annotation_utils/PostProcess.wdl)
-This utility bundles every genotype-update and post-processing step applied to a near-final callset into one workflow, with a required `run_` Boolean guarding each step so that the input VCF is left untouched when all are set to `false`. The per-record steps are applied in a single pass over the VCF: each variant is first matched against `transfer_vcf` and has its genotypes transferred (when `run_transfer_genotypes` is set) using its unmodified properties, after which the remaining steps — unphasing, ploidy normalization, TR-ID decrementing, MEI pruning, homopolymer flagging, singleton filtering and same-coordinate sorting — run in order. Dropping samples (a column subset) is handled as a cheap operation before that pass. Some steps require an accompanying field — `run_transfer_genotypes` needs `transfer_vcf`, `run_drop_samples` needs `drop_samples`, `run_unphase_samples` needs `unphase_samples`, and `run_normalize_ploidy` needs `ped`. The per-record pass can optionally be region-sharded via `shard_bin_size`.
+This utility bundles every genotype-update and post-processing step applied to a near-final callset into one workflow, with a required `run_` Boolean guarding each step so that the input VCF is left untouched when all are set to `false`. The per-record steps are applied in a single pass over the VCF: each variant is first matched against `transfer_vcf` and has its genotypes transferred (when `run_transfer_genotypes` is set) using its unmodified properties, after which the remaining steps — unphasing, ploidy normalization, TR-ID decrementing, MEI pruning, homopolymer flagging, singleton filtering and same-coordinate sorting — run in order. Some steps require an accompanying field — `run_transfer_genotypes` needs `transfer_vcf`, `run_unphase_samples` needs `unphase_samples`, and `run_normalize_ploidy` needs `ped`. The per-record pass can optionally be region-sharded via `shard_bin_size`.
 
 Inputs:
 - `File vcf`: VCF to post-process.
 - `File vcf_idx`: Index for VCF to post-process.
 - `Array[String] contigs`: Contigs to process within the input VCF.
 - `Boolean run_transfer_genotypes`: Whether to transfer genotypes from `transfer_vcf` onto heterozygous calls (run first; requires `transfer_vcf`).
-- `Boolean run_drop_samples`: Whether to drop the samples in `drop_samples` (requires `drop_samples`).
 - `Boolean run_unphase_samples`: Whether to unphase the samples in `unphase_samples` (requires `unphase_samples`).
 - `Boolean run_normalize_ploidy`: Whether to normalize ploidy by sex — clearing chrY female calls, making chrX/chrY male calls hemizygous, enforcing diploidy and right-aligning unphased calls (requires `ped`).
 - `Boolean run_decrement_trv_ids`: Whether to decrement tandem-repeat variant IDs.
@@ -912,7 +911,6 @@ Inputs:
 - `Boolean run_filter_singletons`: Whether to apply the `SINGLE_READ_SUPPORT` filter to singleton calls.
 - `File? transfer_vcf`: VCF whose genotypes are transferred when `run_transfer_genotypes` is set.
 - `File? transfer_vcf_idx`: Index for `transfer_vcf`.
-- `Array[String] drop_samples`: Samples to drop when `run_drop_samples` is set (defaults to empty).
 - `Array[String] unphase_samples`: Samples to unphase when `run_unphase_samples` is set (defaults to empty).
 - `File? ped`: Cohort pedigree file, used for ploidy normalization when `run_normalize_ploidy` is set.
 - `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the per-record pass.

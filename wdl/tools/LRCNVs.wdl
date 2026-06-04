@@ -30,6 +30,9 @@ version 1.0
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
+
 workflow LRCNVs {
     meta {
         description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of normal samples with HiFi long-read sequencing reads."

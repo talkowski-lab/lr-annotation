@@ -1,5 +1,8 @@
 version 1.0
 
+import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
+
 workflow Automop {
     input {
         String workspace_namespace

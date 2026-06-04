@@ -1,6 +1,7 @@
 version 1.0
 
 import "../utils/Helpers.wdl"
+import "../utils/Structs.wdl"
 
 workflow PostProcess {
     input {
@@ -13,7 +14,6 @@ workflow PostProcess {
 
         Int? shard_bin_size
         Boolean run_transfer_genotypes
-        Boolean run_drop_samples
         Boolean run_unphase_samples
         Boolean run_normalize_ploidy
         Boolean run_decrement_trv_ids
@@ -22,13 +22,11 @@ workflow PostProcess {
         Boolean run_sorting
         Boolean run_filter_singletons
         File? ped
-        Array[String] drop_samples = []
         Array[String] unphase_samples = []
 
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_base
-        RuntimeAttr? runtime_attr_drop_samples
         RuntimeAttr? runtime_attr_subset_transfer
         RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_post_process
@@ -54,23 +52,6 @@ workflow PostProcess {
         File contig_base_vcf = select_first([SubsetBase.subset_vcf, vcf])
         File contig_base_vcf_idx = select_first([SubsetBase.subset_vcf_idx, vcf_idx])
 
-        if (run_drop_samples) {
-            call Helpers.SubsetVcfToSamples as DropSamples {
-                input:
-                    vcf = contig_base_vcf,
-                    vcf_idx = contig_base_vcf_idx,
-                    samples = drop_samples,
-                    keep_samples = false,
-                    filter_to_sample = false,
-                    prefix = "~{prefix}.~{contig}.dropped_samples",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_drop_samples
-            }
-        }
-
-        File pp_input_vcf = select_first([DropSamples.subset_vcf, contig_base_vcf])
-        File pp_input_vcf_idx = select_first([DropSamples.subset_vcf_idx, contig_base_vcf_idx])
-
         if (run_transfer_genotypes && !single_contig) {
             call Helpers.SubsetVcfToContig as SubsetTransfer {
                 input:
@@ -83,14 +64,14 @@ workflow PostProcess {
             }
         }
 
-        File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, pp_input_vcf])
-        File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, pp_input_vcf_idx])
+        File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, contig_base_vcf])
+        File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, contig_base_vcf_idx])
 
         if (defined(shard_bin_size)) {
             call Helpers.CreateContigShards {
                 input:
-                    vcfs = [pp_input_vcf, transfer_source_vcf],
-                    vcf_idxs = [pp_input_vcf_idx, transfer_source_vcf_idx],
+                    vcfs = [contig_base_vcf, transfer_source_vcf],
+                    vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
                     contig = contig,
                     shard_bin_size = select_first([shard_bin_size]),
                     prefix = "~{prefix}.~{contig}.shards",
@@ -103,8 +84,8 @@ workflow PostProcess {
 
                 call Helpers.SubsetVcfToRegion as SubsetBaseShard {
                     input:
-                        vcf = pp_input_vcf,
-                        vcf_idx = pp_input_vcf_idx,
+                        vcf = contig_base_vcf,
+                        vcf_idx = contig_base_vcf_idx,
                         region = shard_region,
                         prefix = "~{prefix}.~{contig}.shard_~{i}.base",
                         docker = utils_docker,
@@ -158,8 +139,8 @@ workflow PostProcess {
         if (!defined(shard_bin_size)) {
             call PostProcessTask {
                 input:
-                    base_vcf = pp_input_vcf,
-                    base_vcf_idx = pp_input_vcf_idx,
+                    base_vcf = contig_base_vcf,
+                    base_vcf_idx = contig_base_vcf_idx,
                     transfer_vcf = transfer_source_vcf,
                     transfer_vcf_idx = transfer_source_vcf_idx,
                     ped = ped,
