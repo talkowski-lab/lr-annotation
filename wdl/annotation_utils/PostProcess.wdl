@@ -22,8 +22,8 @@ workflow PostProcess {
         Boolean run_sorting
         Boolean run_filter_singletons
         File? ped
-        Array[String]? drop_samples
-        Array[String]? unphase_samples
+        Array[String] drop_samples = []
+        Array[String] unphase_samples = []
 
         String utils_docker
 
@@ -37,7 +37,6 @@ workflow PostProcess {
     }
 
     Boolean single_contig = length(contigs) == 1
-    Boolean run_post_process = run_transfer_genotypes || run_unphase_samples || run_normalize_ploidy || run_decrement_trv_ids || run_prune_meis || run_flag_homopolymer_trvs || run_sorting || run_filter_singletons
 
     scatter (contig in contigs) {
         if (!single_contig) {
@@ -60,7 +59,7 @@ workflow PostProcess {
                 input:
                     vcf = contig_base_vcf,
                     vcf_idx = contig_base_vcf_idx,
-                    samples = select_first([drop_samples]),
+                    samples = drop_samples,
                     keep_samples = false,
                     filter_to_sample = false,
                     prefix = "~{prefix}.~{contig}.dropped_samples",
@@ -72,98 +71,62 @@ workflow PostProcess {
         File pp_input_vcf = select_first([DropSamples.subset_vcf, contig_base_vcf])
         File pp_input_vcf_idx = select_first([DropSamples.subset_vcf_idx, contig_base_vcf_idx])
 
-        if (run_post_process) {
-            if (run_transfer_genotypes && !single_contig) {
-                call Helpers.SubsetVcfToContig as SubsetTransfer {
+        if (run_transfer_genotypes && !single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetTransfer {
+                input:
+                    vcf = select_first([transfer_vcf]),
+                    vcf_idx = select_first([transfer_vcf_idx]),
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.transfer",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_transfer
+            }
+        }
+
+        File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, pp_input_vcf])
+        File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, pp_input_vcf_idx])
+
+        if (defined(shard_bin_size)) {
+            call Helpers.CreateContigShards {
+                input:
+                    vcfs = [pp_input_vcf, transfer_source_vcf],
+                    vcf_idxs = [pp_input_vcf_idx, transfer_source_vcf_idx],
+                    contig = contig,
+                    shard_bin_size = select_first([shard_bin_size]),
+                    prefix = "~{prefix}.~{contig}.shards",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_create_shards
+            }
+
+            scatter (i in range(length(CreateContigShards.shard_regions))) {
+                String shard_region = CreateContigShards.shard_regions[i]
+
+                call Helpers.SubsetVcfToRegion as SubsetBaseShard {
                     input:
-                        vcf = select_first([transfer_vcf]),
-                        vcf_idx = select_first([transfer_vcf_idx]),
-                        contig = contig,
-                        prefix = "~{prefix}.~{contig}.transfer",
+                        vcf = pp_input_vcf,
+                        vcf_idx = pp_input_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.base",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_base
+                }
+
+                call Helpers.SubsetVcfToRegion as SubsetTransferShard {
+                    input:
+                        vcf = transfer_source_vcf,
+                        vcf_idx = transfer_source_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.transfer",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_subset_transfer
                 }
-            }
 
-            File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, pp_input_vcf])
-            File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, pp_input_vcf_idx])
-
-            if (defined(shard_bin_size)) {
-                call Helpers.CreateContigShards {
+                call PostProcessTask as PostProcessShard {
                     input:
-                        vcfs = [pp_input_vcf, transfer_source_vcf],
-                        vcf_idxs = [pp_input_vcf_idx, transfer_source_vcf_idx],
-                        contig = contig,
-                        shard_bin_size = select_first([shard_bin_size]),
-                        prefix = "~{prefix}.~{contig}.shards",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_create_shards
-                }
-
-                scatter (i in range(length(CreateContigShards.shard_regions))) {
-                    String shard_region = CreateContigShards.shard_regions[i]
-
-                    call Helpers.SubsetVcfToRegion as SubsetBaseShard {
-                        input:
-                            vcf = pp_input_vcf,
-                            vcf_idx = pp_input_vcf_idx,
-                            region = shard_region,
-                            prefix = "~{prefix}.~{contig}.shard_~{i}.base",
-                            docker = utils_docker,
-                            runtime_attr_override = runtime_attr_subset_base
-                    }
-
-                    call Helpers.SubsetVcfToRegion as SubsetTransferShard {
-                        input:
-                            vcf = transfer_source_vcf,
-                            vcf_idx = transfer_source_vcf_idx,
-                            region = shard_region,
-                            prefix = "~{prefix}.~{contig}.shard_~{i}.transfer",
-                            docker = utils_docker,
-                            runtime_attr_override = runtime_attr_subset_transfer
-                    }
-
-                    call PostProcessTask as PostProcessShard {
-                        input:
-                            base_vcf = SubsetBaseShard.subset_vcf,
-                            base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
-                            transfer_vcf = SubsetTransferShard.subset_vcf,
-                            transfer_vcf_idx = SubsetTransferShard.subset_vcf_idx,
-                            ped = ped,
-                            unphase_samples = unphase_samples,
-                            transfer_genotypes = run_transfer_genotypes,
-                            unphase = run_unphase_samples,
-                            normalize_ploidy = run_normalize_ploidy,
-                            decrement_trv_ids = run_decrement_trv_ids,
-                            prune_meis = run_prune_meis,
-                            flag_homopolymer_trvs = run_flag_homopolymer_trvs,
-                            sort_records = run_sorting,
-                            filter_singletons = run_filter_singletons,
-                            prefix = "~{prefix}.~{contig}.shard_~{i}.post_processed",
-                            docker = utils_docker,
-                            runtime_attr_override = runtime_attr_post_process
-                    }
-                }
-
-                call Helpers.ConcatVcfs as ConcatShards {
-                    input:
-                        vcfs = PostProcessShard.processed_vcf,
-                        vcf_idxs = PostProcessShard.processed_vcf_idx,
-                        allow_overlaps = false,
-                        naive = true,
-                        prefix = "~{prefix}.~{contig}.post_processed",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_concat_shards
-                }
-            }
-
-            if (!defined(shard_bin_size)) {
-                call PostProcessTask {
-                    input:
-                        base_vcf = pp_input_vcf,
-                        base_vcf_idx = pp_input_vcf_idx,
-                        transfer_vcf = transfer_source_vcf,
-                        transfer_vcf_idx = transfer_source_vcf_idx,
+                        base_vcf = SubsetBaseShard.subset_vcf,
+                        base_vcf_idx = SubsetBaseShard.subset_vcf_idx,
+                        transfer_vcf = SubsetTransferShard.subset_vcf,
+                        transfer_vcf_idx = SubsetTransferShard.subset_vcf_idx,
                         ped = ped,
                         unphase_samples = unphase_samples,
                         transfer_genotypes = run_transfer_genotypes,
@@ -174,18 +137,49 @@ workflow PostProcess {
                         flag_homopolymer_trvs = run_flag_homopolymer_trvs,
                         sort_records = run_sorting,
                         filter_singletons = run_filter_singletons,
-                        prefix = "~{prefix}.~{contig}.post_processed",
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.post_processed",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_post_process
                 }
             }
 
-            File inpass_vcf = select_first([ConcatShards.concat_vcf, PostProcessTask.processed_vcf])
-            File inpass_vcf_idx = select_first([ConcatShards.concat_vcf_idx, PostProcessTask.processed_vcf_idx])
+            call Helpers.ConcatVcfs as ConcatShards {
+                input:
+                    vcfs = PostProcessShard.processed_vcf,
+                    vcf_idxs = PostProcessShard.processed_vcf_idx,
+                    allow_overlaps = false,
+                    naive = true,
+                    prefix = "~{prefix}.~{contig}.post_processed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
 
-        File contig_processed_vcf = select_first([inpass_vcf, pp_input_vcf])
-        File contig_processed_vcf_idx = select_first([inpass_vcf_idx, pp_input_vcf_idx])
+        if (!defined(shard_bin_size)) {
+            call PostProcessTask {
+                input:
+                    base_vcf = pp_input_vcf,
+                    base_vcf_idx = pp_input_vcf_idx,
+                    transfer_vcf = transfer_source_vcf,
+                    transfer_vcf_idx = transfer_source_vcf_idx,
+                    ped = ped,
+                    unphase_samples = unphase_samples,
+                    transfer_genotypes = run_transfer_genotypes,
+                    unphase = run_unphase_samples,
+                    normalize_ploidy = run_normalize_ploidy,
+                    decrement_trv_ids = run_decrement_trv_ids,
+                    prune_meis = run_prune_meis,
+                    flag_homopolymer_trvs = run_flag_homopolymer_trvs,
+                    sort_records = run_sorting,
+                    filter_singletons = run_filter_singletons,
+                    prefix = "~{prefix}.~{contig}.post_processed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_post_process
+            }
+        }
+
+        File contig_processed_vcf = select_first([ConcatShards.concat_vcf, PostProcessTask.processed_vcf])
+        File contig_processed_vcf_idx = select_first([ConcatShards.concat_vcf_idx, PostProcessTask.processed_vcf_idx])
     }
 
     if (!single_contig) {
@@ -214,7 +208,7 @@ task PostProcessTask {
         File transfer_vcf
         File transfer_vcf_idx
         File? ped
-        Array[String]? unphase_samples
+        Array[String] unphase_samples = []
         Boolean transfer_genotypes
         Boolean unphase
         Boolean normalize_ploidy
@@ -244,7 +238,7 @@ flag_homopolymer_trvs = ~{true="True" false="False" flag_homopolymer_trvs}
 sort_records = ~{true="True" false="False" sort_records}
 filter_singletons = ~{true="True" false="False" filter_singletons}
 
-unphase_list = ["~{sep='\", \"' select_first([unphase_samples, []])}"] if ~{length(select_first([unphase_samples, []]))} > 0 else []
+unphase_list = ["~{sep='\", \"' unphase_samples}"] if ~{length(unphase_samples)} > 0 else []
 unphase_samples_set = set(unphase_list)
 
 

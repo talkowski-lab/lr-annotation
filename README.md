@@ -912,8 +912,8 @@ Inputs:
 - `Boolean run_filter_singletons`: Whether to apply the `SINGLE_READ_SUPPORT` filter to singleton calls.
 - `File? transfer_vcf`: VCF whose genotypes are transferred when `run_transfer_genotypes` is set.
 - `File? transfer_vcf_idx`: Index for `transfer_vcf`.
-- `Array[String]? drop_samples`: Samples to drop when `run_drop_samples` is set.
-- `Array[String]? unphase_samples`: Samples to unphase when `run_unphase_samples` is set.
+- `Array[String] drop_samples`: Samples to drop when `run_drop_samples` is set (defaults to empty).
+- `Array[String] unphase_samples`: Samples to unphase when `run_unphase_samples` is set (defaults to empty).
 - `File? ped`: Cohort pedigree file, used for ploidy normalization when `run_normalize_ploidy` is set.
 - `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the per-record pass.
 
