@@ -175,36 +175,10 @@ task ExtractVRSAnnotations {
     command <<<
         set -euo pipefail
 
-        python3 <<CODE
-import pysam
-
-vrs_fields = [
-    "VRS_Allele_IDs",
-    "VRS_Starts",
-    "VRS_Ends",
-    "VRS_States",
-    "VRS_Lengths",
-    "VRS_RepeatSubunitLengths",
-]
-
-vcf_in = pysam.VariantFile("~{vcf}")
-with open("~{prefix}.annotations.tsv", "w") as out:
-    for record in vcf_in:
-        alt = ",".join(record.alts) if record.alts else "."
-        variant_id = record.id if record.id else "."
-        columns = [record.chrom, str(record.pos), record.ref, alt, variant_id]
-        for field in vrs_fields:
-            value = record.info.get(field)
-            if value is None:
-                columns.append(".")
-            elif isinstance(value, (list, tuple)):
-                columns.append(",".join("." if item is None else str(item) for item in value))
-            else:
-                columns.append(str(value))
-        out.write("\t".join(columns) + "\n")
-
-vcf_in.close()
-CODE
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/VRS_Allele_IDs\t%INFO/VRS_Error\t%INFO/VRS_Starts\t%INFO/VRS_Ends\t%INFO/VRS_States\t%INFO/VRS_Lengths\t%INFO/VRS_RepeatSubunitLengths\n' \
+            ~{vcf} \
+            > ~{prefix}.annotations.tsv
     >>>
 
     output {
