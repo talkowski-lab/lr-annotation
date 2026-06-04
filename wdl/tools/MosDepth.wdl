@@ -12,6 +12,9 @@ workflow MosDepth {
 
         Boolean quantize_mode
 
+        File? ref_fa
+        File? ref_fai
+
         String mosdepth_docker
 
         RuntimeAttr? runtime_attr_run_mosdepth
@@ -24,6 +27,8 @@ workflow MosDepth {
                 bai = bai,
                 contig = contig,
                 quantize_mode = quantize_mode,
+                ref_fa = ref_fa,
+                ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.coverage",
                 docker = mosdepth_docker,
                 runtime_attr_override = runtime_attr_run_mosdepth
@@ -46,6 +51,8 @@ task RunMosDepth {
         File bai
         String contig
         Boolean quantize_mode
+        File? ref_fa
+        File? ref_fai
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -63,8 +70,8 @@ task RunMosDepth {
             mosdepth \
                 -t 4 \
                 -c "~{contig}" \
-                -Q 1 \
                 -x \
+                ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
                 --quantize 0:1:5:150: \
                 ~{prefix} \
                 ~{bam}
@@ -72,8 +79,8 @@ task RunMosDepth {
             mosdepth \
                 -t 2 \
                 -c "~{contig}" \
-                -Q 1 \
                 -x \
+                ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
                 ~{prefix} \
                 ~{bam}
         fi
