@@ -33,6 +33,8 @@ workflow SVAddRawCallers {
         Float sequence_similarity = 0.8
         Int breakpoint_window = 500
         Boolean fuzzy_match_vcf_to_stats = true
+        Boolean match_gt_kanpig = true
+        Boolean match_gt_non_kanpig = true
         File? null_file
 
         String utils_docker
@@ -125,6 +127,8 @@ workflow SVAddRawCallers {
                 sequence_similarity = sequence_similarity,
                 breakpoint_window = breakpoint_window,
                 fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
+                match_gt_kanpig = match_gt_kanpig,
+                match_gt_non_kanpig = match_gt_non_kanpig,
                 prefix = "~{prefix}.~{sample_ids[i]}.added",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_process_sample
@@ -185,6 +189,8 @@ task ProcessSample {
         Float sequence_similarity
         Int breakpoint_window
         Boolean fuzzy_match_vcf_to_stats
+        Boolean match_gt_kanpig
+        Boolean match_gt_non_kanpig
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -216,6 +222,8 @@ sequence_similarity = float(~{sequence_similarity})
 breakpoint_window = int(~{breakpoint_window})
 sv_stats_path = "~{sv_stats}"
 fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
+match_gt_kanpig = ~{true="True" false="False" match_gt_kanpig}
+match_gt_non_kanpig = ~{true="True" false="False" match_gt_non_kanpig}
 
 caller_files = {
     "cutesv":  ("~{cutesv_vcf}",  "~{cutesv_vcf_idx}"),
@@ -434,6 +442,7 @@ for tag, line in [
     ("GQ", '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">'),
     ("PL", '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">'),
     ("DP", '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth">'),
+    ("BEV", '##FORMAT=<ID=BEV,Number=1,Type=String,Description="Representative caller for this sample call: kanpig if in EV, else highest-GQ per-caller with valid AD, else first alphabetical AD-eligible per-caller with valid AD">'),
 ]:
     if tag not in header.formats:
         header.add_line(line)
@@ -495,19 +504,23 @@ for rec in vcf_in:
         had_nonkp_site = False
         had_nonkp_gt = False
 
+        kp_ad_val = None
+        kp_dp_val = None
         kp_rec = kp_index.get(kanpig_key(rec))
         if kp_rec is not None:
             had_any_match = True
             had_kp_site = True
             kp_s = kp_rec.samples[kp_sample]
-            if count_non_ref_or_missing(kp_s["GT"]) == base_state:
+            kp_dp_val = kp_s.get("DP")
+            kp_ad = kp_s.get("AD")
+            if kp_ad is not None and len(kp_ad) >= 2 and all(x is not None for x in kp_ad[:2]):
+                kp_ad_val = (int(kp_ad[0]), int(kp_ad[1]))
+            kp_gt_match = (count_non_ref_or_missing(kp_s["GT"]) == base_state)
+            if kp_gt_match:
                 had_gt_match = True
                 had_kp_gt = True
-                kp_ad = kp_s.get("AD")
-                if kp_ad is not None and len(kp_ad) >= 2 and all(x is not None for x in kp_ad[:2]):
-                    supporters.append(("kanpig", (int(kp_ad[0]), int(kp_ad[1]))))
-                else:
-                    supporters.append(("kanpig", None))
+            if kp_gt_match or not match_gt_kanpig:
+                supporters.append(("kanpig", kp_ad_val))
 
         target_svlen = rec.info.get("SVLEN")
         if isinstance(target_svlen, tuple):
@@ -523,10 +536,12 @@ for rec in vcf_in:
             had_any_match = True
             had_nonkp_site = True
             m_gt = match.samples[csample]["GT"]
-            if count_non_ref_or_missing(m_gt) != base_state:
+            m_gt_match = (count_non_ref_or_missing(m_gt) == base_state)
+            if m_gt_match:
+                had_gt_match = True
+                had_nonkp_gt = True
+            if not m_gt_match and match_gt_non_kanpig:
                 continue
-            had_gt_match = True
-            had_nonkp_gt = True
             if caller in SKIP_AD_CALLERS:
                 supporters.append((caller, None))
             else:
@@ -548,13 +563,54 @@ for rec in vcf_in:
 
         if supporters:
             supporters.sort(key=lambda x: x[0])
-            ev_entries = []
-            for name, ad in supporters:
-                if name in SKIP_AD_CALLERS or ad is None:
-                    ev_entries.append(name)
+
+            # BEV selection (run first so we can skip all writes if no AD-bearing candidate)
+            bev = None
+            best_ad = None
+            best_pls = None
+            kanpig_sup = next((sup for sup in supporters if sup[0] == "kanpig"), None)
+            if kanpig_sup is not None:
+                bev = "kanpig"
+                best_ad = kanpig_sup[1]
+            else:
+                best_gq = -1
+                for name, ad in supporters:
+                    if name in SKIP_AD_CALLERS or ad is None:
+                        continue
+                    pls_candidate = calculate_pl(ad[0], ad[1])
+                    gq_candidate = calculate_gq(pls_candidate)
+                    if gq_candidate > best_gq:
+                        best_gq = gq_candidate
+                        bev = name
+                        best_ad = ad
+                        best_pls = pls_candidate
+                if bev is None:
+                    non_skip_with_ad = [sup for sup in supporters if sup[0] not in SKIP_AD_CALLERS and sup[1] is not None]
+                    if non_skip_with_ad:
+                        bev = non_skip_with_ad[0][0]
+                        best_ad = non_skip_with_ad[0][1]
+
+            if bev is not None:
+                ev_entries = []
+                for name, ad in supporters:
+                    if name in SKIP_AD_CALLERS or ad is None:
+                        ev_entries.append(name)
+                    else:
+                        ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
+                s["EV"] = tuple(ev_entries)
+                s["BEV"] = bev
+                if best_ad is not None:
+                    if best_pls is None:
+                        best_pls = calculate_pl(best_ad[0], best_ad[1])
+                    s["AD"] = best_ad
+                    s["PL"] = best_pls
+                    s["GQ"] = calculate_gq(best_pls)
                 else:
-                    ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
-            s["EV"] = tuple(ev_entries)
+                    s["AD"] = tuple(None for _ in range(n_alleles))
+                    s["PL"] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
+                    s["GQ"] = None
+                if bev == "kanpig" and kp_dp_val is not None:
+                    s["DP"] = int(kp_dp_val)
 
     out.write(rec)
 
