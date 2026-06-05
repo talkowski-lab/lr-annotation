@@ -237,8 +237,6 @@ def count_non_ref_or_missing(gt):
     return sum(1 for a in gt if a is None or a > 0)
 
 def calculate_pl(ref_reads, alt_reads):
-    # Mirrors Sniffles2 genotyping.py: binomial likelihood with no prior,
-    # clamp support<=coverage, downsample to 250, PL = -10*log10(q/q_best).
     support = alt_reads
     coverage = ref_reads + alt_reads
     if coverage == 0:
