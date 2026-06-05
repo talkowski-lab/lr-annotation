@@ -33,6 +33,7 @@ workflow SVAddRawCallers {
         Float sequence_similarity = 0.8
         Int breakpoint_window = 500
         Boolean fuzzy_match_vcf_to_stats = true
+        Int fuzzy_match_breakpoint_window = 500
         Boolean match_gt_kanpig = true
         Boolean match_gt_non_kanpig = true
         File? null_file
@@ -127,6 +128,7 @@ workflow SVAddRawCallers {
                 sequence_similarity = sequence_similarity,
                 breakpoint_window = breakpoint_window,
                 fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
+                fuzzy_match_breakpoint_window = fuzzy_match_breakpoint_window,
                 match_gt_kanpig = match_gt_kanpig,
                 match_gt_non_kanpig = match_gt_non_kanpig,
                 prefix = "~{prefix}.~{sample_ids[i]}.added",
@@ -189,6 +191,7 @@ task ProcessSample {
         Float sequence_similarity
         Int breakpoint_window
         Boolean fuzzy_match_vcf_to_stats
+        Int fuzzy_match_breakpoint_window
         Boolean match_gt_kanpig
         Boolean match_gt_non_kanpig
         String prefix
@@ -222,6 +225,7 @@ sequence_similarity = float(~{sequence_similarity})
 breakpoint_window = int(~{breakpoint_window})
 sv_stats_path = "~{sv_stats}"
 fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
+fuzzy_match_breakpoint_window = int(~{fuzzy_match_breakpoint_window})
 match_gt_kanpig = ~{true="True" false="False" match_gt_kanpig}
 match_gt_non_kanpig = ~{true="True" false="False" match_gt_non_kanpig}
 
@@ -373,16 +377,16 @@ if sv_stats_path:
     for chrom in sv_stats_spatial:
         sv_stats_spatial[chrom].sort(key=lambda x: x[0])
 
-def find_matching_stat(chrom, pos, svtype, window=500):
+def find_matching_stat(chrom, pos, svtype):
     entries = sv_stats_spatial.get(chrom, [])
     if not entries:
         return None
-    lo = bisect.bisect_left(entries, (pos - window,))
+    lo = bisect.bisect_left(entries, (pos - fuzzy_match_breakpoint_window,))
     best = None
     best_dist = float("inf")
     for i in range(lo, len(entries)):
         entry_pos, stat = entries[i]
-        if entry_pos > pos + window:
+        if entry_pos > pos + fuzzy_match_breakpoint_window:
             break
         if stat["svtype"] != svtype or not stat["callers"]:
             continue
