@@ -237,14 +237,32 @@ def count_non_ref_or_missing(gt):
     return sum(1 for a in gt if a is None or a > 0)
 
 def calculate_pl(ref_reads, alt_reads):
-    if ref_reads + alt_reads == 0:
+    # Mirrors Sniffles2 genotyping.py: binomial likelihood with no prior,
+    # clamp support<=coverage, downsample to 250, PL = -10*log10(q/q_best).
+    support = alt_reads
+    coverage = ref_reads + alt_reads
+    if coverage == 0:
         return (0, 0, 0)
-    means = [0.03, 0.50, 0.97]
-    priors = [0.33, 0.34, 0.33]
-    log10 = math.log(10)
-    ll = [(math.log(priors[i]) + alt_reads * math.log(means[i]) + ref_reads * math.log(1.0 - means[i])) / log10 for i in range(3)]
-    max_ll = max(ll)
-    return tuple(int(round(-10 * (x - max_ll))) for x in ll)
+    if support > coverage:
+        coverage = support
+    genotype_error = 0.05
+    ploidy = 2
+    means = [genotype_error, 1.0 / ploidy, 1.0 - genotype_error]
+    normalization_target = 250
+    max_lead = max(support, coverage)
+    if max_lead > normalization_target:
+        norm = normalization_target / float(max_lead)
+        support = round(support * norm)
+        coverage = round(coverage * norm)
+    ll = [(p ** support) * ((1.0 - p) ** (coverage - support)) for p in means]
+    max_q = max(ll)
+    pls = []
+    for q in ll:
+        if q > 0 and max_q > 0:
+            pls.append(min(int(round(-10 * math.log(q / max_q, 10))), 99))
+        else:
+            pls.append(99)
+    return tuple(pls)
 
 def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
