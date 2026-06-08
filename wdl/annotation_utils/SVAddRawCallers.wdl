@@ -27,15 +27,16 @@ workflow SVAddRawCallers {
         Array[File?]? hapdiff_vcfs
         Array[File?]? hapdiff_vcf_idxs
         String prefix
-
-        File? swap_samples
+        
         Float size_similarity = 0.8
         Float sequence_similarity = 0.8
         Int breakpoint_window = 500
-        Boolean fuzzy_match_vcf_to_stats = true
         Int fuzzy_match_breakpoint_window = 500
+        Boolean fuzzy_match_vcf_to_stats = true
         Boolean match_gt_kanpig = true
         Boolean match_gt_non_kanpig = true
+
+        File? swap_samples
         File? null_file
 
         String utils_docker
@@ -277,15 +278,17 @@ def calculate_pl(ref_reads, alt_reads):
 def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
 
-def clear_format(rec, sample, n_alleles):
-    rec.samples[sample]["DP"] = None
+def clear_format(rec, sample, n_alleles, clear_gt=True, clear_dp=True):
     rec.samples[sample]["GQ"] = None
     rec.samples[sample]["AD"] = tuple(None for _ in range(n_alleles))
     rec.samples[sample]["PL"] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
-    rec.samples[sample]["GT"] = tuple(None for _ in range(n_alleles))
+    if clear_dp:
+        rec.samples[sample]["DP"] = None
+    if clear_gt:
+        rec.samples[sample]["GT"] = tuple(None for _ in range(n_alleles))
 
 def kanpig_key(rec):
-    # Exact match key; uppercase REF/ALT to ignore soft-masking case mismatches.
+    # Exact match key - uppercase REF/ALT to ignore case mismatches
     ref = rec.ref.upper() if rec.ref else rec.ref
     alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
     return (rec.chrom, rec.pos, ref, alts, rec.id)
@@ -350,7 +353,6 @@ tv_params = truvari.VariantParams(
 )
 
 # sv_stats: optional per-sample BED listing callers supporting each variant.
-# If provided, restrict per-caller truvari search to that subset (excluding pav/kanpig).
 sv_stats_map = {}
 sv_stats_spatial = defaultdict(list)
 if sv_stats_path:
@@ -411,14 +413,13 @@ def callers_for_record(rec):
     return set(stat["callers"])
 
 # Kanpig: load all records into a dict keyed by (CHROM, POS, REF.upper, ALT.upper, ID).
-# Memory ~ few hundred MB even for whole-genome single sample.
 kp_in = pysam.VariantFile("~{kanpig_vcf}")
 kp_sample = sample_id if sample_id in kp_in.header.samples else list(kp_in.header.samples)[0]
 kp_index = {}
 for r in kp_in:
     kp_index[kanpig_key(r)] = r
 
-# Per-caller: open via truvari with shared params, symlink so tabix .tbi matches.
+# Per-caller: open via truvari with shared params.
 caller_handles = {}
 for c, (path, idx) in caller_files.items():
     if not path:
@@ -464,7 +465,7 @@ for rec in vcf_in:
     chrom = rec.chrom
 
     if not gt or not is_called(gt):
-        # ref or missing call -> Kanpig MergeGenotypes Case 1/2 update
+        # Ref or missing
         kp_rec = kp_index.get(kanpig_key(rec))
         if kp_rec is not None:
             kp_s = kp_rec.samples[kp_sample]
@@ -497,7 +498,7 @@ for rec in vcf_in:
             s["GT"] = tuple(sorted(cur_gt, key=lambda a: (a is None, a if a is not None else 0)))
         s.phased = False
     else:
-        # non-ref call -> only set EV
+        # Non-ref
         v_count += 1
         base_state = count_non_ref_or_missing(gt)
         supporters = []
@@ -565,13 +566,12 @@ for rec in vcf_in:
         if had_nonkp_gt:
             v_nonkp_gt += 1
 
+        # BEV selection
+        bev = None
+        best_ad = None
+        best_pls = None
         if supporters:
             supporters.sort(key=lambda x: x[0])
-
-            # BEV selection (run first so we can skip all writes if no AD-bearing candidate)
-            bev = None
-            best_ad = None
-            best_pls = None
             kanpig_sup = next((sup for sup in supporters if sup[0] == "kanpig"), None)
             if kanpig_sup is not None:
                 bev = "kanpig"
@@ -594,27 +594,27 @@ for rec in vcf_in:
                         bev = non_skip_with_ad[0][0]
                         best_ad = non_skip_with_ad[0][1]
 
-            if bev is not None:
-                ev_entries = []
-                for name, ad in supporters:
-                    if name in SKIP_AD_CALLERS or ad is None:
-                        ev_entries.append(name)
-                    else:
-                        ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
-                s["EV"] = tuple(ev_entries)
-                s["BEV"] = bev
-                if best_ad is not None:
-                    if best_pls is None:
-                        best_pls = calculate_pl(best_ad[0], best_ad[1])
-                    s["AD"] = best_ad
-                    s["PL"] = best_pls
-                    s["GQ"] = calculate_gq(best_pls)
+        if bev is not None:
+            ev_entries = []
+            for name, ad in supporters:
+                if name in SKIP_AD_CALLERS or ad is None:
+                    ev_entries.append(name)
                 else:
-                    s["AD"] = tuple(None for _ in range(n_alleles))
-                    s["PL"] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
-                    s["GQ"] = None
-                if bev == "kanpig" and kp_dp_val is not None:
-                    s["DP"] = int(kp_dp_val)
+                    ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
+            s["EV"] = tuple(ev_entries)
+            s["BEV"] = bev
+            if best_ad is not None:
+                if best_pls is None:
+                    best_pls = calculate_pl(best_ad[0], best_ad[1])
+                s["AD"] = best_ad
+                s["PL"] = best_pls
+                s["GQ"] = calculate_gq(best_pls)
+            else:
+                clear_format(rec, sample_name, n_alleles, clear_gt=False, clear_dp=False)
+            if bev == "kanpig" and kp_dp_val is not None:
+                s["DP"] = int(kp_dp_val)
+        else:
+            clear_format(rec, sample_name, n_alleles, clear_gt=False, clear_dp=True)
 
     out.write(rec)
 

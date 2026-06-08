@@ -12,16 +12,17 @@ workflow FillFormatFields {
         String contig
         String prefix
 
-        Int? shard_bin_size
-
         Array[String] format_fields
         String? include_field
         String? include_value
-        Boolean modify_ev_number = false
+
+        Int? shard_bin_size
+
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
         Boolean unphase_gts = false
         Boolean add_pl = false
+        Boolean modify_ev_number = false
 
         String utils_docker
 
@@ -229,8 +230,6 @@ def get_sample_ploidy(sample_data):
     return len(gt)
 
 def calculate_pl(ref_reads, alt_reads, ploidy):
-    # Mirrors Sniffles2 genotyping.py: binomial likelihood with no prior,
-    # clamp support<=coverage, downsample to 250, PL = -10*log10(q/q_best), capped at 99.
     support = alt_reads
     coverage = ref_reads + alt_reads
     if coverage == 0:

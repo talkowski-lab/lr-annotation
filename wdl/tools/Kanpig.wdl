@@ -220,8 +220,6 @@ def is_missing(gt):
     return all(a is None for a in gt)
 
 def calculate_pl(ref_reads, alt_reads):
-    # Mirrors Sniffles2 genotyping.py: binomial likelihood with no prior,
-    # clamp support<=coverage, downsample to 250, PL = -10*log10(q/q_best), capped at 99.
     support = alt_reads
     coverage = ref_reads + alt_reads
     if coverage == 0:
