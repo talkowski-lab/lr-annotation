@@ -30,7 +30,7 @@ workflow MergeVcfs {
         RuntimeAttr? runtime_attr_subset_shard
         RuntimeAttr? runtime_attr_subset_by_type
         RuntimeAttr? runtime_attr_merge_trv
-        RuntimeAttr? runtime_attr_merge_and_split_non_trv
+        RuntimeAttr? runtime_attr_merge_non_trv
         RuntimeAttr? runtime_attr_consolidate_non_trv
         RuntimeAttr? runtime_attr_finalize_non_trv
         RuntimeAttr? runtime_attr_concat_merged
@@ -94,7 +94,7 @@ workflow MergeVcfs {
                     runtime_attr_override = runtime_attr_merge_trv
             }
 
-            call MergeAndSplitNonTrv as MergeAndSplitNonTrvShard {
+            call MergeNonTrvVcfs as MergeNonTrvShard {
                 input:
                     vcfs = SubsetNonTrvShard.subset_vcf,
                     vcf_idxs = SubsetNonTrvShard.subset_vcf_idx,
@@ -103,13 +103,13 @@ workflow MergeVcfs {
                     min_truvari_match = min_truvari_match,
                     prefix = "~{prefix}.shard_~{j}.non_trv",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_merge_and_split_non_trv
+                    runtime_attr_override = runtime_attr_merge_non_trv
             }
 
             call Helpers.ConsolidateCollapsedSites as ConsolidateNonTrvShard {
                 input:
-                    vcf = MergeAndSplitNonTrvShard.unmatched_large_vcf,
-                    vcf_idx = MergeAndSplitNonTrvShard.unmatched_large_vcf_idx,
+                    vcf = MergeNonTrvShard.unmatched_large_vcf,
+                    vcf_idx = MergeNonTrvShard.unmatched_large_vcf_idx,
                     pctovl = reciprocal_overlap,
                     pctseq = sequence_similarity,
                     pctsize = size_similarity,
@@ -127,14 +127,14 @@ workflow MergeVcfs {
 
             call FinalizeNonTrvMerge as FinalizeNonTrvShard {
                 input:
-                    matched_vcf = MergeAndSplitNonTrvShard.matched_vcf,
-                    matched_vcf_idx = MergeAndSplitNonTrvShard.matched_vcf_idx,
-                    unmatched_small_vcf = MergeAndSplitNonTrvShard.unmatched_small_vcf,
-                    unmatched_small_vcf_idx = MergeAndSplitNonTrvShard.unmatched_small_vcf_idx,
+                    matched_vcf = MergeNonTrvShard.matched_vcf,
+                    matched_vcf_idx = MergeNonTrvShard.matched_vcf_idx,
+                    unmatched_small_vcf = MergeNonTrvShard.unmatched_small_vcf,
+                    unmatched_small_vcf_idx = MergeNonTrvShard.unmatched_small_vcf_idx,
                     consolidated_large_vcf = ConsolidateNonTrvShard.consolidated_vcf,
                     consolidated_large_vcf_idx = ConsolidateNonTrvShard.consolidated_vcf_idx,
-                    n_non_trv_input = MergeAndSplitNonTrvShard.n_non_trv_input,
-                    n_truvari_input = MergeAndSplitNonTrvShard.n_truvari_input,
+                    n_non_trv_input = MergeNonTrvShard.n_non_trv_input,
+                    n_truvari_input = MergeNonTrvShard.n_truvari_input,
                     contig = contig,
                     prefix = "~{prefix}.shard_~{j}.non_trv_merged",
                     docker = utils_docker,
@@ -209,7 +209,7 @@ workflow MergeVcfs {
                 runtime_attr_override = runtime_attr_merge_trv
         }
 
-        call MergeAndSplitNonTrv {
+        call MergeNonTrvVcfs {
             input:
                 vcfs = SubsetNonTrv.subset_vcf,
                 vcf_idxs = SubsetNonTrv.subset_vcf_idx,
@@ -218,13 +218,13 @@ workflow MergeVcfs {
                 min_truvari_match = min_truvari_match,
                 prefix = "~{prefix}.non_trv",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_merge_and_split_non_trv
+                runtime_attr_override = runtime_attr_merge_non_trv
         }
 
         call Helpers.ConsolidateCollapsedSites as ConsolidateNonTrv {
             input:
-                vcf = MergeAndSplitNonTrv.unmatched_large_vcf,
-                vcf_idx = MergeAndSplitNonTrv.unmatched_large_vcf_idx,
+                vcf = MergeNonTrvVcfs.unmatched_large_vcf,
+                vcf_idx = MergeNonTrvVcfs.unmatched_large_vcf_idx,
                 pctovl = reciprocal_overlap,
                 pctseq = sequence_similarity,
                 pctsize = size_similarity,
@@ -242,14 +242,14 @@ workflow MergeVcfs {
 
         call FinalizeNonTrvMerge {
             input:
-                matched_vcf = MergeAndSplitNonTrv.matched_vcf,
-                matched_vcf_idx = MergeAndSplitNonTrv.matched_vcf_idx,
-                unmatched_small_vcf = MergeAndSplitNonTrv.unmatched_small_vcf,
-                unmatched_small_vcf_idx = MergeAndSplitNonTrv.unmatched_small_vcf_idx,
+                matched_vcf = MergeNonTrvVcfs.matched_vcf,
+                matched_vcf_idx = MergeNonTrvVcfs.matched_vcf_idx,
+                unmatched_small_vcf = MergeNonTrvVcfs.unmatched_small_vcf,
+                unmatched_small_vcf_idx = MergeNonTrvVcfs.unmatched_small_vcf_idx,
                 consolidated_large_vcf = ConsolidateNonTrv.consolidated_vcf,
                 consolidated_large_vcf_idx = ConsolidateNonTrv.consolidated_vcf_idx,
-                n_non_trv_input = MergeAndSplitNonTrv.n_non_trv_input,
-                n_truvari_input = MergeAndSplitNonTrv.n_truvari_input,
+                n_non_trv_input = MergeNonTrvVcfs.n_non_trv_input,
+                n_truvari_input = MergeNonTrvVcfs.n_truvari_input,
                 contig = contig,
                 prefix = "~{prefix}.non_trv_merged",
                 docker = utils_docker,
@@ -406,7 +406,7 @@ task MergeTrvVcfs {
     }
 }
 
-task MergeAndSplitNonTrv {
+task MergeNonTrvVcfs {
     input {
         Array[File] vcfs
         Array[File] vcf_idxs
@@ -470,12 +470,19 @@ task MergeAndSplitNonTrv {
         bcftools merge \
             -m none \
             -i MERGE_COUNT:sum \
-            -Oz -o exact_merged.unsorted.vcf.gz \
+            -Oz -o exact_merged.raw.vcf.gz \
             -l tagged_vcfs.list
 
         while read -r tagged_vcf; do
             rm -f "$tagged_vcf" "$tagged_vcf.tbi"
         done < tagged_vcfs.list
+
+        # Joined IDs with ';' are rewritten to '_' so the ID column stays parseable
+        bcftools view exact_merged.raw.vcf.gz \
+            | awk 'BEGIN{OFS="\t"} /^#/{print; next} {gsub(/;/,"_",$3); print}' \
+            | bgzip > exact_merged.unsorted.vcf.gz
+
+        rm -f exact_merged.raw.vcf.gz
 
         bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
