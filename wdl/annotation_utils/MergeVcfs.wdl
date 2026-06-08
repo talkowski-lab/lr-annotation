@@ -338,12 +338,19 @@ task MergeTrvVcfs {
         bcftools merge \
             -m all \
             -i MERGE_COUNT:sum \
-            -Oz -o merged.unsorted.vcf.gz \
+            -Oz -o merged.raw.vcf.gz \
             -l tagged_vcfs.list
 
         while read -r tagged_vcf; do
             rm -f "$tagged_vcf" "$tagged_vcf.tbi"
         done < tagged_vcfs.list
+
+        # replace ';' with '_' so each merged site keeps a parseable ID
+        bcftools view merged.raw.vcf.gz \
+            | awk 'BEGIN{OFS="\t"} /^#/{print; next} {gsub(/;/,"_",$3); print}' \
+            | bgzip > merged.unsorted.vcf.gz
+
+        rm -f merged.raw.vcf.gz
 
         bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
