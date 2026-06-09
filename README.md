@@ -687,7 +687,7 @@ Outputs:
 
 
 ### [FillFormatFields](wdl/annotation_utils/FillFormatFields.wdl)
-This utility fills missing FORMAT fields in one VCF using the values from a second, more complete VCF covering the same sites. It supports selectively copying named format fields plus toggles for modifying the `EV` number, filling alternate and reference genotypes, unphasing genotypes and adding PL, with optional region sharding. It outputs the refilled VCF.
+This utility fills missing FORMAT fields in one VCF using the values from a second, more complete VCF covering the same sites. It supports selectively copying named format fields plus toggles for filling alternate and reference genotypes, unphasing genotypes and adding PL, with optional region sharding. It outputs the refilled VCF.
 
 Inputs:
 - `File unfilled_vcf`: VCF whose FORMAT fields are filled.
@@ -699,7 +699,6 @@ Inputs:
 - `Array[String] format_fields`: FORMAT fields to fill.
 - `String? include_field`: FORMAT field whose value gates whether a record is filled.
 - `String? include_value`: Value of `include_field` required for a record to be filled.
-- `Boolean modify_ev_number`: Whether to update the `EV` field `Number` (default `false`).
 - `Boolean fill_alt_gts`: Whether to fill alternate-allele genotypes (default `false`).
 - `Boolean fill_ref_gts`: Whether to fill reference genotypes (default `false`).
 - `Boolean unphase_gts`: Whether to unphase genotypes while filling (default `false`).

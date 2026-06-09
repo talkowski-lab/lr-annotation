@@ -7,10 +7,11 @@ workflow SVAddRawCallers {
     input {
         File sv_vcf
         File sv_vcf_idx
-        Array[String] sample_ids
-        Array[String] sexes
         Array[File] kanpig_vcfs
         Array[File] kanpig_vcf_idxs
+        Array[String] sample_ids
+        String prefix
+
         Array[File?]? sample_sv_stats
         Array[File?]? cutesv_vcfs
         Array[File?]? cutesv_vcf_idxs
@@ -26,7 +27,6 @@ workflow SVAddRawCallers {
         Array[File?]? dipcall_vcf_idxs
         Array[File?]? hapdiff_vcfs
         Array[File?]? hapdiff_vcf_idxs
-        String prefix
         
         Float size_similarity = 0.8
         Float sequence_similarity = 0.8
@@ -105,7 +105,6 @@ workflow SVAddRawCallers {
         call ProcessSample {
             input:
                 sample_id = sample_ids[i],
-                sex = sexes[i],
                 subset_vcf = ExtractSample.subset_vcf,
                 subset_vcf_idx = ExtractSample.subset_vcf_idx,
                 kanpig_vcf = kanpig_vcfs[i],
@@ -168,7 +167,6 @@ workflow SVAddRawCallers {
 task ProcessSample {
     input {
         String sample_id
-        String sex
         File subset_vcf
         File subset_vcf_idx
         File kanpig_vcf
@@ -219,8 +217,6 @@ PER_CALLER_NAMES = ["cutesv", "sniffles", "delly", "pbsv", "sawfish", "dipcall",
 EXCLUDED_SUPP = {"pav", "kanpig"}
 
 sample_id = "~{sample_id}"
-sex = "~{sex}"
-is_male = (sex == "M")
 size_similarity = float(~{size_similarity})
 sequence_similarity = float(~{sequence_similarity})
 breakpoint_window = int(~{breakpoint_window})
@@ -246,8 +242,8 @@ def is_called(gt):
 def is_missing(gt):
     return all(a is None for a in gt)
 
-def count_non_ref_or_missing(gt):
-    return sum(1 for a in gt if a is None or a > 0)
+def count_non_ref(gt):
+    return sum(1 for a in gt if a is not None and a > 0)
 
 def calculate_pl(ref_reads, alt_reads):
     support = alt_reads
@@ -278,17 +274,15 @@ def calculate_pl(ref_reads, alt_reads):
 def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
 
-def clear_format(rec, sample, n_alleles, clear_gt=True, clear_dp=True):
+def clear_format(rec, sample, n_alleles, clear_gt=True):
     rec.samples[sample]["GQ"] = None
     rec.samples[sample]["AD"] = tuple(None for _ in range(n_alleles))
     rec.samples[sample]["PL"] = tuple(None for _ in range(comb(n_alleles + 1, 2)))
-    if clear_dp:
-        rec.samples[sample]["DP"] = None
+    rec.samples[sample]["DP"] = None
     if clear_gt:
         rec.samples[sample]["GT"] = tuple(None for _ in range(n_alleles))
 
 def kanpig_key(rec):
-    # Exact match key - uppercase REF/ALT to ignore case mismatches
     ref = rec.ref.upper() if rec.ref else rec.ref
     alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
     return (rec.chrom, rec.pos, ref, alts, rec.id)
@@ -371,6 +365,8 @@ if sv_stats_path:
                 "id": fields["ID"],
                 "chrom": fields["CHROM"],
                 "pos": int(fields["POS"]),
+                "end": int(fields["END"]),
+                "svlen": abs(int(fields["SVLEN"])),
                 "svtype": fields["SVTYPE"],
                 "callers": callers,
             }
@@ -379,22 +375,31 @@ if sv_stats_path:
     for chrom in sv_stats_spatial:
         sv_stats_spatial[chrom].sort(key=lambda x: x[0])
 
-def find_matching_stat(chrom, pos, svtype):
+def find_matching_stat(chrom, pos, end, svlen, svtype):
+    # Score each candidate by size similarity + reciprocal overlap + breakpoint closeness, pick the max.
     entries = sv_stats_spatial.get(chrom, [])
     if not entries:
         return None
     lo = bisect.bisect_left(entries, (pos - fuzzy_match_breakpoint_window,))
+    rec_span = max(1, end - pos)
+    rec_len = max(1, abs(svlen))
     best = None
-    best_dist = float("inf")
+    best_score = -1.0
     for i in range(lo, len(entries)):
         entry_pos, stat = entries[i]
         if entry_pos > pos + fuzzy_match_breakpoint_window:
             break
         if stat["svtype"] != svtype or not stat["callers"]:
             continue
-        dist = abs(entry_pos - pos)
-        if dist < best_dist:
-            best_dist = dist
+        stat_span = max(1, stat["end"] - stat["pos"])
+        stat_len = max(1, stat["svlen"])
+        size_sim = min(rec_len, stat_len) / max(rec_len, stat_len)
+        overlap = max(0, min(end, stat["end"]) - max(pos, stat["pos"]))
+        recip_overlap = overlap / max(rec_span, stat_span)
+        bp_closeness = max(0.0, 1.0 - abs(entry_pos - pos) / fuzzy_match_breakpoint_window)
+        score = size_sim + recip_overlap + bp_closeness
+        if score > best_score:
+            best_score = score
             best = stat
     return best
 
@@ -407,7 +412,11 @@ def callers_for_record(rec):
         if isinstance(rec_svtype, tuple):
             rec_svtype = rec_svtype[0] if rec_svtype else None
         if rec_svtype:
-            stat = find_matching_stat(rec.chrom, rec.pos, rec_svtype)
+            rec_svlen = rec.info.get("SVLEN")
+            if isinstance(rec_svlen, tuple):
+                rec_svlen = rec_svlen[0] if rec_svlen else None
+            rec_svlen = abs(int(rec_svlen)) if rec_svlen is not None else abs(rec.stop - rec.pos)
+            stat = find_matching_stat(rec.chrom, rec.pos, rec.stop, rec_svlen, rec_svtype)
     if stat is None:
         return None
     return set(stat["callers"])
@@ -437,24 +446,20 @@ for c, (path, idx) in caller_files.items():
 
 vcf_in = truvari.VariantFile("~{subset_vcf}", params=tv_params)
 header = vcf_in.header
-ev_decl = ('##FORMAT=<ID=EV,Number=.,Type=String,Description='
-           '"Callers supporting this sample call; entries as caller_(refAD_altAD); '
-           'dipcall/hapdiff omit the AD parens">')
-if "EV" not in header.formats:
-    header.add_line(ev_decl)
 for tag, line in [
     ("AD", '##FORMAT=<ID=AD,Number=R,Type=Integer,Description="Allelic depths">'),
     ("GQ", '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">'),
     ("PL", '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">'),
     ("DP", '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth">'),
-    ("BEV", '##FORMAT=<ID=BEV,Number=1,Type=String,Description="Representative caller for this sample call: kanpig if in EV, else highest-GQ per-caller with valid AD, else first alphabetical AD-eligible per-caller with valid AD">'),
+    ("EV", '##FORMAT=<ID=EV,Number=.,Type=String,Description="Callers supporting this sample call; entries as caller_(refAD_altAD); dipcall/hapdiff omit the AD parens">'),
+    ("BEV", '##FORMAT=<ID=BEV,Number=1,Type=String,Description="Representative caller for this sample call: kanpig if in EV, else highest-GQ per-caller with valid AD">'),
 ]:
     if tag not in header.formats:
         header.add_line(line)
 
 out = truvari.VariantFile("~{prefix}.vcf.gz", "w", header=header)
 
-v_count = v_match = v_gt_match = v_kp_site = v_kp_gt = v_nonkp_site = v_nonkp_gt = 0
+v_count = v_match = v_gt_match = v_gt_ad = v_kp_site = v_kp_gt = v_gt_ad_kp = v_nonkp_site = v_nonkp_gt = v_gt_ad_nonkp = 0
 
 for rec in vcf_in:
     rec.translate(out.header)
@@ -465,51 +470,47 @@ for rec in vcf_in:
     chrom = rec.chrom
 
     if not gt or not is_called(gt):
-        # Ref or missing
+        # Case 1: Base ref or missing
         kp_rec = kp_index.get(kanpig_key(rec))
         if kp_rec is not None:
             kp_s = kp_rec.samples[kp_sample]
             kp_gt = kp_s["GT"]
-            is_female_y = (not is_male) and chrom == "chrY"
-            is_hemi = is_male and chrom in {"chrX", "chrY"}
-
             if not is_called(kp_gt) and not is_missing(kp_gt):
-                # Case 1: base ref/missing, kanpig ref
-                if is_female_y:
-                    clear_format(rec, sample_name, n_alleles)
-                else:
-                    s["DP"] = kp_s.get("DP")
-                    kp_ad = kp_s.get("AD")
-                    if kp_ad is not None and len(kp_ad) == n_alleles and all(x is not None for x in kp_ad):
-                        s["AD"] = tuple(int(x) for x in kp_ad)
-                        pls = calculate_pl(int(kp_ad[0]), int(kp_ad[1]))
-                        s["PL"] = pls
-                        s["GQ"] = calculate_gq(pls)
-                    if is_hemi:
-                        s["GT"] = (0, None)
-                    else:
-                        s["GT"] = tuple(0 for _ in range(n_alleles))
-            elif is_missing(kp_gt) or is_called(kp_gt):
-                # Case 2: base ref/missing, kanpig missing or non-ref -> clear
+                # Case 1a: Kanpig ref --> set FORMAT fields
+                kp_ad = kp_s["AD"]
+                s["DP"] = kp_s.get("DP")
+                s["AD"] = tuple(int(x) for x in kp_ad)
+                pls = calculate_pl(int(kp_ad[0]), int(kp_ad[1]))
+                s["PL"] = pls
+                s["GQ"] = calculate_gq(pls)
+                s["GT"] = tuple(0 for _ in range(n_alleles))
+            else:
+                # Case 1b: Kanpig missing or non-ref --> clear
                 clear_format(rec, sample_name, n_alleles)
+        else:
+            # No kanpig match --> clear
+            clear_format(rec, sample_name, n_alleles, clear_gt=False)
 
         cur_gt = s["GT"]
         if cur_gt is not None:
             s["GT"] = tuple(sorted(cur_gt, key=lambda a: (a is None, a if a is not None else 0)))
         s.phased = False
     else:
-        # Non-ref
+        # Case 2: Base non-ref
         v_count += 1
-        base_state = count_non_ref_or_missing(gt)
+        base_state = count_non_ref(gt)
         supporters = []
         had_any_match = False
         had_gt_match = False
+        had_gt_ad = False
         had_kp_site = False
         had_kp_gt = False
+        had_gt_ad_kp = False
         had_nonkp_site = False
         had_nonkp_gt = False
+        had_gt_ad_nonkp = False
 
-        kp_ad_val = None
+        # Assess Kanpig match
         kp_dp_val = None
         kp_rec = kp_index.get(kanpig_key(rec))
         if kp_rec is not None:
@@ -517,20 +518,21 @@ for rec in vcf_in:
             had_kp_site = True
             kp_s = kp_rec.samples[kp_sample]
             kp_dp_val = kp_s.get("DP")
-            kp_ad = kp_s.get("AD")
-            if kp_ad is not None and len(kp_ad) >= 2 and all(x is not None for x in kp_ad[:2]):
-                kp_ad_val = (int(kp_ad[0]), int(kp_ad[1]))
-            kp_gt_match = (count_non_ref_or_missing(kp_s["GT"]) == base_state)
-            if kp_gt_match:
+            kp_gt = kp_s["GT"]
+            kp_gt_match = (count_non_ref(kp_gt) == base_state)
+            keep_kp = kp_gt_match if match_gt_kanpig else is_called(kp_gt)
+            if keep_kp:
+                kp_ad = kp_s["AD"]
                 had_gt_match = True
                 had_kp_gt = True
-            if kp_gt_match or not match_gt_kanpig:
-                supporters.append(("kanpig", kp_ad_val))
+                had_gt_ad = True
+                had_gt_ad_kp = True
+                supporters.append(("kanpig", (int(kp_ad[0]), int(kp_ad[1]))))
 
+        # Asses non-Kanpig match
         target_svlen = rec.info.get("SVLEN")
         if isinstance(target_svlen, tuple):
             target_svlen = target_svlen[0] if target_svlen else None
-
         allowed_callers = callers_for_record(rec)
         for caller, (vf, csample) in caller_handles.items():
             if allowed_callers is not None and caller not in allowed_callers:
@@ -541,32 +543,42 @@ for rec in vcf_in:
             had_any_match = True
             had_nonkp_site = True
             m_gt = match.samples[csample]["GT"]
-            m_gt_match = (count_non_ref_or_missing(m_gt) == base_state)
-            if m_gt_match:
-                had_gt_match = True
-                had_nonkp_gt = True
-            if not m_gt_match and match_gt_non_kanpig:
+            m_gt_match = (count_non_ref(m_gt) == base_state)
+            keep_match = m_gt_match if match_gt_non_kanpig else is_called(m_gt)
+            if not keep_match:
                 continue
+            had_gt_match = True
+            had_nonkp_gt = True
             if caller in SKIP_AD_CALLERS:
                 supporters.append((caller, None))
             else:
                 ad = get_ad_from_record(match, caller, csample, target_svlen=target_svlen)
+                if ad is not None:
+                    had_gt_ad = True
+                    had_gt_ad_nonkp = True
                 supporters.append((caller, ad))
 
+        # Update counts for TSV
         if had_any_match:
             v_match += 1
         if had_gt_match:
             v_gt_match += 1
+        if had_gt_ad:
+            v_gt_ad += 1
         if had_kp_site:
             v_kp_site += 1
         if had_kp_gt:
             v_kp_gt += 1
+        if had_gt_ad_kp:
+            v_gt_ad_kp += 1
         if had_nonkp_site:
             v_nonkp_site += 1
         if had_nonkp_gt:
             v_nonkp_gt += 1
+        if had_gt_ad_nonkp:
+            v_gt_ad_nonkp += 1
 
-        # BEV selection
+        # Select BEV
         bev = None
         best_ad = None
         best_pls = None
@@ -588,13 +600,9 @@ for rec in vcf_in:
                         bev = name
                         best_ad = ad
                         best_pls = pls_candidate
-                if bev is None:
-                    non_skip_with_ad = [sup for sup in supporters if sup[0] not in SKIP_AD_CALLERS and sup[1] is not None]
-                    if non_skip_with_ad:
-                        bev = non_skip_with_ad[0][0]
-                        best_ad = non_skip_with_ad[0][1]
 
-        if bev is not None:
+        # Set FORMAT fields
+        if supporters:
             ev_entries = []
             for name, ad in supporters:
                 if name in SKIP_AD_CALLERS or ad is None:
@@ -602,19 +610,18 @@ for rec in vcf_in:
                 else:
                     ev_entries.append(f"{name}_({ad[0]}_{ad[1]})")
             s["EV"] = tuple(ev_entries)
+        
+        if bev is not None:
             s["BEV"] = bev
-            if best_ad is not None:
-                if best_pls is None:
-                    best_pls = calculate_pl(best_ad[0], best_ad[1])
-                s["AD"] = best_ad
-                s["PL"] = best_pls
-                s["GQ"] = calculate_gq(best_pls)
-            else:
-                clear_format(rec, sample_name, n_alleles, clear_gt=False, clear_dp=False)
+            if best_pls is None:
+                best_pls = calculate_pl(best_ad[0], best_ad[1])
+            s["AD"] = best_ad
+            s["PL"] = best_pls
+            s["GQ"] = calculate_gq(best_pls)
             if bev == "kanpig" and kp_dp_val is not None:
                 s["DP"] = int(kp_dp_val)
         else:
-            clear_format(rec, sample_name, n_alleles, clear_gt=False, clear_dp=True)
+            clear_format(rec, sample_name, n_alleles, clear_gt=False)
 
     out.write(rec)
 
@@ -625,8 +632,8 @@ for vf, _ in caller_handles.values():
     vf.close()
 
 with open("~{prefix}.match_counts.tsv", "w") as fh:
-    fh.write("sample_id\tcount\tcount_match_site\tcount_match_gt\tcount_match_site_kp\tcount_match_gt_kp\tcount_match_site_nonkp\tcount_match_gt_nonkp\n")
-    fh.write(f"{sample_id}\t{v_count}\t{v_match}\t{v_gt_match}\t{v_kp_site}\t{v_kp_gt}\t{v_nonkp_site}\t{v_nonkp_gt}\n")
+    fh.write("sample_id\tcount\tcount_match_site\tcount_match_gt\tcount_match_gt_ad\tcount_match_site_kp\tcount_match_gt_kp\tcount_match_gt_ad_kp\tcount_match_site_nonkp\tcount_match_gt_nonkp\tcount_match_gt_ad_nonkp\n")
+    fh.write(f"{sample_id}\t{v_count}\t{v_match}\t{v_gt_match}\t{v_gt_ad}\t{v_kp_site}\t{v_kp_gt}\t{v_gt_ad_kp}\t{v_nonkp_site}\t{v_nonkp_gt}\t{v_gt_ad_nonkp}\n")
 CODE
 
         tabix -p vcf ~{prefix}.vcf.gz

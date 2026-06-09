@@ -11,6 +11,8 @@ workflow Automop {
         Boolean dry_run
 
         String automop_docker
+
+        RuntimeAttr? runtime_attr_mop
     }
 
     call MopTask {
@@ -19,7 +21,8 @@ workflow Automop {
             workspace_name = workspace_name,
             user = user,
             dry_run = dry_run,
-            docker = automop_docker
+            docker = automop_docker,
+            runtime_attr_override = runtime_attr_mop
     }
 }
 
@@ -30,6 +33,7 @@ task MopTask {
         String user
         Boolean dry_run
         String docker
+        RuntimeAttr? runtime_attr_override
     }
 
     command <<<
@@ -94,10 +98,22 @@ EOF
         File fissfc_log = "fissfc_log.log"
     }
 
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 16,
+        disk_gb: 20,
+        boot_disk_gb: 10,
+        preemptible_tries: 0,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
-        memory: "16 GB"
-        disks: "local-disk 20 HDD"
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
-        preemptible: 0
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }

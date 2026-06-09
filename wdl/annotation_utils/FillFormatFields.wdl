@@ -22,7 +22,6 @@ workflow FillFormatFields {
         Boolean fill_ref_gts = false
         Boolean unphase_gts = false
         Boolean add_pl = false
-        Boolean modify_ev_number = false
 
         String utils_docker
 
@@ -77,7 +76,6 @@ workflow FillFormatFields {
                     format_fields = format_fields,
                     include_field = include_field,
                     include_value = include_value,
-                    modify_ev_number = modify_ev_number,
                     fill_alt_gts = fill_alt_gts,
                     fill_ref_gts = fill_ref_gts,
                     unphase_gts = unphase_gts,
@@ -110,7 +108,6 @@ workflow FillFormatFields {
                 format_fields = format_fields,
                 include_field = include_field,
                 include_value = include_value,
-                modify_ev_number = modify_ev_number,
                 fill_alt_gts = fill_alt_gts,
                 fill_ref_gts = fill_ref_gts,
                 unphase_gts = unphase_gts,
@@ -136,7 +133,6 @@ task FillVcfFormatFields {
         Array[String] format_fields
         String? include_field
         String? include_value
-        Boolean modify_ev_number = false
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
         Boolean unphase_gts = false
@@ -150,34 +146,9 @@ task FillVcfFormatFields {
         set -euo pipefail
 
         format_fields_file="~{write_lines(format_fields)}"
-        filled_vcf_for_fill="~{filled_vcf}"
 
-        if [[ "~{modify_ev_number}" == "true" ]] && grep -Fxq "EV" "$format_fields_file"; then
-            bcftools view -h "~{filled_vcf}" > filled.header.txt
-
-            python3 <<'CODE'
-import re
-
-with open("filled.header.txt") as src:
-    lines = src.readlines()
-
-with open("filled.header.txt", "w") as dst:
-    for line in lines:
-        if line.startswith("##FORMAT=<ID=EV,"):
-            line = re.sub(r"Number=[^,>]+", "Number=.", line, count=1)
-        dst.write(line)
-CODE
-
-            bcftools reheader \
-                -h filled.header.txt \
-                -o filled.ev_number_fixed.vcf.gz \
-                "~{filled_vcf}"
-            tabix -p vcf filled.ev_number_fixed.vcf.gz
-            filled_vcf_for_fill="filled.ev_number_fixed.vcf.gz"
-        else
-            if [[ "~{filled_vcf_idx}" != "~{filled_vcf}.tbi" ]]; then
-                ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
-            fi
+        if [[ "~{filled_vcf_idx}" != "~{filled_vcf}.tbi" ]]; then
+            ln -sf "~{filled_vcf_idx}" "~{filled_vcf}.tbi"
         fi
 
         python3 <<CODE
@@ -197,7 +168,7 @@ unphase_gts = ~{true="True" false="False" unphase_gts}
 add_pl = ~{true="True" false="False" add_pl}
 
 unfilled_in = pysam.VariantFile("~{unfilled_vcf}")
-filled_in = pysam.VariantFile("$filled_vcf_for_fill")
+filled_in = pysam.VariantFile("~{filled_vcf}")
 
 out_header = unfilled_in.header.copy()
 for field in format_fields:
