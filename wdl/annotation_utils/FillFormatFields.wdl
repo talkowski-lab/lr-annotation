@@ -13,8 +13,6 @@ workflow FillFormatFields {
         String prefix
 
         Array[String] format_fields
-        String? include_field
-        String? include_value
 
         Int? shard_bin_size
 
@@ -74,8 +72,6 @@ workflow FillFormatFields {
                     filled_vcf = SubsetFilled.subset_vcf,
                     filled_vcf_idx = SubsetFilled.subset_vcf_idx,
                     format_fields = format_fields,
-                    include_field = include_field,
-                    include_value = include_value,
                     fill_alt_gts = fill_alt_gts,
                     fill_ref_gts = fill_ref_gts,
                     unphase_gts = unphase_gts,
@@ -106,8 +102,6 @@ workflow FillFormatFields {
                 filled_vcf = filled_vcf,
                 filled_vcf_idx = filled_vcf_idx,
                 format_fields = format_fields,
-                include_field = include_field,
-                include_value = include_value,
                 fill_alt_gts = fill_alt_gts,
                 fill_ref_gts = fill_ref_gts,
                 unphase_gts = unphase_gts,
@@ -131,8 +125,6 @@ task FillVcfFormatFields {
         File filled_vcf
         File filled_vcf_idx
         Array[String] format_fields
-        String? include_field
-        String? include_value
         Boolean fill_alt_gts = false
         Boolean fill_ref_gts = false
         Boolean unphase_gts = false
@@ -160,8 +152,6 @@ with open("$format_fields_file") as fh:
 
 assert "GT" not in format_fields, "GT must not be passed in format_fields; use fill_alt_gts/fill_ref_gts instead"
 
-include_field = "~{default="" include_field}" or None
-include_value = "~{default="" include_value}" or None
 fill_alt_gts = ~{true="True" false="False" fill_alt_gts}
 fill_ref_gts = ~{true="True" false="False" fill_ref_gts}
 unphase_gts = ~{true="True" false="False" unphase_gts}
@@ -182,14 +172,6 @@ common_samples = [s for s in out_header.samples if s in filled_samples]
 all_samples = list(out_header.samples)
 
 out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=out_header)
-
-def variant_passes_include(rec):
-    if include_field is None:
-        return True
-    val = rec.info.get(include_field)
-    if isinstance(val, tuple):
-        val = val[0] if val else None
-    return str(val) == include_value
 
 def gt_is_alt(gt):
     return any(a is not None and a > 0 for a in gt)
@@ -242,15 +224,14 @@ def alleles_key(rec):
 for unfilled_rec in unfilled_in:
     # Find matching variant
     unfilled_rec.translate(out_header)
-    passes_include = variant_passes_include(unfilled_rec)
     match = None
     unfilled_key = alleles_key(unfilled_rec)
     for cand in filled_in.fetch(unfilled_rec.chrom, unfilled_rec.start, unfilled_rec.stop):
         if alleles_key(cand) == unfilled_key:
             match = cand
             break
-
-    if match and passes_include:
+    
+    if match:
         for sample in common_samples:
             # Set GT field
             if fill_alt_gts or fill_ref_gts:
@@ -273,23 +254,22 @@ for unfilled_rec in unfilled_in:
                     print(f"[{unfilled_rec.id}] Could not set {field} for {sample}.")
                     pass
 
-    if passes_include:
-        # Unphase genotypes
-        if unphase_gts:
-            for sample in all_samples:
-                current_gt = unfilled_rec.samples[sample].get("GT")
-                if current_gt is not None:
-                    unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
-                    unfilled_rec.samples[sample].phased = False
+    # Unphase genotypes
+    if unphase_gts:
+        for sample in all_samples:
+            current_gt = unfilled_rec.samples[sample].get("GT")
+            if current_gt is not None:
+                unfilled_rec.samples[sample]["GT"] = unphase_gt(current_gt)
+                unfilled_rec.samples[sample].phased = False
 
-        # Set PL
-        if add_pl and "PL" not in unfilled_rec.format and "AD" in unfilled_rec.format:
-            for sample in all_samples:
-                ad = unfilled_rec.samples[sample].get("AD")
-                if ad_is_populated(ad):
-                    ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
-                    if ploidy is not None:
-                        unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
+    # Set PL
+    if add_pl and "PL" not in unfilled_rec.format and "AD" in unfilled_rec.format:
+        for sample in all_samples:
+            ad = unfilled_rec.samples[sample].get("AD")
+            if ad_is_populated(ad):
+                ploidy = get_sample_ploidy(unfilled_rec.samples[sample])
+                if ploidy is not None:
+                    unfilled_rec.samples[sample]["PL"] = calculate_pl(ad[0], ad[1], ploidy)
 
     out.write(unfilled_rec)
 
