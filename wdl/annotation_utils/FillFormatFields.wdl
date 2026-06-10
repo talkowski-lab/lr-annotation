@@ -183,32 +183,17 @@ def get_sample_ploidy(sample_data):
     return len(gt)
 
 def calculate_pl(ref_reads, alt_reads, ploidy):
-    support = alt_reads
-    coverage = ref_reads + alt_reads
-    if coverage == 0:
+    if ref_reads + alt_reads == 0:
         return (0, 0) if ploidy == 1 else (0, 0, 0)
-    if support > coverage:
-        coverage = support
     genotype_error = 0.05
     if ploidy == 1:
         means = [genotype_error, 1.0 - genotype_error]
     else:
         means = [genotype_error, 1.0 / ploidy, 1.0 - genotype_error]
-    normalization_target = 250
-    max_lead = max(support, coverage)
-    if max_lead > normalization_target:
-        norm = normalization_target / float(max_lead)
-        support = round(support * norm)
-        coverage = round(coverage * norm)
-    ll = [(p ** support) * ((1.0 - p) ** (coverage - support)) for p in means]
-    max_q = max(ll)
-    pls = []
-    for q in ll:
-        if q > 0 and max_q > 0:
-            pls.append(min(int(round(-10 * math.log(q / max_q, 10))), 99))
-        else:
-            pls.append(99)
-    return tuple(pls)
+    log10 = math.log(10)
+    ll = [(alt_reads * math.log(p) + ref_reads * math.log(1.0 - p)) / log10 for p in means]
+    max_ll = max(ll)
+    return tuple(int(round(-10 * (x - max_ll))) for x in ll)
 
 def ad_is_populated(ad):
     return ad is not None and len(ad) == 2 and all(value is not None for value in ad)
