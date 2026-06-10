@@ -7,23 +7,25 @@ workflow PostProcess {
     input {
         File vcf
         File vcf_idx
-        File? transfer_vcf
-        File? transfer_vcf_idx
         Array[String] contigs
         String prefix
 
         Int? shard_bin_size
-        Boolean run_transfer_genotypes
-        Boolean run_unphase_samples
-        Boolean run_normalize_ploidy
+        
         Boolean run_decrement_trv_ids
         Boolean run_prune_meis
         Boolean run_flag_homopolymer_trvs
-        Boolean run_sorting
         Boolean run_filter_singletons
-        File? ped
-        Array[String] unphase_samples = []
+        Boolean run_sorting
+        Boolean run_unphase_samples
+        Boolean run_transfer_genotypes
+        Boolean run_normalize_ploidy
 
+        Array[String] unphase_samples = []
+        File? transfer_vcf
+        File? transfer_vcf_idx
+        File? ped
+        
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_base
@@ -35,6 +37,9 @@ workflow PostProcess {
     }
 
     Boolean single_contig = length(contigs) == 1
+    Boolean do_transfer_genotypes = run_transfer_genotypes && defined(transfer_vcf)
+    Boolean do_unphase_samples = run_unphase_samples && length(unphase_samples) > 0
+    Boolean do_normalize_ploidy = run_normalize_ploidy && defined(ped)
 
     scatter (contig in contigs) {
         if (!single_contig) {
@@ -52,26 +57,28 @@ workflow PostProcess {
         File contig_base_vcf = select_first([SubsetBase.subset_vcf, vcf])
         File contig_base_vcf_idx = select_first([SubsetBase.subset_vcf_idx, vcf_idx])
 
-        if (run_transfer_genotypes && !single_contig) {
-            call Helpers.SubsetVcfToContig as SubsetTransfer {
-                input:
-                    vcf = select_first([transfer_vcf]),
-                    vcf_idx = select_first([transfer_vcf_idx]),
-                    contig = contig,
-                    prefix = "~{prefix}.~{contig}.transfer",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_transfer
+        if (do_transfer_genotypes) {
+            if (!single_contig) {
+                call Helpers.SubsetVcfToContig as SubsetTransfer {
+                    input:
+                        vcf = select_first([transfer_vcf]),
+                        vcf_idx = select_first([transfer_vcf_idx]),
+                        contig = contig,
+                        prefix = "~{prefix}.~{contig}.transfer",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_transfer
+                }
             }
-        }
 
-        File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf, contig_base_vcf])
-        File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx, contig_base_vcf_idx])
+            File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf])
+            File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx])
+        }
 
         if (defined(shard_bin_size)) {
             call Helpers.CreateContigShards {
                 input:
-                    vcfs = [contig_base_vcf, transfer_source_vcf],
-                    vcf_idxs = [contig_base_vcf_idx, transfer_source_vcf_idx],
+                    vcfs = if do_transfer_genotypes then [contig_base_vcf, select_first([transfer_source_vcf])] else [contig_base_vcf],
+                    vcf_idxs = if do_transfer_genotypes then [contig_base_vcf_idx, select_first([transfer_source_vcf_idx])] else [contig_base_vcf_idx],
                     contig = contig,
                     shard_bin_size = select_first([shard_bin_size]),
                     prefix = "~{prefix}.~{contig}.shards",
@@ -92,14 +99,16 @@ workflow PostProcess {
                         runtime_attr_override = runtime_attr_subset_base
                 }
 
-                call Helpers.SubsetVcfToRegion as SubsetTransferShard {
-                    input:
-                        vcf = transfer_source_vcf,
-                        vcf_idx = transfer_source_vcf_idx,
-                        region = shard_region,
-                        prefix = "~{prefix}.~{contig}.shard_~{i}.transfer",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_subset_transfer
+                if (do_transfer_genotypes) {
+                    call Helpers.SubsetVcfToRegion as SubsetTransferShard {
+                        input:
+                            vcf = select_first([transfer_source_vcf]),
+                            vcf_idx = select_first([transfer_source_vcf_idx]),
+                            region = shard_region,
+                            prefix = "~{prefix}.~{contig}.shard_~{i}.transfer",
+                            docker = utils_docker,
+                            runtime_attr_override = runtime_attr_subset_transfer
+                    }
                 }
 
                 call PostProcessTask as PostProcessShard {
@@ -110,9 +119,9 @@ workflow PostProcess {
                         transfer_vcf_idx = SubsetTransferShard.subset_vcf_idx,
                         ped = ped,
                         unphase_samples = unphase_samples,
-                        transfer_genotypes = run_transfer_genotypes,
-                        unphase = run_unphase_samples,
-                        normalize_ploidy = run_normalize_ploidy,
+                        transfer_genotypes = do_transfer_genotypes,
+                        unphase = do_unphase_samples,
+                        normalize_ploidy = do_normalize_ploidy,
                         decrement_trv_ids = run_decrement_trv_ids,
                         prune_meis = run_prune_meis,
                         flag_homopolymer_trvs = run_flag_homopolymer_trvs,
@@ -145,9 +154,9 @@ workflow PostProcess {
                     transfer_vcf_idx = transfer_source_vcf_idx,
                     ped = ped,
                     unphase_samples = unphase_samples,
-                    transfer_genotypes = run_transfer_genotypes,
-                    unphase = run_unphase_samples,
-                    normalize_ploidy = run_normalize_ploidy,
+                    transfer_genotypes = do_transfer_genotypes,
+                    unphase = do_unphase_samples,
+                    normalize_ploidy = do_normalize_ploidy,
                     decrement_trv_ids = run_decrement_trv_ids,
                     prune_meis = run_prune_meis,
                     flag_homopolymer_trvs = run_flag_homopolymer_trvs,
@@ -186,8 +195,8 @@ task PostProcessTask {
     input {
         File base_vcf
         File base_vcf_idx
-        File transfer_vcf
-        File transfer_vcf_idx
+        File? transfer_vcf
+        File? transfer_vcf_idx
         File? ped
         Array[String] unphase_samples = []
         Boolean transfer_genotypes

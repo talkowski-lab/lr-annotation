@@ -109,9 +109,9 @@ workflow MergeBackbonePhased {
     }
 
     output {
-        File pulled_vcf = select_first([ConcatVcfs.concat_vcf, PullPhasedGenotypesNoSharding.pulled_vcf])
-        File pulled_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, PullPhasedGenotypesNoSharding.pulled_vcf_idx])
-        File phase_pull_stats = AggregatePhasePullStats.stats_tsv
+        File backbone_merged_vcf = select_first([ConcatVcfs.concat_vcf, PullPhasedGenotypesNoSharding.pulled_vcf])
+        File backbone_merged_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, PullPhasedGenotypesNoSharding.pulled_vcf_idx])
+        File backbone_merged_tsv = AggregatePhasePullStats.stats_tsv
     }
 }
 
