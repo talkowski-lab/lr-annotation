@@ -358,6 +358,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: MergeBackbonePhased
+    primaryDescriptorPath: /wdl/annotation_utils/MergeBackbonePhased.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: MergeSites
     primaryDescriptorPath: /wdl/annotation_utils/MergeSites.wdl
     filters:

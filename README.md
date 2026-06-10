@@ -812,6 +812,10 @@ Outputs:
 - `integrated_vcf_idx`: Index for the integrated VCF.
 
 
+### [MergeBackbonePhased](wdl/annotation_utils/MergeBackbonePhased.wdl)
+TODO
+
+
 ### [MergeSites](wdl/annotation_utils/MergeSites.wdl)
 This utility merges redundant records at the site level within a VCF by collapsing near-identical deletions and insertions. Deletions are collapsed using reciprocal-overlap, sequence- and sample-similarity thresholds, insertions using size-, sequence- and sample-similarity plus a breakpoint distance, while all other variants pass through untouched. It outputs the merged VCF.
 
