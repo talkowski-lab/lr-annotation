@@ -340,6 +340,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: GQCalculateCounts
+    primaryDescriptorPath: /wdl/annotation_utils/GQCalculateCounts.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: IntegrateTRs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateTRs.wdl
     filters:
@@ -405,24 +414,6 @@ workflows:
   - subclass: WDL
     name: PostProcess
     primaryDescriptorPath: /wdl/annotation_utils/PostProcess.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: RenameInfoFields
-    primaryDescriptorPath: /wdl/annotation_utils/RenameInfoFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: ReplaceSampleCalls
-    primaryDescriptorPath: /wdl/annotation_utils/ReplaceSampleCalls.wdl
     filters:
       branches:
         - main

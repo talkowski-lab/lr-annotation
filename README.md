@@ -766,6 +766,27 @@ Outputs:
 - `trgt_histograms_tsv`: Per-locus allele-frequency histogram TSV.
 
 
+### [GQCalculateCounts](wdl/annotation_utils/GQCalculateCounts.wdl)
+This utility computes GQ-stratified count tables used to derive GQ filtering cutoffs, from both a trio de novo analysis and a truth-set concordance analysis. Counts are bucketed by variant type, allele-length bin and supporting caller. For structural variants (`abs(allele_length) >= 50`), the `CALLER` column expands each call by its supporting callers using the `EV`/`BEV` FORMAT fields written by [SVAddRawCallers](wdl/annotation_utils/SVAddRawCallers.wdl): `kanpig`-backed calls are recorded under `CALLER=kanpig` with their own GQ, calls backed by other callers are split into one row per caller carrying an allelic depth in `EV` (with a per-caller GQ recomputed from that depth), and calls with no `BEV` are recorded with a blank `CALLER`. It outputs one TSV per analysis.
+
+Inputs:
+- `Array[File] vcfs`: Cohort VCFs to analyze.
+- `Array[File] vcf_idxs`: Indexes for the cohort VCFs.
+- `Array[File]? truth_vcfs`: Truth-set VCFs, one per input VCF, for the concordance analysis.
+- `Array[File]? truth_vcf_idxs`: Indexes for the truth-set VCFs.
+- `Array[Int] length_bins`: Allele-length bin boundaries defining the size buckets.
+- `String? subset_vcf_string`: Optional `bcftools view` argument string to pre-subset each VCF.
+- `File? ped`: Pedigree used to identify trios for the de novo analysis.
+- `File? swap_samples_truth`: Optional sample-swap list applied to the truth VCFs.
+- `Boolean run_trio_qc`: Whether to run the trio de novo analysis.
+- `Boolean run_truth_qc`: Whether to run the truth-set concordance analysis.
+- `Boolean skip_trv`: Whether to skip tandem-repeat variants.
+
+Outputs:
+- `trio_denovo_tsv`: GQ-stratified trio de novo count table.
+- `truth_concordance_tsv`: GQ-stratified truth-set concordance count table.
+
+
 ### [IntegrateTRs](wdl/annotation_utils/IntegrateTRs.wdl)
 This utility integrates tandem-repeat calls into a base VCF for a cohort. It aligns samples between the base and TR VCFs, sets missing filters to pass, tags TR records with their source catalog, assigns TR identifiers and annotates the base VCF with the integrated TR calls. It outputs the TR-annotated VCF.
 
@@ -949,36 +970,6 @@ Inputs:
 Outputs:
 - `sv_vcf_qc_output`: Tarball of the QC plots and metrics.
 - `vcf2bed_output`: Merged BED representation of the QC'd VCFs.
-
-
-### [RenameInfoFields](wdl/annotation_utils/RenameInfoFields.wdl)
-This utility renames INFO fields in a VCF, replacing each given field string and its header description with a new one, optionally sharding by record count. It outputs the VCF with renamed INFO fields.
-
-Inputs:
-- `File vcf`: VCF to process.
-- `File vcf_idx`: Index for VCF.
-- `Array[String] current_info_strings`: INFO field strings to replace.
-- `Array[String] replace_info_strings`: Replacement INFO field strings, aligned to `current_info_strings`.
-- `Array[String] replace_info_descriptions`: Replacement header descriptions, aligned to `replace_info_strings`.
-- `Int? records_per_shard`: Number of variants to keep within a single shard during processing.
-
-Outputs:
-- `renamed_vcf`: VCF with renamed INFO fields.
-- `renamed_vcf_idx`: Index for the renamed VCF.
-
-
-### [ReplaceSampleCalls](wdl/annotation_utils/ReplaceSampleCalls.wdl)
-This utility replaces the genotype calls of samples in a cohort VCF with the calls from a set of per-sample VCFs. It outputs the updated cohort VCF.
-
-Inputs:
-- `Array[File] sample_vcfs`: Per-sample VCFs providing the replacement calls.
-- `Array[File] sample_vcf_idxs`: Indexes for `sample_vcfs`.
-- `File cohort_vcf`: Cohort VCF whose calls are replaced.
-- `File cohort_vcf_idx`: Index for the cohort VCF.
-
-Outputs:
-- `replaced_vcf`: Cohort VCF with replaced sample calls.
-- `replaced_vcf_idx`: Index for the updated VCF.
 
 
 ### [SplitVcfPerContig](wdl/annotation_utils/SplitVcfPerContig.wdl)
