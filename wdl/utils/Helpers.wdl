@@ -2150,20 +2150,19 @@ for record in vcf_in:
         elif 'END' in record.info:
             del record.info['END']
 
-        if 'ORIGINAL_POS' in record.info:
-            del record.info['ORIGINAL_POS']
-
     vcf_out.write(record)
 
 vcf_in.close()
 vcf_out.close()
 CODE
 
-        bcftools sort \
+        bcftools annotate \
+            -x INFO/ORIGINAL_POS \
+            -Ou unsorted.vcf.gz \
+        | bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
-            -Oz -o ~{prefix}.vcf.gz \
-            unsorted.vcf.gz
+            -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>
