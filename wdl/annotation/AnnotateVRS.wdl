@@ -64,7 +64,7 @@ workflow AnnotateVRS {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
-                    drop_fields = "INFO/VRS_Allele_IDs,INFO/VRS_Error,INFO/VRS_Starts,INFO/VRS_Ends,INFO/VRS_States,INFO/VRS_RepeatSubunitLengths",
+                    drop_fields = "INFO/VRS_Allele_IDs,INFO/VRS_Error,INFO/VRS_Starts,INFO/VRS_Ends,INFO/VRS_States,INFO/VRS_Lengths,INFO/VRS_RepeatSubunitLengths",
                     prefix = "~{prefix}.~{contig}.vrs_cleared.shard_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_drop_fields
