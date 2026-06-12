@@ -96,8 +96,8 @@ workflow FindUntrimmedAlleles {
     }
 
     output {
-        File subset_untrimmed_vcf = select_first([ConcatVcfs.concat_vcf, contig_subset_vcf[0]])
-        File subset_untrimmed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, contig_subset_vcf_idx[0]])
+        File untrimmed_vcf = select_first([ConcatVcfs.concat_vcf, contig_subset_vcf[0]])
+        File untrimmed_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, contig_subset_vcf_idx[0]])
     }
 }
 
