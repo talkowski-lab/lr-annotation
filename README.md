@@ -156,6 +156,10 @@ Outputs:
 - `benchmark_annotations_plots_tarball`: Tarball of annotation-comparison plots (only when `compare_annotations` is enabled).
 
 
+### [AnnotateCallsetOverlap_AF](wdl/annotation/AnnotateCallsetOverlap_AF.wdl)
+TODO
+
+
 ### [AnnotateDbSNP](wdl/annotation/AnnotateDbSNP.wdl)
 This workflow annotates each variant in the input VCF with its dbSNP reference SNP identifier (rsID). It matches variants against a per-contig dbSNP VCF on CHROM, POS, REF and ALT, emitting a TSV mapping each matched variant to its `dbSNP_ID`.
 
