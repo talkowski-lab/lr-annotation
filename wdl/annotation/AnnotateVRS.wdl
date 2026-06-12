@@ -17,6 +17,7 @@ workflow AnnotateVRS {
         String utils_docker
         String vrs_docker
 
+        RuntimeAttr? runtime_attr_drop_fields
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate_vrs
@@ -59,10 +60,20 @@ workflow AnnotateVRS {
         Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
-            call AnnotateVcfWithVRS {
+            call Helpers.DropVcfFields {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
+                    drop_fields = "INFO/VRS_Allele_IDs,INFO/VRS_Error,INFO/VRS_Starts,INFO/VRS_Ends,INFO/VRS_States,INFO/VRS_RepeatSubunitLengths",
+                    prefix = "~{prefix}.~{contig}.vrs_cleared.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_drop_fields
+            }
+
+            call AnnotateVcfWithVRS {
+                input:
+                    vcf = DropVcfFields.dropped_vcf,
+                    vcf_idx = DropVcfFields.dropped_vcf_idx,
                     seqrepo_tar = seqrepo_tar,
                     prefix = "~{prefix}.~{contig}.vrs.shard_~{i}",
                     docker = vrs_docker,
