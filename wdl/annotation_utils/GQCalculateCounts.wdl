@@ -291,7 +291,7 @@ def caller_gq_emissions(sample):
     bev = sample.get("BEV")
     if bev is None:
         gq = sample.get("GQ")
-        return [] if gq is None else [("", gq)]
+        return [] if gq is None else [("no_caller", gq)]
     if bev == "kanpig":
         gq = sample.get("GQ")
         return [] if gq is None else [("kanpig", gq)]
@@ -514,7 +514,7 @@ def caller_gq_emissions(sample):
     bev = sample.get("BEV")
     if bev is None:
         gq = sample.get("GQ")
-        return [] if gq is None else [("", gq)]
+        return [] if gq is None else [("no_caller", gq)]
     if bev == "kanpig":
         gq = sample.get("GQ")
         return [] if gq is None else [("kanpig", gq)]

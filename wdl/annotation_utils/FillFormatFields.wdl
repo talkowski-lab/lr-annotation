@@ -204,7 +204,7 @@ def unphase_gt(gt):
 def alleles_key(rec):
     ref = rec.ref.upper() if rec.ref else rec.ref
     alts = tuple(a.upper() for a in rec.alts) if rec.alts else ()
-    return (rec.chrom, rec.pos, rec.id, ref, alts)
+    return (rec.chrom, rec.pos, ref, alts)
 
 for unfilled_rec in unfilled_in:
     # Find matching variant
