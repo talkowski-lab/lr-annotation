@@ -57,22 +57,20 @@ workflow PostProcess {
         File contig_base_vcf = select_first([SubsetBase.subset_vcf, vcf])
         File contig_base_vcf_idx = select_first([SubsetBase.subset_vcf_idx, vcf_idx])
 
-        if (do_transfer_genotypes) {
-            if (!single_contig) {
-                call Helpers.SubsetVcfToContig as SubsetTransfer {
-                    input:
-                        vcf = select_first([transfer_vcf]),
-                        vcf_idx = select_first([transfer_vcf_idx]),
-                        contig = contig,
-                        prefix = "~{prefix}.~{contig}.transfer",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_subset_transfer
-                }
+        if (do_transfer_genotypes && !single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetTransfer {
+                input:
+                    vcf = select_first([transfer_vcf]),
+                    vcf_idx = select_first([transfer_vcf_idx]),
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.transfer",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_transfer
             }
-
-            File transfer_source_vcf = select_first([SubsetTransfer.subset_vcf, transfer_vcf])
-            File transfer_source_vcf_idx = select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx])
         }
+
+        File? transfer_source_vcf = if do_transfer_genotypes then select_first([SubsetTransfer.subset_vcf, transfer_vcf]) else transfer_vcf
+        File? transfer_source_vcf_idx = if do_transfer_genotypes then select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx]) else transfer_vcf_idx
 
         if (defined(shard_bin_size)) {
             call Helpers.CreateContigShards {
