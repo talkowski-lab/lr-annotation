@@ -69,14 +69,14 @@ workflow PostProcess {
             }
         }
 
-        File? transfer_source_vcf = if do_transfer_genotypes then select_first([SubsetTransfer.subset_vcf, transfer_vcf]) else transfer_vcf
-        File? transfer_source_vcf_idx = if do_transfer_genotypes then select_first([SubsetTransfer.subset_vcf_idx, transfer_vcf_idx]) else transfer_vcf_idx
+        File? transfer_source_vcf = if defined(SubsetTransfer.subset_vcf) then SubsetTransfer.subset_vcf else transfer_vcf
+        File? transfer_source_vcf_idx = if defined(SubsetTransfer.subset_vcf_idx) then SubsetTransfer.subset_vcf_idx else transfer_vcf_idx
 
         if (defined(shard_bin_size)) {
             call Helpers.CreateContigShards {
                 input:
-                    vcfs = if do_transfer_genotypes then [contig_base_vcf, select_first([transfer_source_vcf])] else [contig_base_vcf],
-                    vcf_idxs = if do_transfer_genotypes then [contig_base_vcf_idx, select_first([transfer_source_vcf_idx])] else [contig_base_vcf_idx],
+                    vcfs = select_all([contig_base_vcf, transfer_source_vcf]),
+                    vcf_idxs = select_all([contig_base_vcf_idx, transfer_source_vcf_idx]),
                     contig = contig,
                     shard_bin_size = select_first([shard_bin_size]),
                     prefix = "~{prefix}.~{contig}.shards",
