@@ -131,7 +131,7 @@ workflow IntegrateVcfs {
                     runtime_attr_override = runtime_attr_subset_samples_snv_indel
             }
 
-            call AnnotateVariantAttributes as AnnotateSnvIndel {
+            call Helpers.AnnotateVariantAttributes as AnnotateSnvIndel {
                 input:
                     vcf = SubsetSamplesSnvIndel.subset_vcf,
                     vcf_idx = SubsetSamplesSnvIndel.subset_vcf_idx,
@@ -229,7 +229,7 @@ workflow IntegrateVcfs {
                     runtime_attr_override = runtime_attr_subset_samples_sv
             }
 
-            call AnnotateVariantAttributes as AnnotateSv {
+            call Helpers.AnnotateVariantAttributes as AnnotateSv {
                 input:
                     vcf = SubsetSamplesSv.subset_vcf,
                     vcf_idx = SubsetSamplesSv.subset_vcf_idx,
@@ -327,91 +327,6 @@ workflow IntegrateVcfs {
     output {
         File integrated_vcf = ConcatVcfs.concat_vcf
         File integrated_vcf_idx = ConcatVcfs.concat_vcf_idx
-    }
-}
-
-task AnnotateVariantAttributes {
-    input {
-        File vcf
-        File vcf_idx
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        touch new_headers.txt
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_length'; then
-            echo '##INFO=<ID=allele_length,Number=1,Type=Integer,Description="Allele length">' >> new_headers.txt
-        fi
-        if ! bcftools view -h ~{vcf} | grep -q '##INFO=<ID=allele_type'; then
-            echo '##INFO=<ID=allele_type,Number=1,Type=String,Description="Allele type">' >> new_headers.txt
-        fi
-
-        bcftools annotate \
-            -h new_headers.txt \
-            -Oz -o temp.vcf.gz \
-            ~{vcf}
-        
-        tabix -p vcf temp.vcf.gz
-
-        bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/allele_length\t%INFO/allele_type\n' \
-            temp.vcf.gz \
-        | awk -F'\t' '{
-            ref_length = length($3)            
-            alt_len = length($4)
-            calc_length = alt_len - ref_length
-            calc_type = "snv"
-
-            if (alt_len > ref_length) {
-                calc_type = "ins"
-            } else if (alt_len < ref_length) {
-                calc_type = "del"
-            }
-
-            allele_length = ($6 == ".") ? calc_length : $6
-            allele_type = ($7 == ".") ? calc_type : $7
-
-            print $1"\t"$2"\t"$3"\t"$4"\t"$5"\t"allele_length"\t"allele_type
-        }' \
-            | bgzip -c > annot.txt.gz
-        
-        tabix -s1 -b2 -e2 annot.txt.gz
-
-        bcftools annotate \
-            -a annot.txt.gz \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_length,INFO/allele_type \
-            -Oz -o ~{prefix}.vcf.gz \
-            temp.vcf.gz
-
-        tabix -p vcf ~{prefix}.vcf.gz
-    >>>
-
-    output {
-        File annotated_vcf = "~{prefix}.vcf.gz"
-        File annotated_vcf_idx = "~{prefix}.vcf.gz.tbi"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 

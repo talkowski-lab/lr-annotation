@@ -84,6 +84,10 @@ workflow PostProcess {
                     runtime_attr_override = runtime_attr_create_shards
             }
 
+            # Non-optional File so the value can cross into the shard scatter; the base placeholder is unused unless transferring
+            File shard_transfer_vcf = select_first([transfer_source_vcf, contig_base_vcf])
+            File shard_transfer_vcf_idx = select_first([transfer_source_vcf_idx, contig_base_vcf_idx])
+
             scatter (i in range(length(CreateContigShards.shard_regions))) {
                 String shard_region = CreateContigShards.shard_regions[i]
 
@@ -100,8 +104,8 @@ workflow PostProcess {
                 if (do_transfer_genotypes) {
                     call Helpers.SubsetVcfToRegion as SubsetTransferShard {
                         input:
-                            vcf = select_first([transfer_source_vcf]),
-                            vcf_idx = select_first([transfer_source_vcf_idx]),
+                            vcf = shard_transfer_vcf,
+                            vcf_idx = shard_transfer_vcf_idx,
                             region = shard_region,
                             prefix = "~{prefix}.~{contig}.shard_~{i}.transfer",
                             docker = utils_docker,

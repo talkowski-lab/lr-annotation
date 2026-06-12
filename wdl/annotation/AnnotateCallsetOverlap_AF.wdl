@@ -24,12 +24,15 @@ workflow AnnotateCallsetOverlap_AF {
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
+        Boolean normalize_vcf = false
+        Boolean create_variant_attributes = false
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
+        String normalize_check_ref = "w"
         String skip_vep_categories = ""
         String? args_string_vcf
         String? args_string_vcf_truth
@@ -48,6 +51,8 @@ workflow AnnotateCallsetOverlap_AF {
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_subset_sv_truth
         RuntimeAttr? runtime_attr_strip_genotypes
+        RuntimeAttr? runtime_attr_normalize_eval
+        RuntimeAttr? runtime_attr_annotate_attributes_eval
         RuntimeAttr? runtime_attr_rename_eval
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
@@ -139,11 +144,42 @@ workflow AnnotateCallsetOverlap_AF {
                 runtime_attr_override = runtime_attr_strip_genotypes
         }
 
-        if (defined(rename_id_string_vcf)) {
-            call Helpers.RenameVariantIds as RenameEvalIds {
+        if (normalize_vcf) {
+            call Helpers.NormalizeVcf as NormalizeEval {
                 input:
                     vcf = StripGenotypes.stripped_vcf,
                     vcf_idx = StripGenotypes.stripped_vcf_idx,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    check_ref = normalize_check_ref,
+                    prefix = "~{prefix}.~{contig}.eval.normalized",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_normalize_eval
+            }
+        }
+
+        File normalized_eval_vcf = select_first([NormalizeEval.normalized_vcf, StripGenotypes.stripped_vcf])
+        File normalized_eval_vcf_idx = select_first([NormalizeEval.normalized_vcf_idx, StripGenotypes.stripped_vcf_idx])
+
+        if (create_variant_attributes) {
+            call Helpers.AnnotateVariantAttributes as AnnotateEvalAttributes {
+                input:
+                    vcf = normalized_eval_vcf,
+                    vcf_idx = normalized_eval_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.eval.attributes",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate_attributes_eval
+            }
+        }
+
+        File attributed_eval_vcf = select_first([AnnotateEvalAttributes.annotated_vcf, normalized_eval_vcf])
+        File attributed_eval_vcf_idx = select_first([AnnotateEvalAttributes.annotated_vcf_idx, normalized_eval_vcf_idx])
+
+        if (defined(rename_id_string_vcf)) {
+            call Helpers.RenameVariantIds as RenameEvalIds {
+                input:
+                    vcf = attributed_eval_vcf,
+                    vcf_idx = attributed_eval_vcf_idx,
                     prefix = "~{prefix}.~{contig}.eval.renamed",
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
@@ -178,8 +214,8 @@ workflow AnnotateCallsetOverlap_AF {
             }
         }
 
-        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, StripGenotypes.stripped_vcf])
-        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, StripGenotypes.stripped_vcf_idx])
+        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, attributed_eval_vcf])
+        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, attributed_eval_vcf_idx])
         File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, subset_truth_vcf])
         File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_idx, subset_truth_vcf_idx])
         File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, subset_sv_truth_vcf])
