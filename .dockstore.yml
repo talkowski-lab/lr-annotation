@@ -22,6 +22,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateCallsetOverlap_AF
+    primaryDescriptorPath: /wdl/annotation/AnnotateCallsetOverlap_AF.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateDbSNP
     primaryDescriptorPath: /wdl/annotation/AnnotateDbSNP.wdl
     filters:
