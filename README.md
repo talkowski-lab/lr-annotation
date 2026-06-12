@@ -1666,7 +1666,22 @@ Outputs:
 - All dockers should be passed in via workspace data.
 
 
-## Data Table Notes
+
+## Processing Notes
+Callset Regeneration Steps.
+- _FillFormatFields_ on _allele_type_annotated_vcf_.
+- _ParseAbsoluteOrigin_.
+- Annotation: _AnnotateCallsetOverlap_, _AnnotateDbVaR_, _AnnotateGQMetrics_, _AnnotateSQMetrics_, _AnnotateAgeMetrics_, _AnnotateSVAnnotate_.
+- _AnnotateVcf_Functional_.
+- _AnnotateAF_.
+- _AnnotateVcf_Downstream_.
+- _PostProcess_.
+- Untrim variants: 
+	- _FindUntrimmedAlleles_.
+	- Annotation: _AnnotateCallsetOverlap_, _AnnotateDbSNP_, _AnnotateDbVaR_, _AnnotateInSilicoPredictors_, _AnnotateVRS_.
+	- _AnnotateVcfCleared_.
+
+Data Table VCFs.
 - `genotyped_vcf_V1`: Initial run of pipeline.
 - `genotyped_vcf_V2`: After resolving missing gnomAD matches for DELs.
 - `genotyped_vcf_V3`: After renaming `dbGaP_ID` to `dbSNP_ID`.

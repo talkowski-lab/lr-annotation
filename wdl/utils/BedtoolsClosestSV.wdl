@@ -442,7 +442,7 @@ task PrioritizedConcatComparisons {
 
         cat ~{sep=" " primary_tsvs} > ~{prefix}.comparison
 
-        grep -v "query_svid" ~{prefix}.comparison | cut -f1 | sort -u > seen_ids.txt
+        { grep -v "query_svid" ~{prefix}.comparison || true; } | cut -f1 | sort -u > seen_ids.txt
 
         for f in ~{sep=" " secondary_tsvs}; do
             awk -F'\t' 'NR==FNR{seen[$1]=1; next} !($1 in seen)' seen_ids.txt "$f" >> ~{prefix}.comparison
@@ -509,7 +509,7 @@ task CreateBedtoolsAnnotationTsv {
         }' \
         | sort -k1,1 > truth_filters.tsv
 
-        grep -v "query_svid" ~{closest_bed} \
+        { grep -v "query_svid" ~{closest_bed} || true; } \
             | awk -F'\t' '$1 != "" {print $1"\t"$2}' \
             | sort -k1,1 > matched_ids.tsv
 
