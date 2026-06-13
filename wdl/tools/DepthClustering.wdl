@@ -59,6 +59,7 @@ workflow ClusterDepth {
         default_no_call = default_no_call,
         omit_members = omit_members,
         algorithm = algorithm,
+        breakpoint_summary_strategy = breakpoint_summary_strategy,
         defrag_padding_fraction = defrag_padding_fraction,
         defrag_sample_overlap = defrag_sample_overlap,
         depth_sample_overlap = depth_sample_overlap,
