@@ -8,7 +8,6 @@ workflow ClusterDepth {
     File ploidy_table
 
     File contig_list
-    File exclude_intervals
 
     File? contig_subset_list
 
@@ -36,6 +35,7 @@ workflow ClusterDepth {
     Int depth_breakend_window = 10000000
 
     # ExcludeIntervalsByIntervalOverlap
+    File? exclude_intervals
     Float exclude_overlap_fraction = 0.5
 
     # GatkToSvtkVcf
@@ -70,20 +70,22 @@ workflow ClusterDepth {
         gatk_docker = gatk_docker
     }
 
-    call ExcludeIntervalsByIntervalOverlap {
-      input:
-        vcf = SVCluster.clustered_vcf,
-        overlap_fraction = exclude_overlap_fraction,
-        reference_fasta_fai = reference_fasta_fai,
-        output_prefix = "~{contig}-depth-intervals_excluded",
-        intervals = exclude_intervals,
-        intervals_index = exclude_intervals + ".tbi",
-        sv_base_mini_docker = sv_base_mini_docker
+    if (defined(exclude_intervals)) {
+      call ExcludeIntervalsByIntervalOverlap {
+        input:
+          vcf = SVCluster.clustered_vcf,
+          overlap_fraction = exclude_overlap_fraction,
+          reference_fasta_fai = reference_fasta_fai,
+          output_prefix = "~{contig}-depth-intervals_excluded",
+          intervals = select_first([exclude_intervals]),
+          intervals_index = exclude_intervals + ".tbi",
+          sv_base_mini_docker = sv_base_mini_docker
+      }
     }
 
     call GatkToSvtkVcf {
       input:
-        vcf = ExcludeIntervalsByIntervalOverlap.filtered_vcf,
+        vcf = select_first([ExcludeIntervalsByIntervalOverlap.filtered_vcf, SVCluster.clustered_vcf]),
         output_prefix = "~{contig}-depth-svtk_formatted",
         script = gatk_to_svtk_script,
         contig_list = contig_list,
