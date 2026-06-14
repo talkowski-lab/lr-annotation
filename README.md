@@ -1668,10 +1668,10 @@ Outputs:
 
 
 ## Processing Notes
-Callset Regeneration Steps.
+Callset Regeneration.
 - _FillFormatFields_ on _allele_type_annotated_vcf_.
 - _ParseAbsoluteOrigin_.
-- Annotation: _AnnotateCallsetOverlap_, _AnnotateDbVaR_, _AnnotateGQMetrics_, _AnnotateSQMetrics_, _AnnotateAgeMetrics_, _AnnotateSVAnnotate_.
+- Annotation: _AnnotateAgeMetrics_, _AnnotateCallsetOverlap_, _AnnotateDbVaR_, _AnnotateGQMetrics_, _AnnotateSQMetrics_, _AnnotateSVAnnotate_
 - _AnnotateVcf_Functional_.
 - _AnnotateAF_.
 - _AnnotateVcf_Downstream_.

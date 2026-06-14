@@ -117,7 +117,7 @@ workflow AnnotateDbVaR {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = AnnotateDbVaRIds.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.dbvar_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards

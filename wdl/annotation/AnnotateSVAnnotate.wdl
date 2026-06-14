@@ -107,7 +107,7 @@ workflow AnnotateSVAnnotate {
             call Helpers.ConcatTsvs as ConcatShards {
                 input:
                     tsvs = ExtractVcfAnnotations.annotations_tsv,
-                    sort_output = false,
+                    sort_output = true,
                     prefix = "~{prefix}.~{contig}.svannotate_annotations",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_concat_shards
