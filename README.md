@@ -496,6 +496,7 @@ Inputs:
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[File] annotations_tsvs`: Annotation TSVs to apply, each as a set of INFO fields.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
+- `Int? records_per_shard`: Number of variants to keep within a single shard during annotation. When set, each contig VCF is sharded by record count, annotated in parallel and concatenated.
 - `Array[Array[String]] info_names`: INFO field names added by each annotation TSV.
 - `Array[Array[String]] info_descriptions`: INFO field header descriptions for each annotation TSV.
 - `Array[Array[String]] info_types`: INFO field types for each annotation TSV.

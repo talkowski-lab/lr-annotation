@@ -11,6 +11,8 @@ workflow AnnotateVcf {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Array[Boolean]? sort_tsvs
         Array[String]? subset_vcf_strings
         Array[String]? awk_tsv_conditions
@@ -24,7 +26,9 @@ workflow AnnotateVcf {
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tsv
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -60,28 +64,61 @@ workflow AnnotateVcf {
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
         Array[File] contig_tsvs = select_first([SubsetTsvToContig.subset_tsv, annotations_tsvs])
 
-        call AnnotateSequentially {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                annotations_tsvs = contig_tsvs,
-                subset_vcf_strings = subset_vcf_strings,
-                awk_tsv_conditions = awk_tsv_conditions,
-                info_names = info_names,
-                info_descriptions = info_descriptions,
-                info_types = info_types,
-                info_numbers = info_numbers,
-                prefix = "~{prefix}.~{contig}.annotated",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [contig_vcf]])
+        Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
+
+        scatter (s in range(length(shard_vcfs))) {
+            call AnnotateSequentially {
+                input:
+                    vcf = shard_vcfs[s],
+                    vcf_idx = shard_vcf_idxs[s],
+                    annotations_tsvs = contig_tsvs,
+                    subset_vcf_strings = subset_vcf_strings,
+                    awk_tsv_conditions = awk_tsv_conditions,
+                    info_names = info_names,
+                    info_descriptions = info_descriptions,
+                    info_types = info_types,
+                    info_numbers = info_numbers,
+                    prefix = "~{prefix}.~{contig}.annotated.shard_~{s}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatVcfs as ConcatShards {
+                input:
+                    vcfs = AnnotateSequentially.annotated_vcf,
+                    vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
+                    allow_overlaps = false,
+                    naive = true,
+                    prefix = "~{prefix}.~{contig}.annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File contig_annotated_vcf = select_first([ConcatShards.concat_vcf, AnnotateSequentially.annotated_vcf[0]])
+        File contig_annotated_vcf_idx = select_first([ConcatShards.concat_vcf_idx, AnnotateSequentially.annotated_vcf_idx[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatVcfs {
             input:
-                vcfs = AnnotateSequentially.annotated_vcf,
-                vcf_idxs = AnnotateSequentially.annotated_vcf_idx,
+                vcfs = contig_annotated_vcf,
+                vcf_idxs = contig_annotated_vcf_idx,
                 allow_overlaps = false,
                 naive = true,
                 prefix = "~{prefix}.annotated",
@@ -91,8 +128,8 @@ workflow AnnotateVcf {
     }
 
     output {
-        File annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateSequentially.annotated_vcf[0]])
-        File annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateSequentially.annotated_vcf_idx[0]])
+        File annotated_vcf = select_first([ConcatVcfs.concat_vcf, contig_annotated_vcf[0]])
+        File annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, contig_annotated_vcf_idx[0]])
     }
 }
 
