@@ -250,6 +250,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CreateBiallelicVcf
+    primaryDescriptorPath: /wdl/annotation_utils/CreateBiallelicVcf.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreateCoverageFile
     primaryDescriptorPath: /wdl/annotation_utils/CreateCoverageFile.wdl
     filters:

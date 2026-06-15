@@ -607,6 +607,20 @@ Outputs:
 - `annotation_counts_alleles_tsv`: Per-allele counts (when `create_per_allele`).
 
 
+### [CreateBiallelicVcf](wdl/annotation_utils/CreateBiallelicVcf.wdl)
+This utility normalizes a VCF into a streamlined biallelic callset. It splits multiallelic records and left-aligns variants against the reference, sorts the result, adds the `allele_length` and `allele_type` INFO fields, and rewrites each variant ID to `CHROM-POS-REF-ALT` for SNVs or `CHROM-POS-TYPE-LENGTH` otherwise, suffixing any colliding IDs to keep them unique. It outputs the biallelic VCF.
+
+Inputs:
+- `File vcf`: VCF to process.
+- `File vcf_idx`: Index for VCF to process.
+- `File ref_fa`: Reference FASTA used for normalization.
+- `File ref_fai`: Index for `ref_fa`.
+
+Outputs:
+- `biallelic_vcf`: Normalized, sorted biallelic VCF with streamlined variant IDs and `allele_length`/`allele_type` annotations.
+- `biallelic_vcf_idx`: Index for the biallelic VCF.
+
+
 ### [CreateCoverageFile](wdl/annotation_utils/CreateCoverageFile.wdl)
 This utility builds a binned coverage matrix across a cohort from per-sample mosdepth BED outputs. It tiles the genome into windows, computes the mean coverage and threshold-crossing counts within each bin for every sample, and concatenates the results into a single coverage TSV.
 
