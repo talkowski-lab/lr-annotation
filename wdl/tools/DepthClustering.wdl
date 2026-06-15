@@ -5,7 +5,7 @@ workflow ClusterDepth {
     File depth_vcf
     String output_prefix
     String variant_prefix
-    File ploidy_table
+    File pedigree
 
     File contig_list
 
@@ -18,6 +18,10 @@ workflow ClusterDepth {
     String gatk_docker
     String sv_base_mini_docker
     String sv_pipeline_docker
+
+    # CreatePloidyTableFromPed
+    String chr_x = "chrX"
+    String chr_y = "chrY"
 
     # SVCluster
     Boolean fast_mode = true
@@ -43,6 +47,16 @@ workflow ClusterDepth {
     Boolean svtk_set_pass = false
   }
 
+  call CreatePloidyTableFromPed {
+    input:
+      ped = pedigree,
+      contig_list = contig_list,
+      chr_x = chr_x,
+      chr_y = chr_y,
+      output_prefix = "~{output_prefix}",
+      sv_pipeline_docker = sv_pipeline_docker
+  }
+
   Array[String] contigs = transpose(read_tsv(select_first([contig_subset_list, contig_list])))[0]
   scatter (contig in contigs) {
     call SVCluster {
@@ -50,7 +64,7 @@ workflow ClusterDepth {
         vcf = depth_vcf,
         output_prefix = "~{contig}-depth_clustered",
         contig = contig,
-        ploidy_table = ploidy_table,
+        ploidy_table = CreatePloidyTableFromPed.ploidy_table,
         reference_fasta = reference_fasta,
         reference_fasta_fai = reference_fasta_fai,
         reference_dict = reference_dict,
@@ -103,8 +117,52 @@ workflow ClusterDepth {
   }
 
   output {
+    File ploidy_table = CreatePloidyTableFromPed.ploidy_table
     File clustered_vcf = ConcatVCFs.concat_vcf
     File clustered_vcf_index = ConcatVCFs.concat_vcf_index
+  }
+}
+
+
+task CreatePloidyTableFromPed {
+  input {
+    File ped
+    File contig_list
+    String chr_x
+    String chr_y
+    String output_prefix
+
+    String sv_pipeline_docker
+    Float? mem_gib
+    Int? disk_gb
+    Int? cpu
+    Int? boot_disk_gb
+    Int? preemptible_tries
+    Int? max_retries
+  }
+
+  Int default_disk_gb = ceil(size(ped, "GB") * 2) + 32
+
+  runtime {
+    cpu: select_first([cpu, 1])
+    memory: select_first([mem_gib, 4]) + " GiB"
+    disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([boot_disk_gb, 10])
+    docker: sv_pipeline_docker
+    preemptible: select_first([preemptible_tries, 3])
+    maxRetries: select_first([max_retries, 1])
+  }
+
+  command <<<
+    set -euo pipefail
+
+    python '/opt/sv-pipeline/scripts/ploidy_table_from_ped.py' \
+      --ped ~{ped} --out '~{output_prefix}.tsv' --contigs '~{contig_list}' \
+      --chr-x '~{chr_x}' --chr-y '~{chr_y}'
+  >>>
+
+  output {
+    File ploidy_table = "~{output_prefix}.tsv"
   }
 }
 
