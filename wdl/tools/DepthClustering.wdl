@@ -219,8 +219,7 @@ task SVCluster {
   }
 
   # not really
-  Int machine_mem_mb = select_first([mem_gib, 4]) * 1000
-  Int command_mem_mb = ceil(machine_mem_mb * 0.8)
+  Int command_mem_mb = ceil(select_first([mem_gib, 4]) * 800)
 
   command <<<
     set -euo pipefail
