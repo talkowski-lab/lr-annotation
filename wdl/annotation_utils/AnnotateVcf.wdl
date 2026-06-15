@@ -13,9 +13,9 @@ workflow AnnotateVcf {
 
         Int? records_per_shard
 
-        Array[Boolean]? sort_tsvs
-        Array[String]? subset_vcf_strings
-        Array[String]? awk_tsv_conditions
+        Array[Boolean] sort_tsvs = []
+        Array[String] subset_vcf_strings = []
+        Array[String] awk_tsv_conditions = []
 
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
@@ -32,7 +32,6 @@ workflow AnnotateVcf {
         RuntimeAttr? runtime_attr_concat
     }
 
-    Array[Boolean] sort_tsvs_resolved = select_first([sort_tsvs, []])
     Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
@@ -52,7 +51,7 @@ workflow AnnotateVcf {
                     input:
                         tsv = annotations_tsvs[i],
                         contig = contig,
-                        sort_output = if length(sort_tsvs_resolved) > 0 then sort_tsvs_resolved[i] else false,
+                        sort_output = if length(sort_tsvs) > 0 then sort_tsvs[i] else false,
                         prefix = "~{prefix}.~{contig}.tsv~{i}",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_subset_tsv
@@ -138,8 +137,8 @@ task AnnotateSequentially {
         File vcf
         File vcf_idx
         Array[File] annotations_tsvs
-        Array[String]? subset_vcf_strings
-        Array[String]? awk_tsv_conditions
+        Array[String] subset_vcf_strings = []
+        Array[String] awk_tsv_conditions = []
         Array[Array[String]] info_names
         Array[Array[String]] info_descriptions
         Array[Array[String]] info_types
@@ -148,9 +147,6 @@ task AnnotateSequentially {
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    Array[String] resolved_subset_strings = select_first([subset_vcf_strings, []])
-    Array[String] resolved_awk_conditions = select_first([awk_tsv_conditions, []])
 
     command <<<
         set -euo pipefail
@@ -185,8 +181,8 @@ with open("num_tsvs.txt", "w") as f:
 EOF
 
         current_vcf="~{vcf}"
-        SUBSET_FILE="~{write_lines(resolved_subset_strings)}"
-        AWK_COND_FILE="~{write_lines(resolved_awk_conditions)}"     
+        SUBSET_FILE="~{write_lines(subset_vcf_strings)}"
+        AWK_COND_FILE="~{write_lines(awk_tsv_conditions)}"     
         i=0
         for tsv_file in ~{sep=' ' annotations_tsvs}; do
             AWK_ARG=""
