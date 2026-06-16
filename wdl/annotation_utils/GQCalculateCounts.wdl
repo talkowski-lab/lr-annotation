@@ -18,6 +18,14 @@ workflow GQCalculateCounts {
         Boolean run_trio_qc = true
         Boolean run_truth_qc = true
         Boolean skip_trv = true
+        Boolean drop_kanpig_supported_gq = false
+
+        Int min_fuzzy_match = 20
+        Float del_size_similarity = 0.8
+        Float del_reciprocal_overlap = 0.8
+        Int del_breakpoint_window = 500
+        Float ins_size_similarity = 0.8
+        Int ins_breakpoint_window = 100
 
         String utils_docker
 
@@ -72,6 +80,7 @@ workflow GQCalculateCounts {
                     trio_definitions = FindTrios.trio_definitions,
                     length_bins = length_bins,
                     skip_trv = skip_trv,
+                    drop_kanpig_supported_gq = drop_kanpig_supported_gq,
                     prefix = "~{prefix}.trio_denovo.~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_trio_analysis
@@ -123,6 +132,13 @@ workflow GQCalculateCounts {
                     truth_vcf_idx = select_first([SwapTruthSampleIds.swapped_vcf_idx, select_first([truth_vcf_idxs])[i]]),
                     length_bins = length_bins,
                     skip_trv = skip_trv,
+                    drop_kanpig_supported_gq = drop_kanpig_supported_gq,
+                    min_fuzzy_match = min_fuzzy_match,
+                    del_size_similarity = del_size_similarity,
+                    del_reciprocal_overlap = del_reciprocal_overlap,
+                    del_breakpoint_window = del_breakpoint_window,
+                    ins_size_similarity = ins_size_similarity,
+                    ins_breakpoint_window = ins_breakpoint_window,
                     prefix = "~{prefix}.truth.~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_truth_analysis
@@ -222,6 +238,7 @@ task TrioDeNovoAnalysis {
         File trio_definitions
         Array[Int] length_bins
         Boolean skip_trv = true
+        Boolean drop_kanpig_supported_gq = false
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -235,6 +252,8 @@ import math
 import re
 import pysam
 from collections import defaultdict
+
+drop_kanpig_supported_gq = ~{true="True" false="False" drop_kanpig_supported_gq}
 
 trios = []
 with open("~{trio_definitions}") as f:
@@ -286,13 +305,15 @@ def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
 
 def caller_gq_emissions(sample):
-    # (caller, gq) rows for one non-ref call: blank if no BEV, kanpig if BEV=kanpig,
+    # (caller, gq) rows for one non-ref call: no_caller if no BEV, kanpig if BEV=kanpig,
     # otherwise one row per EV caller carrying an AD, with a per-caller GQ from that AD.
+    # When drop_kanpig_supported_gq, kanpig-BEV calls also expand their EV so co-supporting
+    # callers feed the non-kanpig plots (kanpig itself stays via its EV entry).
     bev = sample.get("BEV")
     if bev is None:
         gq = sample.get("GQ")
         return [] if gq is None else [("no_caller", gq)]
-    if bev == "kanpig":
+    if bev == "kanpig" and not drop_kanpig_supported_gq:
         gq = sample.get("GQ")
         return [] if gq is None else [("kanpig", gq)]
     emissions = []
@@ -443,6 +464,13 @@ task TruthSetAnalysis {
         File truth_vcf_idx
         Array[Int] length_bins
         Boolean skip_trv = true
+        Boolean drop_kanpig_supported_gq = false
+        Int min_fuzzy_match
+        Float del_size_similarity
+        Float del_reciprocal_overlap
+        Int del_breakpoint_window
+        Float ins_size_similarity
+        Int ins_breakpoint_window
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -458,6 +486,10 @@ task TruthSetAnalysis {
 
         bcftools view -S common_samples.txt --min-ac 1 -Oz -o subset.vcf.gz ~{vcf}
         tabix -p vcf subset.vcf.gz
+
+        if [[ "~{truth_vcf_idx}" != "~{truth_vcf}.tbi" ]]; then
+            ln -sf "~{truth_vcf_idx}" "~{truth_vcf}.tbi"
+        fi
 
         python3 <<CODE
 import math
@@ -476,6 +508,14 @@ SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BI
 SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
 EV_RE = re.compile(r"^(.+)_\((\d+)_(\d+)\)$")
+
+drop_kanpig_supported_gq = ~{true="True" false="False" drop_kanpig_supported_gq}
+MIN_FUZZY_MATCH = int(~{min_fuzzy_match})
+DEL_SIZE_SIM = float(~{del_size_similarity})
+DEL_REC_OVL = float(~{del_reciprocal_overlap})
+DEL_BP_WIN = int(~{del_breakpoint_window})
+INS_SIZE_SIM = float(~{ins_size_similarity})
+INS_BP_WIN = int(~{ins_breakpoint_window})
 
 def get_type(variant_id):
     vid = (variant_id or "").upper()
@@ -509,13 +549,15 @@ def calculate_gq(pls):
     return min(sorted(pls)[1], 99)
 
 def caller_gq_emissions(sample):
-    # (caller, gq) rows for one non-ref call: blank if no BEV, kanpig if BEV=kanpig,
+    # (caller, gq) rows for one non-ref call: no_caller if no BEV, kanpig if BEV=kanpig,
     # otherwise one row per EV caller carrying an AD, with a per-caller GQ from that AD.
+    # When drop_kanpig_supported_gq, kanpig-BEV calls also expand their EV so co-supporting
+    # callers feed the non-kanpig plots (kanpig itself stays via its EV entry).
     bev = sample.get("BEV")
     if bev is None:
         gq = sample.get("GQ")
         return [] if gq is None else [("no_caller", gq)]
-    if bev == "kanpig":
+    if bev == "kanpig" and not drop_kanpig_supported_gq:
         gq = sample.get("GQ")
         return [] if gq is None else [("kanpig", gq)]
     emissions = []
@@ -526,23 +568,102 @@ def caller_gq_emissions(sample):
         emissions.append((match.group(1), calculate_gq(calculate_pl(int(match.group(2)), int(match.group(3))))))
     return emissions
 
+# DEL/INS use fuzzy size/overlap/breakpoint matching; SNVs match exactly on CHROM+POS+REF+ALT.
+def passes_del(qs, qe, ql, cs, ce, cl):
+    if ql == 0 or cl == 0:
+        return False
+    if min(ql, cl) / max(ql, cl) < DEL_SIZE_SIM:
+        return False
+    overlap = max(0, min(qe, ce) - max(qs, cs))
+    if overlap / min(ql, cl) < DEL_REC_OVL:
+        return False
+    if abs(qs - cs) > DEL_BP_WIN and abs(qe - ce) > DEL_BP_WIN:
+        return False
+    return True
+
+def passes_ins(qs, ql, cs, cl):
+    if ql == 0 or cl == 0:
+        return False
+    if min(ql, cl) / max(ql, cl) < INS_SIZE_SIM:
+        return False
+    if abs(qs - cs) > INS_BP_WIN:
+        return False
+    return True
+
 with open("common_samples.txt") as f:
     common_samples = [line.strip() for line in f if line.strip()]
 
-# Build truth lookup: (chrom, pos, ref, alt) -> set of non-ref sample IDs
-truth_lookup = {}
 truth_in = pysam.VariantFile("~{truth_vcf}")
-for record in truth_in:
-    for alt in (record.alts or []):
-        key = (record.chrom, record.pos, record.ref, alt)
-        nonref = set()
-        for s in common_samples:
-            if s in truth_in.header.samples:
-                gt = record.samples[s]["GT"]
-                if is_nonref_unphased(gt):
-                    nonref.add(s)
-        truth_lookup[key] = nonref
-truth_in.close()
+truth_samples = set(truth_in.header.samples)
+truth_contigs = set(truth_in.header.contigs)
+common_in_truth = [s for s in common_samples if s in truth_samples]
+
+# Non-ref sample set per truth record, cached so the same candidate is scanned once.
+nonref_cache = {}
+def truth_nonref_set(cand):
+    cache_key = (cand.chrom, cand.pos, cand.ref, cand.alts, cand.id)
+    cached = nonref_cache.get(cache_key)
+    if cached is not None:
+        return cached
+    nonref = set()
+    for sample in common_in_truth:
+        if is_nonref_unphased(cand.samples[sample]["GT"]):
+            nonref.add(sample)
+    nonref_cache[cache_key] = nonref
+    return nonref
+
+def find_truth_match(record, variant_type, ql):
+    chrom = record.chrom
+    if chrom not in truth_contigs:
+        return False, set()
+    has_match = False
+    truth_nonref = set()
+
+    # Fuzzy matching only for DEL/INS at or above the size threshold; everything else (SNVs and
+    # sub-threshold indels) is matched exactly on CHROM+POS+REF+ALT.
+    if not (variant_type in ("DEL", "INS") and ql >= MIN_FUZZY_MATCH):
+        ref_upper = record.ref.upper() if record.ref else record.ref
+        alts_upper = set(a.upper() for a in (record.alts or ()))
+        for cand in truth_in.fetch(chrom, record.start, record.start + 1):
+            if cand.pos != record.pos:
+                continue
+            cand_ref = cand.ref.upper() if cand.ref else cand.ref
+            if cand_ref != ref_upper:
+                continue
+            if alts_upper & set(a.upper() for a in (cand.alts or ())):
+                has_match = True
+                truth_nonref |= truth_nonref_set(cand)
+        return has_match, truth_nonref
+
+    qs = record.start
+    qe = record.stop
+    if variant_type == "DEL":
+        margin = DEL_BP_WIN + (int(ql / DEL_SIZE_SIM) if DEL_SIZE_SIM > 0 else ql) + 1
+        region_start = max(0, qs - margin)
+        region_end = qe + margin
+    else:
+        region_start = max(0, qs - INS_BP_WIN)
+        region_end = qs + INS_BP_WIN + 1
+    for cand in truth_in.fetch(chrom, region_start, region_end):
+        cand_ref = cand.ref or ""
+        cs = cand.start
+        ce = cand.start + len(cand_ref)
+        for alt in (cand.alts or ()):
+            signed = len(alt) - len(cand_ref)
+            cl = abs(signed)
+            if variant_type == "DEL":
+                if signed >= 0:
+                    continue
+                ok = passes_del(qs, qe, ql, cs, ce, cl)
+            else:
+                if signed <= 0:
+                    continue
+                ok = passes_ins(qs, ql, cs, cl)
+            if ok:
+                has_match = True
+                truth_nonref |= truth_nonref_set(cand)
+                break
+    return has_match, truth_nonref
 
 # Per (bucket_type, bucket_size, caller, gq) tracking
 variant_sites = defaultdict(set)
@@ -564,14 +685,7 @@ for record in vcf_in:
     variant_type = get_type(record.id)
     size_bucket = get_size_bucket(al)
 
-    # Check truth match
-    has_match = False
-    truth_nonref = set()
-    for alt in (record.alts or []):
-        key = (record.chrom, record.pos, record.ref, alt)
-        if key in truth_lookup:
-            has_match = True
-            truth_nonref |= truth_lookup[key]
+    has_match, truth_nonref = find_truth_match(record, variant_type, abs(al))
 
     for s in common_samples:
         sample = record.samples[s]
@@ -593,6 +707,7 @@ for record in vcf_in:
                     match_concordant_count[bucket_key] += 1
 
 vcf_in.close()
+truth_in.close()
 
 all_keys = sorted(variant_sites.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3]))
 with open("~{prefix}.tsv", "w") as out:
