@@ -9,6 +9,7 @@ workflow AnnotateL1MEAID {
         File vcf
         File vcf_idx
         String prefix
+        Boolean useDEL
 
         Int? min_length
 
@@ -67,6 +68,7 @@ workflow AnnotateL1MEAID {
                 vcf = vcfs_to_process[shard_idx],
                 vcf_idx = vcf_idxs_to_process[shard_idx],
                 prefix = "~{prefix}.shard_~{shard_idx}.rm",
+                useDEL=useDEL,
                 utils_docker = utils_docker,
                 repeatmasker_docker = repeatmasker_docker,
                 runtime_attr_ins_to_fa = runtime_attr_ins_to_fa,

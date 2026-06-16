@@ -7,6 +7,7 @@ workflow RepeatMasker {
         File vcf
         File vcf_idx
         String prefix
+        Boolean useDEL = false
 
         Int? min_length
 
@@ -17,19 +18,22 @@ workflow RepeatMasker {
         RuntimeAttr? runtime_attr_repeat_masker
     }
 
-    call INSToFa {
+    String newprefix = if useDEL then prefix + ".del" else prefix + ".ins"
+
+    call VartoFa {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
             min_length = min_length,
-            prefix = "~{prefix}.ins",
+            var_class = if useDEL then "DEL" else "INS",
+            prefix = newprefix,
             docker = utils_docker,
             runtime_attr_override = runtime_attr_ins_to_fa
     }
 
     call RunRepeatMasker {
         input:
-            fa = INSToFa.ins_fa,
+            fa = VartoFa.ins_fa,
             prefix = "~{prefix}.rm",
             docker = repeatmasker_docker,
             runtime_attr_override = runtime_attr_repeat_masker
@@ -37,25 +41,27 @@ workflow RepeatMasker {
 
     output {
         File rm_out = RunRepeatMasker.rm_out
-        File rm_fa = INSToFa.ins_fa
+        File rm_fa = VartoFa.ins_fa
     }
 }
 
-task INSToFa {
+task VartoFa {
     input {
         File vcf
         File vcf_idx
         Int? min_length
+        String var_class
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
+
     command <<<
         set -euo pipefail
 
         bcftools query \
-            -i 'SVTYPE=="INS"' \
+            -i 'SVTYPE=="~{var_class}"' \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
             ~{vcf} \
         | awk 'length($3)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
@@ -86,6 +92,7 @@ task INSToFa {
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
 
 task RunRepeatMasker {
     input {
