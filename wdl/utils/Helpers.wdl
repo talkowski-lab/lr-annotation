@@ -2991,9 +2991,12 @@ task ShardVcfByRecords {
             "$SCATTER_INPUT"
 
         mkdir shards
-        ls scatter_output/*.vcf.gz | sort -k1,1V > vcfs.list
+        
+        find scatter_output -maxdepth 1 -name "*.vcf.gz" | sort -k1,1V > vcfs.list
+        
         i=0
         while read VCF; do
+            if [[ -z "$VCF" ]]; then continue; fi
             shard_no=$(printf %06d $i)
             mv "$VCF" "shards/shard_${shard_no}.vcf.gz"
             tabix -p vcf "shards/shard_${shard_no}.vcf.gz"

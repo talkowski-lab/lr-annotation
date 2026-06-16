@@ -20,12 +20,14 @@ workflow AnnotateCallsetOverlap_AF {
 
         Int? records_per_shard
 
+        Boolean normalize_vcf = false
+        Boolean create_variant_attributes = false
+
         Boolean compare_annotations = true
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
-        Boolean normalize_vcf = false
-        Boolean create_variant_attributes = false
+
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
@@ -34,6 +36,7 @@ workflow AnnotateCallsetOverlap_AF {
         String length_field_eval = "allele_length"
         String normalize_check_ref = "w"
         String skip_vep_categories = ""
+        
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth

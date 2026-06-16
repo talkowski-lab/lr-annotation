@@ -39,7 +39,7 @@ workflow AnnotateDbVaR {
     Boolean single_contig = length(contigs) == 1
 
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfByArgs as FilterVcf {
+        call Helpers.SubsetVcfByArgs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
@@ -52,8 +52,8 @@ workflow AnnotateDbVaR {
 
         call Helpers.ConvertToSymbolic {
             input:
-                vcf = FilterVcf.subset_vcf,
-                vcf_idx = FilterVcf.subset_vcf_idx,
+                vcf = SubsetVcfByArgs.subset_vcf,
+                vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                 move_dup_to_origin = true,
                 prefix = "~{prefix}.~{contig}.symbolic",
                 docker = utils_docker,
@@ -95,8 +95,8 @@ workflow AnnotateDbVaR {
                 input:
                     vcf = vcfs_to_process[i],
                     vcf_idx = vcf_idxs_to_process[i],
-                    original_vcf = FilterVcf.subset_vcf,
-                    original_vcf_idx = FilterVcf.subset_vcf_idx,
+                    original_vcf = SubsetVcfByArgs.subset_vcf,
+                    original_vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                     dbvar_vcf = contig_dbvar_vcf,
                     dbvar_vcf_idx = contig_dbvar_vcf_idx,
                     del_size_similarity = del_size_similarity,
