@@ -10,6 +10,7 @@ workflows:
       branches:
         - main
         - aou_scaling
+        - AY_test
       tags:
         - /.*/
 
