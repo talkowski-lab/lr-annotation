@@ -87,8 +87,10 @@ workflow AnnotateDbVaR {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [ConvertToSymbolic.processed_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [ConvertToSymbolic.processed_vcf_idx]])
+        Array[File] shard_array = select_first([ShardVcfByRecords.shards, []])
+        Array[File] shard_idx_array = select_first([ShardVcfByRecords.shard_idxs, []])
+        Array[File] vcfs_to_process = if length(shard_array) > 0 then shard_array else [ConvertToSymbolic.processed_vcf]
+        Array[File] vcf_idxs_to_process = if length(shard_idx_array) > 0 then shard_idx_array else [ConvertToSymbolic.processed_vcf_idx]
 
         scatter (i in range(length(vcfs_to_process))) {
             call AnnotateDbVaRIds {
