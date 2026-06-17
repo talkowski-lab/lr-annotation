@@ -22,7 +22,7 @@ workflow AnnotateDbVaR {
         Float dup_size_similarity = 0.8
         Float dup_reciprocal_overlap = 0.8
         Int dup_breakpoint_window = 500
-        Float ins_size_similarity = 0.8
+        Float ins_size_similarity = 0.5
         Int ins_breakpoint_window = 100
 
         String utils_docker
@@ -215,16 +215,16 @@ def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
     overlap = max(0, min(qe, ce) - max(qs, cs))
     if overlap / min(ql, cl) < rec_ovl:
         return False
-    if abs(qs - cs) > bp_win and abs(qe - ce) > bp_win:
+    if abs(qs - cs) + abs(qe - ce) > bp_win:
         return False
     return True
 
-def passes_ins(qs, ql, cs, cl, size_sim, bp_win):
+def passes_ins(qs, qe, ql, cs, ce, cl, size_sim, bp_win):
     if ql == 0 or cl == 0:
         return False
     if min(ql, cl) / max(ql, cl) < size_sim:
         return False
-    if abs(qs - cs) > bp_win:
+    if abs(qs - cs) + abs(qe - ce) > bp_win:
         return False
     return True
 
@@ -279,7 +279,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                 cand_id = cand_id[0]
 
             if svtype == 'INS':
-                ok = passes_ins(qs, ql, cs, cl, size_sim, bp_win)
+                ok = passes_ins(qs, qe, ql, cs, ce, cl, size_sim, bp_win)
             else:
                 ok = passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, params['rec_ovl'], bp_win)
             if ok:
@@ -301,11 +301,12 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                     if cand.info.get('SVTYPE') != 'INS':
                         continue
                     cs = cand.start
+                    ce = cand.stop
                     cl = parse_svlen(cand)
                     cand_id = cand.id if cand.id else cand.info.get('DBVARID', '.')
                     if isinstance(cand_id, (list, tuple)):
                         cand_id = cand_id[0]
-                    if passes_ins(ins_qs, ql, cs, cl, ins_size_sim, ins_bp_win):
+                    if passes_ins(ins_qs, ins_qs + 1, ql, cs, ce, cl, ins_size_sim, ins_bp_win):
                         matched.append(str(cand_id))
 
         # Add match to output

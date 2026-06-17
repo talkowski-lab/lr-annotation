@@ -9,12 +9,15 @@ workflow MergeSites {
         File vcf_idx
         String prefix
 
-        Float del_reciprocal_overlap = 0.5
+        Float del_size_similarity = 0.8
+        Float del_reciprocal_overlap = 0.8
+        Int del_breakpoint_distance = 500
         Float del_sequence_similarity = 0.5
         Float del_sample_similarity = 0.5
         Int del_size_max = -1
         Int del_size_min = 0
 
+        Float ins_reciprocal_overlap = 0.0
         Float ins_size_similarity = 0.5
         Int ins_breakpoint_distance = 10
         Float ins_sequence_similarity = 0.5
@@ -68,8 +71,8 @@ workflow MergeSites {
             vcf_idx = SubsetDels.subset_vcf_idx,
             pctovl = del_reciprocal_overlap,
             pctseq = del_sequence_similarity,
-            pctsize = 0.0,
-            refdist = 0,
+            pctsize = del_size_similarity,
+            refdist = del_breakpoint_distance,
             sizemin = del_size_min,
             sizemax = del_size_max,
             keep_strategy = "common",
@@ -86,7 +89,7 @@ workflow MergeSites {
         input:
             vcf = SubsetIns.subset_vcf,
             vcf_idx = SubsetIns.subset_vcf_idx,
-            pctovl = 0.0,
+            pctovl = ins_reciprocal_overlap,
             pctseq = ins_sequence_similarity,
             pctsize = ins_size_similarity,
             refdist = ins_breakpoint_distance,

@@ -28,11 +28,14 @@ workflow SVAddRawCallers {
         Array[File?]? hapdiff_vcfs
         Array[File?]? hapdiff_vcf_idxs
         
-        Float size_similarity = 0.8
-        Float sequence_similarity = 0.8
-        Int breakpoint_window = 500
-        Int fuzzy_match_breakpoint_window = 500
+        Float truvari_reciprocal_overlap = 0.0
+        Float truvari_sequence_similarity = 0.7
+        Float truvari_size_similarity = 0.7
+        Int truvari_breakpoint_window = 500
+
         Boolean fuzzy_match_vcf_to_stats = true
+        Int fuzzy_match_breakpoint_window = 500
+
         Boolean match_gt_kanpig = true
         Boolean match_gt_non_kanpig = true
 
@@ -124,9 +127,10 @@ workflow SVAddRawCallers {
                 dipcall_vcf_idx = dipcall_idx_i,
                 hapdiff_vcf = hapdiff_vcf_i,
                 hapdiff_vcf_idx = hapdiff_idx_i,
-                size_similarity = size_similarity,
-                sequence_similarity = sequence_similarity,
-                breakpoint_window = breakpoint_window,
+                truvari_reciprocal_overlap = truvari_reciprocal_overlap,
+                truvari_sequence_similarity = truvari_sequence_similarity,
+                truvari_size_similarity = truvari_size_similarity,
+                truvari_breakpoint_window = truvari_breakpoint_window,
                 fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
                 fuzzy_match_breakpoint_window = fuzzy_match_breakpoint_window,
                 match_gt_kanpig = match_gt_kanpig,
@@ -186,9 +190,10 @@ task ProcessSample {
         File? dipcall_vcf_idx
         File? hapdiff_vcf
         File? hapdiff_vcf_idx
-        Float size_similarity
-        Float sequence_similarity
-        Int breakpoint_window
+        Float truvari_reciprocal_overlap
+        Float truvari_sequence_similarity
+        Float truvari_size_similarity
+        Int truvari_breakpoint_window
         Boolean fuzzy_match_vcf_to_stats
         Int fuzzy_match_breakpoint_window
         Boolean match_gt_kanpig
@@ -217,9 +222,10 @@ PER_CALLER_NAMES = ["cutesv", "sniffles", "delly", "pbsv", "sawfish", "dipcall",
 EXCLUDED_SUPP = {"pav", "kanpig"}
 
 sample_id = "~{sample_id}"
-size_similarity = float(~{size_similarity})
-sequence_similarity = float(~{sequence_similarity})
-breakpoint_window = int(~{breakpoint_window})
+reciprocal_overlap = float(~{truvari_reciprocal_overlap})
+size_similarity = float(~{truvari_size_similarity})
+sequence_similarity = float(~{truvari_sequence_similarity})
+breakpoint_window = int(~{truvari_breakpoint_window})
 sv_stats_path = "~{sv_stats}"
 fuzzy_match = ~{true="True" false="False" fuzzy_match_vcf_to_stats}
 fuzzy_match_breakpoint_window = int(~{fuzzy_match_breakpoint_window})
@@ -321,6 +327,7 @@ def best_truvari_match(cohort_rec, caller_vf):
 tv_params = truvari.VariantParams(
     pctsize=size_similarity,
     pctseq=sequence_similarity,
+    pctovl=reciprocal_overlap,
     refdist=breakpoint_window,
     sizemin=50,
     sizefilt=50,
@@ -512,7 +519,7 @@ for rec in vcf_in:
                 had_gt_ad_kp = True
                 supporters.append(("kanpig", (int(kp_ad[0]), int(kp_ad[1]))))
 
-        # Asses non-Kanpig match
+        # Assess non-Kanpig match
         target_svlen = rec.info.get("SVLEN")
         if isinstance(target_svlen, tuple):
             target_svlen = target_svlen[0] if target_svlen else None

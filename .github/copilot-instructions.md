@@ -1,7 +1,7 @@
-# gnomad-lr Copilot Instructions
+# Instructions
 
 ## Project Overview
-This repository contains all scripts, workflows, and processes for annotating long-read variant callsets for gnomAD. It processes structural variants (SVs), mobile element insertions (MEIs), tandem repeats (TRs), and other complex variants from cohorts including HPRC (232 samples), HGSVC (65 samples), and All of Us Phase 1 (1027 samples).
+This repository contains all scripts, workflows, and processes for annotating long-read variant callsets. It processes structural variants (SVs), mobile element insertions (MEIs), tandem repeats (TRs), and other complex variants from cohorts including HPRC (232 samples), HGSVC (65 samples), and All of Us Phase 1 (1027 samples).
 
 **Stack:** WDL 1.0 (executed via Cromwell on Terra), Python 3.8+, Bash, Hail. Cloud platform is GCP (GCS URIs `gs://`). Reference genome is GRCh38.
 
@@ -34,7 +34,7 @@ CI validates all WDL files on push/PR to `main` when `wdl/**` changes:
 wget -O womtool.jar https://github.com/broadinstitute/cromwell/releases/download/87/womtool-87.jar
 find wdl -type f -name "*.wdl" -exec java -jar womtool.jar validate {} \;
 ```
-Always run `womtool validate` on any new or modified WDL before committing. You can find a local copy of the `womtool-87.jar` at `/Users/kjaising/Desktop/Work/Miscellaneous/Software/womtool-87.jar`.
+Always run `womtool validate` on any new or modified WDL before committing. You can find a local copy of the `womtool-87.jar` at `/Users/kjaising/Desktop/Work/Miscellaneous/Software/womtool-87.jar` - whenever possible, opt to use this rather than downloading the remote version.
 
 ### Python Linting
 CI lints `scripts/**` on push/PR to `main`:

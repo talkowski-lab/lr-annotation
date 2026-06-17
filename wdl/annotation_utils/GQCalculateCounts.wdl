@@ -24,7 +24,7 @@ workflow GQCalculateCounts {
         Float del_size_similarity = 0.8
         Float del_reciprocal_overlap = 0.8
         Int del_breakpoint_window = 500
-        Float ins_size_similarity = 0.8
+        Float ins_size_similarity = 0.5
         Int ins_breakpoint_window = 100
 
         String utils_docker
@@ -577,16 +577,16 @@ def passes_del(qs, qe, ql, cs, ce, cl):
     overlap = max(0, min(qe, ce) - max(qs, cs))
     if overlap / min(ql, cl) < DEL_REC_OVL:
         return False
-    if abs(qs - cs) > DEL_BP_WIN and abs(qe - ce) > DEL_BP_WIN:
+    if abs(qs - cs) + abs(qe - ce) > DEL_BP_WIN:
         return False
     return True
 
-def passes_ins(qs, ql, cs, cl):
+def passes_ins(qs, qe, ql, cs, ce, cl):
     if ql == 0 or cl == 0:
         return False
     if min(ql, cl) / max(ql, cl) < INS_SIZE_SIM:
         return False
-    if abs(qs - cs) > INS_BP_WIN:
+    if abs(qs - cs) + abs(qe - ce) > INS_BP_WIN:
         return False
     return True
 
@@ -658,7 +658,7 @@ def find_truth_match(record, variant_type, ql):
             else:
                 if signed <= 0:
                     continue
-                ok = passes_ins(qs, ql, cs, cl)
+                ok = passes_ins(qs, qe, ql, cs, ce, cl)
             if ok:
                 has_match = True
                 truth_nonref |= truth_nonref_set(cand)

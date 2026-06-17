@@ -1,7 +1,7 @@
-# gnomad-lr Copilot Instructions
+# Instructions
 
 ## Project Overview
-This repository contains all scripts, workflows, and processes for annotating long-read variant callsets for gnomAD. It processes structural variants (SVs), mobile element insertions (MEIs), tandem repeats (TRs), and other complex variants from cohorts including HPRC (232 samples), HGSVC (65 samples), and All of Us Phase 1 (1027 samples).
+This repository contains all scripts, workflows, and processes for annotating long-read variant callsets. It processes structural variants (SVs), mobile element insertions (MEIs), tandem repeats (TRs), and other complex variants from cohorts including HPRC (232 samples), HGSVC (65 samples), and All of Us Phase 1 (1027 samples).
 
 **Stack:** WDL 1.0 (executed via Cromwell on Terra), Python 3.8+, Bash, Hail. Cloud platform is GCP (GCS URIs `gs://`). Reference genome is GRCh38.
 

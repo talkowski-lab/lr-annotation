@@ -11,7 +11,7 @@ workflow AnnotateGnomADSTR {
         String prefix
 
         File gnomad_tr_json
-        Float min_reciprocal_overlap = 0.7
+        Float trv_reciprocal_overlap = 0.7
 
         String utils_docker
 
@@ -54,7 +54,7 @@ workflow AnnotateGnomADSTR {
                 vcf = SubsetVcfByArgs.subset_vcf,
                 vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                 gnomad_tr_json = gnomad_tr_json,
-                min_reciprocal_overlap = min_reciprocal_overlap,
+                trv_reciprocal_overlap = trv_reciprocal_overlap,
                 prefix = "~{prefix}.~{contig}.gnomad_str",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate_gnomad_str
@@ -82,7 +82,7 @@ task AnnotateGnomADSTRLoci {
         File vcf
         File vcf_idx
         File gnomad_tr_json
-        Float min_reciprocal_overlap
+        Float trv_reciprocal_overlap
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -133,7 +133,7 @@ PYCODE
         bedtools intersect \
             -a variants.bed \
             -b catalog.sorted.bed \
-            -f ~{min_reciprocal_overlap} \
+            -f ~{trv_reciprocal_overlap} \
             -r \
             -wo \
         | awk 'BEGIN{OFS="\t"} {

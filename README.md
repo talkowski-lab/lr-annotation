@@ -189,7 +189,7 @@ Inputs:
 - `Float dup_size_similarity`: Minimum size similarity for matching duplications (default `0.8`).
 - `Float dup_reciprocal_overlap`: Minimum reciprocal overlap for matching duplications (default `0.8`).
 - `Int dup_breakpoint_window`: Breakpoint window, in bp, for matching duplications (default `500`).
-- `Float ins_size_similarity`: Minimum size similarity for matching insertions (default `0.8`).
+- `Float ins_size_similarity`: Minimum size similarity for matching insertions (default `0.5`).
 - `Int ins_breakpoint_window`: Breakpoint window, in bp, for matching insertions (default `100`).
 - `File dbvar_vcf`: From [references](#references).
 - `File dbvar_vcf_idx`: From [references](#references).
@@ -205,7 +205,7 @@ Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
-- `Float min_reciprocal_overlap`: Minimum reciprocal overlap between a call and a catalog locus to be matched (default `0.7`).
+- `Float trv_reciprocal_overlap`: Minimum reciprocal overlap between a call and a catalog locus to be matched (default `0.7`).
 - `File gnomad_tr_json`: From [references](#references).
 
 Outputs:
@@ -291,10 +291,9 @@ Inputs:
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
-- `Float size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.9`).
-- `Float reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.9`).
-- `Int breakpoint_window`: Breakpoint window, in bp, for matching (default `500`).
-- `Float sequence_similarity`: Minimum sequence similarity for a deletion to match a catalog locus (default `0.9`).
+- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.9`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.9`).
+- `Int del_breakpoint_window`: Breakpoint window, in bp, for matching (default `500`).
 - `File mei_catalog`: From [references](#references).
 
 Outputs:
@@ -328,11 +327,11 @@ Inputs:
 - `Int min_length`: Minimum insertion length to consider for annotation.
 - `File rm_out`: _RepeatMasker_ output for the input VCF's insertions.
 - `Int rm_buffer`: Padding, in bp, applied around RepeatMasker annotations when matching.
-- `Float reciprocal_overlap_{ALU,SVA,LINE,HERVK}`: Per-type minimum reciprocal overlap for matching (default `0.9`).
-- `Float size_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum size similarity for matching (default `0.9`).
-- `Float sequence_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum sequence similarity for matching (default `0.9`).
-- `Int breakpoint_window_{ALU,SVA,LINE,HERVK}`: Per-type breakpoint window, in bp, for matching (default `100000`).
-- `Int min_shared_samples_{ALU,SVA,LINE,HERVK}`: Per-type minimum number of shared samples for matching (default `0`).
+- `Float ins_reciprocal_overlap_{ALU,SVA,LINE,HERVK}`: Per-type minimum reciprocal overlap for matching (default `0.9`).
+- `Float ins_size_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum size similarity for matching (default `0.9`).
+- `Float ins_sequence_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum sequence similarity for matching (default `0.9`).
+- `Int ins_breakpoint_window_{ALU,SVA,LINE,HERVK}`: Per-type breakpoint window, in bp, for matching (default `500`).
+- `Int ins_min_shared_samples_{ALU,SVA,LINE,HERVK}`: Per-type minimum number of shared samples for matching (default `0`).
 - `File ref_fai`: From [references](#references).
 
 Outputs:
@@ -857,12 +856,14 @@ TODO
 
 
 ### [MergeSites](wdl/annotation_utils/MergeSites.wdl)
-This utility merges redundant records at the site level within a VCF by collapsing near-identical deletions and insertions. Deletions are collapsed using reciprocal-overlap, sequence- and sample-similarity thresholds, insertions using size-, sequence- and sample-similarity plus a breakpoint distance, while all other variants pass through untouched. It outputs the merged VCF.
+This utility merges redundant records at the site level within a VCF by collapsing near-identical deletions and insertions. Deletions are collapsed using size-, reciprocal-overlap, sequence- and sample-similarity thresholds plus a breakpoint distance, insertions using size-, sequence- and sample-similarity plus a breakpoint distance, while all other variants pass through untouched. It outputs the merged VCF.
 
 Inputs:
 - `File vcf`: VCF to merge.
 - `File vcf_idx`: Index for VCF.
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for collapsing deletions (default `0.5`).
+- `Float del_size_similarity`: Minimum size similarity for collapsing deletions (default `0.8`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for collapsing deletions (default `0.8`).
+- `Int del_breakpoint_distance`: Maximum breakpoint distance, in bp, for collapsing deletions (default `500`).
 - `Float del_sequence_similarity`: Minimum sequence similarity for collapsing deletions (default `0.5`).
 - `Float del_sample_similarity`: Minimum sample similarity for collapsing deletions (default `0.5`).
 - `Int del_size_max`: Maximum deletion size to collapse, or `-1` for no maximum (default `-1`).
@@ -888,11 +889,11 @@ Inputs:
 - `String contig`: Contig being merged.
 - `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the contig.
 - `Int min_truvari_match`: Minimum variant length for Truvari matching (default `20`).
-- `Float reciprocal_overlap`: Minimum reciprocal overlap for merging non-TR variants (default `0.0`).
-- `Float sequence_similarity`: Minimum sequence similarity for merging non-TR variants (default `0.7`).
-- `Float size_similarity`: Minimum size similarity for merging non-TR variants (default `0.7`).
-- `Int breakpoint_distance`: Maximum breakpoint distance, in bp, for merging non-TR variants (default `500`).
-- `Float sample_similarity`: Minimum sample similarity for merging non-TR variants (default `0.0`).
+- `Float truvari_reciprocal_overlap`: Minimum reciprocal overlap for merging non-TR variants (default `0.0`).
+- `Float truvari_sequence_similarity`: Minimum sequence similarity for merging non-TR variants (default `0.7`).
+- `Float truvari_size_similarity`: Minimum size similarity for merging non-TR variants (default `0.7`).
+- `Int truvari_breakpoint_distance`: Maximum breakpoint distance, in bp, for merging non-TR variants (default `500`).
+- `Float truvari_sample_similarity`: Minimum sample similarity for merging non-TR variants (default `0.0`).
 - `Int size_min`: Minimum variant size to merge (default `20`).
 - `Int size_max`: Maximum variant size to merge (default `50000`).
 - `File ref_fa`: From [references](#references).
@@ -1067,7 +1068,7 @@ Outputs:
 
 
 ### [SVAddRawCallers](wdl/annotation_utils/SVAddRawCallers.wdl)
-This utility annotates each SV in a cohort VCF with the set of raw callers that independently support it. For every sample it matches the cohort calls against that sample's per-caller VCFs (Kanpig, cuteSV, Sniffles, Delly, pbsv, Sawfish, dipcall and hapdiff) using size- and sequence-similarity and a breakpoint window, then merges the support back into the cohort VCF. It outputs the annotated VCF and a TSV of per-caller match counts.
+This utility annotates each SV in a cohort VCF with the set of raw callers that independently support it. For every sample it matches the cohort calls against that sample's per-caller VCFs (Kanpig, cuteSV, Sniffles, Delly, pbsv, Sawfish, dipcall and hapdiff) using reciprocal-overlap, size- and sequence-similarity and a breakpoint window, then merges the support back into the cohort VCF. It outputs the annotated VCF and a TSV of per-caller match counts.
 
 Inputs:
 - `File sv_vcf`: Cohort SV VCF to annotate.
@@ -1091,9 +1092,10 @@ Inputs:
 - `Array[File?] hapdiff_vcfs`: Per-sample hapdiff VCFs.
 - `Array[File?] hapdiff_vcf_idxs`: Indexes for `hapdiff_vcfs`.
 - `File? swap_samples`: Sample-ID swap map applied to the cohort VCF.
-- `Float size_similarity`: Minimum size similarity for matching a raw call (default `0.8`).
-- `Float sequence_similarity`: Minimum sequence similarity for matching a raw call (default `0.8`).
-- `Int breakpoint_window`: Breakpoint window, in bp, for matching a raw call (default `500`).
+- `Float truvari_reciprocal_overlap`: Minimum reciprocal overlap for matching a raw call (default `0.0`).
+- `Float truvari_sequence_similarity`: Minimum sequence similarity for matching a raw call (default `0.7`).
+- `Float truvari_size_similarity`: Minimum size similarity for matching a raw call (default `0.7`).
+- `Int truvari_breakpoint_window`: Breakpoint window, in bp, for matching a raw call (default `500`).
 
 Outputs:
 - `sv_added_vcf`: Cohort VCF annotated with raw-caller support.
@@ -1695,10 +1697,3 @@ Callset Regeneration.
 	- _FindUntrimmedAlleles_.
 	- Annotation: _AnnotateCallsetOverlap_, _AnnotateDbSNP_, _AnnotateDbVaR_, _AnnotateInSilicoPredictors_, _AnnotateVRS_.
 	- _AnnotateVcfCleared_.
-
-Data Table VCFs.
-- `genotyped_vcf_V1`: Initial run of pipeline.
-- `genotyped_vcf_V2`: After resolving missing gnomAD matches for DELs.
-- `genotyped_vcf_V3`: After renaming `dbGaP_ID` to `dbSNP_ID`.
-- `genotyped_vcf_V4`: After cleaning `INFO/ORIGIN` fields containing `flank_`.
-- `genotyped_vcf_V5`: After re-running gnomAD matching with the cleaned `INFO/ORIGIN` fields.

@@ -17,26 +17,26 @@ workflow AnnotatePALMER {
         File rm_out
         Int rm_buffer
         File ref_fai
-        Float reciprocal_overlap_ALU = 0.9
-        Float reciprocal_overlap_SVA = 0.9
-        Float reciprocal_overlap_LINE = 0.9
-        Float reciprocal_overlap_HERVK = 0.9
-        Float size_similarity_ALU = 0.9
-        Float size_similarity_SVA = 0.9
-        Float size_similarity_LINE = 0.9
-        Float size_similarity_HERVK = 0.9
-        Float sequence_similarity_ALU = 0.9
-        Float sequence_similarity_SVA = 0.9
-        Float sequence_similarity_LINE = 0.9
-        Float sequence_similarity_HERVK = 0.9
-        Int breakpoint_window_ALU = 100000
-        Int breakpoint_window_SVA = 100000
-        Int breakpoint_window_LINE = 100000
-        Int breakpoint_window_HERVK = 100000
-        Int min_shared_samples_ALU = 0
-        Int min_shared_samples_SVA = 0
-        Int min_shared_samples_LINE = 0
-        Int min_shared_samples_HERVK = 0
+        Float ins_reciprocal_overlap_ALU = 0.9
+        Float ins_reciprocal_overlap_SVA = 0.9
+        Float ins_reciprocal_overlap_LINE = 0.9
+        Float ins_reciprocal_overlap_HERVK = 0.9
+        Float ins_size_similarity_ALU = 0.9
+        Float ins_size_similarity_SVA = 0.9
+        Float ins_size_similarity_LINE = 0.9
+        Float ins_size_similarity_HERVK = 0.9
+        Float ins_sequence_similarity_ALU = 0.9
+        Float ins_sequence_similarity_SVA = 0.9
+        Float ins_sequence_similarity_LINE = 0.9
+        Float ins_sequence_similarity_HERVK = 0.9
+        Int ins_breakpoint_window_ALU = 500
+        Int ins_breakpoint_window_SVA = 500
+        Int ins_breakpoint_window_LINE = 500
+        Int ins_breakpoint_window_HERVK = 500
+        Int ins_min_shared_samples_ALU = 0
+        Int ins_min_shared_samples_SVA = 0
+        Int ins_min_shared_samples_LINE = 0
+        Int ins_min_shared_samples_HERVK = 0
 
         String annotate_palmer_docker
 
@@ -69,26 +69,26 @@ workflow AnnotatePALMER {
                 rm_out = rm_out,
                 rm_buffer = rm_buffer,
                 ref_fai = ref_fai,
-                reciprocal_overlap_ALU = reciprocal_overlap_ALU,
-                reciprocal_overlap_LINE = reciprocal_overlap_LINE,
-                reciprocal_overlap_SVA = reciprocal_overlap_SVA,
-                reciprocal_overlap_HERVK = reciprocal_overlap_HERVK,
-                size_similarity_ALU = size_similarity_ALU,
-                size_similarity_LINE = size_similarity_LINE,
-                size_similarity_SVA = size_similarity_SVA,
-                size_similarity_HERVK = size_similarity_HERVK,
-                sequence_similarity_ALU = sequence_similarity_ALU,
-                sequence_similarity_LINE = sequence_similarity_LINE,
-                sequence_similarity_SVA = sequence_similarity_SVA,
-                sequence_similarity_HERVK = sequence_similarity_HERVK,
-                breakpoint_window_ALU = breakpoint_window_ALU,
-                breakpoint_window_LINE = breakpoint_window_LINE,
-                breakpoint_window_SVA = breakpoint_window_SVA,
-                breakpoint_window_HERVK = breakpoint_window_HERVK,
-                min_shared_samples_ALU = min_shared_samples_ALU,
-                min_shared_samples_LINE = min_shared_samples_LINE,
-                min_shared_samples_SVA = min_shared_samples_SVA,
-                min_shared_samples_HERVK = min_shared_samples_HERVK,
+                ins_reciprocal_overlap_ALU = ins_reciprocal_overlap_ALU,
+                ins_reciprocal_overlap_LINE = ins_reciprocal_overlap_LINE,
+                ins_reciprocal_overlap_SVA = ins_reciprocal_overlap_SVA,
+                ins_reciprocal_overlap_HERVK = ins_reciprocal_overlap_HERVK,
+                ins_size_similarity_ALU = ins_size_similarity_ALU,
+                ins_size_similarity_LINE = ins_size_similarity_LINE,
+                ins_size_similarity_SVA = ins_size_similarity_SVA,
+                ins_size_similarity_HERVK = ins_size_similarity_HERVK,
+                ins_sequence_similarity_ALU = ins_sequence_similarity_ALU,
+                ins_sequence_similarity_LINE = ins_sequence_similarity_LINE,
+                ins_sequence_similarity_SVA = ins_sequence_similarity_SVA,
+                ins_sequence_similarity_HERVK = ins_sequence_similarity_HERVK,
+                ins_breakpoint_window_ALU = ins_breakpoint_window_ALU,
+                ins_breakpoint_window_LINE = ins_breakpoint_window_LINE,
+                ins_breakpoint_window_SVA = ins_breakpoint_window_SVA,
+                ins_breakpoint_window_HERVK = ins_breakpoint_window_HERVK,
+                ins_min_shared_samples_ALU = ins_min_shared_samples_ALU,
+                ins_min_shared_samples_LINE = ins_min_shared_samples_LINE,
+                ins_min_shared_samples_SVA = ins_min_shared_samples_SVA,
+                ins_min_shared_samples_HERVK = ins_min_shared_samples_HERVK,
                 prefix = "~{prefix}.~{contig}.filtered",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_filter_palmer
@@ -121,26 +121,26 @@ task FilterPALMER {
         File rm_out
         Int rm_buffer
         File ref_fai
-        Float reciprocal_overlap_ALU
-        Float reciprocal_overlap_LINE
-        Float reciprocal_overlap_SVA
-        Float reciprocal_overlap_HERVK
-        Float size_similarity_ALU
-        Float size_similarity_LINE
-        Float size_similarity_SVA
-        Float size_similarity_HERVK
-        Float sequence_similarity_ALU
-        Float sequence_similarity_LINE
-        Float sequence_similarity_SVA
-        Float sequence_similarity_HERVK
-        Int breakpoint_window_ALU
-        Int breakpoint_window_LINE
-        Int breakpoint_window_SVA
-        Int breakpoint_window_HERVK
-        Int min_shared_samples_ALU
-        Int min_shared_samples_LINE
-        Int min_shared_samples_SVA
-        Int min_shared_samples_HERVK
+        Float ins_reciprocal_overlap_ALU
+        Float ins_reciprocal_overlap_LINE
+        Float ins_reciprocal_overlap_SVA
+        Float ins_reciprocal_overlap_HERVK
+        Float ins_size_similarity_ALU
+        Float ins_size_similarity_LINE
+        Float ins_size_similarity_SVA
+        Float ins_size_similarity_HERVK
+        Float ins_sequence_similarity_ALU
+        Float ins_sequence_similarity_LINE
+        Float ins_sequence_similarity_SVA
+        Float ins_sequence_similarity_HERVK
+        Int ins_breakpoint_window_ALU
+        Int ins_breakpoint_window_LINE
+        Int ins_breakpoint_window_SVA
+        Int ins_breakpoint_window_HERVK
+        Int ins_min_shared_samples_ALU
+        Int ins_min_shared_samples_LINE
+        Int ins_min_shared_samples_SVA
+        Int ins_min_shared_samples_HERVK
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -174,29 +174,29 @@ task FilterPALMER {
             breakpoint_window=0
             min_shared_samples=0
             if [[ "${ME_type}" == "ALU" ]]; then
-                reciprocal_overlap_threshold=~{reciprocal_overlap_ALU}
-                size_similarity_threshold=~{size_similarity_ALU}
-                sequence_similarity_threshold=~{sequence_similarity_ALU}
-                breakpoint_window=~{breakpoint_window_ALU}
-                min_shared_samples=~{min_shared_samples_ALU}
+                reciprocal_overlap_threshold=~{ins_reciprocal_overlap_ALU}
+                size_similarity_threshold=~{ins_size_similarity_ALU}
+                sequence_similarity_threshold=~{ins_sequence_similarity_ALU}
+                breakpoint_window=~{ins_breakpoint_window_ALU}
+                min_shared_samples=~{ins_min_shared_samples_ALU}
             elif [[ "${ME_type}" == "LINE" ]]; then
-                reciprocal_overlap_threshold=~{reciprocal_overlap_LINE}
-                size_similarity_threshold=~{size_similarity_LINE}
-                sequence_similarity_threshold=~{sequence_similarity_LINE}
-                breakpoint_window=~{breakpoint_window_LINE}
-                min_shared_samples=~{min_shared_samples_LINE}
+                reciprocal_overlap_threshold=~{ins_reciprocal_overlap_LINE}
+                size_similarity_threshold=~{ins_size_similarity_LINE}
+                sequence_similarity_threshold=~{ins_sequence_similarity_LINE}
+                breakpoint_window=~{ins_breakpoint_window_LINE}
+                min_shared_samples=~{ins_min_shared_samples_LINE}
             elif [[ "${ME_type}" == "SVA" ]]; then
-                reciprocal_overlap_threshold=~{reciprocal_overlap_SVA}
-                size_similarity_threshold=~{size_similarity_SVA}
-                sequence_similarity_threshold=~{sequence_similarity_SVA}
-                breakpoint_window=~{breakpoint_window_SVA}
-                min_shared_samples=~{min_shared_samples_SVA}
+                reciprocal_overlap_threshold=~{ins_reciprocal_overlap_SVA}
+                size_similarity_threshold=~{ins_size_similarity_SVA}
+                sequence_similarity_threshold=~{ins_sequence_similarity_SVA}
+                breakpoint_window=~{ins_breakpoint_window_SVA}
+                min_shared_samples=~{ins_min_shared_samples_SVA}
             elif [[ "${ME_type}" == "HERVK" ]]; then
-                reciprocal_overlap_threshold=~{reciprocal_overlap_HERVK}
-                size_similarity_threshold=~{size_similarity_HERVK}
-                sequence_similarity_threshold=~{sequence_similarity_HERVK}
-                breakpoint_window=~{breakpoint_window_HERVK}
-                min_shared_samples=~{min_shared_samples_HERVK}
+                reciprocal_overlap_threshold=~{ins_reciprocal_overlap_HERVK}
+                size_similarity_threshold=~{ins_size_similarity_HERVK}
+                sequence_similarity_threshold=~{ins_sequence_similarity_HERVK}
+                breakpoint_window=~{ins_breakpoint_window_HERVK}
+                min_shared_samples=~{ins_min_shared_samples_HERVK}
             fi
 
             awk '$11==FILTER' FILTER="${MEfilter}" ~{rm_out} | \

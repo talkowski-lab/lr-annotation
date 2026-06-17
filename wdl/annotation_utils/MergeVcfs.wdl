@@ -16,11 +16,11 @@ workflow MergeVcfs {
 
         Int min_truvari_match = 20
 
-        Float reciprocal_overlap = 0.0
-        Float sequence_similarity = 0.7
-        Float size_similarity = 0.7
-        Int breakpoint_distance = 500
-        Float sample_similarity = 0.0
+        Float truvari_reciprocal_overlap = 0.0
+        Float truvari_sequence_similarity = 0.7
+        Float truvari_size_similarity = 0.7
+        Int truvari_breakpoint_distance = 500
+        Float truvari_sample_similarity = 0.0
         Int size_min = 20
         Int size_max = 50000
 
@@ -110,14 +110,14 @@ workflow MergeVcfs {
                 input:
                     vcf = MergeNonTrvShard.unmatched_large_vcf,
                     vcf_idx = MergeNonTrvShard.unmatched_large_vcf_idx,
-                    pctovl = reciprocal_overlap,
-                    pctseq = sequence_similarity,
-                    pctsize = size_similarity,
-                    refdist = breakpoint_distance,
+                    pctovl = truvari_reciprocal_overlap,
+                    pctseq = truvari_sequence_similarity,
+                    pctsize = truvari_size_similarity,
+                    refdist = truvari_breakpoint_distance,
                     sizemin = size_min,
                     sizemax = size_max,
                     keep_strategy = "first",
-                    sample_similarity = sample_similarity,
+                    sample_similarity = truvari_sample_similarity,
                     set_merge_annotations = true,
                     strip_format_to_gt = true,
                     prefix = "~{prefix}.shard_~{j}.non_trv.truvari",
@@ -225,14 +225,14 @@ workflow MergeVcfs {
             input:
                 vcf = MergeNonTrvVcfs.unmatched_large_vcf,
                 vcf_idx = MergeNonTrvVcfs.unmatched_large_vcf_idx,
-                pctovl = reciprocal_overlap,
-                pctseq = sequence_similarity,
-                pctsize = size_similarity,
-                refdist = breakpoint_distance,
+                pctovl = truvari_reciprocal_overlap,
+                pctseq = truvari_sequence_similarity,
+                pctsize = truvari_size_similarity,
+                refdist = truvari_breakpoint_distance,
                 sizemin = size_min,
                 sizemax = size_max,
                 keep_strategy = "first",
-                sample_similarity = sample_similarity,
+                sample_similarity = truvari_sample_similarity,
                 set_merge_annotations = true,
                 strip_format_to_gt = true,
                 prefix = "~{prefix}.non_trv.truvari",
