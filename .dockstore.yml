@@ -523,9 +523,20 @@ workflows:
         - gcnv
       tags:
         - /.*/
+
   - subclass: WDL
     name: DepthClustering
     primaryDescriptorPath: /wdl/tools/DepthClustering.wdl
+    filters:
+      branches:
+        - main
+        - gcnv
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: GenotypeDepth
+    primaryDescriptorPath: /wdl/tools/GenotypeDepth.wdl
     filters:
       branches:
         - main
