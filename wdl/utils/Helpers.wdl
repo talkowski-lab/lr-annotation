@@ -654,14 +654,14 @@ task ConsolidateCollapsedSites {
     input {
         File vcf
         File vcf_idx
-        Float pctovl
-        Float pctseq
-        Float pctsize
-        Int refdist
-        Int sizemin
-        Int sizemax
-        String keep_strategy
+        Int breakpoint_window
+        Float reciprocal_overlap
         Float sample_similarity
+        Float sequence_similarity
+        Float size_similarity
+        Int size_min
+        Int size_max
+        String keep_strategy
         Boolean set_merge_annotations
         Boolean strip_format_to_gt
         String prefix
@@ -695,12 +695,12 @@ task ConsolidateCollapsedSites {
             -o collapsed.vcf \
             -c removed.vcf \
             --keep ~{keep_strategy} \
-            --pctovl ~{pctovl} \
-            --pctseq ~{pctseq} \
-            --pctsize ~{pctsize} \
-            --refdist ~{refdist} \
-            --sizemin ~{sizemin} \
-            --sizemax ~{sizemax}
+            --pctovl ~{reciprocal_overlap} \
+            --pctseq ~{sequence_similarity} \
+            --pctsize ~{size_similarity} \
+            --refdist ~{breakpoint_window} \
+            --sizemin ~{size_min} \
+            --sizemax ~{size_max}
         
         bgzip -f collapsed.vcf
         

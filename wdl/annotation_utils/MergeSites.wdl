@@ -9,19 +9,19 @@ workflow MergeSites {
         File vcf_idx
         String prefix
 
-        Float del_size_similarity = 0.8
-        Float del_reciprocal_overlap = 0.8
-        Int del_breakpoint_distance = 500
-        Float del_sequence_similarity = 0.5
+        Int del_breakpoint_window = 500
+        Float del_reciprocal_overlap = 0.0
         Float del_sample_similarity = 0.5
+        Float del_sequence_similarity = 0.7
+        Float del_size_similarity = 0.7
         Int del_size_max = -1
         Int del_size_min = 0
 
+        Int ins_breakpoint_window = 200
         Float ins_reciprocal_overlap = 0.0
-        Float ins_size_similarity = 0.5
-        Int ins_breakpoint_distance = 10
-        Float ins_sequence_similarity = 0.5
         Float ins_sample_similarity = 0.5
+        Float ins_sequence_similarity = 0.7
+        Float ins_size_similarity = 0.7
         Int ins_size_max = -1
         Int ins_size_min = 0
 
@@ -69,14 +69,14 @@ workflow MergeSites {
         input:
             vcf = SubsetDels.subset_vcf,
             vcf_idx = SubsetDels.subset_vcf_idx,
-            pctovl = del_reciprocal_overlap,
-            pctseq = del_sequence_similarity,
-            pctsize = del_size_similarity,
-            refdist = del_breakpoint_distance,
-            sizemin = del_size_min,
-            sizemax = del_size_max,
-            keep_strategy = "common",
+            breakpoint_window =del_breakpoint_window,
+            reciprocal_overlap = del_reciprocal_overlap,
             sample_similarity = del_sample_similarity,
+            sequence_similarity = del_sequence_similarity,
+            size_similarity = del_size_similarity,
+            size_min = del_size_min,
+            size_max = del_size_max,
+            keep_strategy = "common",
             set_merge_annotations = false,
             strip_format_to_gt = false,
             prefix = "~{prefix}.dels.collapsed",
@@ -89,14 +89,14 @@ workflow MergeSites {
         input:
             vcf = SubsetIns.subset_vcf,
             vcf_idx = SubsetIns.subset_vcf_idx,
-            pctovl = ins_reciprocal_overlap,
-            pctseq = ins_sequence_similarity,
-            pctsize = ins_size_similarity,
-            refdist = ins_breakpoint_distance,
-            sizemin = ins_size_min,
-            sizemax = ins_size_max,
-            keep_strategy = "common",
+            breakpoint_window =ins_breakpoint_window,
+            reciprocal_overlap = ins_reciprocal_overlap,
             sample_similarity = ins_sample_similarity,
+            sequence_similarity = ins_sequence_similarity,
+            size_similarity = ins_size_similarity,
+            size_min = ins_size_min,
+            size_max = ins_size_max,
+            keep_strategy = "common",
             set_merge_annotations = false,
             strip_format_to_gt = false,
             prefix = "~{prefix}.ins.collapsed",

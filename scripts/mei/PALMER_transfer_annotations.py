@@ -46,6 +46,8 @@ def compute_reciprocal_overlap(
 
 
 def compute_sequence_similarity(seq_a: str, seq_b: str) -> float:
+    seq_a = seq_a.upper()
+    seq_b = seq_b.upper()
     if not seq_a and not seq_b:
         return 1.0
     if not seq_a or not seq_b:

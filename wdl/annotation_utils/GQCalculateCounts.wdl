@@ -21,11 +21,14 @@ workflow GQCalculateCounts {
         Boolean drop_kanpig_supported_gq = false
 
         Int min_fuzzy_match = 20
-        Float del_size_similarity = 0.8
-        Float del_reciprocal_overlap = 0.8
+
         Int del_breakpoint_window = 500
+        Float del_reciprocal_overlap = 0.7
+        Float del_size_similarity = 0.7
+
+        Int ins_breakpoint_window = 200
+        Float ins_reciprocal_overlap = 0.0
         Float ins_size_similarity = 0.5
-        Int ins_breakpoint_window = 100
 
         String utils_docker
 
@@ -134,11 +137,12 @@ workflow GQCalculateCounts {
                     skip_trv = skip_trv,
                     drop_kanpig_supported_gq = drop_kanpig_supported_gq,
                     min_fuzzy_match = min_fuzzy_match,
-                    del_size_similarity = del_size_similarity,
-                    del_reciprocal_overlap = del_reciprocal_overlap,
                     del_breakpoint_window = del_breakpoint_window,
-                    ins_size_similarity = ins_size_similarity,
+                    del_reciprocal_overlap = del_reciprocal_overlap,
+                    del_size_similarity = del_size_similarity,
                     ins_breakpoint_window = ins_breakpoint_window,
+                    ins_reciprocal_overlap = ins_reciprocal_overlap,
+                    ins_size_similarity = ins_size_similarity,
                     prefix = "~{prefix}.truth.~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_truth_analysis
@@ -466,11 +470,12 @@ task TruthSetAnalysis {
         Boolean skip_trv = true
         Boolean drop_kanpig_supported_gq = false
         Int min_fuzzy_match
-        Float del_size_similarity
-        Float del_reciprocal_overlap
         Int del_breakpoint_window
-        Float ins_size_similarity
+        Float del_reciprocal_overlap
+        Float del_size_similarity
         Int ins_breakpoint_window
+        Float ins_reciprocal_overlap
+        Float ins_size_similarity
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -515,6 +520,7 @@ DEL_SIZE_SIM = float(~{del_size_similarity})
 DEL_REC_OVL = float(~{del_reciprocal_overlap})
 DEL_BP_WIN = int(~{del_breakpoint_window})
 INS_SIZE_SIM = float(~{ins_size_similarity})
+INS_REC_OVL = float(~{ins_reciprocal_overlap})
 INS_BP_WIN = int(~{ins_breakpoint_window})
 
 def get_type(variant_id):
@@ -585,6 +591,9 @@ def passes_ins(qs, qe, ql, cs, ce, cl):
     if ql == 0 or cl == 0:
         return False
     if min(ql, cl) / max(ql, cl) < INS_SIZE_SIM:
+        return False
+    overlap = max(0, min(qe, ce) - max(qs, cs))
+    if overlap / min(ql, cl) < INS_REC_OVL:
         return False
     if abs(qs - cs) + abs(qe - ce) > INS_BP_WIN:
         return False

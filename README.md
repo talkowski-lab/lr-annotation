@@ -183,14 +183,15 @@ Inputs:
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int min_length`: Minimum variant length to consider for matching.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
-- `Float del_size_similarity`: Minimum size similarity for matching deletions (default `0.8`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for matching deletions (default `0.8`).
 - `Int del_breakpoint_window`: Breakpoint window, in bp, for matching deletions (default `500`).
-- `Float dup_size_similarity`: Minimum size similarity for matching duplications (default `0.8`).
-- `Float dup_reciprocal_overlap`: Minimum reciprocal overlap for matching duplications (default `0.8`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for matching deletions (default `0.7`).
+- `Float del_size_similarity`: Minimum size similarity for matching deletions (default `0.7`).
 - `Int dup_breakpoint_window`: Breakpoint window, in bp, for matching duplications (default `500`).
+- `Float dup_reciprocal_overlap`: Minimum reciprocal overlap for matching duplications (default `0.7`).
+- `Float dup_size_similarity`: Minimum size similarity for matching duplications (default `0.7`).
+- `Int ins_breakpoint_window`: Breakpoint window, in bp, for matching insertions (default `200`).
+- `Float ins_reciprocal_overlap`: Minimum reciprocal overlap for matching insertions (default `0.0`).
 - `Float ins_size_similarity`: Minimum size similarity for matching insertions (default `0.5`).
-- `Int ins_breakpoint_window`: Breakpoint window, in bp, for matching insertions (default `100`).
 - `File dbvar_vcf`: From [references](#references).
 - `File dbvar_vcf_idx`: From [references](#references).
 
@@ -291,9 +292,10 @@ Inputs:
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
-- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.9`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.9`).
 - `Int del_breakpoint_window`: Breakpoint window, in bp, for matching (default `500`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.9`).
+- `Float del_sequence_similarity`: Minimum sequence similarity for a deletion to match a catalog locus (default `0.9`).
+- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.9`).
 - `File mei_catalog`: From [references](#references).
 
 Outputs:
@@ -327,10 +329,10 @@ Inputs:
 - `Int min_length`: Minimum insertion length to consider for annotation.
 - `File rm_out`: _RepeatMasker_ output for the input VCF's insertions.
 - `Int rm_buffer`: Padding, in bp, applied around RepeatMasker annotations when matching.
-- `Float ins_reciprocal_overlap_{ALU,SVA,LINE,HERVK}`: Per-type minimum reciprocal overlap for matching (default `0.9`).
-- `Float ins_size_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum size similarity for matching (default `0.9`).
-- `Float ins_sequence_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum sequence similarity for matching (default `0.9`).
 - `Int ins_breakpoint_window_{ALU,SVA,LINE,HERVK}`: Per-type breakpoint window, in bp, for matching (default `500`).
+- `Float ins_reciprocal_overlap_{ALU,SVA,LINE,HERVK}`: Per-type minimum reciprocal overlap for matching (default `0.9`).
+- `Float ins_sequence_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum sequence similarity for matching (default `0.9`).
+- `Float ins_size_similarity_{ALU,SVA,LINE,HERVK}`: Per-type minimum size similarity for matching (default `0.9`).
 - `Int ins_min_shared_samples_{ALU,SVA,LINE,HERVK}`: Per-type minimum number of shared samples for matching (default `0`).
 - `File ref_fai`: From [references](#references).
 
@@ -799,6 +801,13 @@ Inputs:
 - `Boolean run_trio_qc`: Whether to run the trio de novo analysis.
 - `Boolean run_truth_qc`: Whether to run the truth-set concordance analysis.
 - `Boolean skip_trv`: Whether to skip tandem-repeat variants.
+- `Int min_fuzzy_match`: Minimum variant length to perform fuzzy matching for truth concordance (default `20`).
+- `Int del_breakpoint_window`: Breakpoint window, in bp, for matching deletions during truth concordance (default `500`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for matching deletions during truth concordance (default `0.7`).
+- `Float del_size_similarity`: Minimum size similarity for matching deletions during truth concordance (default `0.7`).
+- `Int ins_breakpoint_window`: Breakpoint window, in bp, for matching insertions during truth concordance (default `200`).
+- `Float ins_reciprocal_overlap`: Minimum reciprocal overlap for matching insertions during truth concordance (default `0.0`).
+- `Float ins_size_similarity`: Minimum size similarity for matching insertions during truth concordance (default `0.5`).
 
 Outputs:
 - `trio_denovo_tsv`: GQ-stratified trio de novo count table.
@@ -861,17 +870,18 @@ This utility merges redundant records at the site level within a VCF by collapsi
 Inputs:
 - `File vcf`: VCF to merge.
 - `File vcf_idx`: Index for VCF.
-- `Float del_size_similarity`: Minimum size similarity for collapsing deletions (default `0.8`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for collapsing deletions (default `0.8`).
-- `Int del_breakpoint_distance`: Maximum breakpoint distance, in bp, for collapsing deletions (default `500`).
-- `Float del_sequence_similarity`: Minimum sequence similarity for collapsing deletions (default `0.5`).
+- `Int del_breakpoint_window`: Maximum breakpoint distance, in bp, for collapsing deletions (default `500`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for collapsing deletions (default `0.0`).
 - `Float del_sample_similarity`: Minimum sample similarity for collapsing deletions (default `0.5`).
+- `Float del_sequence_similarity`: Minimum sequence similarity for collapsing deletions (default `0.7`).
+- `Float del_size_similarity`: Minimum size similarity for collapsing deletions (default `0.7`).
 - `Int del_size_max`: Maximum deletion size to collapse, or `-1` for no maximum (default `-1`).
 - `Int del_size_min`: Minimum deletion size to collapse (default `0`).
-- `Float ins_size_similarity`: Minimum size similarity for collapsing insertions (default `0.5`).
-- `Int ins_breakpoint_distance`: Maximum breakpoint distance, in bp, for collapsing insertions (default `10`).
-- `Float ins_sequence_similarity`: Minimum sequence similarity for collapsing insertions (default `0.5`).
+- `Int ins_breakpoint_window`: Maximum breakpoint distance, in bp, for collapsing insertions (default `200`).
+- `Float ins_reciprocal_overlap`: Minimum reciprocal overlap for collapsing insertions (default `0.0`).
 - `Float ins_sample_similarity`: Minimum sample similarity for collapsing insertions (default `0.5`).
+- `Float ins_sequence_similarity`: Minimum sequence similarity for collapsing insertions (default `0.7`).
+- `Float ins_size_similarity`: Minimum size similarity for collapsing insertions (default `0.7`).
 - `Int ins_size_max`: Maximum insertion size to collapse, or `-1` for no maximum (default `-1`).
 - `Int ins_size_min`: Minimum insertion size to collapse (default `0`).
 
@@ -889,11 +899,11 @@ Inputs:
 - `String contig`: Contig being merged.
 - `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the contig.
 - `Int min_truvari_match`: Minimum variant length for Truvari matching (default `20`).
+- `Int truvari_breakpoint_window`: Maximum breakpoint distance, in bp, for merging non-TR variants (default `500`).
 - `Float truvari_reciprocal_overlap`: Minimum reciprocal overlap for merging non-TR variants (default `0.0`).
+- `Float truvari_sample_similarity`: Minimum sample similarity for merging non-TR variants (default `0.0`).
 - `Float truvari_sequence_similarity`: Minimum sequence similarity for merging non-TR variants (default `0.7`).
 - `Float truvari_size_similarity`: Minimum size similarity for merging non-TR variants (default `0.7`).
-- `Int truvari_breakpoint_distance`: Maximum breakpoint distance, in bp, for merging non-TR variants (default `500`).
-- `Float truvari_sample_similarity`: Minimum sample similarity for merging non-TR variants (default `0.0`).
 - `Int size_min`: Minimum variant size to merge (default `20`).
 - `Int size_max`: Maximum variant size to merge (default `50000`).
 - `File ref_fa`: From [references](#references).
@@ -1092,10 +1102,11 @@ Inputs:
 - `Array[File?] hapdiff_vcfs`: Per-sample hapdiff VCFs.
 - `Array[File?] hapdiff_vcf_idxs`: Indexes for `hapdiff_vcfs`.
 - `File? swap_samples`: Sample-ID swap map applied to the cohort VCF.
+- `Int truvari_breakpoint_window`: Breakpoint window, in bp, for matching a raw call (default `500`).
 - `Float truvari_reciprocal_overlap`: Minimum reciprocal overlap for matching a raw call (default `0.0`).
 - `Float truvari_sequence_similarity`: Minimum sequence similarity for matching a raw call (default `0.7`).
 - `Float truvari_size_similarity`: Minimum size similarity for matching a raw call (default `0.7`).
-- `Int truvari_breakpoint_window`: Breakpoint window, in bp, for matching a raw call (default `500`).
+- `Int fuzzy_match_breakpoint_window`: Breakpoint window, in bp, for fuzzy-matching a raw call to per-caller stats (default `500`).
 
 Outputs:
 - `sv_added_vcf`: Cohort VCF annotated with raw-caller support.

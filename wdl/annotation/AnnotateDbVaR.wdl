@@ -16,14 +16,17 @@ workflow AnnotateDbVaR {
 
         Int? records_per_shard
 
-        Float del_size_similarity = 0.8
-        Float del_reciprocal_overlap = 0.8
         Int del_breakpoint_window = 500
-        Float dup_size_similarity = 0.8
-        Float dup_reciprocal_overlap = 0.8
+        Float del_reciprocal_overlap = 0.7
+        Float del_size_similarity = 0.7
+
         Int dup_breakpoint_window = 500
+        Float dup_reciprocal_overlap = 0.7
+        Float dup_size_similarity = 0.7
+
+        Int ins_breakpoint_window = 200
+        Float ins_reciprocal_overlap = 0.0
         Float ins_size_similarity = 0.5
-        Int ins_breakpoint_window = 100
 
         String utils_docker
 
@@ -101,14 +104,15 @@ workflow AnnotateDbVaR {
                     original_vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                     dbvar_vcf = contig_dbvar_vcf,
                     dbvar_vcf_idx = contig_dbvar_vcf_idx,
-                    del_size_similarity = del_size_similarity,
-                    del_reciprocal_overlap = del_reciprocal_overlap,
                     del_breakpoint_window = del_breakpoint_window,
-                    dup_size_similarity = dup_size_similarity,
-                    dup_reciprocal_overlap = dup_reciprocal_overlap,
+                    del_reciprocal_overlap = del_reciprocal_overlap,
+                    del_size_similarity = del_size_similarity,
                     dup_breakpoint_window = dup_breakpoint_window,
-                    ins_size_similarity = ins_size_similarity,
+                    dup_reciprocal_overlap = dup_reciprocal_overlap,
+                    dup_size_similarity = dup_size_similarity,
                     ins_breakpoint_window = ins_breakpoint_window,
+                    ins_reciprocal_overlap = ins_reciprocal_overlap,
+                    ins_size_similarity = ins_size_similarity,
                     prefix = "~{prefix}.~{contig}.shard_~{i}.dbvar_annotated",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate
@@ -153,14 +157,15 @@ task AnnotateDbVaRIds {
         File original_vcf_idx
         File dbvar_vcf
         File dbvar_vcf_idx
-        Float del_size_similarity
-        Float del_reciprocal_overlap
         Int del_breakpoint_window
-        Float dup_size_similarity
-        Float dup_reciprocal_overlap
+        Float del_reciprocal_overlap
+        Float del_size_similarity
         Int dup_breakpoint_window
-        Float ins_size_similarity
+        Float dup_reciprocal_overlap
+        Float dup_size_similarity
         Int ins_breakpoint_window
+        Float ins_reciprocal_overlap
+        Float ins_size_similarity
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -188,12 +193,13 @@ DUP_SIZE_SIM = float(~{dup_size_similarity})
 DUP_REC_OVL = float(~{dup_reciprocal_overlap})
 DUP_BP_WIN = int(~{dup_breakpoint_window})
 INS_SIZE_SIM = float(~{ins_size_similarity})
+INS_REC_OVL = float(~{ins_reciprocal_overlap})
 INS_BP_WIN = int(~{ins_breakpoint_window})
 
 PARAMS = {
     'DEL': {'allowed': {'DEL', 'CNV'}, 'size_sim': DEL_SIZE_SIM, 'rec_ovl': DEL_REC_OVL, 'bp_win': DEL_BP_WIN},
     'DUP': {'allowed': {'DUP', 'CNV'}, 'size_sim': DUP_SIZE_SIM, 'rec_ovl': DUP_REC_OVL, 'bp_win': DUP_BP_WIN},
-    'INS': {'allowed': {'INS'}, 'size_sim': INS_SIZE_SIM, 'rec_ovl': None, 'bp_win': INS_BP_WIN},
+    'INS': {'allowed': {'INS'}, 'size_sim': INS_SIZE_SIM, 'rec_ovl': INS_REC_OVL, 'bp_win': INS_BP_WIN},
 }
 
 def parse_svlen(rec):
@@ -219,10 +225,13 @@ def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
         return False
     return True
 
-def passes_ins(qs, qe, ql, cs, ce, cl, size_sim, bp_win):
+def passes_ins(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
     if ql == 0 or cl == 0:
         return False
     if min(ql, cl) / max(ql, cl) < size_sim:
+        return False
+    overlap = max(0, min(qe, ce) - max(qs, cs))
+    if overlap / min(ql, cl) < rec_ovl:
         return False
     if abs(qs - cs) + abs(qe - ce) > bp_win:
         return False
@@ -279,7 +288,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                 cand_id = cand_id[0]
 
             if svtype == 'INS':
-                ok = passes_ins(qs, qe, ql, cs, ce, cl, size_sim, bp_win)
+                ok = passes_ins(qs, qe, ql, cs, ce, cl, size_sim, params['rec_ovl'], bp_win)
             else:
                 ok = passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, params['rec_ovl'], bp_win)
             if ok:
@@ -306,7 +315,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                     cand_id = cand.id if cand.id else cand.info.get('DBVARID', '.')
                     if isinstance(cand_id, (list, tuple)):
                         cand_id = cand_id[0]
-                    if passes_ins(ins_qs, ins_qs + 1, ql, cs, ce, cl, ins_size_sim, ins_bp_win):
+                    if passes_ins(ins_qs, ins_qs + 1, ql, cs, ce, cl, ins_size_sim, ins_params['rec_ovl'], ins_bp_win):
                         matched.append(str(cand_id))
 
         # Add match to output

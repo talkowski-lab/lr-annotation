@@ -12,9 +12,10 @@ workflow AnnotateMEDs {
 
         Int? records_per_shard
 
-        Float del_size_similarity = 0.9
-        Float del_reciprocal_overlap = 0.9
         Int del_breakpoint_window = 500
+        Float del_reciprocal_overlap = 0.9
+        Float del_sequence_similarity = 0.9
+        Float del_size_similarity = 0.9
 
         File mei_catalog
 
@@ -93,9 +94,10 @@ workflow AnnotateMEDs {
             call GenerateMedAnnotationTable {
                 input:
                     intersect_bed = IntersectMED.intersect_bed,
-                    del_size_similarity = del_size_similarity,
-                    del_reciprocal_overlap = del_reciprocal_overlap,
                     del_breakpoint_window = del_breakpoint_window,
+                    del_reciprocal_overlap = del_reciprocal_overlap,
+                    del_sequence_similarity = del_sequence_similarity,
+                    del_size_similarity = del_size_similarity,
                     prefix = "~{prefix}.~{contig}.shard_~{i}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate
@@ -222,9 +224,10 @@ task IntersectMED {
 task GenerateMedAnnotationTable {
     input {
         File intersect_bed
-        Float del_size_similarity
-        Float del_reciprocal_overlap
         Int del_breakpoint_window
+        Float del_reciprocal_overlap
+        Float del_sequence_similarity
+        Float del_size_similarity
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -234,6 +237,7 @@ task GenerateMedAnnotationTable {
         set -euo pipefail
 
         python3 <<'EOF'
+import edlib
 import pandas as pd
 
 def get_me_type(designation):
@@ -246,7 +250,22 @@ def get_me_type(designation):
         return 'SVA'
     return None
 
-def passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
+def compute_sequence_similarity(seq_a, seq_b):
+    seq_a = seq_a.upper()
+    seq_b = seq_b.upper()
+    if not seq_a and not seq_b:
+        return 1.0
+    if not seq_a or not seq_b:
+        return 0.0
+    if seq_a == seq_b:
+        return 1.0
+    result = edlib.align(seq_a, seq_b, task="distance")
+    max_len = max(len(seq_a), len(seq_b))
+    if max_len == 0:
+        return 1.0
+    return 1.0 - (result["editDistance"] / max_len)
+
+def passes_criteria(del_start, del_end, del_seq, med_start, med_end, med_seq, size_similarity, reciprocal_overlap, sequence_similarity, breakpoint_window):
     del_len = abs(del_end - del_start)
     med_len = abs(med_end - med_start)
 
@@ -261,6 +280,10 @@ def passes_criteria(del_start, del_end, med_start, med_end, size_similarity, rec
         return False
     if rec_ovl < reciprocal_overlap:
         return False
+    if del_seq and med_seq:
+        seq_sim = compute_sequence_similarity(del_seq, med_seq)
+        if seq_sim < sequence_similarity:
+            return False
     if abs(del_start - med_start) + abs(del_end - med_end) > breakpoint_window:
         return False
 
@@ -270,6 +293,7 @@ bed = pd.read_csv("~{intersect_bed}", sep='\t', header=None)
 
 size_similarity = float(~{del_size_similarity})
 reciprocal_overlap = float(~{del_reciprocal_overlap})
+sequence_similarity = float(~{del_sequence_similarity})
 breakpoint_window = int(~{del_breakpoint_window})
 
 annotations = []
@@ -281,21 +305,25 @@ for _, row in bed.iterrows():
     del_chrom = row[0]
     del_start = int(row[1])
     del_end = int(row[2])
-    del_ref = row[3]
+    del_ref = str(row[3])
     del_alt = row[4]
     del_id = row[5]
 
     med_start = int(row[7])
     med_end = int(row[8])
+    med_seq = str(row[10])
     designation = row[11]
     sub_family = row[12]
+
+    # strip VCF anchor base; empty for symbolic deletions (REF = "N")
+    del_seq = del_ref[1:] if len(del_ref) > 1 else ""
 
     me_type = get_me_type(designation)
 
     if not me_type:
         continue
 
-    if passes_criteria(del_start, del_end, med_start, med_end, size_similarity, reciprocal_overlap, breakpoint_window):
+    if passes_criteria(del_start, del_end, del_seq, med_start, med_end, med_seq, size_similarity, reciprocal_overlap, sequence_similarity, breakpoint_window):
         annotations.append([
             del_chrom,
             del_start,

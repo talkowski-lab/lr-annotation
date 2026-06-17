@@ -28,10 +28,10 @@ workflow SVAddRawCallers {
         Array[File?]? hapdiff_vcfs
         Array[File?]? hapdiff_vcf_idxs
         
+        Int truvari_breakpoint_window = 500
         Float truvari_reciprocal_overlap = 0.0
         Float truvari_sequence_similarity = 0.7
         Float truvari_size_similarity = 0.7
-        Int truvari_breakpoint_window = 500
 
         Boolean fuzzy_match_vcf_to_stats = true
         Int fuzzy_match_breakpoint_window = 500
@@ -127,10 +127,10 @@ workflow SVAddRawCallers {
                 dipcall_vcf_idx = dipcall_idx_i,
                 hapdiff_vcf = hapdiff_vcf_i,
                 hapdiff_vcf_idx = hapdiff_idx_i,
+                truvari_breakpoint_window = truvari_breakpoint_window,
                 truvari_reciprocal_overlap = truvari_reciprocal_overlap,
                 truvari_sequence_similarity = truvari_sequence_similarity,
                 truvari_size_similarity = truvari_size_similarity,
-                truvari_breakpoint_window = truvari_breakpoint_window,
                 fuzzy_match_vcf_to_stats = fuzzy_match_vcf_to_stats,
                 fuzzy_match_breakpoint_window = fuzzy_match_breakpoint_window,
                 match_gt_kanpig = match_gt_kanpig,
@@ -190,10 +190,10 @@ task ProcessSample {
         File? dipcall_vcf_idx
         File? hapdiff_vcf
         File? hapdiff_vcf_idx
+        Int truvari_breakpoint_window
         Float truvari_reciprocal_overlap
         Float truvari_sequence_similarity
         Float truvari_size_similarity
-        Int truvari_breakpoint_window
         Boolean fuzzy_match_vcf_to_stats
         Int fuzzy_match_breakpoint_window
         Boolean match_gt_kanpig
@@ -329,8 +329,8 @@ tv_params = truvari.VariantParams(
     pctseq=sequence_similarity,
     pctovl=reciprocal_overlap,
     refdist=breakpoint_window,
-    sizemin=50,
-    sizefilt=50,
+    sizemin=0,
+    sizefilt=0,
     passonly=False,
     skip_gt=True,
     no_ref="a",
