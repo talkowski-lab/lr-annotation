@@ -24,6 +24,7 @@ workflow GenotypeDepth {
     input:
       vcf = vcf,
       vcf_index = vcf_index,
+      training_intervals = training_intervals,
       median_coverage = median_coverage,
       rd = rd,
       rd_index = rd_index,
