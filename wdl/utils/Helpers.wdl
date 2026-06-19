@@ -2200,14 +2200,17 @@ import pysam
 # Index original VCF by variant ID
 original_data = {}
 with pysam.VariantFile("~{original_vcf}") as orig_vcf:
+    has_svtype = 'SVTYPE' in orig_vcf.header.info
+    has_svlen = 'SVLEN' in orig_vcf.header.info
+    has_end = 'END' in orig_vcf.header.info
     for record in orig_vcf:
         original_data[record.id] = {
             'pos': record.pos,
             'ref': record.ref,
             'alts': record.alts,
-            'svtype': record.info.get('SVTYPE', None),
-            'svlen': record.info.get('SVLEN', None),
-            'end': record.info.get('END', None),
+            'svtype': record.info.get('SVTYPE', None) if has_svtype else None,
+            'svlen': record.info.get('SVLEN', None) if has_svlen else None,
+            'end': record.info.get('END', None) if has_end else None,
         }
 
 # Revert symbolic alleles in annotated VCF
