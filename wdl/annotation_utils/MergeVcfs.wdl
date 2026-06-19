@@ -21,8 +21,8 @@ workflow MergeVcfs {
         Float truvari_sample_similarity = 0.0
         Float truvari_sequence_similarity = 0.7
         Float truvari_size_similarity = 0.7
-        Int size_min = 20
-        Int size_max = 50000
+        Int truvari_size_min = 20
+        Int truvari_size_max = 50000
 
         String utils_docker
 
@@ -115,8 +115,8 @@ workflow MergeVcfs {
                     sample_similarity = truvari_sample_similarity,
                     sequence_similarity = truvari_sequence_similarity,
                     size_similarity = truvari_size_similarity,
-                    size_min = size_min,
-                    size_max = size_max,
+                    size_min = truvari_size_min,
+                    size_max = truvari_size_max,
                     keep_strategy = "first",
                     set_merge_annotations = true,
                     strip_format_to_gt = true,
@@ -230,8 +230,8 @@ workflow MergeVcfs {
                 sample_similarity = truvari_sample_similarity,
                 sequence_similarity = truvari_sequence_similarity,
                 size_similarity = truvari_size_similarity,
-                size_min = size_min,
-                size_max = size_max,
+                size_min = truvari_size_min,
+                size_max = truvari_size_max,
                 keep_strategy = "first",
                 set_merge_annotations = true,
                 strip_format_to_gt = true,
@@ -503,12 +503,14 @@ task MergeNonTrvVcfs {
             exact_merged.vcf.gz
 
         bcftools view \
-            -i 'MERGE_COUNT=1 && (INFO/allele_length >= ~{min_truvari_match} || INFO/allele_length <= -~{min_truvari_match})' \
-            -Oz -o ~{prefix}.unmatched_large.vcf.gz exact_merged.vcf.gz
+            -i 'MERGE_COUNT=1 && abs(INFO/allele_length) >= ~{min_truvari_match}' \
+            -Oz -o ~{prefix}.unmatched_large.vcf.gz \
+            exact_merged.vcf.gz
 
         bcftools view \
-            -i 'MERGE_COUNT=1 && INFO/allele_length < ~{min_truvari_match} && INFO/allele_length > -~{min_truvari_match}' \
-            -Oz -o unmatched_small.vcf.gz exact_merged.vcf.gz
+            -i 'MERGE_COUNT=1 && abs(INFO/allele_length) < ~{min_truvari_match}' \
+            -Oz -o unmatched_small.vcf.gz \
+            exact_merged.vcf.gz
 
         tabix -f -p vcf matched.vcf.gz
         tabix -f -p vcf ~{prefix}.unmatched_large.vcf.gz

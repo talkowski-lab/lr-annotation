@@ -1574,8 +1574,17 @@ Outputs:
 
 
 ## Output Schema
-- `INFO/allele_length`: Allele length - positive for insertions, negative for deletions and 0 for SNVs.
-- `INFO/allele_type`: Allele type, which is one of the below.
+### INFO Fields
+- Allele Frequencies.
+	- `AC`: Count of non-reference alleles.
+	- `AF`: Proportion of alleles that are non-reference.
+	- `AN`: Count of alleles genotyped.
+	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
+	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
+	- `MC_allele`: Motif count per-allele (multiallelic sites only).
+	- `NCR`: Proportion of alleles that don't have a genotype call.
+- `allele_length`: Allele length - positive for insertions, negative for deletions and 0 for SNVs.
+- `allele_type`: Allele type, which is one of the below.
 	- `snv`: Single nucleotide variant.
 	- `ins`: Insertion.
 	- `del`: Deletion.
@@ -1587,48 +1596,67 @@ Outputs:
 	- `numt`: Nuclear-mitochondrial segment.
 	- `{ME_TYPE}_ins`: Mobile element insertion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
 	- `{ME_TYPE}_del`: Mobile element deletion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
+- `dbSNP_ID`: Variant ID from dbSNP for matched variants.
+- `dbVaR_ID`: Variant ID from dbVaR for matched variants.
+- Genotype Quality Metrics.
+	- `ab_hist_alt_bin_freq`: Histogram for AB in heterozygous individuals calculated on high quality genotypes; bin edges are: 0.00|0.05|0.10|0.15|0.20|0.25|0.30|0.35|0.40|0.45|0.50|0.55|0.60|0.65|0.70|0.75|0.80|0.85|0.90|0.95|1.00.
+	- `dp_hist_all_bin_freq`: Histogram for DP calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+	- `dp_hist_all_n_larger`: Count of DP values falling above the highest histogram bin edge, calculated on high quality genotypes.
+	- `dp_hist_alt_bin_freq`: Histogram for DP in heterozygous individuals calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+	- `dp_hist_alt_n_larger`: Count of DP values falling above the highest histogram bin edge in heterozygous individuals, calculated on high quality genotypes.
+	- `gq_hist_all_bin_freq`: Histogram for GQ calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+	- `gq_hist_alt_bin_freq`: Histogram for GQ in heterozygous individuals calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+	- `sd_hist_all_bin_freq`: Histogram for SD calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+	- `sd_hist_alt_bin_freq`: Histogram for SD in heterozygous individuals calculated on high quality genotypes; bin edges are: 0|5|10|15|20|25|30|35|40|45|50|55|60|65|70|75|80|85|90|95|100.
+- gnomAD Overlap.
+	- `gnomAD_STR`: gnomAD STR ID overlapping this tandem repeat variant.
+	- `gnomAD_V4_match_filter`: FILTER associated with matched gnomAD V4 variant.
+	- `gnomAD_V4_match_ID`: Variant ID of matched gnomAD V4 variant.
+	- `gnomAD_V4_match_source`: Source of matched gnomAD V4 variant, which is one of the below.
+		- `SNV_indel`: SNV & indel callset.
+		- `SV`: SV callset.
+	- `gnomAD_V4_match_type`: Method for generating match with gnomAD V4, which is one of the below.
+		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
+		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
+		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity.
+- Insilico Predictors.
+	- `cadd_phred`: CADD Phred-like scores ('scaled C-scores') ranging from 1 to 99, based on the rank of each variant relative to all possible 8.6 billion substitutions in the human reference genome. Larger values are more deleterious.
+	- `cadd_raw_score`: Raw CADD score, interpretable as the extent to which the annotation profile for a given variant suggests that the variant is likely to be 'observed' (negative values) vs 'simulated' (positive values). Larger values are more deleterious.
+	- `pangolin_largest`: Pangolin's largest delta score across 2 splicing consequences, reflecting the probability of the variant being splice-altering.
+	- `phylop`: Base-wise conservation score across the 241 placental mammals in the Zoonomia project. Score ranges from -20 to 9.28, where negative values reflect acceleration (faster evolution than expected under neutral drift) and positive values reflect conservation (slower than expected evolution).
+	- `revel_max`: Maximum REVEL score at a site's MANE Select or canonical transcript. An ensemble score for predicting the pathogenicity of missense variants based on 13 other variant predictors. Scores range from 0 to 1, with higher scores predicted to be more likely to be deleterious.
+	- `spliceai_ds_max`: Illumina's SpliceAI max delta score, interpreted as the probability of the variant being splice-altering.
+- `ORIGIN`: Origin of duplicated sequence for duplications and NUMTs.
+- `PREDICTED_*`: Annotations from SVAnnotate, which are all prefixed by `PREDICTED_`.
+- `REGION`: Genomic region, which is one of `SR` (for simple repeats), `SD` (for segmental duplications), `RM` (for RepeatMasker annotated regions) or `US` (for unique sequences, or more simply, none of the previous regions).
+- Site Quality Metrics.
+	- `AS_pab_max`: Allele-specific maximum p-value over callset for binomial test of observed allele balance for a heterozygous genotype, given expectation of AB=0.5.
+	- `AS_QD`: Allele-specific variant call confidence normalized by depth of sample reads supporting a variant.
+	- `AS_QUALapprox`: Allele-specific sum of PL[0] values; used to approximate the QUAL score.
+	- `AS_VarDP`: Allele-specific depth over variant genotypes (does not include depth of reference samples).
+	- `HWE`: Hardy-Weinberg equilibrium p-value.
+	- `inbreeding_coeff`: Inbreeding coefficient, the excess heterozygosity at a variant site, computed as 1 - (the number of heterozygous genotypes)/(the number of heterozygous genotypes expected under Hardy-Weinberg equilibrium).
 - `SOURCE`: Source of call, which is one of the below.
 	- `DeepVariant`: SNV or indel call made by the DeepVariant pipeline.
 	- `HPRC_SV_Integration`: Structural variant call made by the HPRC SV Integration pipeline.
 	- `TRExplorer`: Tandem repeat loci from the TRExplorer v1.0.1 catalog.
 	- `Vamos`: Tandem repeat loci from the Vamos v2.1 catalog.
-- `TR_ENVELOPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`. 
-- `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with the `TR_ENVELOPED` flag. 
-- `TR_PARSED`: Flag indicating a variant with `allele_type != "trv"` is flagged as a tandem repeat by the `AnnotateIndelTRs` workflow.
-- `ORIGIN`: Origin of duplicated sequence for duplications and NUMTs.
 - `SUB_FAMILY`: Sub-family for MEI calls.
-- `dbSNP_ID`: Variant ID from dbSNP for matched variants.
-- `REGION`: Genomic region, which is one of `SR` (for simple repeats), `SD` (for segmental duplications), `RM` (for RepeatMasker annotated regions) or `US` (for unique sequences, or more simply, none of the previous regions).
-- Functional Annotations.
-	- `vep`: Annotations from the Variant Effect Predictor (VEP).
-	- `PREDICTED_`: Annotations from SVAnnotate, which are all prefixed by `PREDICTED_`.
-- gnomAD_V4 Benchmarking.
-	- `gnomAD_V4_match_type`: Method for generating match, which is one of the below.
-		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
-		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity.
-		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
-	- `gnomAD_V4_match_ID`: Variant ID of matched variant.
-	- `gnomAD_V4_match_source`: Source of matched variant, which is one of the below.
-		- `SNV_indel`: SNV & indel callset.
-		- `SV`: SV callset.
-- Allele Frequencies.
-	- `AN`: Count of alleles genotyped.
-	- `AC`: Count of non-reference alleles.
-	- `AF`: Proportion of alleles that are non-reference.
-	- `NCR`: Proportion of alleles that don't have a genotype call.
-	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
-	- `MC_allele`: Motif count per-allele (multiallelic sites only).
-	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
-- VRS Annotations: As described in the [VRS documentation](https://vrs.ga4gh.org/en/stable/).
-	- `VRS_Allele_IDs`.
-	- `VRS_Starts`.
-	- `VRS_Ends`.
-	- `VRS_States`.
-	- `VRS_Lengths`.
-	- `VRS_RepeatSubunitLengths`.
-- Filters.
-	- `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has  `INFO/allele_length ≥ 50`.
-	- `SMALL_SV`: Variant with `SOURCE = "HPRC_SV_Integration"` that has `INFO/allele_length < 50`.
+- `TR_ENVELOPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`.
+- `TR_PARSED`: Flag indicating a variant with `allele_type != "trv"` is flagged as a tandem repeat by the `AnnotateIndelTRs` workflow.
+- `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with the `TR_ENVELOPED` flag.
+- `vep`: Annotations from the Variant Effect Predictor (VEP).
+- `VRS_Allele_IDs`: Computed identifiers for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles [VRS version=2.0.1;VRS-Python version=2.3.1].
+- `VRS_Ends`: Interresidue coordinates used as the location ends for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
+- `VRS_Error`: Error message if an error occurred computing a VRS Identifier.
+- `VRS_Lengths`: Length values from ReferenceLengthExpression states for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
+- `VRS_RepeatSubunitLengths`: Repeat subunit length values from ReferenceLengthExpression states for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
+- `VRS_Starts`: Interresidue coordinates used as the location starts for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
+- `VRS_States`: Literal sequence states used for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
+
+### FILTER Values
+- `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has  `INFO/allele_length ≥ 50`.
+- `SMALL_SV`: Variant with `SOURCE = "HPRC_SV_Integration"` that has `INFO/allele_length < 50`.
 
 
 
