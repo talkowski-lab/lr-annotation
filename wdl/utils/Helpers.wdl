@@ -143,6 +143,7 @@ task BedtoolsClosest {
             -wo \
             -a <(sort -k1,1 -k2,2n ~{bed_a}) \
             -b <(sort -k1,1 -k2,2n ~{bed_b}) \
+            | awk -F'\t' '$7 != "."' \
             >> ~{prefix}.bed
     >>>
 
