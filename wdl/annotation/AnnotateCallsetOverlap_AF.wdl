@@ -36,7 +36,10 @@ workflow AnnotateCallsetOverlap_AF {
         String length_field_eval = "allele_length"
         String normalize_check_ref = "w"
         String skip_vep_categories = ""
-        
+        String af_field_sv_truth = "AF"
+        String ac_field_sv_truth = "AC"
+        String an_field_sv_truth = "AN"
+
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
@@ -311,6 +314,9 @@ workflow AnnotateCallsetOverlap_AF {
                 vcf_truth_snv_idx = truth_vcf_final_idx,
                 vcf_truth_sv = sv_truth_vcf_final,
                 vcf_truth_sv_idx = sv_truth_vcf_final_idx,
+                af_field_sv_truth = af_field_sv_truth,
+                ac_field_sv_truth = ac_field_sv_truth,
+                an_field_sv_truth = an_field_sv_truth,
                 prefix = "~{prefix}.~{contig}.annotations_af",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_append_truth_af
@@ -640,6 +646,9 @@ task AppendTruthAFACAN {
         File vcf_truth_snv_idx
         File vcf_truth_sv
         File vcf_truth_sv_idx
+        String af_field_sv_truth = "AF"
+        String ac_field_sv_truth = "AC"
+        String an_field_sv_truth = "AN"
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -654,11 +663,17 @@ import subprocess
 annotation_tsv = "~{annotation_tsv}"
 vcf_truth_snv = "~{vcf_truth_snv}"
 vcf_truth_sv = "~{vcf_truth_sv}"
+af_field_sv_truth = "~{af_field_sv_truth}"
+ac_field_sv_truth = "~{ac_field_sv_truth}"
+an_field_sv_truth = "~{an_field_sv_truth}"
 prefix = "~{prefix}"
 
 truth_af = {}
-for vcf in [vcf_truth_snv, vcf_truth_sv]:
-    cmd = f"bcftools query -f '%ID\\t%INFO/AF\\t%INFO/AC\\t%INFO/AN\\n' {vcf}"
+for vcf, af_field, ac_field, an_field in [
+    (vcf_truth_snv, "AF", "AC", "AN"),
+    (vcf_truth_sv, af_field_sv_truth, ac_field_sv_truth, an_field_sv_truth)
+]:
+    cmd = f"bcftools query -f '%ID\\t%INFO/{af_field}\\t%INFO/{ac_field}\\t%INFO/{an_field}\\n' {vcf}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
     for line in proc.stdout:
         parts = line.rstrip('\n').split('\t')

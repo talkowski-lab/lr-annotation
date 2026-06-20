@@ -1575,14 +1575,6 @@ Outputs:
 
 ## Output Schema
 ### INFO Fields
-- Allele Frequencies.
-	- `AC`: Count of non-reference alleles.
-	- `AF`: Proportion of alleles that are non-reference.
-	- `AN`: Count of alleles genotyped.
-	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
-	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
-	- `MC_allele`: Motif count per-allele (multiallelic sites only).
-	- `NCR`: Proportion of alleles that don't have a genotype call.
 - `allele_length`: Allele length - positive for insertions, negative for deletions and 0 for SNVs.
 - `allele_type`: Allele type, which is one of the below.
 	- `snv`: Single nucleotide variant.
@@ -1596,6 +1588,22 @@ Outputs:
 	- `numt`: Nuclear-mitochondrial segment.
 	- `{ME_TYPE}_ins`: Mobile element insertion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
 	- `{ME_TYPE}_del`: Mobile element deletion, where `{ME_TYPE}` is one of `ALU`, `LINE` or `SVA`.
+- Allele Frequencies.
+	- `AC`: Count of non-reference alleles.
+	- `AF`: Proportion of alleles that are non-reference.
+	- `AN`: Count of alleles genotyped.
+	- `AP_allele`: Allele purity per-allele (multiallelic sites only).
+	- `freq_het`: Heterozygous genotype frequency (biallelic sites only).
+	- `freq_homalt`: Homozygous alternate genotype frequency (biallelic sites only).
+	- `freq_homref`: Homozygous reference genotype frequency (biallelic sites only).
+	- `grpmax`: Population label with maximum allele frequency (biallelic sites only).
+	- `LPS_allele`: Longest polymer sequence per-allele (multiallelic sites only).
+	- `MC_allele`: Motif count per-allele (multiallelic sites only).
+	- `n_bi_genos`: Total number of samples with complete genotypes (biallelic sites only).
+	- `NCR`: Proportion of alleles that don't have a genotype call.
+	- `nhet`: Number of samples with heterozygous genotypes (biallelic sites only).
+	- `nhomalt`: Number of samples with homozygous alternate genotypes (biallelic sites only).
+	- `nhomref`: Number of samples with homozygous reference genotypes (biallelic sites only).
 - `dbSNP_ID`: Variant ID from dbSNP for matched variants.
 - `dbVaR_ID`: Variant ID from dbVaR for matched variants.
 - Genotype Quality Metrics.
@@ -1619,6 +1627,7 @@ Outputs:
 		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
 		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
 		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity.
+- `HOMOPOLYMER_TRV`: Flag indicating a tandem repeat call where the shortest motif has length 1.
 - Insilico Predictors.
 	- `cadd_phred`: CADD Phred-like scores ('scaled C-scores') ranging from 1 to 99, based on the rank of each variant relative to all possible 8.6 billion substitutions in the human reference genome. Larger values are more deleterious.
 	- `cadd_raw_score`: Raw CADD score, interpretable as the extent to which the annotation profile for a given variant suggests that the variant is likely to be 'observed' (negative values) vs 'simulated' (positive values). Larger values are more deleterious.
@@ -1642,9 +1651,12 @@ Outputs:
 	- `TRExplorer`: Tandem repeat loci from the TRExplorer v1.0.1 catalog.
 	- `Vamos`: Tandem repeat loci from the Vamos v2.1 catalog.
 - `SUB_FAMILY`: Sub-family for MEI calls.
+- Tandem Repeats.
+	- `MOTIFS`: Motifs that the tandem repeat is composed of.
+	- `STRUC`: Structure of the tandem repeat region.
+	- `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with the `TR_ENVELOPED` flag.
 - `TR_ENVELOPED`: Flag indicating a variant with `allele_type != "trv"` is completely enveloped by a variant with `allele_type = "trv"`.
 - `TR_PARSED`: Flag indicating a variant with `allele_type != "trv"` is flagged as a tandem repeat by the `AnnotateIndelTRs` workflow.
-- `TRID`: TR identifier for TR calls; source of enveloping variant with `allele_type = "trv"` for non-TR calls with the `TR_ENVELOPED` flag.
 - `vep`: Annotations from the Variant Effect Predictor (VEP).
 - `VRS_Allele_IDs`: Computed identifiers for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles [VRS version=2.0.1;VRS-Python version=2.3.1].
 - `VRS_Ends`: Interresidue coordinates used as the location ends for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
@@ -1656,6 +1668,8 @@ Outputs:
 
 ### FILTER Values
 - `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has  `INFO/allele_length ≥ 50`.
+- `MONOALLELIC`: Site represents one ALT allele in a region with multiple variants that could not be unified into non-overlapping multi-allelic sites.
+- `SINGLE_READ_SUPPORT`: Variant supported by a single read in a single sample.
 - `SMALL_SV`: Variant with `SOURCE = "HPRC_SV_Integration"` that has `INFO/allele_length < 50`.
 
 
