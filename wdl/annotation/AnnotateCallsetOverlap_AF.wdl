@@ -507,7 +507,7 @@ task ExactMatch {
             }' > truth_matched.tsv
 
         paste eval_matched.tsv truth_matched.tsv \
-            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel",$7}' \
+            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel_exome",$7}' \
             > ~{prefix}.tsv
 
         bcftools isec \

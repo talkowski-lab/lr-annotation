@@ -535,7 +535,7 @@ task CreateBedtoolsAnnotationTsv {
             > joined_with_filter.tsv
 
         awk -F'\t' 'BEGIN{OFS="\t"} {
-            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV", $7
+            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV_exome", $7
         }' joined_with_filter.tsv \
         | sort -k1,1V -k2,2n > ~{prefix}.bedtools_matched.tsv
     >>>
