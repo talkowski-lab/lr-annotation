@@ -895,19 +895,18 @@ def map_type(raw):
         print(f"Error: unrecognized allele type '{raw}'", file=sys.stderr)
         sys.exit(1)
 
-ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)')
+ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)-(\d+)')
 
-def extract_origin_pos(origin):
+def extract_origin_coords(origin):
     if origin is None:
-        print(f"Error: cannot extract origin position for {record.id} at {record.chrom}:{record.pos} (ORIGIN={origin})", file=sys.stderr)
-        sys.exit(1)
+        return None, None
     if isinstance(origin, (list, tuple)):
         origin = origin[0]
     first = str(origin).split(',')[0]
     m = ORIGIN_RE.search(first)
     if m:
-        return int(m.group(1))
-    return None
+        return int(m.group(1)), int(m.group(2))
+    return None, None
 
 move_dup = ~{true="True" false="False" move_dup_to_origin}
 
@@ -935,11 +934,13 @@ for allele_type in present_types:
 # Convert records
 vcf_out = pysam.VariantFile("unsorted.vcf.gz", 'w', header=header)
 for record in vcf_in:
-    # Map type to set ALT and SVTYPE
+    # Map type
     raw = record.info["~{type_field}"]
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
     allele_type = map_type(raw)
+
+    # Set REF/ALT/SVTYPE
     record.ref = 'N'
     record.alts = (f'<{allele_type}>',)
     record.info['SVTYPE'] = allele_type
@@ -951,14 +952,18 @@ for record in vcf_in:
     svlen = abs(allele_length)
     record.info['SVLEN'] = svlen
 
-    # Set END and reposition DUPs
-    if allele_type == 'DUP':
-        origin_pos = extract_origin_pos(record.info.get('ORIGIN', None))        
-        if move_dup:
-            record.info['ORIGINAL_POS'] = record.pos
-            record.pos = origin_pos
-            record.stop = origin_pos + svlen
-    elif allele_type == 'INS':
+    # Set END
+    if move_dup and allele_type == 'DUP':
+        # Reposition DUPs if move_dup = true
+        origin_pos, origin_end = extract_origin_coords(record.info.get('ORIGIN', None))
+        if origin_pos is None or origin_end is None:
+            print(f"Error: cannot extract ORIGIN for DUP {record.id} at {record.chrom}:{record.pos} (ORIGIN={record.info.get('ORIGIN')})", file=sys.stderr)
+            sys.exit(1)
+        record.info['ORIGINAL_POS'] = record.pos
+        record.pos = origin_pos
+        record.stop = origin_end
+        record.info['SVLEN'] = origin_end - origin_pos
+    elif allele_type == 'INS' or allele_type == 'DUP':
         record.stop = record.pos + 1
     else:
         record.stop = record.pos + svlen

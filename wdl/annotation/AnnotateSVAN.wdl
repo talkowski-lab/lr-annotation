@@ -433,7 +433,7 @@ for record in vcf_in:
         flank_start = max(1, record.pos - alt_len - 100)
         abs_start = flank_start + int(local_start_str)
         abs_end = flank_start + int(local_end_str)
-        record.info["DUP_COORD"] = f"{abs_chrom}:{abs_start}-{abs_end}{strand}"
+        record.info["DUP_COORD"] = f"{abs_chrom}:{abs_start}-{abs_end}_{strand}"
     vcf_out.write(record)
 vcf_in.close()
 vcf_out.close()

@@ -119,7 +119,7 @@ with open("~{prefix}.tsv", "w") as out:
         flank_start = max(1, record.pos - alt_len - 100)
         abs_start = flank_start + local_start
         abs_end = flank_start + local_end
-        new_origin = f"{abs_chrom}:{abs_start}-{abs_end}{strand}"
+        new_origin = f"{abs_chrom}:{abs_start}-{abs_end}_{strand}"
         alts = ",".join(record.alts) if record.alts else "."
         rid = record.id if record.id else "."
         out.write(f"{record.chrom}\t{record.pos}\t{record.ref}\t{alts}\t{rid}\t{new_origin}\n")
