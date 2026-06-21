@@ -899,7 +899,8 @@ ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)')
 
 def extract_origin_pos(origin):
     if origin is None:
-        return None
+        print(f"Error: cannot extract origin position for {record.id} at {record.chrom}:{record.pos} (ORIGIN={origin})", file=sys.stderr)
+        sys.exit(1)
     if isinstance(origin, (list, tuple)):
         origin = origin[0]
     first = str(origin).split(',')[0]
@@ -952,15 +953,11 @@ for record in vcf_in:
 
     # Set END and reposition DUPs
     if allele_type == 'DUP':
-        origin = record.info.get('ORIGIN', None)
-        origin_pos = extract_origin_pos(origin)
-        if origin_pos is None:
-            print(f"Error: cannot extract origin position for DUP {record.id} at {record.chrom}:{record.pos} (ORIGIN={origin})", file=sys.stderr)
-            sys.exit(1)
+        origin_pos = extract_origin_pos(record.info.get('ORIGIN', None))        
         if move_dup:
             record.info['ORIGINAL_POS'] = record.pos
             record.pos = origin_pos
-        record.stop = origin_pos + svlen
+            record.stop = origin_pos + svlen
     elif allele_type == 'INS':
         record.stop = record.pos + 1
     else:
