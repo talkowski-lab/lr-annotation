@@ -92,23 +92,23 @@ workflow AnnotateAlleleType {
                 runtime_attr_override = runtime_attr_annotate_med
         }
 
-        call AnnotateMed {
+        call AnnotateDup {
             input:
                 vcf = AddHeaders.vcf_with_headers,
                 vcf_idx = AddHeaders.vcf_with_headers_idx,
-                med_tsv = contig_med_tsv,
-                med_prefix = med_prefix,
-                med_suffix = med_suffix,
-                med_lowercase = med_lowercase,
-                prefix = "~{prefix}.~{contig}.med_annotated",
+                dup_tsv = contig_dup_tsv,
+                dup_prefix = dup_prefix,
+                dup_suffix = dup_suffix,
+                dup_lowercase = dup_lowercase,
+                prefix = "~{prefix}.~{contig}.dup_annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_med
+                runtime_attr_override = runtime_attr_annotate_dup
         }
 
         call AnnotateMei {
             input:
-                vcf = AnnotateMed.annotated_vcf,
-                vcf_idx = AnnotateMed.annotated_vcf_idx,
+                vcf = AnnotateDup.annotated_vcf,
+                vcf_idx = AnnotateDup.annotated_vcf_idx,
                 mei_tsv = contig_mei_tsv,
                 mei_prefix = mei_prefix,
                 mei_suffix = mei_suffix,
@@ -118,25 +118,25 @@ workflow AnnotateAlleleType {
                 runtime_attr_override = runtime_attr_annotate_mei
         }
 
-        call AnnotateDup {
+        call AnnotateMed {
             input:
                 vcf = AnnotateMei.annotated_vcf,
                 vcf_idx = AnnotateMei.annotated_vcf_idx,
-                dup_tsv = contig_dup_tsv,
-                dup_prefix = dup_prefix,
-                dup_suffix = dup_suffix,
-                dup_lowercase = dup_lowercase,
-                prefix = "~{prefix}.~{contig}.dup_annotated",
+                med_tsv = contig_med_tsv,
+                med_prefix = med_prefix,
+                med_suffix = med_suffix,
+                med_lowercase = med_lowercase,
+                prefix = "~{prefix}.~{contig}.med_annotated",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_dup
+                runtime_attr_override = runtime_attr_annotate_med
         }
     }
 
     if (!single_contig) {
         call Helpers.ConcatVcfs {
             input:
-                vcfs = AnnotateDup.annotated_vcf,
-                vcf_idxs = AnnotateDup.annotated_vcf_idx,
+                vcfs = AnnotateMed.annotated_vcf,
+                vcf_idxs = AnnotateMed.annotated_vcf_idx,
                 allow_overlaps = false,
                 naive = true,
                 prefix = "~{prefix}.allele_type_annotated",
@@ -146,8 +146,8 @@ workflow AnnotateAlleleType {
     }
 
     output {
-        File allele_type_annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateDup.annotated_vcf[0]])
-        File allele_type_annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateDup.annotated_vcf_idx[0]])
+        File allele_type_annotated_vcf = select_first([ConcatVcfs.concat_vcf, AnnotateMed.annotated_vcf[0]])
+        File allele_type_annotated_vcf_idx = select_first([ConcatVcfs.concat_vcf_idx, AnnotateMed.annotated_vcf_idx[0]])
     }
 }
 
@@ -203,14 +203,14 @@ task AddHeaders {
     }
 }
 
-task AnnotateMed {
+task AnnotateDup {
     input {
         File vcf
         File vcf_idx
-        File med_tsv
-        String? med_prefix
-        String? med_suffix
-        Boolean? med_lowercase
+        File dup_tsv
+        String? dup_prefix
+        String? dup_suffix
+        Boolean? dup_lowercase
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -219,31 +219,40 @@ task AnnotateMed {
     command <<<
         set -euo pipefail
 
-        med_prefix=~{select_first([med_prefix, ''])}
-        med_suffix=~{select_first([med_suffix, ''])}
-        med_lowercase=~{select_first([med_lowercase, 'false'])}
+        dup_prefix=~{select_first([dup_prefix, ''])}
+        dup_suffix=~{select_first([dup_suffix, ''])}
+        dup_lowercase=~{select_first([dup_lowercase, 'false'])}
         
-        awk -v pre="$med_prefix" -v suf="$med_suffix" -v lower="$med_lowercase" '
+        awk -v pre="$dup_prefix" -v suf="$dup_suffix" -v lower="$dup_lowercase" '
             BEGIN {
                 FS = OFS = "\t"
             }
             {
                 gsub(/[\n\r]/, "", $6)
                 gsub(/[\n\r]/, "", $7)
+                gsub(/[\n\r]/, "", $8)
+                
                 $6 = pre $6 suf
                 if (lower == "true") {
                     $6 = tolower($6)
                 }
-                print
+                
+                if ($7 != "" && $7 != "." && length($7) > 0) {
+                    origin = $7
+                } else {
+                    origin = $8
+                }
+                
+                print $1, $2, $3, $4, $5, $6, origin
             }
-        ' "~{med_tsv}" > "med_modified.tsv"
+        ' "~{dup_tsv}" > "dup_modified.tsv"
         
-        bgzip -c "med_modified.tsv" > "med_annotations.tsv.gz"
-        tabix -s1 -b2 -e2 "med_annotations.tsv.gz"
+        bgzip -c "dup_modified.tsv" > "dup_annotations.tsv.gz"
+        tabix -s1 -b2 -e2 "dup_annotations.tsv.gz"
         
         bcftools annotate \
-            -a "med_annotations.tsv.gz" \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SUB_FAMILY \
+            -a "dup_annotations.tsv.gz" \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/ORIGIN \
             -Oz -o ~{prefix}.vcf.gz \
             "~{vcf}"
         
@@ -258,7 +267,7 @@ task AnnotateMed {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(med_tsv, "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(dup_tsv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -347,14 +356,14 @@ task AnnotateMei {
     }
 }
 
-task AnnotateDup {
+task AnnotateMed {
     input {
         File vcf
         File vcf_idx
-        File dup_tsv
-        String? dup_prefix
-        String? dup_suffix
-        Boolean? dup_lowercase
+        File med_tsv
+        String? med_prefix
+        String? med_suffix
+        Boolean? med_lowercase
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -363,40 +372,31 @@ task AnnotateDup {
     command <<<
         set -euo pipefail
 
-        dup_prefix=~{select_first([dup_prefix, ''])}
-        dup_suffix=~{select_first([dup_suffix, ''])}
-        dup_lowercase=~{select_first([dup_lowercase, 'false'])}
+        med_prefix=~{select_first([med_prefix, ''])}
+        med_suffix=~{select_first([med_suffix, ''])}
+        med_lowercase=~{select_first([med_lowercase, 'false'])}
         
-        awk -v pre="$dup_prefix" -v suf="$dup_suffix" -v lower="$dup_lowercase" '
+        awk -v pre="$med_prefix" -v suf="$med_suffix" -v lower="$med_lowercase" '
             BEGIN {
                 FS = OFS = "\t"
             }
             {
                 gsub(/[\n\r]/, "", $6)
                 gsub(/[\n\r]/, "", $7)
-                gsub(/[\n\r]/, "", $8)
-                
                 $6 = pre $6 suf
                 if (lower == "true") {
                     $6 = tolower($6)
                 }
-                
-                if ($7 != "" && $7 != "." && length($7) > 0) {
-                    origin = $7
-                } else {
-                    origin = $8
-                }
-                
-                print $1, $2, $3, $4, $5, $6, origin
+                print
             }
-        ' "~{dup_tsv}" > "dup_modified.tsv"
+        ' "~{med_tsv}" > "med_modified.tsv"
         
-        bgzip -c "dup_modified.tsv" > "dup_annotations.tsv.gz"
-        tabix -s1 -b2 -e2 "dup_annotations.tsv.gz"
+        bgzip -c "med_modified.tsv" > "med_annotations.tsv.gz"
+        tabix -s1 -b2 -e2 "med_annotations.tsv.gz"
         
         bcftools annotate \
-            -a "dup_annotations.tsv.gz" \
-            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/ORIGIN \
+            -a "med_annotations.tsv.gz" \
+            -c CHROM,POS,REF,ALT,~ID,INFO/allele_type,INFO/SUB_FAMILY \
             -Oz -o ~{prefix}.vcf.gz \
             "~{vcf}"
         
@@ -411,7 +411,7 @@ task AnnotateDup {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(dup_tsv, "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(med_tsv, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
