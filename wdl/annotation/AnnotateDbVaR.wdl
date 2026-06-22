@@ -255,6 +255,9 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
             continue
         params = PARAMS[svtype]
         chrom = rec.chrom
+        if chrom not in dbvar.header.contigs:
+            continue
+        
         qs = rec.start
         qe = rec.stop
         ql = parse_svlen(rec)
@@ -262,23 +265,16 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
         orig_ref, orig_alt = original_ref_alt.get(var_id, (rec.ref if rec.ref else '.', rec.alts[0] if rec.alts else '.'))
         bp_win = params['bp_win']
         size_sim = params['size_sim']
-        if svtype == 'INS':
-            region_start = max(0, qs - bp_win)
-            region_end = qs + bp_win + 1
-        else:
-            margin = bp_win + int(ql / size_sim) + 1
-            region_start = max(0, qs - margin)
-            region_end = qe + margin
-        
-        if chrom not in dbvar.header.contigs:
-            continue
+        region_start = max(0, qs - bp_win)
+        region_end = qe + bp_win
 
-        # Look for a canonical match
-        matched = []
+        # Look for the best (minimum breakpoint distance) canonical match
+        best_match = None
+        best_bp_dist = float('inf')
         cands = dbvar.fetch(chrom, region_start, region_end)
         for cand in cands:
             ctype = cand.info.get('SVTYPE')
-            if ctype not in params['allowed']:
+            if ctype is None or not any(a in ctype for a in params['allowed']):
                 continue
             cs = cand.start
             ce = cand.stop
@@ -292,10 +288,13 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
             else:
                 ok = passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, params['rec_ovl'], bp_win)
             if ok:
-                matched.append(str(cand_id))
+                bp_dist = abs(qs - cs) + abs(qe - ce)
+                if bp_dist < best_bp_dist:
+                    best_bp_dist = bp_dist
+                    best_match = str(cand_id)
 
         # Fallback for DUPs by looking for a match with an INS
-        if svtype == 'DUP' and not matched:
+        if svtype == 'DUP' and best_match is None:
             orig_pos_info = rec.info.get('ORIGINAL_POS', None)
             if orig_pos_info is not None:
                 if isinstance(orig_pos_info, (list, tuple)):
@@ -305,7 +304,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                 ins_bp_win = ins_params['bp_win']
                 ins_size_sim = ins_params['size_sim']
                 ins_region_start = max(0, ins_qs - ins_bp_win)
-                ins_region_end = ins_qs + ins_bp_win + 1
+                ins_region_end = ins_qs + 1 + ins_bp_win
                 for cand in dbvar.fetch(chrom, ins_region_start, ins_region_end):
                     if cand.info.get('SVTYPE') != 'INS':
                         continue
@@ -316,12 +315,13 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                     if isinstance(cand_id, (list, tuple)):
                         cand_id = cand_id[0]
                     if passes_ins(ins_qs, ins_qs + 1, ql, cs, ce, cl, ins_size_sim, ins_params['rec_ovl'], ins_bp_win):
-                        matched.append(str(cand_id))
+                        bp_dist = abs(ins_qs - cs) + abs(ins_qs + 1 - ce)
+                        if bp_dist < best_bp_dist:
+                            best_bp_dist = bp_dist
+                            best_match = str(cand_id)
 
-        # Add match to output
-        if matched:
-            seen = set()
-            uniq = [m for m in matched if not (m in seen or seen.add(m))]
+        # Add best match to output
+        if best_match:
             out_pos = rec.info.get('ORIGINAL_POS', None)
             if out_pos is not None:
                 if isinstance(out_pos, (list, tuple)):
@@ -329,7 +329,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                 out_pos = int(out_pos)
             else:
                 out_pos = qs + 1
-            out.write(f"{chrom}\t{out_pos}\t{orig_ref}\t{orig_alt}\t{var_id}\t{','.join(uniq)}\n")
+            out.write(f"{chrom}\t{out_pos}\t{orig_ref}\t{orig_alt}\t{var_id}\t{best_match}\n")
 
 query.close()
 dbvar.close()

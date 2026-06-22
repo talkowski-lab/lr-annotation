@@ -885,10 +885,10 @@ import sys
 
 def map_type(raw):
     t = raw.upper()
-    if 'DEL' in t:
-        return 'DEL'
-    elif t == 'DUP':
+    if t == 'DUP':
         return 'DUP'
+    elif 'DEL' in t:
+        return 'DEL'
     elif 'INS' in t or 'DUP' in t or 'NUMT' in t:
         return 'INS'
     else:
