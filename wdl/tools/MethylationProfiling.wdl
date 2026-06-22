@@ -50,9 +50,12 @@ task CpgPileup {
 
     command <<<
         set -euo pipefail
-        
+
+        samtools view -F 2304 -b -o filtered.bam ~{bam}
+        samtools index filtered.bam
+
         aligned_bam_to_cpg_scores \
-            --bam ~{bam} \
+            --bam filtered.bam \
             --ref ~{ref_fa} \
             --output-prefix ~{prefix} \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
@@ -73,7 +76,7 @@ task CpgPileup {
     RuntimeAttr default_attr = object {
         cpu_cores: 8,
         mem_gb: 12,
-        disk_gb: 2 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
+        disk_gb: 3 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
