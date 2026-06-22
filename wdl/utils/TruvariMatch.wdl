@@ -16,6 +16,7 @@ workflow TruvariMatch {
         Int min_sv_length_eval
         Int min_sv_length_truth
         String length_field_eval
+        String source_tag = "SNV_indel"
 
         String utils_docker
 
@@ -58,6 +59,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             tag_value = "TRUVARI_0.9",
+            source_tag = source_tag,
             prefix = "~{prefix}.0.9",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari
@@ -75,6 +77,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             tag_value = "TRUVARI_0.7",
+            source_tag = source_tag,
             prefix = "~{prefix}.0.7",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari
@@ -92,6 +95,7 @@ workflow TruvariMatch {
             sizemin = 0,
             sizefilt = 0,
             tag_value = "TRUVARI_0.5",
+            source_tag = source_tag,
             prefix = "~{prefix}.0.5",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_run_truvari
@@ -125,6 +129,7 @@ task RunTruvari {
         Int sizemin
         Int sizefilt
         String tag_value
+        String source_tag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -166,7 +171,7 @@ task RunTruvari {
             | LC_ALL=C sort -k1,1 > base.mid2id.tsv
 
         LC_ALL=C join -t $'\t' -1 6 -2 1 comp.mid.tsv base.mid2id.tsv \
-            | awk -F'\t' -v tag="~{tag_value}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7,"SNV_indel",$8}' \
+            | awk -F'\t' -v tag="~{tag_value}" -v src="~{source_tag}" 'BEGIN{OFS="\t"} {print $2,$3,$4,$5,$6,tag,$7,src,$8}' \
             > ~{prefix}.annotation.tsv
     >>>
 

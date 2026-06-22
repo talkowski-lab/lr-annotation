@@ -15,6 +15,7 @@ workflow BedtoolsClosestSV {
         Int min_sv_length_truth
         String type_field_eval
         String length_field_eval
+        String source_tag = "SV"
 
         String benchmark_annotations_docker
         String utils_docker
@@ -234,6 +235,7 @@ workflow BedtoolsClosestSV {
             vcf_sv_truth = SubsetTruth.subset_vcf,
             vcf_sv_truth_idx = SubsetTruth.subset_vcf_idx,
             closest_bed = PrioritizedConcatComparisons.merged_tsv,
+            source_tag = source_tag,
             prefix = "~{prefix}.bedtools_closest_annotations",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge_comparisons
@@ -480,6 +482,7 @@ task CreateBedtoolsAnnotationTsv {
         File vcf_sv_truth
         File vcf_sv_truth_idx
         File closest_bed
+        String source_tag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -534,8 +537,8 @@ task CreateBedtoolsAnnotationTsv {
             truth_filters.tsv \
             > joined_with_filter.tsv
 
-        awk -F'\t' 'BEGIN{OFS="\t"} {
-            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV_exome", $7
+        awk -F'\t' -v src="~{source_tag}" 'BEGIN{OFS="\t"} {
+            print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, src, $7
         }' joined_with_filter.tsv \
         | sort -k1,1V -k2,2n > ~{prefix}.bedtools_matched.tsv
     >>>

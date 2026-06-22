@@ -30,6 +30,8 @@ workflow AnnotateCallsetOverlap {
         Int min_sv_length_truth_bedtools_closest
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
+        String source_tag_vcf_truth = "SNV_indel"
+        String source_tag_vcf_sv_truth = "SV"
         String skip_vep_categories = ""
         String? args_string_vcf
         String? args_string_vcf_truth
@@ -191,6 +193,7 @@ workflow AnnotateCallsetOverlap {
                     vcf_eval_idx = eval_vcf_final_idx,
                     vcf_truth = truth_vcf_final,
                     vcf_truth_idx = truth_vcf_final_idx,
+                    source_tag = source_tag_vcf_truth,
                     prefix = "~{prefix}.~{contig}.exact",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_exact_match
@@ -211,6 +214,7 @@ workflow AnnotateCallsetOverlap {
                     min_sv_length_eval = min_sv_length_eval_truvari,
                     min_sv_length_truth = min_sv_length_truth_truvari,
                     length_field_eval = length_field_eval,
+                    source_tag = source_tag_vcf_truth,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     utils_docker = utils_docker,
@@ -236,6 +240,7 @@ workflow AnnotateCallsetOverlap {
                     min_sv_length_truth = min_sv_length_truth_bedtools_closest,
                     type_field_eval = type_field_eval,
                     length_field_eval = length_field_eval,
+                    source_tag = source_tag_vcf_sv_truth,
                     benchmark_annotations_docker = benchmark_annotations_docker,
                     utils_docker = utils_docker,
                     runtime_attr_subset_eval = runtime_attr_bedtools_subset_eval,
@@ -413,6 +418,7 @@ task ExactMatch {
         File vcf_eval_idx
         File vcf_truth
         File vcf_truth_idx
+        String source_tag
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -449,7 +455,7 @@ task ExactMatch {
             }' > truth_matched.tsv
 
         paste eval_matched.tsv truth_matched.tsv \
-            | awk 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,"SNV_indel",$7}' \
+            | awk -v src="~{source_tag}" 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,src,$7}' \
             > ~{prefix}.tsv
 
         bcftools isec \

@@ -11,7 +11,7 @@ workflow GQCalculateCounts {
         Array[File]? truth_vcf_idxs
         String prefix
 
-        Array[Int] length_bins = [0, 1, 2, 6, 10, 30, 50, 100, 500, 5000, 50000]
+        Array[Int] length_bins = [0, 10, 30, 50, 100, 500, 5000, 50000]
         String? subset_vcf_string
         File? ped
         File? swap_samples_truth
@@ -328,7 +328,7 @@ def caller_gq_emissions(sample):
         emissions.append((match.group(1), calculate_gq(calculate_pl(int(match.group(2)), int(match.group(3))))))
     return emissions
 
-# (bucket_type, bucket_size, caller, gq) -> [count_inherited, count_de_novo]
+# (bucket_type, bucket_size, caller, gq, trv_status) -> [count_inherited, count_de_novo]
 counts = defaultdict(lambda: [0, 0])
 
 vcf = pysam.VariantFile("~{vcf}")
@@ -344,6 +344,7 @@ for record in vcf:
 
     variant_type = get_type(record.id)
     size_bucket = get_size_bucket(al)
+    trv_status = "TR_ENVELOPED" in record.info
 
     for child, father, mother in trios:
         child_sample = record.samples[child]
@@ -357,17 +358,17 @@ for record in vcf:
         inherited = is_nonref_unphased(record.samples[father]["GT"]) or is_nonref_unphased(record.samples[mother]["GT"])
         slot = 0 if inherited else 1
         for caller, gq in emissions:
-            counts[(variant_type, size_bucket, caller, gq)][slot] += 1
+            counts[(variant_type, size_bucket, caller, gq, trv_status)][slot] += 1
 
 vcf.close()
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
-    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3])):
-        bt, bs, caller, gq = key
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tTRV_STATUS\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3], k[4])):
+        bt, bs, caller, gq, trv_status = key
         inherited, de_novo = counts[key]
         count = inherited + de_novo
-        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{count}\t{inherited}\t{de_novo}\n")
+        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{trv_status}\t{count}\t{inherited}\t{de_novo}\n")
 CODE
     >>>
 
@@ -422,17 +423,17 @@ for f in input_files:
         next(fh)
         for line in fh:
             fields = line.rstrip("\n").split("\t")
-            key = (fields[0], fields[1], fields[2], int(fields[3]))
-            counts[key][0] += int(fields[5])
-            counts[key][1] += int(fields[6])
+            key = (fields[0], fields[1], fields[2], int(fields[3]), fields[4] == "True")
+            counts[key][0] += int(fields[6])
+            counts[key][1] += int(fields[7])
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
-    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3])):
-        bt, bs, caller, gq = key
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tTRV_STATUS\tCOUNT\tCOUNT_INHERITED\tCOUNT_DE_NOVO\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3], k[4])):
+        bt, bs, caller, gq, trv_status = key
         inherited, de_novo = counts[key]
         count = inherited + de_novo
-        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{count}\t{inherited}\t{de_novo}\n")
+        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{trv_status}\t{count}\t{inherited}\t{de_novo}\n")
 CODE
     >>>
 
@@ -695,6 +696,7 @@ for record in vcf_in:
     size_bucket = get_size_bucket(al)
 
     has_match, truth_nonref = find_truth_match(record, variant_type, abs(al))
+    trv_status = "TR_ENVELOPED" in record.info
 
     for s in common_samples:
         sample = record.samples[s]
@@ -706,7 +708,7 @@ for record in vcf_in:
             continue
 
         for caller, gq in emissions:
-            bucket_key = (variant_type, size_bucket, caller, gq)
+            bucket_key = (variant_type, size_bucket, caller, gq, trv_status)
             variant_sites[bucket_key].add(record.id)
 
             if has_match:
@@ -718,16 +720,16 @@ for record in vcf_in:
 vcf_in.close()
 truth_in.close()
 
-all_keys = sorted(variant_sites.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3]))
+all_keys = sorted(variant_sites.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3], k[4]))
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tTRV_STATUS\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
     for key in all_keys:
-        bt, bs, caller, gq = key
+        bt, bs, caller, gq, trv_status = key
         vc = len(variant_sites[key])
         vmc = len(variant_match_sites.get(key, set()))
         mcc = match_call_count.get(key, 0)
         mccc = match_concordant_count.get(key, 0)
-        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
+        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{trv_status}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
 CODE
     >>>
 
@@ -774,7 +776,7 @@ LENGTH_BINS = [~{sep=", " length_bins}]
 SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
 SIZE_ORDER = {label: index for index, label in enumerate(SIZE_LABELS)}
 
-# (bucket_type, bucket_size, caller, gq) -> [variant_count, variant_match_count, match_call_count, match_concordant_count]
+# (bucket_type, bucket_size, caller, gq, trv_status) -> [variant_count, variant_match_count, match_call_count, match_concordant_count]
 counts = defaultdict(lambda: [0, 0, 0, 0])
 input_files = "~{sep=',' tsvs}".split(",")
 
@@ -783,18 +785,18 @@ for f in input_files:
         next(fh)
         for line in fh:
             fields = line.rstrip("\n").split("\t")
-            key = (fields[0], fields[1], fields[2], int(fields[3]))
-            counts[key][0] += int(fields[4])
-            counts[key][1] += int(fields[5])
-            counts[key][2] += int(fields[6])
-            counts[key][3] += int(fields[7])
+            key = (fields[0], fields[1], fields[2], int(fields[3]), fields[4] == "True")
+            counts[key][0] += int(fields[5])
+            counts[key][1] += int(fields[6])
+            counts[key][2] += int(fields[7])
+            counts[key][3] += int(fields[8])
 
 with open("~{prefix}.tsv", "w") as out:
-    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
-    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3])):
-        bt, bs, caller, gq = key
+    out.write("BUCKET_TYPE\tBUCKET_SIZE\tCALLER\tGQ\tTRV_STATUS\tCOUNT_VARIANT\tCOUNT_VARIANT_MATCH\tCOUNT_CALL_MATCH\tCOUNT_CALL_MATCH_CONCORDANT\tCOUNT_CALL_MATCH_DISCONCORDANT\n")
+    for key in sorted(counts.keys(), key=lambda k: (k[0], SIZE_ORDER.get(k[1], 99), k[2], k[3], k[4])):
+        bt, bs, caller, gq, trv_status = key
         vc, vmc, mcc, mccc = counts[key]
-        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
+        out.write(f"{bt}\t{bs}\t{caller}\t{gq}\t{trv_status}\t{vc}\t{vmc}\t{mcc}\t{mccc}\t{mcc - mccc}\n")
 CODE
     >>>
 
