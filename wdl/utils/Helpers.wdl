@@ -662,6 +662,7 @@ task ConsolidateCollapsedSites {
         Float size_similarity
         Int size_min
         Int size_max
+        Int size_filt = 30
         String keep_strategy
         Boolean set_merge_annotations
         Boolean strip_format_to_gt
@@ -701,7 +702,8 @@ task ConsolidateCollapsedSites {
             --pctsize ~{size_similarity} \
             --refdist ~{breakpoint_window} \
             --sizemin ~{size_min} \
-            --sizemax ~{size_max}
+            --sizemax ~{size_max} \
+            --sizefilt ~{size_filt}
         
         bgzip -f collapsed.vcf
         
