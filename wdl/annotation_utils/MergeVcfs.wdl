@@ -18,7 +18,6 @@ workflow MergeVcfs {
         Float truvari_size_similarity = 0.7
         Int truvari_size_max = 50000
         Int truvari_size_min = 20
-        Int truvari_size_filt = 20
 
         File ref_fa
         File ref_fai
@@ -118,7 +117,7 @@ workflow MergeVcfs {
                     size_similarity = truvari_size_similarity,
                     size_min = truvari_size_min,
                     size_max = truvari_size_max,
-                    size_filt = truvari_size_filt,
+
                     keep_strategy = "first",
                     set_merge_annotations = true,
                     strip_format_to_gt = true,
@@ -234,7 +233,6 @@ workflow MergeVcfs {
                 size_similarity = truvari_size_similarity,
                 size_min = truvari_size_min,
                 size_max = truvari_size_max,
-                size_filt = truvari_size_filt,
                 keep_strategy = "first",
                 set_merge_annotations = true,
                 strip_format_to_gt = true,

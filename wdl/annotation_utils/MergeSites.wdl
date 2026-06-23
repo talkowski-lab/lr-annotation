@@ -16,7 +16,6 @@ workflow MergeSites {
         Float del_size_similarity = 0.7
         Int del_size_max = 50000
         Int del_size_min = 0
-        Int del_size_filt = 0
 
         Int ins_breakpoint_window = 200
         Float ins_reciprocal_overlap = 0.0
@@ -25,7 +24,6 @@ workflow MergeSites {
         Float ins_size_similarity = 0.7
         Int ins_size_max = 50000
         Int ins_size_min = 0
-        Int ins_size_filt = 0
 
         Int? shard_bin_size
         File? ref_fai
@@ -106,7 +104,7 @@ workflow MergeSites {
                     size_similarity = del_size_similarity,
                     size_min = del_size_min,
                     size_max = del_size_max,
-                    size_filt = del_size_filt,
+
                     keep_strategy = "common",
                     set_merge_annotations = false,
                     strip_format_to_gt = false,
@@ -126,7 +124,7 @@ workflow MergeSites {
                     size_similarity = ins_size_similarity,
                     size_min = ins_size_min,
                     size_max = ins_size_max,
-                    size_filt = ins_size_filt,
+
                     keep_strategy = "common",
                     set_merge_annotations = false,
                     strip_format_to_gt = false,
@@ -203,7 +201,6 @@ workflow MergeSites {
                 size_similarity = del_size_similarity,
                 size_min = del_size_min,
                 size_max = del_size_max,
-                size_filt = del_size_filt,
                 keep_strategy = "common",
                 set_merge_annotations = false,
                 strip_format_to_gt = false,
@@ -224,7 +221,6 @@ workflow MergeSites {
                 size_similarity = ins_size_similarity,
                 size_min = ins_size_min,
                 size_max = ins_size_max,
-                size_filt = ins_size_filt,
                 keep_strategy = "common",
                 set_merge_annotations = false,
                 strip_format_to_gt = false,
