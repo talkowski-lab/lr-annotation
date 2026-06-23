@@ -65,8 +65,8 @@ workflow TransformINSToDUP {
     }
 
     output {
-        File transformed_vcf = select_first([ConcatShards.concat_vcf, TransformDups.transformed_vcf[0]])
-        File transformed_vcf_idx = select_first([ConcatShards.concat_vcf_idx, TransformDups.transformed_vcf_idx[0]])
+        File dup_transformed_vcf = select_first([ConcatShards.concat_vcf, TransformDups.transformed_vcf[0]])
+        File dup_transformed_vcf_idx = select_first([ConcatShards.concat_vcf_idx, TransformDups.transformed_vcf_idx[0]])
     }
 }
 
