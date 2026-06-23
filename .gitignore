@@ -20,6 +20,11 @@ data/*
 *.bed.gz
 *.bed.gz.tbi
 
+*.bam
+*.bam.bai
+*.cram
+*.cram.crai
+
 *.fa
 *.fa.gz
 *.fa.gz.tbi

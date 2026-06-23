@@ -5,13 +5,14 @@ import "../utils/Structs.wdl"
 
 workflow TransferMethylationTags {
     input {
-        Array[String] unaligned_bam_paths
         File aligned_bam
         File aligned_bai
         Array[String] contigs
         String prefix
 
+        Array[String] unaligned_bam_paths
         Boolean gcs_paths = false
+        Boolean recreate_bam = false
         String mm_tag = "MM"
         String ml_tag = "ML"
 
@@ -23,73 +24,141 @@ workflow TransferMethylationTags {
         RuntimeAttr? runtime_attr_transfer_tags
         RuntimeAttr? runtime_attr_sort_contig
         RuntimeAttr? runtime_attr_merge_bams
+        RuntimeAttr? runtime_attr_merge_unaligned_bams
     }
 
-    scatter (path in unaligned_bam_paths) {
-        call ExtractMethylationTags {
+    if (recreate_bam) {
+        call MergeUnalignedBams {
             input:
-                unaligned_bam_path = path,
+                unaligned_bam_paths = unaligned_bam_paths,
                 gcs_paths = gcs_paths,
-                mm_tag = mm_tag,
-                ml_tag = ml_tag,
+                prefix = "~{prefix}.tagged",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_tags
+                runtime_attr_override = runtime_attr_merge_unaligned_bams
         }
     }
 
-    call Helpers.ConcatTsvs as MergeTagsTsvs {
-        input:
-            tsvs = ExtractMethylationTags.tags_tsv,
-            sort_output = false,
-            compressed_tsvs = true,
-            compressed_output = true,
-            prefix = "~{prefix}.all.tags",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_tags
-    }
-
-    scatter (contig in contigs) {
-        call Helpers.SubsetBamToContig {
-            input:
-                bam = aligned_bam,
-                bai = aligned_bai,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_extract_contig
+    if (!recreate_bam) {
+        scatter (path in unaligned_bam_paths) {
+            call ExtractMethylationTags {
+                input:
+                    unaligned_bam_path = path,
+                    gcs_paths = gcs_paths,
+                    mm_tag = mm_tag,
+                    ml_tag = ml_tag,
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_tags
+            }
         }
 
-        call TransferTagsToContig {
+        call Helpers.ConcatTsvs as MergeTagsTsvs {
             input:
-                contig_bam = SubsetBamToContig.contig_bam,
-                tags_tsv = MergeTagsTsvs.concatenated_tsv,
-                prefix = "~{prefix}.~{contig}.tagged",
+                tsvs = ExtractMethylationTags.tags_tsv,
+                sort_output = false,
+                compressed_tsvs = true,
+                compressed_output = true,
+                prefix = "~{prefix}.all.tags",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_transfer_tags
+                runtime_attr_override = runtime_attr_merge_tags
         }
 
-        call SortIndexBam {
-            input:
-                unsorted_bam = TransferTagsToContig.tagged_unsorted_bam,
-                prefix = "~{prefix}.~{contig}.sorted",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_sort_contig
-        }
-    }
+        scatter (contig in contigs) {
+            call Helpers.SubsetBamToContig {
+                input:
+                    bam = aligned_bam,
+                    bai = aligned_bai,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_extract_contig
+            }
 
-    call Helpers.MergeBams {
-        input:
-            bams = SortIndexBam.tagged_bam,
-            bais = SortIndexBam.tagged_bai,
-            prefix = "~{prefix}.tagged",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_bams
+            call TransferTagsToContig {
+                input:
+                    contig_bam = SubsetBamToContig.contig_bam,
+                    tags_tsv = MergeTagsTsvs.concatenated_tsv,
+                    prefix = "~{prefix}.~{contig}.tagged",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_transfer_tags
+            }
+
+            call SortIndexBam {
+                input:
+                    unsorted_bam = TransferTagsToContig.tagged_unsorted_bam,
+                    prefix = "~{prefix}.~{contig}.sorted",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_sort_contig
+            }
+        }
+
+        call Helpers.MergeBams {
+            input:
+                bams = SortIndexBam.tagged_bam,
+                bais = SortIndexBam.tagged_bai,
+                prefix = "~{prefix}.tagged",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge_bams
+        }
     }
 
     output {
-        File methylation_tagged_bam = MergeBams.merged_bam
-        File methylation_tagged_bai = MergeBams.merged_bam_idx
-        File methylation_tags = MergeTagsTsvs.concatenated_tsv
+        File methylation_tagged_bam = select_first([MergeUnalignedBams.merged_bam, MergeBams.merged_bam])
+        File methylation_tagged_bai = select_first([MergeUnalignedBams.merged_bam_idx, MergeBams.merged_bam_idx])
+        File? methylation_tags = MergeTagsTsvs.concatenated_tsv
+    }
+}
+
+task MergeUnalignedBams {
+    input {
+        Array[String] unaligned_bam_paths
+        Boolean gcs_paths
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        while IFS= read -r path; do
+            bam=$(basename "$path")
+            ~{if gcs_paths then "gsutil cp" else "aws s3 --no-sign-request cp"} "$path" "$bam"
+            echo "$bam" >> bam_list.txt
+        done < ~{write_lines(unaligned_bam_paths)}
+
+        samtools merge \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            -f \
+            -o ~{prefix}.bam \
+            -b bam_list.txt
+
+        samtools index \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
+            ~{prefix}.bam
+    >>>
+
+    output {
+        File merged_bam = "~{prefix}.bam"
+        File merged_bam_idx = "~{prefix}.bam.bai"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2000,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
@@ -123,12 +192,12 @@ with pysam.AlignmentFile("~{bam_basename}.bam", "rb", check_sq=False) as ubam:
                 mm = read.get_tag('~{mm_tag}')
             except KeyError:
                 mm = ''
-            
+
             try:
                 ml = ','.join(str(v) for v in read.get_tag('~{ml_tag}'))
             except KeyError:
                 ml = ''
-            
+
             out.write(f"{read.query_name}\t{mm}\t{ml}\n")
 CODE
 
@@ -238,12 +307,12 @@ task SortIndexBam {
         set -euo pipefail
 
         samtools sort \
-            -@ 3 \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -o ~{prefix}.bam \
             ~{unsorted_bam}
 
         samtools index \
-            -@ 3 \
+            -@ ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             ~{prefix}.bam
     >>>
 
