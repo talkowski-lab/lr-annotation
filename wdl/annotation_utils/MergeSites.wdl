@@ -229,7 +229,6 @@ workflow MergeSites {
                 runtime_attr_override = runtime_attr_collapse_ins
         }
 
-        # Concat collapsed DELs + INS + OTHER
         call Helpers.ConcatVcfs {
             input:
                 vcfs = [CollapseDels.consolidated_vcf, CollapseIns.consolidated_vcf, SubsetOther.subset_vcf],

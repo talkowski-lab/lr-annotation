@@ -493,6 +493,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: TransformINSToDUP
+    primaryDescriptorPath: /wdl/annotation_utils/TransformINSToDUP.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: VcfToBed
     primaryDescriptorPath: /wdl/annotation_utils/VcfToBed.wdl
     filters:

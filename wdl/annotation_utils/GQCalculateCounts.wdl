@@ -11,7 +11,7 @@ workflow GQCalculateCounts {
         Array[File]? truth_vcf_idxs
         String prefix
 
-        Array[Int] length_bins = [0, 10, 30, 50, 100, 500, 5000, 50000]
+        Array[Int] length_bins = [0, 1, 10, 30, 50, 100, 500, 5000, 50000]
         String? subset_vcf_string
         File? ped
         File? swap_samples_truth

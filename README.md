@@ -117,6 +117,8 @@ The workflow undergoes multiple rounds of variant matching in order to determine
 2. Truvari match with overlap percentages of 90%, 70% and 50%.
 3. Matching based on `bedtools closest`, finetuned for SVs. Here the evaluation and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run — one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity — so that each evaluation variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
 
+> **Note:** This workflow considers the DUP region for INS annotated as DUP.
+
 Inputs:
 - `File vcf_eval`: VCF whose annotations are being evaluated.
 - `File vcf_eval_idx`: Index for `vcf_eval`.
@@ -176,6 +178,8 @@ Outputs:
 
 ### [AnnotateDbVaR](wdl/annotation/AnnotateDbVaR.wdl)
 This workflow annotates structural variants in the input VCF with matching records from dbVar. It restricts to variants at or above a minimum length, converts them to a symbolic representation, and matches deletions, duplications and insertions separately against a per-contig dbVar VCF using type-specific size-similarity, reciprocal-overlap and breakpoint-window thresholds. It emits a TSV linking matched variants to their dbVar records.
+
+> **Note:** This workflow considers the DUP region for INS annotated as DUP.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -392,6 +396,8 @@ Outputs:
 
 ### [AnnotateSVAnnotate](wdl/annotation/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SVs through this workflow, ignoring all SNVs and indels, converting each SV to a symbolic representation before annotating it against coding and noncoding panels and extracting the resulting `PREDICTED_` annotations into a TSV.
+
+> **Note:** This workflow considers the DUP region for INS annotated as DUP.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -1112,6 +1118,22 @@ Outputs:
 - `sv_added_vcf`: Cohort VCF annotated with raw-caller support.
 - `sv_added_vcf_idx`: Index for the annotated VCF.
 - `sv_match_counts_tsv`: TSV of per-caller match counts.
+
+
+### [TransformINSToDUP](wdl/annotation_utils/TransformINSToDUP.wdl)
+This utility converts insertion variants with `allele_type=dup` into symbolic DUP records where the insertion's duplication source (from `INFO/ORIGIN`) passes two criteria: size similarity between the insertion length and the ORIGIN region length must meet the `dup_size_similarity` threshold, and the insertion POS must fall within the ORIGIN region or within `dup_breakpoint_window` bases of its breakpoints. Passing records have their POS set to the ORIGIN start, REF set to `N`, ALT set to `<DUP>`, and `allele_length` updated to the ORIGIN region length. Records not meeting both criteria are passed through unchanged. Supports optional record-count sharding.
+
+Inputs:
+- `File vcf`: VCF to transform.
+- `File vcf_idx`: Index for `vcf`.
+- `Int? records_per_shard`: Number of records per shard for parallel processing.
+- `Int dup_breakpoint_window`: Maximum distance (bp) between insertion POS and ORIGIN breakpoints to pass the breakpoint check (default `10`).
+- `Float dup_size_similarity`: Minimum size similarity ratio (relative to the larger of the two lengths) between insertion and ORIGIN lengths (default `0.9`).
+- `Int min_dup_size`: Minimum insertion size (bp) to consider for transformation (default `50`).
+
+Outputs:
+- `transformed_vcf`: VCF with qualifying DUP insertions converted to symbolic DUP records.
+- `transformed_vcf_idx`: Index for `transformed_vcf`.
 
 
 ### [VcfToBed](wdl/annotation_utils/VcfToBed.wdl)
