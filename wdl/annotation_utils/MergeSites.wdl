@@ -9,9 +9,6 @@ workflow MergeSites {
         File vcf_idx
         String prefix
 
-        Int? shard_bin_size
-        File? ref_fai
-
         Int del_breakpoint_window = 500
         Float del_reciprocal_overlap = 0.0
         Float del_sample_similarity = 0.5
@@ -29,6 +26,9 @@ workflow MergeSites {
         Int ins_size_max = 50000
         Int ins_size_min = 0
         Int ins_size_filt = 0
+
+        Int? shard_bin_size
+        File? ref_fai
 
         String utils_docker
 

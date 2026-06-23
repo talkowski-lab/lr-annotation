@@ -7,12 +7,8 @@ workflow MergeVcfs {
     input {
         Array[File] contig_vcfs
         Array[File] contig_vcf_idxs
-        File ref_fa
-        File ref_fai
         String contig
         String prefix
-
-        Int? shard_bin_size
 
         Int min_truvari_match = 20
         Int truvari_breakpoint_window = 500
@@ -23,6 +19,11 @@ workflow MergeVcfs {
         Int truvari_size_max = 50000
         Int truvari_size_min = 20
         Int truvari_size_filt = 20
+
+        File ref_fa
+        File ref_fai
+
+        Int? shard_bin_size
 
         String utils_docker
 
