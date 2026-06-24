@@ -51,11 +51,8 @@ task CpgPileup {
     command <<<
         set -euo pipefail
 
-        samtools view -F 2304 -b -o filtered.bam ~{bam}
-        samtools index filtered.bam
-
         aligned_bam_to_cpg_scores \
-            --bam filtered.bam \
+            --bam ~{bam} \
             --ref ~{ref_fa} \
             --output-prefix ~{prefix} \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \

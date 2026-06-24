@@ -112,9 +112,15 @@ def passes_criteria(pos, ins_length, origin_start, origin_end):
 
 
 vcf_in = pysam.VariantFile("~{vcf}")
-vcf_out = pysam.VariantFile("~{prefix}.unsorted.vcf.gz", "wz", header=vcf_in.header.copy())
+header = vcf_in.header.copy()
+header.info.add("original_INS_ID", 1, "String", "Variant ID before INS-to-DUP transformation.")
+header.info.add("original_INS_allele_length", 1, "Integer", "allele_length value before INS-to-DUP transformation.")
+header.info.add("original_INS_sequence", 1, "String", "ALT sequence before INS-to-DUP transformation.")
+vcf_out = pysam.VariantFile("~{prefix}.unsorted.vcf.gz", "wz", header=header)
 
 for record in vcf_in:
+    record.translate(vcf_out.header)
+
     allele_type = record.info.get("allele_type")
     if isinstance(allele_type, (list, tuple)):
         allele_type = allele_type[0]
@@ -149,6 +155,13 @@ for record in vcf_in:
         vcf_out.write(record)
         continue
 
+    original_id = record.id if record.id else "."
+    original_sequence = record.alts[0] if record.alts else "."
+
+    record.info["original_INS_ID"] = original_id
+    record.info["original_INS_allele_length"] = int(allele_length)
+    record.info["original_INS_sequence"] = original_sequence
+    record.id = original_id.replace("INS", "DUP") if record.id else record.id
     record.pos = origin_start
     record.ref = "N"
     record.alts = ("<DUP>",)
