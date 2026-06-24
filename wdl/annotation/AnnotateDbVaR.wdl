@@ -202,16 +202,20 @@ PARAMS = {
     'INS': {'allowed': {'INS'}, 'size_sim': INS_SIZE_SIM, 'rec_ovl': INS_REC_OVL, 'bp_win': INS_BP_WIN},
 }
 
-def parse_svlen(rec):
-    raw = rec.info.get('SVLEN', None)
+def parse_query_len(rec):
+    raw = rec.info.get('allele_length')
+    if isinstance(raw, (list, tuple)):
+        raw = raw[0]
+    return abs(int(raw)) if raw is not None else 0
+
+def parse_dbvar_len(rec):
+    raw = rec.info.get('SVLEN')
     if raw is not None:
         if isinstance(raw, (list, tuple)):
             raw = raw[0]
-        try:
-            return abs(int(raw))
-        except (ValueError, TypeError):
-            pass
-    return max(0, rec.stop - rec.start)
+        return abs(int(raw))
+    end = rec.info.get('END')
+    return abs(int(end) - (rec.start + 1)) if end is not None else 0
 
 def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
     if ql == 0 or cl == 0:
@@ -260,7 +264,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
         
         qs = rec.start
         qe = rec.stop
-        ql = parse_svlen(rec)
+        ql = parse_query_len(rec)
         var_id = rec.id if rec.id else '.'
         orig_ref, orig_alt = original_ref_alt.get(var_id, (rec.ref if rec.ref else '.', rec.alts[0] if rec.alts else '.'))
         bp_win = params['bp_win']
@@ -278,7 +282,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                 continue
             cs = cand.start
             ce = cand.stop
-            cl = parse_svlen(cand)
+            cl = parse_dbvar_len(cand)
             cand_id = cand.id if cand.id else cand.info.get('DBVARID', '.')
             if isinstance(cand_id, (list, tuple)):
                 cand_id = cand_id[0]
@@ -310,7 +314,7 @@ with open("~{prefix}.annotations.unsorted.tsv", 'w') as out:
                         continue
                     cs = cand.start
                     ce = cand.stop
-                    cl = parse_svlen(cand)
+                    cl = parse_dbvar_len(cand)
                     cand_id = cand.id if cand.id else cand.info.get('DBVARID', '.')
                     if isinstance(cand_id, (list, tuple)):
                         cand_id = cand_id[0]
