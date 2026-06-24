@@ -125,7 +125,7 @@ task DELtoFa {
             -i 'SVTYPE=="DEL"' \
             -f '%CHROM\t%POS\t%REF\t%ALT\n' \
             ~{vcf} \
-        | awk 'length($4)==1 {print ">"$1":"$2";"$3"\n"$4}' > ~{prefix}.tmp.fa
+        | awk 'length($4)==1 {print ">"$1":"$2";"$4"\n"$3}' > ~{prefix}.tmp.fa
         
         seqkit rename -N1 ~{prefix}.tmp.fa > ~{prefix}.fa
     >>>
