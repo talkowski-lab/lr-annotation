@@ -426,21 +426,6 @@ def flank_to_absolute(flank_val, record_pos, alt_len):
     flank_start = max(1, record_pos - alt_len - 100)
     return f"{abs_chrom}:{flank_start + local_start}-{flank_start + local_end}_{strand}"
 
-def chrom_sort_key(coord_str):
-    chrom, rest = coord_str.split(":", 1)
-    start = int(rest.split("-")[0])
-    name = chrom.replace("chr", "")
-    if name.isdigit():
-        return (0, int(name), start)
-    elif name == "X":
-        return (1, 0, start)
-    elif name == "Y":
-        return (1, 1, start)
-    elif name == "M":
-        return (1, 2, start)
-    else:
-        return (2, name, start)
-
 vcf_in = pysam.VariantFile("~{vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 for record in vcf_in:
@@ -458,7 +443,7 @@ for record in vcf_in:
                     abs_values.append(flank_to_absolute(v, record.pos, alt_len))
                 else:
                     abs_values.append(v)
-            record.info["DUP_COORD"] = ",".join(sorted(abs_values, key=chrom_sort_key))
+            record.info["DUP_COORD"] = ",".join(abs_values)
     vcf_out.write(record)
 vcf_in.close()
 vcf_out.close()

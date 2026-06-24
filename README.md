@@ -374,7 +374,7 @@ Outputs:
 
 
 ### [AnnotateSVAN](wdl/annotation/AnnotateSVAN.wdl)
-This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It processes insertions and deletions separately, first running Tandem Repeat Finder (TRF) on the inserted or deleted sequence of each SV in the input VCF and then running SVAN over the result, before extracting and aligning the annotations into a single TSV. Before extraction, the `DUP_COORD` field produced by SVAN is reformatted: any `flank_`-prefixed relative coordinates are resolved to absolute genomic positions, and when multiple comma-separated values are present they are sorted by chromosome and start position.
+This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It processes insertions and deletions separately, first running Tandem Repeat Finder (TRF) on the inserted or deleted sequence of each SV in the input VCF and then running SVAN over the result, before extracting and aligning the annotations into a single TSV. Before extraction, the `DUP_COORD` field produced by SVAN is reformatted: any `flank_`-prefixed relative coordinates are resolved to absolute genomic positions, preserving the original order of comma-separated values.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -922,7 +922,7 @@ Outputs:
 
 
 ### [ParseAbsoluteOrigin](wdl/annotation_utils/ParseAbsoluteOrigin.wdl)
-This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. `ORIGIN` values prefixed with `flank_` encode coordinates relative to a flanking window and are converted to genome-absolute positions; values already in absolute form are kept as-is. When multiple comma-separated `ORIGIN` values are present — whether flank-relative, absolute, or mixed — each is processed individually and the resulting absolute values are sorted by chromosome and start position before being written back. Records with a single absolute `ORIGIN` value are left unchanged. It outputs the VCF with absolute-origin annotations.
+This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. `ORIGIN` values prefixed with `flank_` encode coordinates relative to a flanking window and are converted to genome-absolute positions; values already in absolute form are kept as-is. When multiple comma-separated `ORIGIN` values are present — whether flank-relative, absolute, or mixed — each is processed individually and the resulting absolute values are written back in their original order. It outputs the VCF with absolute-origin annotations.
 
 Inputs:
 - `File vcf`: VCF to process.
