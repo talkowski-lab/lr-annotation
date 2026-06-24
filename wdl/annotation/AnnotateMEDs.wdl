@@ -12,6 +12,7 @@ workflow AnnotateMEDs {
 
         Int? records_per_shard
 
+        String filter_string='INFO/allele_type="del"'
         Int del_breakpoint_window = 500
         Float del_reciprocal_overlap = 0.9
         Float del_sequence_similarity = 0.9
@@ -51,7 +52,7 @@ workflow AnnotateMEDs {
             input:
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
-                include_args = 'INFO/allele_type="del"',
+                include_args = filter_string,
                 prefix = "~{prefix}.~{contig}.del_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
@@ -145,8 +146,7 @@ task ExtractDeletionsToBed {
     command <<<
         set -euo pipefail
 
-        bcftools view -i 'INFO/allele_type=="del"' ~{vcf} \
-            | bcftools query -f '%CHROM\t%POS\t%END\t%REF\t%ALT\t%ID\n' \
+        bcftools query -f '%CHROM\t%POS\t%END\t%REF\t%ALT\t%ID\n' ~{vcf}\
             > ~{prefix}.del.bed
     >>>
 

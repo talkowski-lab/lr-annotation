@@ -99,6 +99,7 @@ workflows:
     filters:
       branches:
         - main
+        - AY_develop
       tags:
         - /.*/
 
