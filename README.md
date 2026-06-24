@@ -297,9 +297,9 @@ Inputs:
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
 - `Int del_breakpoint_window`: Breakpoint window, in bp, for matching (default `500`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.9`).
-- `Float del_sequence_similarity`: Minimum sequence similarity for a deletion to match a catalog locus (default `0.9`).
-- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.9`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.7`).
+- `Float del_sequence_similarity`: Minimum sequence similarity for a deletion to match a catalog locus (default `0.7`).
+- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.0`).
 - `File mei_catalog`: From [references](#references).
 
 Outputs:
