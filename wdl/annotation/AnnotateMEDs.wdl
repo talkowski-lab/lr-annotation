@@ -13,9 +13,9 @@ workflow AnnotateMEDs {
         Int? records_per_shard
 
         Int del_breakpoint_window = 500
-        Float del_reciprocal_overlap = 0.7
+        Float del_reciprocal_overlap = 0.0
         Float del_sequence_similarity = 0.7
-        Float del_size_similarity = 0.0
+        Float del_size_similarity = 0.7
 
         File mei_catalog
 
