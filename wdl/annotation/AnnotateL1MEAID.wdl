@@ -96,6 +96,7 @@ workflow AnnotateL1MEAID {
             input:
                 vcf = vcfs_to_process[shard_idx],
                 filtered_tsv = IntactMEI.filtered_output,
+                useDEL = useDEL,
                 prefix = "~{prefix}.shard_~{shard_idx}.intactmei_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_annotate
@@ -217,6 +218,7 @@ task GenerateAnnotationTable {
     input {
         File vcf
         File filtered_tsv
+        Boolean useDEL
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -300,6 +302,7 @@ def get_mei_len(element_hits, subfam, classification):
 vcf_lookup_file = "vcf_lookup.tsv"
 input_tsv = "~{filtered_tsv}"
 output_anno = "~{prefix}.tsv"
+usedel = "~{useDEL}".lower() == "true"
 
 vcf_lookup = {}
 with open(vcf_lookup_file, 'r') as f:
@@ -329,8 +332,12 @@ with open(input_tsv, 'r') as f_in, open(output_anno, 'w') as f_out:
             full_id_parts = full_id.split(';')
             chrom = full_id_parts[0].split(':')[0]
             pos = full_id_parts[0].split(':')[1]
-            ref = full_id_parts[1].split('_')[0]
-            alt = parts[1]
+            if usedel:
+              alt = full_id_parts[1].split('_')[0]
+              ref = parts[1]
+            else:
+              ref = full_id_parts[1].split('_')[0]
+              alt = parts[1]
             subfam = parts[4]
             mei_len = get_mei_len(parts[2], subfam, classification)
             query_len = int(parts[3])
