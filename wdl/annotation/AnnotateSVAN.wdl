@@ -418,22 +418,47 @@ task ReformatDupCoord {
         python3 <<CODE
 import pysam
 
+def flank_to_absolute(flank_val, record_pos, alt_len):
+    body, strand = flank_val.rsplit("_", 1)
+    _, coord_part = body.rsplit("_", 1)
+    abs_chrom, _, local_range = coord_part.split(":")
+    local_start, local_end = map(int, local_range.split("-"))
+    flank_start = max(1, record_pos - alt_len - 100)
+    return f"{abs_chrom}:{flank_start + local_start}-{flank_start + local_end}_{strand}"
+
+def chrom_sort_key(coord_str):
+    chrom, rest = coord_str.split(":", 1)
+    start = int(rest.split("-")[0])
+    name = chrom.replace("chr", "")
+    if name.isdigit():
+        return (0, int(name), start)
+    elif name == "X":
+        return (1, 0, start)
+    elif name == "Y":
+        return (1, 1, start)
+    elif name == "M":
+        return (1, 2, start)
+    else:
+        return (2, name, start)
+
 vcf_in = pysam.VariantFile("~{vcf}")
 vcf_out = pysam.VariantFile("~{prefix}.vcf.gz", "w", header=vcf_in.header)
 for record in vcf_in:
     dup_coord = record.info.get("DUP_COORD")
-    if isinstance(dup_coord, (list, tuple)):
-        dup_coord = dup_coord[0]
-    if dup_coord and dup_coord.startswith("flank_"):
-        body, strand = dup_coord.rsplit("_", 1)
-        _, coord_part = body.rsplit("_", 1)
-        abs_chrom, _, local_range = coord_part.split(":")
-        local_start_str, local_end_str = local_range.split("-")
-        alt_len = abs(len(record.ref) - len(record.alts[0]))
-        flank_start = max(1, record.pos - alt_len - 100)
-        abs_start = flank_start + int(local_start_str)
-        abs_end = flank_start + int(local_end_str)
-        record.info["DUP_COORD"] = f"{abs_chrom}:{abs_start}-{abs_end}_{strand}"
+    if dup_coord is not None:
+        dup_coord_str = dup_coord if isinstance(dup_coord, str) else ",".join(dup_coord)
+        all_values = [v.strip() for v in dup_coord_str.split(",") if v.strip()]
+        has_flank = any(v.startswith("flank_") for v in all_values)
+        if has_flank or len(all_values) > 1:
+            if has_flank:
+                alt_len = abs(len(record.ref) - len(record.alts[0]))
+            abs_values = []
+            for v in all_values:
+                if v.startswith("flank_"):
+                    abs_values.append(flank_to_absolute(v, record.pos, alt_len))
+                else:
+                    abs_values.append(v)
+            record.info["DUP_COORD"] = ",".join(sorted(abs_values, key=chrom_sort_key))
     vcf_out.write(record)
 vcf_in.close()
 vcf_out.close()

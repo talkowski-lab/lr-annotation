@@ -140,8 +140,10 @@ for record in vcf_in:
     if origin is None:
         vcf_out.write(record)
         continue
-    if isinstance(origin, (list, tuple)):
-        origin = origin[0]
+    origin = origin if isinstance(origin, str) else ",".join(origin)
+    if "," in origin:
+        vcf_out.write(record)
+        continue
 
     parsed = parse_origin(origin)
     if parsed is None:

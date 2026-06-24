@@ -900,13 +900,16 @@ ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)-(\d+)')
 def extract_origin_coords(origin):
     if origin is None:
         return None, None
-    if isinstance(origin, (list, tuple)):
-        origin = origin[0]
-    first = str(origin).split(',')[0]
-    m = ORIGIN_RE.search(first)
-    if m:
-        return int(m.group(1)), int(m.group(2))
-    return None, None
+    origin_str = origin if isinstance(origin, str) else ",".join(origin)
+    best, best_len = None, -1
+    for val in origin_str.split(","):
+        m = ORIGIN_RE.search(val.strip())
+        if m:
+            start, end = int(m.group(1)), int(m.group(2))
+            if abs(end - start) > best_len:
+                best_len = abs(end - start)
+                best = (start, end)
+    return best if best is not None else (None, None)
 
 move_dup = ~{true="True" false="False" move_dup_to_origin}
 

@@ -10,6 +10,7 @@ workflow ParseAbsoluteOrigin {
         String prefix
 
         Int? records_per_shard
+        Boolean modify_origin_header_number = false
 
         String utils_docker
 
@@ -36,20 +37,20 @@ workflow ParseAbsoluteOrigin {
     Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [vcf_idx]])
 
     scatter (i in range(length(vcfs_to_process))) {
-        call Helpers.SubsetVcfByArgs as SubsetFlankOrigin {
+        call Helpers.SubsetVcfByArgs as SubsetOriginRecords {
             input:
                 vcf = vcfs_to_process[i],
                 vcf_idx = vcf_idxs_to_process[i],
-                include_args = 'INFO/ORIGIN~"^flank_"',
-                prefix = "~{prefix}.shard_~{i}.flank_origin_subset",
+                include_args = 'INFO/ORIGIN!="."',
+                prefix = "~{prefix}.shard_~{i}.origin_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
         }
 
         call ParseShardOrigin {
             input:
-                vcf = SubsetFlankOrigin.subset_vcf,
-                vcf_idx = SubsetFlankOrigin.subset_vcf_idx,
+                vcf = SubsetOriginRecords.subset_vcf,
+                vcf_idx = SubsetOriginRecords.subset_vcf_idx,
                 prefix = "~{prefix}.shard_~{i}.origin_updates",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_parse
@@ -70,6 +71,7 @@ workflow ParseAbsoluteOrigin {
             vcf = vcf,
             vcf_idx = vcf_idx,
             origin_tsv = ConcatTsvs.concatenated_tsv,
+            modify_origin_header_number = modify_origin_header_number,
             prefix = "~{prefix}.absolute_origin",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_annotate
@@ -96,30 +98,51 @@ task ParseShardOrigin {
         python3 <<CODE
 import pysam
 
+def flank_to_absolute(flank_val, record_pos, alt_len):
+    body, strand = flank_val.rsplit("_", 1)
+    _, coord_part = body.rsplit("_", 1)
+    abs_chrom, _, local_range = coord_part.split(":")
+    local_start, local_end = map(int, local_range.split("-"))
+    flank_start = max(1, record_pos - alt_len - 100)
+    return f"{abs_chrom}:{flank_start + local_start}-{flank_start + local_end}_{strand}"
+
+def chrom_sort_key(coord_str):
+    chrom, rest = coord_str.split(":", 1)
+    start = int(rest.split("-")[0])
+    name = chrom.replace("chr", "")
+    if name.isdigit():
+        return (0, int(name), start)
+    elif name == "X":
+        return (1, 0, start)
+    elif name == "Y":
+        return (1, 1, start)
+    elif name == "M":
+        return (1, 2, start)
+    else:
+        return (2, name, start)
+
 vcf_in = pysam.VariantFile("~{vcf}")
 with open("~{prefix}.tsv", "w") as out:
     for record in vcf_in:
         origin = record.info.get("ORIGIN")
         if origin is None:
             continue
-        origin_values = origin if isinstance(origin, (list, tuple)) else (origin,)
-        flank_origin = next((v for v in origin_values if v and v.startswith("flank_")), None)
-        if flank_origin is None:
-            continue
-        body, strand = flank_origin.rsplit("_", 1)
-        _, coord_part = body.rsplit("_", 1)
-        abs_chrom, _, local_range = coord_part.split(":")
-        local_start_str, local_end_str = local_range.split("-")
-        local_start = int(local_start_str)
-        local_end = int(local_end_str)
-        allele_length = record.info["allele_length"]
-        if isinstance(allele_length, (list, tuple)):
-            allele_length = allele_length[0]
-        alt_len = abs(int(allele_length))
-        flank_start = max(1, record.pos - alt_len - 100)
-        abs_start = flank_start + local_start
-        abs_end = flank_start + local_end
-        new_origin = f"{abs_chrom}:{abs_start}-{abs_end}_{strand}"
+        origin_str = origin if isinstance(origin, str) else ",".join(origin)
+        all_values = [v.strip() for v in origin_str.split(",") if v.strip()]
+        has_flank = any(v.startswith("flank_") for v in all_values)
+        if has_flank:
+            allele_length = record.info["allele_length"]
+            if isinstance(allele_length, (list, tuple)):
+                allele_length = allele_length[0]
+            alt_len = abs(int(allele_length))
+        abs_values = []
+        for v in all_values:
+            if v.startswith("flank_"):
+                abs_values.append(flank_to_absolute(v, record.pos, alt_len))
+            else:
+                abs_values.append(v)
+        sorted_values = sorted(abs_values, key=chrom_sort_key)
+        new_origin = ",".join(sorted_values)
         alts = ",".join(record.alts) if record.alts else "."
         rid = record.id if record.id else "."
         out.write(f"{record.chrom}\t{record.pos}\t{record.ref}\t{alts}\t{rid}\t{new_origin}\n")
@@ -156,6 +179,7 @@ task AnnotateAbsoluteOrigin {
         File vcf
         File vcf_idx
         File origin_tsv
+        Boolean modify_origin_header_number
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -172,6 +196,14 @@ task AnnotateAbsoluteOrigin {
             -c CHROM,POS,REF,ALT,~ID,INFO/ORIGIN \
             -Oz -o ~{prefix}.vcf.gz \
             ~{vcf}
+
+        if [ "~{modify_origin_header_number}" == "true" ]; then
+            bcftools view -h ~{prefix}.vcf.gz \
+                | sed 's/##INFO=<ID=ORIGIN,Number=1,/##INFO=<ID=ORIGIN,Number=.,/' \
+                > modified_header.txt
+            bcftools reheader -h modified_header.txt -o reheadered.vcf.gz ~{prefix}.vcf.gz
+            mv reheadered.vcf.gz ~{prefix}.vcf.gz
+        fi
 
         tabix -p vcf ~{prefix}.vcf.gz
     >>>

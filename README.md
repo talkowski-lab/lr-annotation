@@ -374,7 +374,7 @@ Outputs:
 
 
 ### [AnnotateSVAN](wdl/annotation/AnnotateSVAN.wdl)
-This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It processes insertions and deletions separately, first running Tandem Repeat Finder (TRF) on the inserted or deleted sequence of each SV in the input VCF and then running SVAN over the result, before extracting and aligning the annotations into a single TSV.
+This workflow leverages [SVAN](https://github.com/REPBIO-LAB/SVAN) in order to annotate Mobile Element Insertions (MEIs), Mobile Element Deletions, Tandem Duplications, Dispersed Duplications and Nuclear Mitochondrial Segments (NUMT). It processes insertions and deletions separately, first running Tandem Repeat Finder (TRF) on the inserted or deleted sequence of each SV in the input VCF and then running SVAN over the result, before extracting and aligning the annotations into a single TSV. Before extraction, the `DUP_COORD` field produced by SVAN is reformatted: any `flank_`-prefixed relative coordinates are resolved to absolute genomic positions, and when multiple comma-separated values are present they are sorted by chromosome and start position.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -922,7 +922,7 @@ Outputs:
 
 
 ### [ParseAbsoluteOrigin](wdl/annotation_utils/ParseAbsoluteOrigin.wdl)
-This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. It outputs the VCF with absolute-origin annotations.
+This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. `ORIGIN` values prefixed with `flank_` encode coordinates relative to a flanking window and are converted to genome-absolute positions; values already in absolute form are kept as-is. When multiple comma-separated `ORIGIN` values are present — whether flank-relative, absolute, or mixed — each is processed individually and the resulting absolute values are sorted by chromosome and start position before being written back. Records with a single absolute `ORIGIN` value are left unchanged. It outputs the VCF with absolute-origin annotations.
 
 Inputs:
 - `File vcf`: VCF to process.
@@ -1121,7 +1121,7 @@ Outputs:
 
 
 ### [TransformINSToDUP](wdl/annotation_utils/TransformINSToDUP.wdl)
-This utility converts insertion variants with `allele_type=dup` into symbolic DUP records where the insertion's duplication source (from `INFO/ORIGIN`) passes two criteria: size similarity between the insertion length and the ORIGIN region length must meet the `dup_size_similarity` threshold, and the insertion POS must fall within the ORIGIN region or within `dup_breakpoint_window` bases of its breakpoints. Passing records have their POS set to the ORIGIN start, REF set to `N`, ALT set to `<DUP>`, and `allele_length` updated to the ORIGIN region length. Records not meeting both criteria are passed through unchanged. Supports optional record-count sharding.
+This utility converts insertion variants with `allele_type=dup` into symbolic DUP records where the insertion's duplication source (from `INFO/ORIGIN`) passes two criteria: size similarity between the insertion length and the ORIGIN region length must meet the `dup_size_similarity` threshold, and the insertion POS must fall within the ORIGIN region or within `dup_breakpoint_window` bases of its breakpoints. Passing records have their POS set to the ORIGIN start, REF set to `N`, ALT set to `<DUP>`, and `allele_length` updated to the ORIGIN region length. Variants with multiple comma-separated `ORIGIN` values are skipped and passed through unchanged, as a single unambiguous source region is required for the transformation. Records not meeting the criteria are also passed through unchanged. Supports optional record-count sharding.
 
 Inputs:
 - `File vcf`: VCF to transform.
