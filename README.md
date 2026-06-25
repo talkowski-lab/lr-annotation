@@ -117,7 +117,7 @@ The workflow undergoes multiple rounds of variant matching in order to determine
 2. Truvari match with overlap percentages of 90%, 70% and 50%.
 3. Matching based on `bedtools closest`, finetuned for SVs. Here the evaluation and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run — one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity — so that each evaluation variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
 
-> **Note:** This workflow considers the DUP region for INS annotated as DUP.
+> **Note:** When converting to symbolic representation, only canonical DUPs (allele_type = `DUP` exactly) are treated as DUP; other DUP subtypes (e.g., `dup_interspersed`, `inv_dup`) are treated as insertions.
 
 Inputs:
 - `File vcf_eval`: VCF whose annotations are being evaluated.
@@ -179,7 +179,7 @@ Outputs:
 ### [AnnotateDbVaR](wdl/annotation/AnnotateDbVaR.wdl)
 This workflow annotates structural variants in the input VCF with matching records from dbVar. It restricts to variants at or above a minimum length, converts them to a symbolic representation, and matches deletions, duplications and insertions separately against a per-contig dbVar VCF using type-specific size-similarity, reciprocal-overlap and breakpoint-window thresholds. It emits a TSV linking matched variants to their dbVar records.
 
-> **Note:** This workflow considers the DUP region for INS annotated as DUP.
+> **Note:** When converting to symbolic representation, only canonical DUPs (allele_type = `DUP` exactly) are treated as DUP; other DUP subtypes (e.g., `dup_interspersed`, `inv_dup`) are treated as insertions.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -397,7 +397,7 @@ Outputs:
 ### [AnnotateSVAnnotate](wdl/annotation/AnnotateSVAnnotate.wdl)
 This workflow leverages [SVAnnotate](https://gatk.broadinstitute.org/hc/en-us/articles/30332011989659-SVAnnotate) in order to annotate predicted functional effects for SVs. It conditionally only runs SVs through this workflow, ignoring all SNVs and indels, converting each SV to a symbolic representation before annotating it against coding and noncoding panels and extracting the resulting `PREDICTED_` annotations into a TSV.
 
-> **Note:** This workflow considers the DUP region for INS annotated as DUP.
+> **Note:** When converting to symbolic representation, all DUP allele types (including `dup_interspersed`, `inv_dup`, `complex_dup`, etc.) are treated as DUP.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -1760,7 +1760,7 @@ Outputs:
 
 
 ## Processing Notes
-Callset Regeneration.
+Callset Regeneration - V1.
 - _FillFormatFields_ on _allele_type_annotated_vcf_.
 - _ParseAbsoluteOrigin_.
 - Annotation: _AnnotateAgeMetrics_, _AnnotateCallsetOverlap_, _AnnotateDbVaR_, _AnnotateGQMetrics_, _AnnotateSQMetrics_, _AnnotateSVAnnotate_
@@ -1772,3 +1772,15 @@ Callset Regeneration.
 	- _FindUntrimmedAlleles_.
 	- Annotation: _AnnotateCallsetOverlap_, _AnnotateDbSNP_, _AnnotateDbVaR_, _AnnotateInSilicoPredictors_, _AnnotateVRS_.
 	- _AnnotateVcfCleared_.
+
+Callset Regeneration - V2.
+- _ParseAbsoluteOrigin_ on _allele_type_annotated_filled_vcf_.
+- Annotation: _AnnotateCallsetOverlap_, _AnnotateSVAnnotate_
+- _AnnotateVcf_Downstream_.
+- _PostProcess_.
+- _AnnotateAF_.
+- Untrim variants: 
+	- _FindUntrimmedAlleles_.
+	- _AnnotateCallsetOverlap_.
+	- _AnnotateVcfCleared_.
+- _TransformINSToDUP_

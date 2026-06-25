@@ -57,7 +57,7 @@ workflow BedtoolsClosestSV {
         input:
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
-            move_dup_to_origin = true,
+            move_all_dups = false,
             type_field = type_field_eval,
             length_field = length_field_eval,
             prefix = "~{prefix}.eval.symbolic.moved",
@@ -70,7 +70,7 @@ workflow BedtoolsClosestSV {
         input:
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
-            move_dup_to_origin = false,
+            move_all_dups = false,
             type_field = type_field_eval,
             length_field = length_field_eval,
             prefix = "~{prefix}.eval.symbolic.unmoved",

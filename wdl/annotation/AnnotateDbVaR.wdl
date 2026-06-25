@@ -57,7 +57,7 @@ workflow AnnotateDbVaR {
             input:
                 vcf = SubsetVcfByArgs.subset_vcf,
                 vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
-                move_dup_to_origin = true,
+                move_all_dups = false,
                 prefix = "~{prefix}.~{contig}.symbolic",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_convert_symbolic

@@ -168,6 +168,7 @@ for record in vcf_in:
     record.ref = "N"
     record.alts = ("<DUP>",)
     record.info["allele_length"] = origin_end - origin_start
+    record.info["allele_type"] = "dup_tandem"
     vcf_out.write(record)
 
 vcf_in.close()

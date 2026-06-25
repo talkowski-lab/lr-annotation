@@ -862,7 +862,7 @@ task ConvertToSymbolic {
     input {
         File vcf
         File vcf_idx
-        Boolean move_dup_to_origin
+        Boolean move_all_dups
         String type_field = "allele_type"
         String length_field = "allele_length"
         String prefix
@@ -883,9 +883,11 @@ import pysam
 import re
 import sys
 
+move_all_dups = ~{true="True" false="False" move_all_dups}
+
 def map_type(raw):
     t = raw.upper()
-    if t == 'DUP':
+    if (move_all_dups and 'DUP' in t) or (not move_all_dups and t == 'DUP'):
         return 'DUP'
     elif 'DEL' in t:
         return 'DEL'
@@ -911,8 +913,6 @@ def extract_origin_coords(origin):
                 best = (start, end)
     return best if best is not None else (None, None)
 
-move_dup = ~{true="True" false="False" move_dup_to_origin}
-
 # Map allele_type values
 with open("raw_types.txt") as f:
     present_types = {map_type(line.strip()) for line in f if line.strip()}
@@ -927,8 +927,8 @@ if 'SVTYPE' not in header.info:
     header.add_line('##INFO=<ID=SVTYPE,Number=1,Type=String,Description="Variant type">')
 if 'SVLEN' not in header.info:
     header.add_line('##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">')
-if move_dup and 'ORIGINAL_POS' not in header.info:
-    header.add_line('##INFO=<ID=ORIGINAL_POS,Number=1,Type=Integer,Description="POS prior to move_dup_to_origin shifting the DUP to its source coordinate">')
+if 'ORIGINAL_POS' not in header.info:
+    header.add_line('##INFO=<ID=ORIGINAL_POS,Number=1,Type=Integer,Description="POS prior to DUP being repositioned to its source coordinate">')
 header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 for allele_type in present_types:
     if allele_type not in header.alts:
@@ -956,8 +956,7 @@ for record in vcf_in:
     record.info['SVLEN'] = svlen
 
     # Set END
-    if move_dup and allele_type == 'DUP':
-        # Reposition DUPs if move_dup = true
+    if allele_type == 'DUP':
         origin_pos, origin_end = extract_origin_coords(record.info.get('ORIGIN', None))
         if origin_pos is None or origin_end is None:
             print(f"Error: cannot extract ORIGIN for DUP {record.id} at {record.chrom}:{record.pos} (ORIGIN={record.info.get('ORIGIN')})", file=sys.stderr)
@@ -966,7 +965,7 @@ for record in vcf_in:
         record.pos = origin_pos
         record.stop = origin_end
         record.info['SVLEN'] = origin_end - origin_pos
-    elif allele_type == 'INS' or allele_type == 'DUP':
+    elif allele_type == 'INS':
         record.stop = record.pos + 1
     else:
         record.stop = record.pos + svlen
