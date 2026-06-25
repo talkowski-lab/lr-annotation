@@ -206,16 +206,19 @@ def parse_query_len(rec):
     raw = rec.info.get('allele_length')
     if isinstance(raw, (list, tuple)):
         raw = raw[0]
-    return abs(int(raw)) if raw is not None else 0
+    return abs(int(raw)) if raw is not None and raw != '.' else 0
 
 def parse_dbvar_len(rec):
     raw = rec.info.get('SVLEN')
     if raw is not None:
         if isinstance(raw, (list, tuple)):
             raw = raw[0]
-        return abs(int(raw))
+        if raw != '.':
+            return abs(int(raw))
     end = rec.info.get('END')
-    return abs(int(end) - (rec.start + 1)) if end is not None else 0
+    if end is not None and end != '.':
+        return abs(int(end) - (rec.start + 1))
+    return 0
 
 def passes_del_dup(qs, qe, ql, cs, ce, cl, size_sim, rec_ovl, bp_win):
     if ql == 0 or cl == 0:
