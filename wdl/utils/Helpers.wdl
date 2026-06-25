@@ -897,29 +897,45 @@ def map_type(raw):
         print(f"Error: unrecognized allele type '{raw}'", file=sys.stderr)
         sys.exit(1)
 
-ORIGIN_RE = re.compile(r'chr[^:]+:(\d+)-(\d+)')
+ORIGIN_RE = re.compile(r'(chr[^:]+):(\d+)-(\d+)')
 
-def extract_origin_coords(origin):
+def extract_origin_info(origin):
     if origin is None:
-        return None, None
+        return None, None, None
     origin_str = origin if isinstance(origin, str) else ",".join(origin)
     best, best_len = None, -1
     for val in origin_str.split(","):
         m = ORIGIN_RE.search(val.strip())
         if m:
-            start, end = int(m.group(1)), int(m.group(2))
+            chrom, start, end = m.group(1), int(m.group(2)), int(m.group(3))
             if abs(end - start) > best_len:
                 best_len = abs(end - start)
-                best = (start, end)
-    return best if best is not None else (None, None)
+                best = (chrom, start, end)
+    return best if best is not None else (None, None, None)
 
 # Map allele_type values
 with open("raw_types.txt") as f:
     present_types = {map_type(line.strip()) for line in f if line.strip()}
 
+# Collect origin contigs needed for DUP records
+origin_contigs = set()
+with pysam.VariantFile("~{vcf}") as vcf_scan:
+    for record in vcf_scan:
+        raw = record.info["~{type_field}"]
+        if isinstance(raw, (list, tuple)):
+            raw = raw[0]
+        if map_type(raw) == 'DUP':
+            origin_chrom, _, _ = extract_origin_info(record.info.get('ORIGIN', None))
+            if origin_chrom is not None:
+                origin_contigs.add(origin_chrom)
+
 # Build updated header
 vcf_in = pysam.VariantFile("~{vcf}")
 header = vcf_in.header
+
+for contig in origin_contigs:
+    if contig not in header.contigs:
+        header.add_line(f'##contig=<ID={contig}>')
 
 if 'END' not in header.info:
     header.add_line('##INFO=<ID=END,Number=.,Type=Integer,Description="End position of the variant">')
@@ -929,6 +945,8 @@ if 'SVLEN' not in header.info:
     header.add_line('##INFO=<ID=SVLEN,Number=1,Type=Integer,Description="Variant length">')
 if 'ORIGINAL_POS' not in header.info:
     header.add_line('##INFO=<ID=ORIGINAL_POS,Number=1,Type=Integer,Description="POS prior to DUP being repositioned to its source coordinate">')
+if 'ORIGINAL_CHROM' not in header.info:
+    header.add_line('##INFO=<ID=ORIGINAL_CHROM,Number=1,Type=String,Description="CHROM prior to DUP being repositioned to its source coordinate">')
 header.add_line('##ALT=<ID=N,Description="Baseline reference">')
 for allele_type in present_types:
     if allele_type not in header.alts:
@@ -957,11 +975,13 @@ for record in vcf_in:
 
     # Set END
     if allele_type == 'DUP':
-        origin_pos, origin_end = extract_origin_coords(record.info.get('ORIGIN', None))
-        if origin_pos is None or origin_end is None:
+        origin_chrom, origin_pos, origin_end = extract_origin_info(record.info.get('ORIGIN', None))
+        if origin_chrom is None or origin_pos is None or origin_end is None:
             print(f"Error: cannot extract ORIGIN for DUP {record.id} at {record.chrom}:{record.pos} (ORIGIN={record.info.get('ORIGIN')})", file=sys.stderr)
             sys.exit(1)
         record.info['ORIGINAL_POS'] = record.pos
+        record.info['ORIGINAL_CHROM'] = record.chrom
+        record.chrom = origin_chrom
         record.pos = origin_pos
         record.stop = origin_end
         record.info['SVLEN'] = origin_end - origin_pos
@@ -2210,6 +2230,7 @@ with pysam.VariantFile("~{original_vcf}") as orig_vcf:
     has_end = 'END' in orig_vcf.header.info
     for record in orig_vcf:
         original_data[record.id] = {
+            'chrom': record.chrom,
             'pos': record.pos,
             'ref': record.ref,
             'alts': record.alts,
@@ -2224,6 +2245,7 @@ vcf_out = pysam.VariantFile("unsorted.vcf.gz", 'w', header=vcf_in.header)
 for record in vcf_in:
     if record.id in original_data:
         orig = original_data[record.id]
+        record.chrom = orig['chrom']
         record.pos = orig['pos']
         record.ref = orig['ref']
         record.alts = orig['alts']
@@ -2250,7 +2272,7 @@ vcf_out.close()
 CODE
 
         bcftools annotate \
-            -x INFO/ORIGINAL_POS \
+            -x INFO/ORIGINAL_POS,INFO/ORIGINAL_CHROM \
             -Ou unsorted.vcf.gz \
         | bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
