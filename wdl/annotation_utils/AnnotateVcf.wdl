@@ -12,6 +12,7 @@ workflow AnnotateVcf {
         String prefix
 
         Int? records_per_shard
+        Array[String]? strip_info_fields
 
         Array[Boolean] sort_tsvs = []
         Array[String] subset_vcf_strings = []
@@ -26,6 +27,7 @@ workflow AnnotateVcf {
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_tsv
+        RuntimeAttr? runtime_attr_strip
         RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate
         RuntimeAttr? runtime_attr_concat_shards
@@ -63,11 +65,26 @@ workflow AnnotateVcf {
         File contig_vcf_idx = select_first([SubsetVcfToContig.subset_vcf_idx, vcf_idx])
         Array[File] contig_tsvs = select_first([SubsetTsvToContig.subset_tsv, annotations_tsvs])
 
-        if (defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords {
+        if (defined(strip_info_fields)) {
+            call Helpers.StripInfoFields {
                 input:
                     vcf = contig_vcf,
                     vcf_idx = contig_vcf_idx,
+                    info_fields = select_first([strip_info_fields]),
+                    prefix = "~{prefix}.~{contig}.stripped",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_strip
+            }
+        }
+
+        File stripped_vcf = select_first([StripInfoFields.stripped_vcf, contig_vcf])
+        File stripped_vcf_idx = select_first([StripInfoFields.stripped_vcf_idx, contig_vcf_idx])
+
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = stripped_vcf,
+                    vcf_idx = stripped_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}",
                     docker = utils_docker,
@@ -75,8 +92,8 @@ workflow AnnotateVcf {
             }
         }
 
-        Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [contig_vcf]])
-        Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [contig_vcf_idx]])
+        Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [stripped_vcf]])
+        Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [stripped_vcf_idx]])
 
         scatter (s in range(length(shard_vcfs))) {
             call AnnotateSequentially {
