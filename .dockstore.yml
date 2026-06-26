@@ -295,6 +295,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: DownloadConvertBAM
+    primaryDescriptorPath: /wdl/annotation_utils/DownloadConvertBAM.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: DropGenotypes
     primaryDescriptorPath: /wdl/annotation_utils/DropGenotypes.wdl
     filters:

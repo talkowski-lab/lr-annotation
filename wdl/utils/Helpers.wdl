@@ -1959,6 +1959,44 @@ task MergeBams {
     }
 }
 
+task MergeFastq {
+    input {
+        Array[File] fastq_gz_files
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        cat ~{sep=" " fastq_gz_files} > ~{prefix}.merged.fastq.gz
+    >>>
+
+    output {
+        File merged_fastq_gz = "~{prefix}.merged.fastq.gz"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 4,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(fastq_gz_files, "GB")) + 50,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
 task MergeHeaderLines {
     input {
         Array[File] header_files

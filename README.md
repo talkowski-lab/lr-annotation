@@ -682,6 +682,17 @@ Outputs:
 - `binned_read_counts`: Binned read-counts file for the sample.
 
 
+### [DownloadConvertBAM](wdl/annotation_utils/DownloadConvertBAM.wdl)
+This utility downloads BAM or FASTQ files from S3 in parallel, converts BAMs to FASTQ format preserving methylation tags, and merges all outputs into a single FASTQ.gz file.
+
+Inputs:
+- `Array[String] addresses`: S3 addresses of files to download. Supports `.bam`, `.fastq.gz`, and `.fastq` inputs.
+- `String prefix`: Prefix for output file names.
+
+Outputs:
+- `merged_fastq_gz`: Merged FASTQ.gz file containing reads from all input files.
+
+
 ### [DropGenotypes](wdl/annotation_utils/DropGenotypes.wdl)
 This utility strips all genotype (sample) columns from a VCF, optionally sharding by record count for speed. It outputs the resulting sites-only VCF.
 
