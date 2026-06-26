@@ -49,6 +49,7 @@ task DownloadConvert {
         set -euo pipefail
 
         aws s3 --no-sign-request cp ~{address} .
+
         FILE_NAME=$(basename ~{address})
         if [[ ${FILE_NAME} == *.bam ]]; then
             samtools fastq -@ 8 -T Mm,Ml -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
@@ -68,7 +69,7 @@ task DownloadConvert {
         mem_gb: 8,
         disk_gb: 200,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
