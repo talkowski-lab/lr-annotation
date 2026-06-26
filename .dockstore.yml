@@ -331,6 +331,16 @@ workflows:
       tags:
         - /.*/
 
+  - subclass: WDL
+    name: MakeDepthMetrics
+    primaryDescriptorPath: /wdl/annotation_utils/MakeDepthMetrics.wdl
+    filters:
+      branches:
+        - main
+        - gcnv
+      tags:
+        - /.*/
+
   # -----
   # Tools
   # -----
