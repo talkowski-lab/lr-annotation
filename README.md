@@ -1615,6 +1615,7 @@ Outputs:
 	- `del`: Deletion.
 	- `trv`: Tandem repeat.
 	- `dup`: Tandem duplication.
+	- `dup_tandem`: Tandem duplication converted from a sequence insertion. For these variants, REF is set to `N` and ALT is set to `<DUP>`. The pre-transformation values are preserved in `original_INS_ID` (original variant ID), `original_INS_allele_length` (original `allele_length`), and `original_INS_sequence` (original ALT sequence).
 	- `dup_interspersed`: Interspersed duplication.
 	- `complex_dup`: Complex duplication.
 	- `inv_dup`: Inverted duplication.
