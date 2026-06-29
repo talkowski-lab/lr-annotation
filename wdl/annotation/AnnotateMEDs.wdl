@@ -78,8 +78,7 @@ workflow AnnotateMEDs {
                 input:
                     vcf = vcfs_to_process[i],
                     prefix = "~{prefix}.~{contig}.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_bedtools
+                    docker = utils_docker
             }
 
             call IntersectMED {
@@ -88,8 +87,7 @@ workflow AnnotateMEDs {
                     bed_b = mei_catalog,
                     del_reciprocal_overlap = del_reciprocal_overlap,
                     prefix = "~{prefix}.~{contig}.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_bedtools
+                    docker = utils_docker
             }
 
             call GenerateMedAnnotationTable {
@@ -100,8 +98,7 @@ workflow AnnotateMEDs {
                     del_sequence_similarity = del_sequence_similarity,
                     del_size_similarity = del_size_similarity,
                     prefix = "~{prefix}.~{contig}.shard_~{i}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_annotate
+                    docker = utils_docker
             }
         }
 
