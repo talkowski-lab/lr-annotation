@@ -881,32 +881,6 @@ Outputs:
 TODO
 
 
-### [MergeSites](wdl/annotation_utils/MergeSites.wdl)
-This utility merges redundant records at the site level within a VCF by collapsing near-identical deletions and insertions. Deletions are collapsed using size-, reciprocal-overlap, sequence- and sample-similarity thresholds plus a breakpoint distance, insertions using size-, sequence- and sample-similarity plus a breakpoint distance, while all other variants pass through untouched. It outputs the merged VCF.
-
-Inputs:
-- `File vcf`: VCF to merge.
-- `File vcf_idx`: Index for VCF.
-- `Int del_breakpoint_window`: Maximum breakpoint distance, in bp, for collapsing deletions (default `500`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for collapsing deletions (default `0.0`).
-- `Float del_sample_similarity`: Minimum sample similarity for collapsing deletions (default `0.5`).
-- `Float del_sequence_similarity`: Minimum sequence similarity for collapsing deletions (default `0.7`).
-- `Float del_size_similarity`: Minimum size similarity for collapsing deletions (default `0.7`).
-- `Int del_size_max`: Maximum deletion size to collapse, or `-1` for no maximum (default `-1`).
-- `Int del_size_min`: Minimum deletion size to collapse (default `0`).
-- `Int ins_breakpoint_window`: Maximum breakpoint distance, in bp, for collapsing insertions (default `200`).
-- `Float ins_reciprocal_overlap`: Minimum reciprocal overlap for collapsing insertions (default `0.0`).
-- `Float ins_sample_similarity`: Minimum sample similarity for collapsing insertions (default `0.5`).
-- `Float ins_sequence_similarity`: Minimum sequence similarity for collapsing insertions (default `0.7`).
-- `Float ins_size_similarity`: Minimum size similarity for collapsing insertions (default `0.7`).
-- `Int ins_size_max`: Maximum insertion size to collapse, or `-1` for no maximum (default `-1`).
-- `Int ins_size_min`: Minimum insertion size to collapse (default `0`).
-
-Outputs:
-- `merged_vcf`: Site-merged VCF.
-- `merged_vcf_idx`: Index for the merged VCF.
-
-
 ### [MergeVcfs](wdl/annotation_utils/MergeVcfs.wdl)
 This utility merges multiple per-contig VCFs covering the same contig into one, handling tandem-repeat and non-tandem-repeat variants separately. Non-TR variants are merged with Truvari using reciprocal-overlap, sequence-, size- and sample-similarity, a breakpoint distance and size bounds, while TR variants are merged on their identifiers, with optional region sharding. It outputs the merged VCF and a merge-summary TSV.
 
@@ -1017,6 +991,22 @@ Inputs:
 Outputs:
 - `sv_vcf_qc_output`: Tarball of the QC plots and metrics.
 - `vcf2bed_output`: Merged BED representation of the QC'd VCFs.
+
+
+### [ResolveHaplotypeOverlaps](wdl/annotation_utils/ResolveHaplotypeOverlaps.wdl)
+This utility detects and resolves haplotype-level overlaps among non-TR, non-TR-enveloped variants in a phased cohort VCF. For each sample, it extracts the sample's non-ref calls (excluding `allele_type="trv"` and `INFO/TR_ENVELOPED` variants), then sweeps each haplotype's variant intervals to find all overlapping pairs. Overlapping pairs are resolved by keeping the variant that spans more reference sequence (larger `len(REF)`) — which always favors DELs over INS or SNVs. When two variants span the same reference length, the higher-GQ call wins; remaining ties are broken by `INFO/allele_length`, then type rank (DEL > INS > SNV), then QUAL, then input-file order. The loser's FORMAT fields (`GT`, `GQ`, `DP`, `EV`, `BEV`, `AD`, `PL`) are cleared in the output VCF. The workflow scatters per-sample detection across all samples, then applies the collected clears contig-by-contig (with optional record-count sharding) to produce the resolved VCF.
+
+Inputs:
+- `File vcf`: Phased cohort VCF to resolve.
+- `File vcf_idx`: Index for `vcf`.
+- `Array[String] contigs`: Contigs to process.
+- `Int? records_per_shard`: When set, shards each contig into chunks of this many records for the clearing step.
+
+Outputs:
+- `resolved_vcf`: VCF with overlapping loser genotypes cleared.
+- `resolved_vcf_idx`: Index for `resolved_vcf`.
+- `overlaps_tsv`: TSV of all detected overlap pairs, with columns `sample`, `haplotype`, `variant_id_1` (loser), `var_type_1`, `size_bin_1`, `variant_id_2` (winner), `var_type_2`, `size_bin_2`.
+- `cleared_calls_tsv`: TSV of `variant_id` / `sample` pairs whose genotypes were cleared.
 
 
 ### [SplitVcfPerContig](wdl/annotation_utils/SplitVcfPerContig.wdl)

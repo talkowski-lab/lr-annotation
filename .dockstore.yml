@@ -403,15 +403,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: MergeSites
-    primaryDescriptorPath: /wdl/annotation_utils/MergeSites.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: MergeVcfs
     primaryDescriptorPath: /wdl/annotation_utils/MergeVcfs.wdl
     filters:
@@ -441,6 +432,15 @@ workflows:
   - subclass: WDL
     name: PostProcess
     primaryDescriptorPath: /wdl/annotation_utils/PostProcess.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: ResolveHaplotypeOverlaps
+    primaryDescriptorPath: /wdl/annotation_utils/ResolveHaplotypeOverlaps.wdl
     filters:
       branches:
         - main
