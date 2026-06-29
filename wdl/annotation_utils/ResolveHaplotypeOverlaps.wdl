@@ -171,10 +171,9 @@ workflow ResolveHaplotypeOverlaps {
     }
 
     output {
-        File resolved_vcf = select_first([ConcatContigs.concat_vcf, contig_cleared_vcf[0]])
-        File resolved_vcf_idx = select_first([ConcatContigs.concat_vcf_idx, contig_cleared_vcf_idx[0]])
-        File overlaps_tsv = ConcatOverlapTsvs.concatenated_tsv
-        File cleared_calls_tsv = ConcatClearedTsvs.concatenated_tsv
+        File overlap_resolved_vcf = select_first([ConcatContigs.concat_vcf, contig_cleared_vcf[0]])
+        File overlap_resolved_vcf_idx = select_first([ConcatContigs.concat_vcf_idx, contig_cleared_vcf_idx[0]])
+        File overlap_tsv = ConcatOverlapTsvs.concatenated_tsv
     }
 }
 
@@ -331,8 +330,8 @@ def find_overlaps(intervals, haplotype):
                 loser_id, loser_type, loser_lb = vid_i, t_i, lb_i
             cleared_set.add(loser_id)
             overlaps_rows.append([sample_name, haplotype,
-                                   loser_id, loser_type, loser_lb,
-                                   winner_id, winner_type, winner_lb])
+                                   winner_id, winner_type, winner_lb,
+                                   loser_id, loser_type, loser_lb])
 
 
 if len(hap0) >= 2:
@@ -341,7 +340,7 @@ if len(hap1) >= 2:
     find_overlaps(hap1, 2)
 
 with open('~{prefix}.overlaps.tsv', 'w') as f:
-    f.write('sample\thaplotype\tvariant_id_1\tvar_type_1\tsize_bin_1\tvariant_id_2\tvar_type_2\tsize_bin_2\n')
+    f.write('sample\thaplotype\tvariant_id_retained\tvar_type_retained\tsize_bin_retained\tvariant_id_cleared\tvar_type_cleared\tsize_bin_cleared\n')
     for row in overlaps_rows:
         f.write('\t'.join(str(x) for x in row) + '\n')
 

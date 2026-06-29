@@ -1005,8 +1005,7 @@ Inputs:
 Outputs:
 - `resolved_vcf`: VCF with overlapping loser genotypes cleared.
 - `resolved_vcf_idx`: Index for `resolved_vcf`.
-- `overlaps_tsv`: TSV of all detected overlap pairs, with columns `sample`, `haplotype`, `variant_id_1` (loser), `var_type_1`, `size_bin_1`, `variant_id_2` (winner), `var_type_2`, `size_bin_2`.
-- `cleared_calls_tsv`: TSV of `variant_id` / `sample` pairs whose genotypes were cleared.
+- `overlaps_tsv`: TSV of all detected overlap pairs, with columns `sample`, `haplotype`, `variant_id_retained`, `var_type_retained`, `size_bin_retained`, `variant_id_cleared`, `var_type_cleared`, `size_bin_cleared`.
 
 
 ### [SplitVcfPerContig](wdl/annotation_utils/SplitVcfPerContig.wdl)
