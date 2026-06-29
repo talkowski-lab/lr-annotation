@@ -8,7 +8,7 @@ workflow MakeDepthMetrics {
 
     File duckdb
     String output_prefix
-    String linux_docker
+    String unzip_docker
     String sv_base_mini_docker
   }
 
@@ -26,7 +26,7 @@ workflow MakeDepthMetrics {
         sample_id = sample_ids[i],
         mosdepth_per_base = mosdepth_per_base[i],
         duckdb = duckdb,
-        linux_docker = linux_docker
+        unzip_docker = unzip_docker
     }
   }
 
@@ -35,7 +35,7 @@ workflow MakeDepthMetrics {
       sample_ids = sample_ids,
       median_covs = MedianCov.median_cov,
       output_prefix = output_prefix,
-      linux_docker = linux_docker
+      unzip_docker = unzip_docker
   }
 
   output {
@@ -152,7 +152,7 @@ task MedianCov {
     File mosdepth_per_base
     String duckdb
 
-    String linux_docker
+    String unzip_docker
     Float? mem_gib
     Int? disk_gb
     Int? cpu
@@ -168,7 +168,7 @@ task MedianCov {
     memory: select_first([mem_gib, 2]) + " GiB"
     disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
     bootDiskSizeGb: select_first([boot_disk_gb, 8])
-    docker: linux_docker
+    docker: unzip_docker
     preemptible: select_first([preemptible_tries, 3])
     maxRetries: select_first([max_retries, 1])
     noAddress: true
@@ -204,7 +204,7 @@ task MergeMedianCov {
     Array[Int] median_covs
     String output_prefix
 
-    String linux_docker
+    String unzip_docker
     Float? mem_gib
     Int? disk_gb
     Int? cpu
@@ -218,7 +218,7 @@ task MergeMedianCov {
     memory: select_first([mem_gib, 2]) + " GiB"
     disks: "local-disk " + select_first([disk_gb, 32]) + " HDD"
     bootDiskSizeGb: select_first([boot_disk_gb, 8])
-    docker: linux_docker
+    docker: unzip_docker
     preemptible: select_first([preemptible_tries, 3])
     maxRetries: select_first([max_retries, 1])
     noAddress: true
