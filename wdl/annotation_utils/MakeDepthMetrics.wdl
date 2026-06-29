@@ -177,9 +177,7 @@ task MedianCov {
   command <<<
     set -euo pipefail
 
-    python -m zipfile -e '~{duckdb}' .
-    chmod 755 duckdb
-
+    unzip '~{duckdb}'
     gzip -cd '~{mosdepth_per_base}' \
       | awk -F'\t' '{d=$3-$2; for(i=0; i<d; ++i){print $4}}' \
       | gzip -c > temp.tsv.gz
