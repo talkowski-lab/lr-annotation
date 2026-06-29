@@ -150,7 +150,7 @@ task MedianCov {
   input {
     String sample_id
     File mosdepth_per_base
-    String duckdb
+    File duckdb
 
     String unzip_docker
     Float? mem_gib
