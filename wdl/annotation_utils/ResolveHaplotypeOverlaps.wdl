@@ -368,15 +368,12 @@ for rec in vcf_in:
             s = rec.samples[sample_name]
             s['GT'] = (None, None)
             s.phased = False
-            for field in ['GQ', 'DP']:
-                if field in rec.format:
-                    s[field] = None
-            for field in ['EV', 'BEV']:
-                if field in rec.format:
-                    try:
-                        s[field] = None
-                    except Exception:
-                        pass
+            if 'GQ' in rec.format:
+                s['GQ'] = None
+            if 'EV' in rec.format:
+                s['EV'] = '.'
+            if 'BEV' in rec.format:
+                s['BEV'] = '.'
             for field in ['AD', 'PL']:
                 if field in rec.format:
                     try:

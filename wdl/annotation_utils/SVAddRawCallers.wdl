@@ -441,8 +441,8 @@ for tag, line in [
     ("GQ", '##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">'),
     ("PL", '##FORMAT=<ID=PL,Number=G,Type=Integer,Description="Phred-scaled genotype likelihoods">'),
     ("DP", '##FORMAT=<ID=DP,Number=1,Type=Integer,Description="Approximate read depth">'),
-    ("EV", '##FORMAT=<ID=EV,Number=.,Type=String,Description="Callers supporting this sample call; entries as caller_(refAD_altAD); dipcall/hapdiff omit the AD parens">'),
-    ("BEV", '##FORMAT=<ID=BEV,Number=1,Type=String,Description="Representative caller for this sample call: kanpig if in EV, else highest-GQ per-caller with valid AD">'),
+    ("EV", '##FORMAT=<ID=EV,Number=.,Type=String,Description="Callers supporting this sample call; entries as caller_(refAD_altAD); assembly-based callers (dipcall, hapdiff) omit the AD fields">'),
+    ("BEV", '##FORMAT=<ID=BEV,Number=1,Type=String,Description="Representative caller for this sample call: kanpig if in EV, else caller from EV with AD that provides the highest GQ">'),
 ]:
     if tag not in header.formats:
         header.add_line(line)
