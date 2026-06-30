@@ -7,7 +7,7 @@ workflow ResolveHaplotypeOverlaps {
     input {
         File vcf
         File vcf_idx
-        Array[String] contigs
+        String contig
         String prefix
 
         Int? records_per_shard
@@ -18,15 +18,10 @@ workflow ResolveHaplotypeOverlaps {
         RuntimeAttr? runtime_attr_extract_sample
         RuntimeAttr? runtime_attr_detect_overlaps
         RuntimeAttr? runtime_attr_concat_tsvs
-        RuntimeAttr? runtime_attr_subset_contig
-        RuntimeAttr? runtime_attr_create_shards
-        RuntimeAttr? runtime_attr_subset_shard
+        RuntimeAttr? runtime_attr_shard_vcf
         RuntimeAttr? runtime_attr_clear_overlaps
         RuntimeAttr? runtime_attr_concat_shards
-        RuntimeAttr? runtime_attr_concat_contigs
     }
-
-    Boolean single_contig = length(contigs) == 1
 
     call Helpers.GetSamplesFromVcf {
         input:
@@ -79,100 +74,56 @@ workflow ResolveHaplotypeOverlaps {
             runtime_attr_override = runtime_attr_concat_tsvs
     }
 
-    scatter (contig in contigs) {
-        if (!single_contig) {
-            call Helpers.SubsetVcfToContig as SubsetContig {
-                input:
-                    vcf = vcf,
-                    vcf_idx = vcf_idx,
-                    contig = contig,
-                    prefix = "~{prefix}.~{contig}",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_contig
-            }
+    if (defined(records_per_shard)) {
+        call Helpers.ShardVcfByRecords {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                records_per_shard = select_first([records_per_shard]),
+                prefix = "~{prefix}.~{contig}",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_shard_vcf
         }
 
-        File contig_vcf = select_first([SubsetContig.subset_vcf, vcf])
-        File contig_vcf_idx = select_first([SubsetContig.subset_vcf_idx, vcf_idx])
-
-        if (defined(records_per_shard)) {
-            call Helpers.CreateRecordShards {
+        scatter (shard_pair in zip(ShardVcfByRecords.shards, ShardVcfByRecords.shard_idxs)) {
+            call ClearOverlapCalls as ClearShard {
                 input:
-                    vcf = contig_vcf,
-                    vcf_idx = contig_vcf_idx,
-                    contig = contig,
-                    records_per_shard = select_first([records_per_shard]),
-                    prefix = "~{prefix}.~{contig}.shards",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_create_shards
-            }
-
-            scatter (i in range(length(CreateRecordShards.shard_regions))) {
-                call Helpers.SubsetVcfToRegion as SubsetShard {
-                    input:
-                        vcf = contig_vcf,
-                        vcf_idx = contig_vcf_idx,
-                        region = CreateRecordShards.shard_regions[i],
-                        prefix = "~{prefix}.~{contig}.shard_~{i}",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_subset_shard
-                }
-
-                call ClearOverlapCalls as ClearShard {
-                    input:
-                        vcf = SubsetShard.subset_vcf,
-                        vcf_idx = SubsetShard.subset_vcf_idx,
-                        cleared_calls_tsv = ConcatClearedTsvs.concatenated_tsv,
-                        prefix = "~{prefix}.~{contig}.shard_~{i}.cleared",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_clear_overlaps
-                }
-            }
-
-            call Helpers.ConcatVcfs as ConcatShards {
-                input:
-                    vcfs = ClearShard.output_vcf,
-                    vcf_idxs = ClearShard.output_vcf_idx,
-                    allow_overlaps = false,
-                    naive = true,
-                    prefix = "~{prefix}.~{contig}.cleared",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards
-            }
-        }
-
-        if (!defined(records_per_shard)) {
-            call ClearOverlapCalls as ClearContig {
-                input:
-                    vcf = contig_vcf,
-                    vcf_idx = contig_vcf_idx,
+                    vcf = shard_pair.left,
+                    vcf_idx = shard_pair.right,
                     cleared_calls_tsv = ConcatClearedTsvs.concatenated_tsv,
-                    prefix = "~{prefix}.~{contig}.cleared",
+                    prefix = "~{prefix}.~{contig}.shard.cleared",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_clear_overlaps
             }
         }
 
-        File contig_cleared_vcf = select_first([ConcatShards.concat_vcf, ClearContig.output_vcf])
-        File contig_cleared_vcf_idx = select_first([ConcatShards.concat_vcf_idx, ClearContig.output_vcf_idx])
-    }
-
-    if (!single_contig) {
-        call Helpers.ConcatVcfs as ConcatContigs {
+        call Helpers.ConcatVcfs as ConcatShards {
             input:
-                vcfs = contig_cleared_vcf,
-                vcf_idxs = contig_cleared_vcf_idx,
+                vcfs = ClearShard.output_vcf,
+                vcf_idxs = ClearShard.output_vcf_idx,
                 allow_overlaps = false,
                 naive = true,
-                prefix = "~{prefix}.cleared",
+                prefix = "~{prefix}.~{contig}.cleared",
                 docker = utils_docker,
-                runtime_attr_override = runtime_attr_concat_contigs
+                runtime_attr_override = runtime_attr_concat_shards
+        }
+    }
+
+    if (!defined(records_per_shard)) {
+        call ClearOverlapCalls as ClearAll {
+            input:
+                vcf = vcf,
+                vcf_idx = vcf_idx,
+                cleared_calls_tsv = ConcatClearedTsvs.concatenated_tsv,
+                prefix = "~{prefix}.~{contig}.cleared",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_clear_overlaps
         }
     }
 
     output {
-        File overlap_resolved_vcf = select_first([ConcatContigs.concat_vcf, contig_cleared_vcf[0]])
-        File overlap_resolved_vcf_idx = select_first([ConcatContigs.concat_vcf_idx, contig_cleared_vcf_idx[0]])
+        File overlap_resolved_vcf = select_first([ConcatShards.concat_vcf, ClearAll.output_vcf])
+        File overlap_resolved_vcf_idx = select_first([ConcatShards.concat_vcf_idx, ClearAll.output_vcf_idx])
         File overlap_tsv = ConcatOverlapTsvs.concatenated_tsv
     }
 }

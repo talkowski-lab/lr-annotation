@@ -1174,69 +1174,6 @@ CODE
     }
 }
 
-task CreateRecordShards {
-    input {
-        File vcf
-        File vcf_idx
-        String contig
-        Int records_per_shard
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 - <<CODE
-import subprocess
-
-records_per_shard = ~{records_per_shard}
-contig = '~{contig}'
-
-proc = subprocess.Popen(
-    ['bcftools', 'view', '-H', '-r', contig, '~{vcf}'],
-    stdout=subprocess.PIPE, text=True, bufsize=1
-)
-positions = [int(line.split('\t')[1]) for line in proc.stdout]
-proc.wait()
-
-with open('~{prefix}.txt', 'w') as out:
-    for i in range(0, len(positions), records_per_shard):
-        chunk = positions[i:i + records_per_shard]
-        start = chunk[0]
-        end = chunk[-1]
-        if i + records_per_shard < len(positions):
-            next_start = positions[i + records_per_shard]
-            if next_start > end:
-                end = next_start - 1
-        out.write(f'{contig}:{start}-{end}\n')
-CODE
-    >>>
-
-    output {
-        Array[String] shard_regions = read_lines("~{prefix}.txt")
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
 
 task AddMissingInfoHeaderLines {
     input {
