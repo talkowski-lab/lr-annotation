@@ -682,6 +682,18 @@ Outputs:
 - `binned_read_counts`: Binned read-counts file for the sample.
 
 
+### [DownloadAWSFile](wdl/annotation_utils/DownloadAWSFile.wdl)
+This utility downloads a single file from S3 and copies it to GCS, mirroring the S3 path structure relative to a configurable base prefix.
+
+Inputs:
+- `String aws_path`: S3 URI of the file to download.
+- `String gcs_folder`: GCS destination folder.
+- `String base_path`: S3 base prefix to strip when constructing the destination GCS path.
+
+Outputs:
+- `String gcs_path`: GCS URI of the transferred file.
+
+
 ### [DownloadConvertBAM](wdl/annotation_utils/DownloadConvertBAM.wdl)
 This utility downloads BAM or FASTQ files from S3 in parallel, converts BAMs to FASTQ format preserving methylation tags, and merges all outputs into a single FASTQ.gz file.
 

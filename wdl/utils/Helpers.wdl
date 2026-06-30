@@ -2799,7 +2799,7 @@ task SubsetVcfToContig {
 
     command <<<
         set -euo pipefail
-        
+
         if ~{!defined(vcf_idx)}; then
             tabix -p vcf ~{vcf}
         fi
@@ -2823,6 +2823,48 @@ task SubsetVcfToContig {
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task TransferAWSToGCS {
+    input {
+        String aws_path
+        String output_gcs_path
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        filename=$(basename "~{aws_path}")
+
+        aws s3 cp --no-sign-request "~{aws_path}" "$filename"
+
+        gsutil cp "$filename" "~{output_gcs_path}"
+    >>>
+
+    output {
+        String gcs_path = output_gcs_path
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 2,
+        mem_gb: 4,
+        disk_gb: 600,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

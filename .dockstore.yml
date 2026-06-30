@@ -295,6 +295,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: DownloadAWSFile
+    primaryDescriptorPath: /wdl/annotation_utils/DownloadAWSFile.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: DownloadConvertBAM
     primaryDescriptorPath: /wdl/annotation_utils/DownloadConvertBAM.wdl
     filters:
