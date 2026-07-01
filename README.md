@@ -584,6 +584,18 @@ Outputs:
 - `concat_vcf_idx`: Index for the combined VCF.
 
 
+### [CompareBAMs](wdl/annotation_utils/CompareBAMs.wdl)
+This utility compares two unaligned BAMs by read identity and sequence length. It reports the total read count in each file, the number of reads in each file whose read ID appears in the other, and the number of those matched-ID read pairs that have identical sequence lengths.
+
+Inputs:
+- `File bam1`: First unaligned BAM.
+- `File bam2`: Second unaligned BAM.
+- `String prefix`: Prefix for output file names.
+
+Outputs:
+- `comparison_tsv`: TSV with columns `metric` and `value` reporting `bam1_total_reads`, `bam2_total_reads`, `matched_reads`, and `matched_reads_with_same_sequence_length`.
+
+
 ### [CountAnnotations](wdl/annotation_utils/CountAnnotations.wdl)
 This utility tallies annotation values across one or more VCFs to produce summary count tables. It always counts at the site level and can optionally count per sample, per allele, per functional gene consequence and as raw value lists, with optional sharding, region splitting and length/region subsetting. It outputs a site-count TSV plus whichever optional breakdowns were requested.
 

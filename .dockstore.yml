@@ -241,6 +241,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CompareBAMs
+    primaryDescriptorPath: /wdl/annotation_utils/CompareBAMs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CountAnnotations
     primaryDescriptorPath: /wdl/annotation_utils/CountAnnotations.wdl
     filters:

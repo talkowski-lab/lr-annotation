@@ -45,7 +45,7 @@ workflow TransformINSToDUP {
                 dup_breakpoint_window = dup_breakpoint_window,
                 dup_size_similarity = dup_size_similarity,
                 min_dup_size = min_dup_size,
-                prefix = "~{prefix}.shard_~{i}.transformed",
+                prefix = "~{prefix}.shard_~{i}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_transform
         }
@@ -58,7 +58,7 @@ workflow TransformINSToDUP {
                 vcf_idxs = TransformDups.transformed_vcf_idx,
                 allow_overlaps = true,
                 naive = false,
-                prefix = "~{prefix}.transformed",
+                prefix = "~{prefix}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat_shards
         }

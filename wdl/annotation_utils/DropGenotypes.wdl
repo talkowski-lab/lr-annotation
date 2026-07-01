@@ -38,7 +38,7 @@ workflow DropGenotypes {
             input:
                 vcf = vcfs_to_process[i],
                 vcf_idx = vcf_idxs_to_process[i],
-                prefix = "~{prefix}.shard_~{i}.dropped",
+                prefix = "~{prefix}.shard_~{i}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_strip
         }
@@ -51,7 +51,7 @@ workflow DropGenotypes {
                 vcf_idxs = StripShardGenotypes.stripped_vcf_idx,
                 allow_overlaps = false,
                 naive = true,
-                prefix = "~{prefix}.dropped",
+                prefix = "~{prefix}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat
         }
