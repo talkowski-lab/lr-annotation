@@ -52,7 +52,7 @@ task DownloadConvert {
 
         FILE_NAME=$(basename ~{address})
         if [[ ${FILE_NAME} == *.bam ]]; then
-            samtools fastq -@ 8 -T Mm,Ml -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
+            samtools fastq -@ 8 -T MM,ML -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
         elif [[ ${FILE_NAME} == *.fastq.gz ]]; then
             mv ${FILE_NAME} ~{prefix}.fastq.gz
         elif [[ ${FILE_NAME} == *.fastq ]]; then
