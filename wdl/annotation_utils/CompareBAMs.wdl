@@ -56,7 +56,8 @@ for line in sys.stdin:
     f = line.rstrip("\n").split("\t")
     seq = f[9]
     h = hashlib.md5(seq.encode()).hexdigest() if seq != "*" else ""
-    print(f"{f[0]}\t{h}\t{0 if seq == \"*\" else len(seq)}")
+    length = 0 if seq == "*" else len(seq)
+    print(f"{f[0]}\t{h}\t{length}")
 ' | LC_ALL=C sort -k1,1 -T . -S 4G > bam1_reads.tsv &
         PID1=$!
 
@@ -69,7 +70,8 @@ for line in sys.stdin:
     f = line.rstrip("\n").split("\t")
     seq = f[9]
     h = hashlib.md5(seq.encode()).hexdigest() if seq != "*" else ""
-    print(f"{f[0]}\t{h}\t{0 if seq == \"*\" else len(seq)}")
+    length = 0 if seq == "*" else len(seq)
+    print(f"{f[0]}\t{h}\t{length}")
 ' | LC_ALL=C sort -k1,1 -T . -S 4G > bam2_reads.tsv &
         PID2=$!
 
