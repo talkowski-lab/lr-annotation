@@ -585,15 +585,18 @@ Outputs:
 
 
 ### [CompareBAMs](wdl/annotation_utils/CompareBAMs.wdl)
-This utility compares two unaligned BAMs by read identity and sequence length. It reports the total read count in each file, the number of reads in each file whose read ID appears in the other, and the number of those matched-ID read pairs that have identical sequence lengths.
+This utility compares two unaligned BAMs by read identity, sequence length, and sequence content. It reports total read counts, the number of reads whose IDs match across BAMs, the number of matched-ID pairs with identical sequence lengths, and the number with identical sequences (compared via MD5). It also emits a per-read TSV covering all reads from both files.
 
 Inputs:
 - `File bam1`: First unaligned BAM.
 - `File bam2`: Second unaligned BAM.
+- `String bam1_name`: Label for `bam1`, used as column/metric prefix in outputs.
+- `String bam2_name`: Label for `bam2`, used as column/metric prefix in outputs.
 - `String prefix`: Prefix for output file names.
 
 Outputs:
-- `comparison_tsv`: TSV with columns `metric` and `value` reporting `bam1_total_reads`, `bam2_total_reads`, `matched_reads`, and `matched_reads_with_same_sequence_length`.
+- `comparison_tsv`: TSV with columns `metric` and `value` reporting `{bam1_name}_total_reads`, `{bam2_name}_total_reads`, `matched_id_reads`, `matched_id_reads_same_sequence_length`, and `matched_id_reads_same_sequence`.
+- `per_read_tsv`: TSV with columns `read_id`, `{bam1_name}_len`, `{bam2_name}_len` for all reads across both BAMs. Length is empty for reads absent from that BAM.
 
 
 ### [CountAnnotations](wdl/annotation_utils/CountAnnotations.wdl)
