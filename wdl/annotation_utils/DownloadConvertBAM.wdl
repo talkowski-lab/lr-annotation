@@ -52,7 +52,18 @@ task DownloadConvert {
 
         FILE_NAME=$(basename ~{address})
         if [[ ${FILE_NAME} == *.bam ]]; then
-            samtools fastq -@ 8 -T MM,ML -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
+            set +o pipefail
+            SAMPLE_READ=$(samtools view "${FILE_NAME}" | head -1)
+            set -o pipefail
+            if echo "${SAMPLE_READ}" | grep -q "MM:Z:"; then
+                MOD_TAGS="MM,ML"
+            elif echo "${SAMPLE_READ}" | grep -q "Mm:Z:"; then
+                MOD_TAGS="Mm,Ml"
+            else
+                echo "ERROR: No base modification tags (MM/ML or Mm/Ml) found in ${FILE_NAME}" >&2
+                exit 1
+            fi
+            samtools fastq -@ 8 -T ${MOD_TAGS} -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
         elif [[ ${FILE_NAME} == *.fastq.gz ]]; then
             mv ${FILE_NAME} ~{prefix}.fastq.gz
         elif [[ ${FILE_NAME} == *.fastq ]]; then
