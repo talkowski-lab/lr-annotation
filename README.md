@@ -1622,7 +1622,7 @@ Outputs:
 
 
 
-## Output Schema
+## VCF Fields
 ### Annotations
 - `allele_length`: Length of variant - positive for insertions, negative for deletions and 0 for SNVs.
 - `allele_type`: Classification type of variant, which is one of the below.
