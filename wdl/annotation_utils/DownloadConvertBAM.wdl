@@ -60,8 +60,7 @@ task DownloadConvert {
             elif echo "${SAMPLE_READ}" | grep -q "Mm:Z:"; then
                 MOD_TAGS="Mm,Ml"
             else
-                echo "ERROR: No base modification tags (MM/ML or Mm/Ml) found in ${FILE_NAME}" >&2
-                exit 1
+                MOD_TAGS="Mm,Ml"
             fi
             samtools fastq -@ 8 -T ${MOD_TAGS} -n ${FILE_NAME} | gzip > ~{prefix}.fastq.gz
         elif [[ ${FILE_NAME} == *.fastq.gz ]]; then
