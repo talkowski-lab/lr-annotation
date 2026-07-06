@@ -1,5 +1,5 @@
-# Long-Read Annotation
-This repository serves as a home for all scripts, workflows and processes for annotating long-read callsets.
+# LR Annotation
+This repository serves as a home for all scripts, workflows and processes for annotating callsets derived from long-read data.
 
 
 
