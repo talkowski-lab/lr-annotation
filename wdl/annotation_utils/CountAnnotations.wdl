@@ -16,10 +16,12 @@ workflow CountAnnotations {
         Boolean create_per_allele = false
         Boolean create_list = false
         Boolean create_functional = false
-        Boolean create_variant_attributes = false
 
         Boolean use_ssd = false
         Boolean split_by_region = false
+        Boolean create_variant_attributes = false
+        Boolean create_sample_specific = false
+        Boolean create_allele_specific = false
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
@@ -35,7 +37,7 @@ workflow CountAnnotations {
         RuntimeAttr? runtime_attr_merge
     }
 
-    Boolean sites_only = !(create_per_sample || create_per_allele)
+    Boolean sites_only = !(create_per_sample || create_per_allele || create_sample_specific || create_allele_specific)
 
     scatter (i in range(length(vcfs))) {
         if (defined(shard_bin_size)) {
@@ -103,6 +105,8 @@ workflow CountAnnotations {
                     create_list = create_list,
                     split_by_region = split_by_region,
                     create_variant_attributes = create_variant_attributes,
+                    create_sample_specific = create_sample_specific,
+                    create_allele_specific = create_allele_specific,
                     max_length = max_length,
                     min_length = min_length,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -120,6 +124,8 @@ workflow CountAnnotations {
     Array[File] functional_site_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
     Array[File] functional_sample_count_tables = flatten(CountAnnotationShard.gene_sample_counts_tsv)
     Array[File] functional_allele_count_tables = flatten(CountAnnotationShard.gene_allele_counts_tsv)
+    Array[File] sample_specific_tables = flatten(CountAnnotationShard.sample_specific_tsv)
+    Array[File] allele_specific_tables = flatten(CountAnnotationShard.allele_specific_tsv)
 
     call MergeAnnotationCountTables as MergeSiteCounts {
         input:
@@ -198,14 +204,36 @@ workflow CountAnnotations {
         }
     }
 
+    if (create_sample_specific) {
+        call MergeSampleSpecificTables as MergeSampleSpecific {
+            input:
+                count_tsvs = sample_specific_tables,
+                prefix = "~{prefix}.counts_sample_specific",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
+    if (create_allele_specific) {
+        call MergeSampleSpecificTables as MergeAlleleSpecific {
+            input:
+                count_tsvs = allele_specific_tables,
+                prefix = "~{prefix}.counts_allele_specific",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
     output {
         File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
+        File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
+        File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
+        File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
         File? annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
         File? annotation_counts_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
         File? annotation_counts_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
-        File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
-        File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
-        File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
+        File? annotation_counts_sample_specific_tsv = MergeSampleSpecific.merged_tsv
+        File? annotation_counts_allele_specific_tsv = MergeAlleleSpecific.merged_tsv
     }
 }
 
@@ -218,6 +246,8 @@ task CountAnnotationShard {
         Boolean create_list
         Boolean split_by_region
         Boolean create_variant_attributes
+        Boolean create_sample_specific
+        Boolean create_allele_specific
         Int max_length
         Int min_length
         String prefix
@@ -248,6 +278,10 @@ CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
 CREATE_LIST = "~{create_list}".lower() == "true"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
 CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
+CREATE_SAMPLE_SPECIFIC = "~{create_sample_specific}".lower() == "true"
+CREATE_ALLELE_SPECIFIC = "~{create_allele_specific}".lower() == "true"
+SAMPLE_SPECIFIC_OUTPUT = "~{prefix}.sample_specific.raw.tsv"
+ALLELE_SPECIFIC_OUTPUT = "~{prefix}.allele_specific.raw.tsv"
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
@@ -615,6 +649,25 @@ def write_gene_counts(path, gene_count_data):
             for category, count in gene_count_data[gene].items():
                 writer.writerow([gene, category, str(count)])
 
+def make_sample_specific_columns():
+    col_keys = []
+    col_names = []
+    for row_key in ROW_ORDER:
+        group, ann = row_key
+        label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
+        annotation_label = f"{group}:{label}" if group else label
+        for col_bucket in COLUMN_BUCKETS:
+            col_keys.append((row_key, col_bucket))
+            col_names.append(f"{annotation_label}-{col_bucket}")
+    return col_keys, col_names
+
+def write_sample_specific(path, table_data, col_keys, col_names, sample_names):
+    with open(path, "w", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t")
+        writer.writerow(["sample_id"] + col_names)
+        for sample_name in sample_names:
+            writer.writerow([sample_name] + [str(table_data[sample_name].get(key, 0)) for key in col_keys])
+
 site_table = init_table()
 sample_table = init_table()
 allele_table = init_table()
@@ -622,6 +675,11 @@ allele_table = init_table()
 vcf_in = pysam.VariantFile(VCF_PATH)
 vep_field_indices = get_vep_field_indices(vcf_in.header)
 sample_count = len(vcf_in.header.samples)
+
+if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
+    sample_names = list(vcf_in.header.samples)
+    sample_specific_table = {s: defaultdict(int) for s in sample_names}
+    allele_specific_table = {s: defaultdict(int) for s in sample_names}
 
 with open(SAMPLE_COUNT_OUTPUT, "w") as handle:
     handle.write(f"{sample_count}\n")
@@ -720,6 +778,24 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                         if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
                         if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
 
+            if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
+                for sample_name, sample_data in record.samples.items():
+                    genotype = sample_data.get("GT")
+                    if genotype is None:
+                        continue
+                    if alt_idx_1based is not None:
+                        n_alleles = sum(1 for a in genotype if a == alt_idx_1based)
+                    else:
+                        n_alleles = sum(1 for a in genotype if a is not None and a > 0)
+                    if n_alleles == 0:
+                        continue
+                    for row_key in row_weights:
+                        key = (row_key, column)
+                        if CREATE_SAMPLE_SPECIFIC:
+                            sample_specific_table[sample_name][key] += 1
+                        if CREATE_ALLELE_SPECIFIC:
+                            allele_specific_table[sample_name][key] += n_alleles
+
             if CREATE_LIST:
                 list_id = str(record.id or ".")
                 if CREATE_VARIANT_ATTRIBUTES and len(record.alts or []) > 1:
@@ -736,6 +812,20 @@ write_gene_counts(GENE_OUTPUT, gene_counts)
 write_gene_counts(GENE_SAMPLE_OUTPUT, gene_sample_counts)
 write_gene_counts(GENE_ALLELE_OUTPUT, gene_allele_counts)
 
+if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
+    col_keys, col_names = make_sample_specific_columns()
+    if CREATE_SAMPLE_SPECIFIC:
+        write_sample_specific(SAMPLE_SPECIFIC_OUTPUT, sample_specific_table, col_keys, col_names, sample_names)
+    if CREATE_ALLELE_SPECIFIC:
+        write_sample_specific(ALLELE_SPECIFIC_OUTPUT, allele_specific_table, col_keys, col_names, sample_names)
+
+if not CREATE_SAMPLE_SPECIFIC:
+    with open(SAMPLE_SPECIFIC_OUTPUT, "w") as handle:
+        pass
+if not CREATE_ALLELE_SPECIFIC:
+    with open(ALLELE_SPECIFIC_OUTPUT, "w") as handle:
+        pass
+
 if not CREATE_LIST:
     with open(LIST_OUTPUT, "w", newline="") as handle:
         pass
@@ -751,6 +841,8 @@ PYCODE
         File gene_sample_counts_tsv = "~{prefix}.genes.samples.raw.tsv"
         File gene_allele_counts_tsv = "~{prefix}.genes.alleles.raw.tsv"
         File sample_count_file = "~{prefix}.sample_count.txt"
+        File sample_specific_tsv = "~{prefix}.sample_specific.raw.tsv"
+        File allele_specific_tsv = "~{prefix}.allele_specific.raw.tsv"
     }
 
     RuntimeAttr default_attr = object {
@@ -1116,6 +1208,84 @@ PYCODE
 
     output {
         File merged_counts_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeSampleSpecificTables {
+    input {
+        Array[File] count_tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'PYCODE'
+import csv
+from collections import defaultdict
+
+COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
+OUTPUT = "~{prefix}.tsv"
+
+header = None
+sample_counts = defaultdict(lambda: defaultdict(int))
+sample_order = []
+
+for path in COUNT_FILES:
+    with open(path, "r", newline="") as handle:
+        reader = csv.reader(handle, delimiter="\t")
+        current_header = next(reader, None)
+        if current_header is None:
+            continue
+        if header is None:
+            header = current_header
+        elif current_header != header:
+            raise ValueError(f"Mismatched headers while merging sample-specific tables: {path}")
+
+        for row in reader:
+            sample_id = row[0]
+            if sample_id not in sample_counts:
+                sample_order.append(sample_id)
+            for col_name, val in zip(header[1:], row[1:]):
+                sample_counts[sample_id][col_name] += int(val)
+
+if header is None:
+    with open(OUTPUT, "w") as handle:
+        pass
+else:
+    active_columns = [col for col in header[1:] if any(sample_counts[s][col] > 0 for s in sample_order)]
+
+    with open(OUTPUT, "w", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t")
+        writer.writerow(["sample_id"] + active_columns)
+        for sample_id in sample_order:
+            writer.writerow([sample_id] + [str(sample_counts[sample_id][col]) for col in active_columns])
+PYCODE
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
     }
 
     RuntimeAttr default_attr = object {
