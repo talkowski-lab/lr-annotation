@@ -16,16 +16,18 @@ workflow CountAnnotations {
         Boolean create_per_allele = false
         Boolean create_list = false
         Boolean create_functional = false
+        Boolean create_sample_specific = false
+        Boolean create_allele_specific = false
+        Boolean create_denovo = false
 
         Boolean use_ssd = false
         Boolean split_by_region = false
         Boolean create_variant_attributes = false
-        Boolean create_sample_specific = false
-        Boolean create_allele_specific = false
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
         File? ref_fai
+        File? ped
 
         String utils_docker
 
@@ -35,9 +37,23 @@ workflow CountAnnotations {
         RuntimeAttr? runtime_attr_region_subset
         RuntimeAttr? runtime_attr_count
         RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_find_trios
+        RuntimeAttr? runtime_attr_denovo
     }
 
-    Boolean sites_only = !(create_per_sample || create_per_allele || create_sample_specific || create_allele_specific)
+    Boolean sites_only = !(create_per_sample || create_per_allele || create_sample_specific || create_allele_specific || create_denovo)
+
+    if (create_denovo) {
+        call FindTrios {
+            input:
+                vcf = vcfs[0],
+                vcf_idx = vcf_idxs[0],
+                ped = select_first([ped]),
+                prefix = prefix,
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_find_trios
+        }
+    }
 
     scatter (i in range(length(vcfs))) {
         if (defined(shard_bin_size)) {
@@ -112,6 +128,31 @@ workflow CountAnnotations {
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_count
+            }
+
+            if (create_denovo) {
+                call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
+                    input:
+                        vcf = SubsetVcfByArgs.subset_vcf,
+                        vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
+                        samples = read_lines(select_first([FindTrios.trio_sample_ids_file])),
+                        prefix = "~{prefix}.input_~{i}.shard_~{j}.trio_subset",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset
+                }
+
+                call CountAnnotationShardDenovo {
+                    input:
+                        vcf = SubsetToTrioSamples.subset_vcf,
+                        vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
+                        trio_definitions = select_first([FindTrios.trio_definitions]),
+                        create_variant_attributes = create_variant_attributes,
+                        max_length = max_length,
+                        min_length = min_length,
+                        prefix = "~{prefix}.input_~{i}.shard_~{j}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_denovo
+                }
             }
         }
     }
@@ -224,6 +265,16 @@ workflow CountAnnotations {
         }
     }
 
+    if (create_denovo) {
+        call MergeSampleSpecificTables as MergeDenovo {
+            input:
+                count_tsvs = select_all(flatten(CountAnnotationShardDenovo.denovo_tsv)),
+                prefix = "~{prefix}.counts_denovo",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
+    }
+
     output {
         File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
         File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
@@ -234,6 +285,7 @@ workflow CountAnnotations {
         File? annotation_counts_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
         File? annotation_counts_sample_specific_tsv = MergeSampleSpecific.merged_tsv
         File? annotation_counts_allele_specific_tsv = MergeAlleleSpecific.merged_tsv
+        File? annotation_counts_denovo_tsv = MergeDenovo.merged_tsv
     }
 }
 
@@ -1214,6 +1266,469 @@ PYCODE
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task FindTrios {
+    input {
+        File vcf
+        File vcf_idx
+        File ped
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'PYCODE'
+import pysam
+
+vcf = pysam.VariantFile("~{vcf}")
+vcf_samples = set(vcf.header.samples)
+vcf.close()
+
+trios = []
+with open("~{ped}") as f:
+    for line in f:
+        if line.startswith("#"):
+            continue
+        fields = line.strip().split("\t")
+        sample, father, mother = fields[1], fields[2], fields[3]
+        if father != "0" and mother != "0":
+            if sample in vcf_samples and father in vcf_samples and mother in vcf_samples:
+                trios.append((sample, father, mother))
+
+with open("~{prefix}.trio_definitions.tsv", "w") as out:
+    for child, father, mother in trios:
+        out.write(f"{child}\t{father}\t{mother}\n")
+
+all_samples = set()
+for child, father, mother in trios:
+    all_samples.update([child, father, mother])
+
+with open("~{prefix}.trio_sample_ids.txt", "w") as out:
+    for sample in sorted(all_samples):
+        out.write(sample + "\n")
+PYCODE
+    >>>
+
+    output {
+        File trio_definitions = "~{prefix}.trio_definitions.tsv"
+        File trio_sample_ids_file = "~{prefix}.trio_sample_ids.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task CountAnnotationShardDenovo {
+    input {
+        File vcf
+        File vcf_idx
+        File trio_definitions
+        Boolean create_variant_attributes
+        Int max_length
+        Int min_length
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'PYCODE'
+import csv
+import re
+from collections import defaultdict
+import pysam
+
+VCF_PATH = "~{vcf}"
+DENOVO_OUTPUT = "~{prefix}.denovo.raw.tsv"
+CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
+MAX_LENGTH = ~{max_length}
+MIN_LENGTH = ~{min_length}
+MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
+MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
+
+COLUMN_BUCKETS = [
+    "SNV",
+    "INS 1-49bp",
+    "DUP 1-49bp",
+    "DEL 1-49bp",
+    "INS 50-499bp",
+    "DUP 50-499bp",
+    "DEL 50-499bp",
+    "INS >499bp",
+    "DUP >499bp",
+    "DEL >499bp",
+    "TRV",
+    "Other",
+]
+
+INTERNAL_TOTAL_LABEL = "Total"
+DISPLAY_ALL_LABEL = "All"
+
+CONSEQUENCE_PRIORITY = [
+    ("LoF", {
+        "transcript_ablation", "stop_gained", "frameshift_variant",
+        "splice_donor_variant", "splice_acceptor_variant", "stop_lost",
+        "start_lost", "transcript_amplification", "feature_elongation",
+        "feature_truncation",
+    }),
+    ("Missense", {
+        "missense_variant", "inframe_insertion", "inframe_deletion",
+        "protein_altering_variant",
+    }),
+    ("Synonymous", {
+        "synonymous_variant", "stop_retained_variant", "start_retained_variant",
+        "incomplete_terminal_codon_variant", "coding_sequence_variant",
+    }),
+    ("Intronic", {
+        "intron_variant", "splice_region_variant", "splice_donor_region_variant",
+        "splice_polypyrimidine_tract_variant", "splice_donor_5th_base_variant",
+        "NMD_transcript_variant", "non_coding_transcript_exon_variant",
+        "non_coding_transcript_variant",
+    }),
+    ("Intergenic", {
+        "intergenic_variant", "upstream_gene_variant", "downstream_gene_variant",
+        "regulatory_region_variant", "regulatory_region_ablation",
+        "regulatory_region_amplification", "TF_binding_site_variant",
+        "TFBS_ablation", "TFBS_amplification", "3_prime_UTR_variant",
+        "5_prime_UTR_variant",
+    }),
+]
+
+SVANNOTATE_PRIORITY = [
+    ("LoF", "PREDICTED_LOF"),
+    ("Copy Gain", "PREDICTED_COPY_GAIN"),
+    ("IED", "PREDICTED_INTRAGENIC_EXON_DUP"),
+    ("PED", "PREDICTED_PARTIAL_EXON_DUP"),
+    ("TSSD", "PREDICTED_TSS_DUP"),
+    ("DP", "PREDICTED_DUP_PARTIAL"),
+    ("UTR", "PREDICTED_UTR"),
+]
+
+VEP_LABELS = [label for label, _ in CONSEQUENCE_PRIORITY] + ["Other"]
+SVANNOTATE_LABELS = [label for label, _ in SVANNOTATE_PRIORITY]
+
+ROW_ORDER = [
+    ("", INTERNAL_TOTAL_LABEL),
+    ("", "ME"),
+    ("ME", "ALU"),
+    ("ME", "LINE"),
+    ("ME", "SVA"),
+    ("", "Duplication"),
+    ("Duplication", "Tandem"),
+    ("Duplication", "Interspersed"),
+    ("Duplication", "Complex"),
+    ("", "TR Parsed"),
+    ("", "NUMT"),
+    ("", "VEP"),
+]
+ROW_ORDER += [("VEP", label) for label in VEP_LABELS]
+ROW_ORDER.append(("", "SVAnnotate"))
+ROW_ORDER += [("SVAnnotate", label) for label in SVANNOTATE_LABELS]
+ROW_ORDER.append(("", "Concordance"))
+for missing_label in ["dbSNP Missing", "gnomAD Missing", "dbSNP/gnomAD Missing"]:
+    ROW_ORDER.append(("Concordance", missing_label))
+    ROW_ORDER += [("Concordance", f"{missing_label} + {label} (VEP)") for label in VEP_LABELS]
+    ROW_ORDER += [("Concordance", f"{missing_label} + {label} (SVAnnotate)") for label in SVANNOTATE_LABELS]
+
+def first_value(value):
+    if isinstance(value, (list, tuple)):
+        return value[0] if value else None
+    return value
+
+def get_info_value(record, key):
+    try:
+        return record.info.get(key)
+    except ValueError:
+        return None
+
+def get_string_info(record, key):
+    value = first_value(get_info_value(record, key))
+    return "" if value is None else str(value)
+
+def get_int_info(record, key):
+    value = first_value(get_info_value(record, key))
+    if value is None or value == ".":
+        return None
+    return abs(int(value))
+
+def has_info(record, key):
+    return key in record.info
+
+def get_vep_field_indices(header):
+    if "vep" not in header.info:
+        return {}
+    description = header.info["vep"].description or ""
+    match = re.search(r"Format:\s*([^\"]+)", description)
+    if match is None:
+        return {}
+    fields = [field.strip() for field in match.group(1).strip().rstrip(".").split("|")]
+    return {field: idx for idx, field in enumerate(fields)}
+
+def extract_all_consequences(record, vep_field_indices):
+    consequence_idx = vep_field_indices.get("Consequence")
+    if consequence_idx is None or "vep" not in record.info:
+        return set()
+    annotations = get_info_value(record, "vep")
+    if isinstance(annotations, str):
+        annotations = [annotations]
+    consequences = set()
+    for annotation in annotations:
+        fields = annotation.split("|")
+        if consequence_idx >= len(fields):
+            continue
+        for consequence in fields[consequence_idx].split("&"):
+            consequence = consequence.strip()
+            if consequence:
+                consequences.add(consequence)
+    return consequences
+
+def determine_vep_label(consequences):
+    for label, consequence_terms in CONSEQUENCE_PRIORITY:
+        if consequence_terms & consequences:
+            return label
+    return "Other"
+
+def determine_svannotate_label(record):
+    for label, field in SVANNOTATE_PRIORITY:
+        if has_info(record, field):
+            return label
+    return None
+
+def determine_column(allele_type, allele_length, variant_id):
+    allele_type = (allele_type or "").lower()
+    variant_id = (variant_id or "").upper()
+    if allele_type == "snv": return "SNV"
+    if allele_length is None: return "Other"
+    is_dup = "dup" in allele_type
+    if is_dup and allele_length < 50: return "DUP 1-49bp"
+    if is_dup and allele_length < 500: return "DUP 50-499bp"
+    if is_dup and allele_length >= 500: return "DUP >499bp"
+    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
+    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
+    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
+    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 500: return "DEL 50-499bp"
+    if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
+    if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 500: return "DEL >499bp"
+    if allele_type == "trv": return "TRV"
+    return "Other"
+
+def determine_row_weights(record, allele_type_value, vep_field_indices):
+    allele_type = (allele_type_value or "").lower()
+    consequences = extract_all_consequences(record, vep_field_indices)
+    vep_label = determine_vep_label(consequences)
+    svannotate_label = determine_svannotate_label(record)
+
+    row_weights = {row: 0 for row in ROW_ORDER}
+    row_weights[("", INTERNAL_TOTAL_LABEL)] = 1
+
+    is_alu = "alu" in allele_type
+    is_line = "line" in allele_type
+    is_sva = "sva" in allele_type
+    if is_alu or is_line or is_sva: row_weights[("", "ME")] = 1
+    if is_alu: row_weights[("ME", "ALU")] = 1
+    if is_line: row_weights[("ME", "LINE")] = 1
+    if is_sva: row_weights[("ME", "SVA")] = 1
+
+    is_dup_interspersed = "dup_interspersed" in allele_type
+    is_dup_complex = "complex_dup" in allele_type
+    is_dup_tandem = "dup" in allele_type and not is_dup_interspersed and not is_dup_complex
+    is_numt = "numt" in allele_type
+    is_tr_parsed = has_info(record, "TR_PARSED")
+
+    if is_dup_tandem or is_dup_interspersed or is_dup_complex:
+        row_weights[("", "Duplication")] = 1
+    if is_dup_tandem: row_weights[("Duplication", "Tandem")] = 1
+    if is_dup_interspersed: row_weights[("Duplication", "Interspersed")] = 1
+    if is_dup_complex: row_weights[("Duplication", "Complex")] = 1
+    if is_numt: row_weights[("", "NUMT")] = 1
+    if is_tr_parsed: row_weights[("", "TR Parsed")] = 1
+
+    row_weights[("", "VEP")] = 1
+    row_weights[("VEP", vep_label)] = 1
+
+    if svannotate_label is not None:
+        row_weights[("", "SVAnnotate")] = 1
+        row_weights[("SVAnnotate", svannotate_label)] = 1
+
+    is_dbsnp = has_info(record, "dbSNP_ID") or has_info(record, "dbGaP_ID")
+    is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
+
+    row_weights[("", "Concordance")] = 1
+    if not is_dbsnp:
+        row_weights[("Concordance", "dbSNP Missing")] = 1
+        row_weights[("Concordance", f"dbSNP Missing + {vep_label} (VEP)")] = 1
+        if svannotate_label is not None:
+            row_weights[("Concordance", f"dbSNP Missing + {svannotate_label} (SVAnnotate)")] = 1
+
+    if not is_gnomad_matched:
+        row_weights[("Concordance", "gnomAD Missing")] = 1
+        row_weights[("Concordance", f"gnomAD Missing + {vep_label} (VEP)")] = 1
+        if svannotate_label is not None:
+            row_weights[("Concordance", f"gnomAD Missing + {svannotate_label} (SVAnnotate)")] = 1
+
+    if not is_dbsnp and not is_gnomad_matched:
+        row_weights[("Concordance", "dbSNP/gnomAD Missing")] = 1
+        row_weights[("Concordance", f"dbSNP/gnomAD Missing + {vep_label} (VEP)")] = 1
+        if svannotate_label is not None:
+            row_weights[("Concordance", f"dbSNP/gnomAD Missing + {svannotate_label} (SVAnnotate)")] = 1
+
+    return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
+
+def compute_allele_attributes(ref, alt):
+    ref_length = len(ref)
+    alt_length = len(alt)
+    if alt_length > ref_length:
+        return "ins", alt_length - ref_length
+    if alt_length < ref_length:
+        return "del", ref_length - alt_length
+    return "snv", 0
+
+trios = []
+with open("~{trio_definitions}") as f:
+    for line in f:
+        fields = line.strip().split("\t")
+        trios.append((fields[0], fields[1], fields[2]))
+
+all_probands = sorted(set(child for child, _, _ in trios))
+
+proband_table = {s: defaultdict(int) for s in all_probands}
+mendelian_table = {s: defaultdict(int) for s in all_probands}
+
+vcf_in = pysam.VariantFile(VCF_PATH)
+vep_field_indices = get_vep_field_indices(vcf_in.header)
+
+for record in vcf_in:
+    if CREATE_VARIANT_ATTRIBUTES:
+        alts = list(record.alts or [])
+        if not alts:
+            continue
+        iterations = []
+        for idx, alt in enumerate(alts):
+            a_type, a_length = compute_allele_attributes(record.ref, alt)
+            iterations.append((a_type, a_length, idx + 1))
+    else:
+        a_type = get_string_info(record, "allele_type")
+        a_length = get_int_info(record, "allele_length")
+        iterations = [(a_type, a_length, None)]
+
+    for allele_type_val, allele_length_val, alt_idx_1based in iterations:
+        if MAX_LENGTH is not None and (allele_length_val is None or allele_length_val > MAX_LENGTH):
+            continue
+        if MIN_LENGTH is not None and (allele_length_val is None or allele_length_val < MIN_LENGTH):
+            continue
+
+        column = determine_column(allele_type_val, allele_length_val, record.id)
+        row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
+
+        for child, father, mother in trios:
+            child_sample = record.samples.get(child)
+            if child_sample is None:
+                continue
+            child_gt = child_sample.get("GT")
+            if child_gt is None:
+                continue
+
+            if alt_idx_1based is not None:
+                child_carries = any(a == alt_idx_1based for a in child_gt)
+            else:
+                child_carries = any(a is not None and a > 0 for a in child_gt)
+            if not child_carries:
+                continue
+
+            is_mendelian = False
+            for parent in (father, mother):
+                parent_sample = record.samples.get(parent)
+                if parent_sample is None:
+                    continue
+                parent_gt = parent_sample.get("GT")
+                if parent_gt is None:
+                    continue
+                if alt_idx_1based is not None:
+                    if any(a == alt_idx_1based for a in parent_gt):
+                        is_mendelian = True
+                        break
+                else:
+                    if any(a is not None and a > 0 for a in parent_gt):
+                        is_mendelian = True
+                        break
+
+            for row_key in row_weights:
+                key = (row_key, column)
+                proband_table[child][key] += 1
+                if is_mendelian:
+                    mendelian_table[child][key] += 1
+
+col_keys = []
+col_names = []
+for row_key in ROW_ORDER:
+    group, ann = row_key
+    label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
+    annotation_label = f"{group}:{label}" if group else label
+    for col_bucket in COLUMN_BUCKETS:
+        col_keys.append((row_key, col_bucket))
+        col_names.append(f"{annotation_label}-{col_bucket}")
+
+header = ["sample_id"]
+for col_name in col_names:
+    header.append(f"{col_name} (Proband)")
+    header.append(f"{col_name} (Mendelian)")
+
+with open(DENOVO_OUTPUT, "w", newline="") as handle:
+    writer = csv.writer(handle, delimiter="\t")
+    writer.writerow(header)
+    for proband in all_probands:
+        row = [proband]
+        for key in col_keys:
+            row.append(str(proband_table[proband].get(key, 0)))
+            row.append(str(mendelian_table[proband].get(key, 0)))
+        writer.writerow(row)
+PYCODE
+    >>>
+
+    output {
+        File denovo_tsv = "~{prefix}.denovo.raw.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
