@@ -1,7 +1,6 @@
-# VCF Fields
+# Annotations
 
-## Annotations
-
+## INFO Fields
 - `allele_length`: Length of variant - positive for insertions, negative for deletions and 0 for SNVs.
 - `allele_type`: Classification type of variant, which is one of the below.
 	- `snv`: Single nucleotide variant.
@@ -114,8 +113,8 @@
 	- `VRS_Starts`: Interresidue coordinates used as the location starts for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
 	- `VRS_States`: Literal sequence states used for the GA4GH VRS Alleles corresponding to the GT indexes of the REF and ALT alleles.
 
-## Filters
 
+## FORMAT Values
 - `LARGE_SNV_INDEL`: Variant with `SOURCE = "DeepVariant"` that has `INFO/allele_length ≥ 50`.
 - `MONOALLELIC`: Site represents one ALT allele in a region with multiple variants that could not be unified into non-overlapping multi-allelic sites.
 - `SINGLE_READ_SUPPORT`: Variant supported by a single read in a single sample.

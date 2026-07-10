@@ -1,7 +1,6 @@
-# Code Conventions
+# Conventions
 
 ## WDL
-
 - Workflows should be structured in the following order, with each of the below separated by a blank line:
 	1. Imports.
 	2. Inputs.
@@ -48,18 +47,16 @@
 
 
 ## Python
-
 - All code should be formatted in-line with black's formatting, which can be applied via `black .`.
 - All code should be compliant with `flake8`.
 
 
 ## Codebase
-
 - Workflows in `wdl/annotation/` should begin with _Annotate_.
-- Workflows directly run in the pipeline should be in one of `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`, and should have entries in `dockstore.yml` and `README.md`.
+- Workflows directly run in the pipeline should be in one of `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
+- Workflows directly run in the pipelien should have entries in `dockstore.yml` and `README.md`.
 
 
 ## Workspace
-
 - All reference files - i.e. those not specific to an input callset - should be passed in via workspace data.
 - All dockers should be passed in via workspace data.

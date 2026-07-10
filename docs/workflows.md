@@ -1,6 +1,6 @@
 # Workflows
 
-## Annotation Workflows
+## Annotations
 
 ### [AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)
 This workflow leverages [AnnotateVcf](https://github.com/broadinstitute/gatk-sv/blob/main/wdl/AnnotateVcf.wdl) from the GATK-SV pipeline in order to annotate internal allele frequencies based on sample sexes and ancestries. It runs on all variants in the input VCF, including SVs.

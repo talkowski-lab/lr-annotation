@@ -1,5 +1,4 @@
 # References
-
 - `coding_gtf`: [GENCODE v39](gs://talkowski-sv-gnomad-output/zero/RerunAnno/genes_grch38_annotated_4_mapped_gencode_v39.CDS.gtf) from the gnomAD workspace.
 - `dbsnp_vcf` (per-contig in data table): [Build 156 variants for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/GCF_000001405.40.vcf.gz) from [dbSNP](https://ftp.ncbi.nih.gov/snp/archive/b156/VCF/GCF_000001405.40.gz).
 - `dbsnp_vcf_idx` (per-contig in data table): Index for `dbsnp_vcf`.

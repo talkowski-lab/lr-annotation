@@ -1,7 +1,6 @@
 # Processing Notes
 
 ## Callset Regeneration - V1
-
 - _FillFormatFields_ on _allele_type_annotated_vcf_.
 - _ParseAbsoluteOrigin_.
 - Annotation: (AoU Only) _AnnotateAgeMetrics_, _AnnotateCallsetOverlap_, _AnnotateDbVaR_, _AnnotateGQMetrics_, _AnnotateSQMetrics_, _AnnotateSVAnnotate_
@@ -15,7 +14,6 @@
 	- _AnnotateVcfCleared_.
 
 ## Callset Regeneration - V2
-
 - _ParseAbsoluteOrigin_ on _allele_type_annotated_filled_vcf_.
 - Annotation: _AnnotateCallsetOverlap_, _AnnotateSVAnnotate_
 - _AnnotateVcf_Downstream_.
