@@ -11,6 +11,7 @@ workflow CountAnnotations {
 
         Int? records_per_shard
         Int? shard_bin_size
+        Array[Int] length_bins = [0, 1, 50]
 
         Boolean create_per_sample = false
         Boolean create_per_allele = false
@@ -123,6 +124,7 @@ workflow CountAnnotations {
                     create_variant_attributes = create_variant_attributes,
                     create_sample_specific = create_sample_specific,
                     create_allele_specific = create_allele_specific,
+                    length_bins = length_bins,
                     max_length = max_length,
                     min_length = min_length,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -147,6 +149,7 @@ workflow CountAnnotations {
                         vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
                         trio_definitions = select_first([FindTrios.trio_definitions]),
                         create_variant_attributes = create_variant_attributes,
+                        length_bins = length_bins,
                         max_length = max_length,
                         min_length = min_length,
                         prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -300,6 +303,7 @@ task CountAnnotationShard {
         Boolean create_variant_attributes
         Boolean create_sample_specific
         Boolean create_allele_specific
+        Array[Int] length_bins
         Int max_length
         Int min_length
         String prefix
@@ -339,20 +343,23 @@ MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
 MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
 
-COLUMN_BUCKETS = [
-    "SNV",
-    "INS 1-49bp",
-    "DUP 1-49bp",
-    "DEL 1-49bp",
-    "INS 50-499bp",
-    "DUP 50-499bp",
-    "DEL 50-499bp",
-    "INS >499bp",
-    "DUP >499bp",
-    "DEL >499bp",
-    "TRV",
-    "Other",
-]
+LENGTH_BINS = [~{sep=", " length_bins}]
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+
+COLUMN_BUCKETS = ["SNV"]
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"DEL {_label}")
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"INS {_label}")
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"DUP {_label}")
+COLUMN_BUCKETS += ["TRV", "Other"]
+
+def get_size_bucket(allele_length):
+    size = abs(allele_length)
+    for index, start in enumerate(LENGTH_BINS):
+        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
+            return SIZE_LABELS[index]
 
 INTERNAL_TOTAL_LABEL = "Total"
 DISPLAY_ALL_LABEL = "All"
@@ -540,18 +547,12 @@ def determine_column(allele_type, allele_length, variant_id):
     allele_type = (allele_type or "").lower()
     variant_id = (variant_id or "").upper()
     if allele_type == "snv": return "SNV"
-    if allele_length is None: return "Other"
-    is_dup = "dup" in allele_type
-    if is_dup and allele_length < 50: return "DUP 1-49bp"
-    if is_dup and allele_length < 500: return "DUP 50-499bp"
-    if is_dup and allele_length >= 500: return "DUP >499bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 500: return "DEL 50-499bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 500: return "DEL >499bp"
     if allele_type == "trv": return "TRV"
+    if allele_length is None: return "Other"
+    size_label = get_size_bucket(allele_length)
+    if "dup" in allele_type: return f"DUP {size_label}"
+    if allele_type == "ins" or "INS" in variant_id: return f"INS {size_label}"
+    if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
     return "Other"
 
 def determine_row_weights(record, allele_type_value, vep_field_indices):
@@ -704,13 +705,13 @@ def write_gene_counts(path, gene_count_data):
 def make_sample_specific_columns():
     col_keys = []
     col_names = []
-    for row_key in ROW_ORDER:
-        group, ann = row_key
-        label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
-        annotation_label = f"{group}:{label}" if group else label
-        for col_bucket in COLUMN_BUCKETS:
+    for col_bucket in COLUMN_BUCKETS:
+        for row_key in ROW_ORDER:
+            group, ann = row_key
+            label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
+            annotation_label = f"{group}:{label}" if group else label
             col_keys.append((row_key, col_bucket))
-            col_names.append(f"{annotation_label}-{col_bucket}")
+            col_names.append(f"{annotation_label} - {col_bucket}")
     return col_keys, col_names
 
 def write_sample_specific(path, table_data, col_keys, col_names, sample_names):
@@ -1358,6 +1359,7 @@ task CountAnnotationShardDenovo {
         File vcf_idx
         File trio_definitions
         Boolean create_variant_attributes
+        Array[Int] length_bins
         Int max_length
         Int min_length
         String prefix
@@ -1382,20 +1384,23 @@ MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
 MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
 
-COLUMN_BUCKETS = [
-    "SNV",
-    "INS 1-49bp",
-    "DUP 1-49bp",
-    "DEL 1-49bp",
-    "INS 50-499bp",
-    "DUP 50-499bp",
-    "DEL 50-499bp",
-    "INS >499bp",
-    "DUP >499bp",
-    "DEL >499bp",
-    "TRV",
-    "Other",
-]
+LENGTH_BINS = [~{sep=", " length_bins}]
+SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+
+COLUMN_BUCKETS = ["SNV"]
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"DEL {_label}")
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"INS {_label}")
+for _label in SIZE_LABELS:
+    COLUMN_BUCKETS.append(f"DUP {_label}")
+COLUMN_BUCKETS += ["TRV", "Other"]
+
+def get_size_bucket(allele_length):
+    size = abs(allele_length)
+    for index, start in enumerate(LENGTH_BINS):
+        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
+            return SIZE_LABELS[index]
 
 INTERNAL_TOTAL_LABEL = "Total"
 DISPLAY_ALL_LABEL = "All"
@@ -1534,18 +1539,12 @@ def determine_column(allele_type, allele_length, variant_id):
     allele_type = (allele_type or "").lower()
     variant_id = (variant_id or "").upper()
     if allele_type == "snv": return "SNV"
-    if allele_length is None: return "Other"
-    is_dup = "dup" in allele_type
-    if is_dup and allele_length < 50: return "DUP 1-49bp"
-    if is_dup and allele_length < 500: return "DUP 50-499bp"
-    if is_dup and allele_length >= 500: return "DUP >499bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 50: return "INS 1-49bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 50: return "DEL 1-49bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length < 500: return "INS 50-499bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length < 500: return "DEL 50-499bp"
-    if (allele_type == "ins" or "INS" in variant_id) and allele_length >= 500: return "INS >499bp"
-    if (allele_type == "del" or "DEL" in variant_id) and allele_length >= 500: return "DEL >499bp"
     if allele_type == "trv": return "TRV"
+    if allele_length is None: return "Other"
+    size_label = get_size_bucket(allele_length)
+    if "dup" in allele_type: return f"DUP {size_label}"
+    if allele_type == "ins" or "INS" in variant_id: return f"INS {size_label}"
+    if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
     return "Other"
 
 def determine_row_weights(record, allele_type_value, vep_field_indices):
@@ -1696,13 +1695,13 @@ for record in vcf_in:
 
 col_keys = []
 col_names = []
-for row_key in ROW_ORDER:
-    group, ann = row_key
-    label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
-    annotation_label = f"{group}:{label}" if group else label
-    for col_bucket in COLUMN_BUCKETS:
+for col_bucket in COLUMN_BUCKETS:
+    for row_key in ROW_ORDER:
+        group, ann = row_key
+        label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
+        annotation_label = f"{group}:{label}" if group else label
         col_keys.append((row_key, col_bucket))
-        col_names.append(f"{annotation_label}-{col_bucket}")
+        col_names.append(f"{annotation_label} - {col_bucket}")
 
 header = ["sample_id"]
 for col_name in col_names:
