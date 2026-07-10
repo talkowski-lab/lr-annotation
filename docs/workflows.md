@@ -38,12 +38,12 @@ Outputs:
 
 
 ### [AnnotateCallsetOverlap](../wdl/annotation/AnnotateCallsetOverlap.wdl)
-This workflow ingests an evaluation VCF and two truth VCFs — one of SNVs & indels and one of SVs — and finds matching variants across them in order to compare the AF & VEP annotations of the matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to existing cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
+This workflow ingests an evaluation VCF and two truth VCFs - one of SNVs & indels and one of SVs - and finds matching variants across them in order to compare the AF & VEP annotations of the matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to existing cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
 
 The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
 1. Exact match across CHROM, POS, REF and ALT.
 2. Truvari match with overlap percentages of 90%, 70% and 50%.
-3. Matching based on `bedtools closest`, finetuned for SVs. Here the evaluation and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run — one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity — so that each evaluation variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
+3. Matching based on `bedtools closest`, finetuned for SVs. Here the evaluation and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run - one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity - so that each evaluation variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
 
 > **Note:** When converting to symbolic representation, only canonical DUPs (allele_type = `DUP` exactly) are treated as DUP; other DUP subtypes (e.g., `dup_interspersed`, `inv_dup`) are treated as insertions.
 
@@ -146,7 +146,7 @@ Outputs:
 
 
 ### [AnnotateGQMetrics](../wdl/annotation/AnnotateGQMetrics.wdl)
-This workflow computes binned distributions of genotype-quality metrics across the carriers of each variant. For every configured FORMAT field it counts the genotypes whose value falls into each bin — optionally restricted to a variant filter and respecting whether larger or smaller values of that field are better — and can additionally bin allele-balance values. It emits a per-variant TSV of these distribution counts.
+This workflow computes binned distributions of genotype-quality metrics across the carriers of each variant. For every configured FORMAT field it counts the genotypes whose value falls into each bin - optionally restricted to a variant filter and respecting whether larger or smaller values of that field are better - and can additionally bin allele-balance values. It emits a per-variant TSV of these distribution counts.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -183,7 +183,7 @@ Outputs:
 
 
 ### [AnnotateInSilicoPredictors](../wdl/annotation/AnnotateInSilicoPredictors.wdl)
-This workflow annotates SNVs and indels with precomputed in-silico predictor scores — CADD, Pangolin, PhyloP, REVEL and SpliceAI — drawn from the gnomAD V4 Hail Tables. It shards the VCF and uses a Hail-based script to look up each variant's scores, emitting a TSV of per-variant predictions.
+This workflow annotates SNVs and indels with precomputed in-silico predictor scores - CADD, Pangolin, PhyloP, REVEL and SpliceAI - drawn from the gnomAD V4 Hail Tables. It shards the VCF and uses a Hail-based script to look up each variant's scores, emitting a TSV of per-variant predictions.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -273,7 +273,7 @@ Outputs:
 
 
 ### [AnnotateRegion](../wdl/annotation/AnnotateRegion.wdl)
-This workflow annotates each variant with the genomic region class it falls within — simple repeat (`SR`), segmental duplication (`SD`), RepeatMasker region (`RM`) or unique sequence (`US`) — by intersecting it against the corresponding BED panels. It emits a TSV of per-variant `REGION` assignments.
+This workflow annotates each variant with the genomic region class it falls within - simple repeat (`SR`), segmental duplication (`SD`), RepeatMasker region (`RM`) or unique sequence (`US`) - by intersecting it against the corresponding BED panels. It emits a TSV of per-variant `REGION` assignments.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -399,7 +399,7 @@ Outputs:
 
 
 ### [AnnotateAlleleType](../wdl/annotation_utils/AnnotateAlleleType.wdl)
-This utility sets the `allele_type` INFO field on variants in a VCF using three annotation TSVs — one for mobile element deletions, one for mobile element insertions and one for duplications — applying each in turn. Each annotation source can have its values transformed via an optional prefix, suffix and lowercasing. It outputs the annotated VCF.
+This utility sets the `allele_type` INFO field on variants in a VCF using three annotation TSVs - one for mobile element deletions, one for mobile element insertions and one for duplications - applying each in turn. Each annotation source can have its values transformed via an optional prefix, suffix and lowercasing. It outputs the annotated VCF.
 
 Inputs:
 - `File vcf`: VCF to annotate.
@@ -805,7 +805,7 @@ Outputs:
 
 
 ### [IntegrateVcfs](../wdl/annotation_utils/IntegrateVcfs.wdl)
-This utility integrates a SNV/indel VCF and an SV VCF into a single cohort VCF. Each input is normalized, harmonized to a common sample set and tagged with a source label and a size-based flag, after which the two are merged and the combined variants are renamed and filtered — for example to flag large SNVs/indels and small SVs. Sample IDs can optionally be swapped first. It outputs the integrated VCF.
+This utility integrates a SNV/indel VCF and an SV VCF into a single cohort VCF. Each input is normalized, harmonized to a common sample set and tagged with a source label and a size-based flag, after which the two are merged and the combined variants are renamed and filtered - for example to flag large SNVs/indels and small SVs. Sample IDs can optionally be swapped first. It outputs the integrated VCF.
 
 Inputs:
 - `File snv_indel_vcf`: SNV/indel VCF to integrate.
@@ -862,7 +862,7 @@ Outputs:
 
 
 ### [ParseAbsoluteOrigin](../wdl/annotation_utils/ParseAbsoluteOrigin.wdl)
-This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. `ORIGIN` values prefixed with `flank_` encode coordinates relative to a flanking window and are converted to genome-absolute positions; values already in absolute form are kept as-is. When multiple comma-separated `ORIGIN` values are present — whether flank-relative, absolute, or mixed — each is processed individually and the resulting absolute values are written back in their original order. It outputs the VCF with absolute-origin annotations.
+This utility resolves the relative `ORIGIN` coordinates of duplications and NUMTs into absolute genomic coordinates and annotates them back onto the VCF. `ORIGIN` values prefixed with `flank_` encode coordinates relative to a flanking window and are converted to genome-absolute positions; values already in absolute form are kept as-is. When multiple comma-separated `ORIGIN` values are present - whether flank-relative, absolute, or mixed - each is processed individually and the resulting absolute values are written back in their original order. It outputs the VCF with absolute-origin annotations.
 
 Inputs:
 - `File vcf`: VCF to process.
@@ -895,7 +895,7 @@ Outputs:
 
 
 ### [PostProcess](../wdl/annotation_utils/PostProcess.wdl)
-This utility bundles every genotype-update and post-processing step applied to a near-final callset into one workflow, with a required `run_` Boolean guarding each step so that the input VCF is left untouched when all are set to `false`. The per-record steps are applied in a single pass over the VCF: each variant is first matched against `transfer_vcf` and has its genotypes transferred (when `run_transfer_genotypes` is set) using its unmodified properties, after which the remaining steps — unphasing, ploidy normalization, TR-ID decrementing, MEI pruning, homopolymer flagging, singleton filtering and same-coordinate sorting — run in order. Some steps require an accompanying field — `run_transfer_genotypes` needs `transfer_vcf`, `run_unphase_samples` needs `unphase_samples`, and `run_normalize_ploidy` needs `ped`. The per-record pass can optionally be region-sharded via `shard_bin_size`.
+This utility bundles every genotype-update and post-processing step applied to a near-final callset into one workflow, with a required `run_` Boolean guarding each step so that the input VCF is left untouched when all are set to `false`. The per-record steps are applied in a single pass over the VCF: each variant is first matched against `transfer_vcf` and has its genotypes transferred (when `run_transfer_genotypes` is set) using its unmodified properties, after which the remaining steps - unphasing, ploidy normalization, TR-ID decrementing, MEI pruning, homopolymer flagging, singleton filtering and same-coordinate sorting - run in order. Some steps require an accompanying field - `run_transfer_genotypes` needs `transfer_vcf`, `run_unphase_samples` needs `unphase_samples`, and `run_normalize_ploidy` needs `ped`. The per-record pass can optionally be region-sharded via `shard_bin_size`.
 
 Inputs:
 - `File vcf`: VCF to post-process.
@@ -903,7 +903,7 @@ Inputs:
 - `Array[String] contigs`: Contigs to process within the input VCF.
 - `Boolean run_transfer_genotypes`: Whether to transfer genotypes from `transfer_vcf` onto heterozygous calls (run first; requires `transfer_vcf`).
 - `Boolean run_unphase_samples`: Whether to unphase the samples in `unphase_samples` (requires `unphase_samples`).
-- `Boolean run_normalize_ploidy`: Whether to normalize ploidy by sex — clearing chrY female calls, making chrX/chrY male calls hemizygous, enforcing diploidy and right-aligning unphased calls (requires `ped`).
+- `Boolean run_normalize_ploidy`: Whether to normalize ploidy by sex - clearing chrY female calls, making chrX/chrY male calls hemizygous, enforcing diploidy and right-aligning unphased calls (requires `ped`).
 - `Boolean run_decrement_trv_ids`: Whether to decrement tandem-repeat variant IDs.
 - `Boolean run_prune_meis`: Whether to reclassify mobile elements whose length falls outside the expected bounds back to plain insertions/deletions.
 - `Boolean run_flag_homopolymer_trvs`: Whether to flag tandem repeats with a length-1 shortest motif as `HOMOPOLYMER_TRV`.
@@ -921,7 +921,7 @@ Outputs:
 
 
 ### [QcAnnotations](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/QcAnnotations.wdl)
-This workflow adapts the GATK-SV annotation QC pipeline in order to produce a quality-control report for an annotated callset. It collects VCF-wide site-level statistics per contig, converts the VCF to BED, plots the aggregated site metrics and — when comparison datasets are supplied — benchmarks the callset against them at the site level. It can additionally run a per-sample pass that collects per-sample variant lists, plots per-sample and per-family QC, and benchmarks samples against sample-level comparison datasets, before sanitizing all outputs into a single QC tarball.
+This workflow adapts the GATK-SV annotation QC pipeline in order to produce a quality-control report for an annotated callset. It collects VCF-wide site-level statistics per contig, converts the VCF to BED, plots the aggregated site metrics and - when comparison datasets are supplied - benchmarks the callset against them at the site level. It can additionally run a per-sample pass that collects per-sample variant lists, plots per-sample and per-family QC, and benchmarks samples against sample-level comparison datasets, before sanitizing all outputs into a single QC tarball.
 
 Inputs:
 - `Array[File] vcfs`: Annotated VCFs to QC.
@@ -949,7 +949,7 @@ Outputs:
 
 
 ### [ResolveHaplotypeOverlaps](../wdl/annotation_utils/ResolveHaplotypeOverlaps.wdl)
-This utility detects and resolves haplotype-level overlaps among non-TR, non-TR-enveloped variants in a phased cohort VCF. For each sample, it extracts the sample's non-ref calls (excluding `allele_type="trv"` and `INFO/TR_ENVELOPED` variants), then sweeps each haplotype's variant intervals to find all overlapping pairs. Overlapping pairs are resolved by keeping the variant that spans more reference sequence (larger `len(REF)`) — which always favors DELs over INS or SNVs. When two variants span the same reference length, the higher-GQ call wins; remaining ties are broken by `INFO/allele_length`, then type rank (DEL > INS > SNV), then QUAL, then input-file order. The loser's FORMAT fields (`GT`, `GQ`, `DP`, `EV`, `BEV`, `AD`, `PL`) are cleared in the output VCF. The workflow scatters per-sample detection across all samples, then applies the collected clears contig-by-contig (with optional record-count sharding) to produce the resolved VCF.
+This utility detects and resolves haplotype-level overlaps among non-TR, non-TR-enveloped variants in a phased cohort VCF. For each sample, it extracts the sample's non-ref calls (excluding `allele_type="trv"` and `INFO/TR_ENVELOPED` variants), then sweeps each haplotype's variant intervals to find all overlapping pairs. Overlapping pairs are resolved by keeping the variant that spans more reference sequence (larger `len(REF)`) - which always favors DELs over INS or SNVs. When two variants span the same reference length, the higher-GQ call wins; remaining ties are broken by `INFO/allele_length`, then type rank (DEL > INS > SNV), then QUAL, then input-file order. The loser's FORMAT fields (`GT`, `GQ`, `DP`, `EV`, `BEV`, `AD`, `PL`) are cleared in the output VCF. The workflow scatters per-sample detection across all samples, then applies the collected clears contig-by-contig (with optional record-count sharding) to produce the resolved VCF.
 
 Inputs:
 - `File vcf`: Phased cohort VCF to resolve.
@@ -1175,7 +1175,7 @@ Outputs:
 
 
 ### [HiPhaseMerge](../wdl/tools/HiPhaseMerge.wdl)
-This tool merges per-sample HiPhase-phased VCFs into a cohort VCF on a per-contig basis, optionally also merging the TRGT tandem-repeat calls separately — fixing TRGT `END`/`AL` headers and propagating phase-set tags. It outputs the merged integrated VCF and an optional merged TRGT VCF.
+This tool merges per-sample HiPhase-phased VCFs into a cohort VCF on a per-contig basis, optionally also merging the TRGT tandem-repeat calls separately - fixing TRGT `END`/`AL` headers and propagating phase-set tags. It outputs the merged integrated VCF and an optional merged TRGT VCF.
 
 Inputs:
 - `Array[File] phased_vcfs`: Per-sample HiPhase-phased VCFs to merge.
