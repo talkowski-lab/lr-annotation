@@ -11,7 +11,7 @@ workflow CountAnnotations {
 
         Int? records_per_shard
         Int? shard_bin_size
-        Array[Int] length_bins = [0, 1, 50]
+        Array[Int] length_bins = [0, 1, 50, 100, 500, 5000, 50000]
 
         Boolean create_per_sample = false
         Boolean create_per_allele = false
@@ -1640,8 +1640,12 @@ with open("~{trio_definitions}") as f:
 
 all_probands = sorted(set(child for child, _, _ in trios))
 
-COUNT_TYPES = ['Proband', 'Mendelian', 'Paternal', 'Maternal', 'Paternal Total', 'Maternal Total']
-tables = {ct: {s: defaultdict(int) for s in all_probands} for ct in COUNT_TYPES}
+SITE_COUNT_TYPES = ['Proband', 'Mendelian', 'Paternal', 'Maternal', 'Paternal Total', 'Maternal Total']
+ALLELE_COUNT_TYPES = ['Proband Alleles', 'Mendelian Alleles', 'Paternal Alleles', 'Maternal Alleles',
+                      'Paternal Total Alleles', 'Maternal Total Alleles']
+COUNT_TYPES = SITE_COUNT_TYPES + ALLELE_COUNT_TYPES
+tables = {ct: {s: defaultdict(int) for s in all_probands} for ct in SITE_COUNT_TYPES}
+tables.update({ct: {s: defaultdict(float) for s in all_probands} for ct in ALLELE_COUNT_TYPES})
 
 vcf_in = pysam.VariantFile(VCF_PATH)
 vep_field_indices = get_vep_field_indices(vcf_in.header)
@@ -1705,6 +1709,21 @@ for record in vcf_in:
 
             is_mendelian = father_has or mother_has
 
+            # Allele counts using gatk-sv proportional inheritance formula
+            if alt_idx_1based is not None:
+                n_child = sum(1 for a in child_gt if a == alt_idx_1based) if child_gt else 0
+                n_father = sum(1 for a in father_gt if a == alt_idx_1based) if father_gt else 0
+                n_mother = sum(1 for a in mother_gt if a == alt_idx_1based) if mother_gt else 0
+            else:
+                n_child = sum(1 for a in child_gt if a is not None and a > 0) if child_gt else 0
+                n_father = sum(1 for a in father_gt if a is not None and a > 0) if father_gt else 0
+                n_mother = sum(1 for a in mother_gt if a is not None and a > 0) if mother_gt else 0
+            n_child_denovo = max(0, n_child - n_father - n_mother)
+            n_child_inherited = n_child - n_child_denovo
+            parental_total = n_father + n_mother
+            fa_transmitted = (n_child_inherited * n_father / parental_total) if parental_total > 0 else 0.0
+            mo_transmitted = (n_child_inherited * n_mother / parental_total) if parental_total > 0 else 0.0
+
             for row_key in row_weights:
                 for tr_stat in [INTERNAL_TOTAL_LABEL, tr_status]:
                     for reg in regions:
@@ -1721,6 +1740,12 @@ for record in vcf_in:
                                 tables['Paternal'][child][full_key] += 1
                             if mother_has:
                                 tables['Maternal'][child][full_key] += 1
+                        tables['Paternal Total Alleles'][child][full_key] += n_father
+                        tables['Maternal Total Alleles'][child][full_key] += n_mother
+                        tables['Proband Alleles'][child][full_key] += n_child
+                        tables['Mendelian Alleles'][child][full_key] += n_child_inherited
+                        tables['Paternal Alleles'][child][full_key] += fa_transmitted
+                        tables['Maternal Alleles'][child][full_key] += mo_transmitted
 
 col_keys = []
 col_names = []
