@@ -1838,7 +1838,7 @@ for path in COUNT_FILES:
             if sample_id not in sample_counts:
                 sample_order.append(sample_id)
             for col_name, val in zip(header[1:], row[1:]):
-                sample_counts[sample_id][col_name] += int(val)
+                sample_counts[sample_id][col_name] += float(val)
 
 if header is None:
     with open(OUTPUT, "w") as handle:
@@ -1846,11 +1846,14 @@ if header is None:
 else:
     active_columns = [col for col in header[1:] if any(sample_counts[s][col] > 0 for s in sample_order)]
 
+    def fmt_val(v):
+        return str(int(v)) if v % 1 == 0 else str(round(v, 6))
+
     with open(OUTPUT, "w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t")
         writer.writerow(["sample_id"] + active_columns)
         for sample_id in sample_order:
-            writer.writerow([sample_id] + [str(sample_counts[sample_id][col]) for col in active_columns])
+            writer.writerow([sample_id] + [fmt_val(sample_counts[sample_id][col]) for col in active_columns])
 PYCODE
     >>>
 
