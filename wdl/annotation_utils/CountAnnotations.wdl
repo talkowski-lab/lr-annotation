@@ -149,6 +149,7 @@ workflow CountAnnotations {
                         vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
                         trio_definitions = select_first([FindTrios.trio_definitions]),
                         create_variant_attributes = create_variant_attributes,
+                        split_by_region = split_by_region,
                         length_bins = length_bins,
                         max_length = max_length,
                         min_length = min_length,
@@ -710,8 +711,16 @@ def make_sample_specific_columns():
             group, ann = row_key
             label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
             annotation_label = f"{group}:{label}" if group else label
-            col_keys.append((row_key, col_bucket))
-            col_names.append(f"{annotation_label} - {col_bucket}")
+            base_name = f"{annotation_label} - {col_bucket}"
+            col_keys.append((row_key, col_bucket, INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL))
+            col_names.append(base_name)
+            for tr in ['TR', 'Not TR']:
+                col_keys.append((row_key, col_bucket, tr, INTERNAL_TOTAL_LABEL))
+                col_names.append(f"{base_name} - {tr}")
+            if SPLIT_BY_REGION:
+                for region in REGION_ORDER:
+                    col_keys.append((row_key, col_bucket, INTERNAL_TOTAL_LABEL, region))
+                    col_names.append(f"{base_name} - {region}")
     return col_keys, col_names
 
 def write_sample_specific(path, table_data, col_keys, col_names, sample_names):
@@ -843,11 +852,13 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                     if n_alleles == 0:
                         continue
                     for row_key in row_weights:
-                        key = (row_key, column)
-                        if CREATE_SAMPLE_SPECIFIC:
-                            sample_specific_table[sample_name][key] += 1
-                        if CREATE_ALLELE_SPECIFIC:
-                            allele_specific_table[sample_name][key] += n_alleles
+                        for tr_stat in [INTERNAL_TOTAL_LABEL, tr_status]:
+                            for reg in regions:
+                                key = (row_key, column, tr_stat, reg)
+                                if CREATE_SAMPLE_SPECIFIC:
+                                    sample_specific_table[sample_name][key] += 1
+                                if CREATE_ALLELE_SPECIFIC:
+                                    allele_specific_table[sample_name][key] += n_alleles
 
             if CREATE_LIST:
                 list_id = str(record.id or ".")
@@ -1359,6 +1370,7 @@ task CountAnnotationShardDenovo {
         File vcf_idx
         File trio_definitions
         Boolean create_variant_attributes
+        Boolean split_by_region
         Array[Int] length_bins
         Int max_length
         Int min_length
@@ -1379,6 +1391,8 @@ import pysam
 VCF_PATH = "~{vcf}"
 DENOVO_OUTPUT = "~{prefix}.denovo.raw.tsv"
 CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
+SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
+REGION_ORDER_LOCAL = ["US", "RM", "SD", "SR"]
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
@@ -1626,8 +1640,8 @@ with open("~{trio_definitions}") as f:
 
 all_probands = sorted(set(child for child, _, _ in trios))
 
-proband_table = {s: defaultdict(int) for s in all_probands}
-mendelian_table = {s: defaultdict(int) for s in all_probands}
+COUNT_TYPES = ['Proband', 'Mendelian', 'Paternal', 'Maternal', 'Paternal Total', 'Maternal Total']
+tables = {ct: {s: defaultdict(int) for s in all_probands} for ct in COUNT_TYPES}
 
 vcf_in = pysam.VariantFile(VCF_PATH)
 vep_field_indices = get_vep_field_indices(vcf_in.header)
@@ -1654,44 +1668,59 @@ for record in vcf_in:
 
         column = determine_column(allele_type_val, allele_length_val, record.id)
         row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
+        tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
+        regions = [INTERNAL_TOTAL_LABEL]
+        if SPLIT_BY_REGION:
+            region_val = get_string_info(record, "REGION")
+            if region_val in REGION_ORDER_LOCAL:
+                regions.append(region_val)
 
         for child, father, mother in trios:
             child_sample = record.samples.get(child)
-            if child_sample is None:
-                continue
-            child_gt = child_sample.get("GT")
-            if child_gt is None:
-                continue
-
-            if alt_idx_1based is not None:
-                child_carries = any(a == alt_idx_1based for a in child_gt)
-            else:
-                child_carries = any(a is not None and a > 0 for a in child_gt)
-            if not child_carries:
-                continue
-
-            is_mendelian = False
-            for parent in (father, mother):
-                parent_sample = record.samples.get(parent)
-                if parent_sample is None:
-                    continue
-                parent_gt = parent_sample.get("GT")
-                if parent_gt is None:
-                    continue
+            child_gt = child_sample.get("GT") if child_sample is not None else None
+            child_carries = False
+            if child_gt is not None:
                 if alt_idx_1based is not None:
-                    if any(a == alt_idx_1based for a in parent_gt):
-                        is_mendelian = True
-                        break
+                    child_carries = any(a == alt_idx_1based for a in child_gt)
                 else:
-                    if any(a is not None and a > 0 for a in parent_gt):
-                        is_mendelian = True
-                        break
+                    child_carries = any(a is not None and a > 0 for a in child_gt)
+
+            father_has = False
+            father_sample = record.samples.get(father)
+            father_gt = father_sample.get("GT") if father_sample is not None else None
+            if father_gt is not None:
+                if alt_idx_1based is not None:
+                    father_has = any(a == alt_idx_1based for a in father_gt)
+                else:
+                    father_has = any(a is not None and a > 0 for a in father_gt)
+
+            mother_has = False
+            mother_sample = record.samples.get(mother)
+            mother_gt = mother_sample.get("GT") if mother_sample is not None else None
+            if mother_gt is not None:
+                if alt_idx_1based is not None:
+                    mother_has = any(a == alt_idx_1based for a in mother_gt)
+                else:
+                    mother_has = any(a is not None and a > 0 for a in mother_gt)
+
+            is_mendelian = father_has or mother_has
 
             for row_key in row_weights:
-                key = (row_key, column)
-                proband_table[child][key] += 1
-                if is_mendelian:
-                    mendelian_table[child][key] += 1
+                for tr_stat in [INTERNAL_TOTAL_LABEL, tr_status]:
+                    for reg in regions:
+                        full_key = (row_key, column, tr_stat, reg)
+                        if father_has:
+                            tables['Paternal Total'][child][full_key] += 1
+                        if mother_has:
+                            tables['Maternal Total'][child][full_key] += 1
+                        if child_carries:
+                            tables['Proband'][child][full_key] += 1
+                            if is_mendelian:
+                                tables['Mendelian'][child][full_key] += 1
+                            if father_has:
+                                tables['Paternal'][child][full_key] += 1
+                            if mother_has:
+                                tables['Maternal'][child][full_key] += 1
 
 col_keys = []
 col_names = []
@@ -1700,22 +1729,24 @@ for col_bucket in COLUMN_BUCKETS:
         group, ann = row_key
         label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
         annotation_label = f"{group}:{label}" if group else label
-        col_keys.append((row_key, col_bucket))
-        col_names.append(f"{annotation_label} - {col_bucket}")
-
-header = ["sample_id"]
-for col_name in col_names:
-    header.append(f"{col_name} (Proband)")
-    header.append(f"{col_name} (Mendelian)")
+        base_name = f"{annotation_label} - {col_bucket}"
+        combos = [(INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, "")]
+        combos += [("TR", INTERNAL_TOTAL_LABEL, " - TR"), ("Not TR", INTERNAL_TOTAL_LABEL, " - Not TR")]
+        if SPLIT_BY_REGION:
+            combos += [(INTERNAL_TOTAL_LABEL, r, f" - {r}") for r in REGION_ORDER_LOCAL]
+        for tr_stat, reg, suffix in combos:
+            for count_type in COUNT_TYPES:
+                col_keys.append((row_key, col_bucket, tr_stat, reg, count_type))
+                col_names.append(f"{base_name}{suffix} ({count_type})")
 
 with open(DENOVO_OUTPUT, "w", newline="") as handle:
     writer = csv.writer(handle, delimiter="\t")
-    writer.writerow(header)
+    writer.writerow(["sample_id"] + col_names)
     for proband in all_probands:
         row = [proband]
-        for key in col_keys:
-            row.append(str(proband_table[proband].get(key, 0)))
-            row.append(str(mendelian_table[proband].get(key, 0)))
+        for (row_key, col_bucket, tr_stat, reg, count_type) in col_keys:
+            full_key = (row_key, col_bucket, tr_stat, reg)
+            row.append(str(tables[count_type][proband].get(full_key, 0)))
         writer.writerow(row)
 PYCODE
     >>>
