@@ -21,6 +21,7 @@ workflow CallInsRemap {
 
         RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_concat
+        RuntimeAttr? runtime_attr_concat_vcf
     }
 
     if (defined(records_per_shard)) {
@@ -62,12 +63,25 @@ workflow CallInsRemap {
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_concat
         }
+
+        call Helpers.ConcatSortVcfs as ConcatTandemToDupShards {
+            input:
+                vcfs = InsRemap.remapped_tandem_to_dup_vcf,
+                vcf_idxs = InsRemap.remapped_tandem_to_dup_vcf_idx,
+                prefix = "~{prefix}.remapped.tandem_to_dup",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat_vcf
+        }
     }
 
     File final_remap_tsv = select_first([ConcatShards.concatenated_tsv, InsRemap.remap_tsv[0]])
-    
+    File final_tandem_to_dup_vcf = select_first([ConcatTandemToDupShards.concat_vcf, InsRemap.remapped_tandem_to_dup_vcf[0]])
+    File final_tandem_to_dup_vcf_idx = select_first([ConcatTandemToDupShards.concat_vcf_idx, InsRemap.remapped_tandem_to_dup_vcf_idx[0]])
+
     output {
         File remap_tsv = final_remap_tsv
+        File tandem_to_dup_vcf = final_tandem_to_dup_vcf
+        File tandem_to_dup_vcf_idx = final_tandem_to_dup_vcf_idx
     }
 }
 
@@ -116,12 +130,19 @@ task InsRemap {
             ~{prefix}.remapped.vcf.gz  > ~{prefix}.tsv
 
         tabix -f -p vcf ~{prefix}.remapped.vcf.gz
+
+        python3.8 remap_tandem_to_dup.py --input ~{prefix}.remapped.vcf.gz --output ~{prefix}.remapped.tandem_to_dup.unsorted.vcf.gz
+        bcftools sort -Oz -o ~{prefix}.remapped.tandem_to_dup.vcf.gz ~{prefix}.remapped.tandem_to_dup.unsorted.vcf.gz
+        tabix ~{prefix}.remapped.tandem_to_dup.vcf.gz
+
     >>>
     
     output {
         File remapped_vcf = "~{prefix}.remapped.vcf.gz"
         File remapped_vcf_idx = "~{prefix}.remapped.vcf.gz.tbi"
         File remap_tsv = "~{prefix}.tsv"
+        File remapped_tandem_to_dup_vcf = "~{prefix}.remapped.tandem_to_dup.vcf.gz"
+        File remapped_tandem_to_dup_vcf_idx = "~{prefix}.remapped.tandem_to_dup.vcf.gz.tbi"
     }
 
      #########################
