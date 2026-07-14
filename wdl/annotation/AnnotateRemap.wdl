@@ -131,7 +131,7 @@ task InsRemap {
 
         tabix -f -p vcf ~{prefix}.remapped.vcf.gz
 
-        python3.8 remap_tandem_to_dup.py --input ~{prefix}.remapped.vcf.gz --output ~{prefix}.remapped.tandem_to_dup.unsorted.vcf.gz
+        python3.8 /remap_tandem_to_dup.py --input ~{prefix}.remapped.vcf.gz --output ~{prefix}.remapped.tandem_to_dup.unsorted.vcf.gz
         bcftools sort -Oz -o ~{prefix}.remapped.tandem_to_dup.vcf.gz ~{prefix}.remapped.tandem_to_dup.unsorted.vcf.gz
         tabix ~{prefix}.remapped.tandem_to_dup.vcf.gz
 
