@@ -727,8 +727,6 @@ task ConvertToSymbolic {
         python3 /opt/gnomad-lr/scripts/helpers/symbalts.py \
             --input ~{vcf} \
             --output ~{prefix}.vcf.gz \
-            --type_field ~{type_field} \
-            --length_field ~{length_field} \
             --types allele_types.txt
         
         tabix -p vcf ~{prefix}.vcf.gz

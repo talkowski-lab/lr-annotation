@@ -16,17 +16,13 @@ workflow BedtoolsClosestSV {
         String type_field_eval = "SVTYPE"
         String length_field_eval = "SVLEN"
         
-        String benchmark_annotations_docker
+        String sv_pipeline_docker
         String utils_docker
         
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_convert_to_symbolic
-        RuntimeAttr? runtime_attr_split_eval
-        RuntimeAttr? runtime_attr_split_truth
-        RuntimeAttr? runtime_attr_compare
-        RuntimeAttr? runtime_attr_calculate
-        RuntimeAttr? runtime_attr_merge_comparisons
+        RuntimeAttr? runtime_attr_match
     }
 
     call Helpers.SubsetVcfByLength as SubsetEval {
@@ -51,17 +47,6 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_convert_to_symbolic
     }
 
-    call SplitQueryVcf as SplitEval {
-        input:
-            vcf = ConvertToSymbolic.processed_vcf,
-            vcf_idx = ConvertToSymbolic.processed_vcf_idx,
-            type_field = "SVTYPE",
-            length_field = "SVLEN",
-            prefix = "~{prefix}.eval",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_split_eval
-    }
-
     call Helpers.SubsetVcfByLength as SubsetTruth {
         input:
             vcf = vcf_sv_truth,
@@ -73,286 +58,29 @@ workflow BedtoolsClosestSV {
             runtime_attr_override = runtime_attr_subset_truth
     }
 
-    call SplitQueryVcf as SplitTruth {
+    call AnnotateExternalAFMatches {
         input:
-            vcf = SubsetTruth.subset_vcf,
-            vcf_idx = SubsetTruth.subset_vcf_idx,
-            type_field = "SVTYPE",
-            length_field = "SVLEN",
-            prefix = "~{prefix}.truth",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_split_truth
-    }
-
-    call Helpers.BedtoolsClosest as CompareDEL {
-        input:
-            bed_a = SplitEval.del_bed,
-            bed_b = SplitTruth.del_bed,
-            prefix = "~{prefix}.DEL",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedSVs as CalcuDEL {
-        input:
-            input_bed = CompareDEL.output_bed,
-            prefix = "~{prefix}.DEL",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareDUP {
-        input:
-            bed_a = SplitEval.dup_bed,
-            bed_b = SplitTruth.dup_bed,
-            prefix = "~{prefix}.DUP",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-
-    call SelectMatchedSVs as CalcuDUP {
-        input:
-            input_bed = CompareDUP.output_bed,
-            prefix = "~{prefix}.DUP",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareINS {
-        input:
-            bed_a = SplitEval.ins_bed,
-            bed_b = SplitTruth.ins_bed,
-            prefix = "~{prefix}.INS",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-    
-    call SelectMatchedINSs as CalcuINS {
-        input:
-            input_bed = CompareINS.output_bed,
-            prefix = "~{prefix}.INS",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareINV {
-        input:
-            bed_a = SplitEval.inv_bed,
-            bed_b = SplitTruth.inv_bed,
-            prefix = "~{prefix}.INV_CPX",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-
-    call SelectMatchedSVs as CalcuINV {
-        input:
-            input_bed = CompareINV.output_bed,
-            prefix = "~{prefix}.INV_CPX",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.BedtoolsClosest as CompareBND {
-        input:
-            bed_a = SplitEval.bnd_bed,
-            bed_b = SplitTruth.bnd_bed,
-            prefix = "~{prefix}.BND_CTX",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_compare
-    }
-
-    call SelectMatchedINSs as CalcuBND {
-        input:
-            input_bed = CompareBND.output_bed,
-            prefix = "~{prefix}.BND_CTX",
-            docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_calculate
-    }
-
-    call Helpers.ConcatTsvs {
-        input:
-            tsvs = [
-                CalcuDEL.output_comp,
-                CalcuDUP.output_comp,
-                CalcuINS.output_comp,
-                CalcuINV.output_comp,
-                CalcuBND.output_comp,
-            ],
-            prefix = "~{prefix}.comparison",
-            skip_sort = true,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_comparisons
-    }
-
-    call CreateBedtoolsAnnotationTsv {
-        input:
-            truvari_unmatched_vcf = SubsetEval.subset_vcf,
-            truvari_unmatched_vcf_idx = SubsetEval.subset_vcf_idx,
-            vcf_sv_truth = SubsetTruth.subset_vcf,
-            vcf_sv_truth_idx = SubsetTruth.subset_vcf_idx,
-            closest_bed = ConcatTsvs.concatenated_tsv,
+            vcf_eval = ConvertToSymbolic.processed_vcf,
+            vcf_eval_idx = ConvertToSymbolic.processed_vcf_idx,
+            vcf_truth = SubsetTruth.subset_vcf,
+            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
             prefix = prefix,
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_merge_comparisons
+            docker = sv_pipeline_docker,
+            runtime_attr_override = runtime_attr_match
     }
 
     output {
-        File closest_bed = ConcatTsvs.concatenated_tsv
-        File annotation_tsv = CreateBedtoolsAnnotationTsv.annotation_tsv
+        File closest_bed = AnnotateExternalAFMatches.closest_bed
+        File annotation_tsv = AnnotateExternalAFMatches.annotation_tsv
     }
 }
 
-task SplitQueryVcf {
+task AnnotateExternalAFMatches {
     input {
-        File vcf
-        File vcf_idx
-        String type_field
-        String length_field
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        svtk vcf2bed \
-            -i ~{type_field} \
-            -i ~{length_field} \
-            ~{vcf} \
-            tmp.bed
-        
-        cut -f1-4,7-8 tmp.bed > ~{prefix}.bed
-
-        set +o pipefail
-
-        head -1 ~{prefix}.bed > header
-
-        set -o pipefail
-
-        cat header <(awk 'toupper($5) == "DEL"' ~{prefix}.bed) > ~{prefix}.DEL.bed
-        cat header <(awk 'toupper($5) == "DUP"' ~{prefix}.bed) > ~{prefix}.DUP.bed
-        cat header <(awk 'toupper($5) ~ /^(INS|INS:ME|INS:ME:ALU|INS:ME:LINE1|INS:ME:SVA|ALU|LINE1|SVA|HERVK)$/' ~{prefix}.bed) > ~{prefix}.INS.bed
-        cat header <(awk 'toupper($5) == "INV" || toupper($5) == "CPX"' ~{prefix}.bed) > ~{prefix}.INV_CPX.bed
-        cat header <(awk 'toupper($5) == "BND" || toupper($5) == "CTX"' ~{prefix}.bed) > ~{prefix}.BND_CTX.bed
-    >>>
-
-    output {
-        File bed = "~{prefix}.bed"
-        File del_bed = "~{prefix}.DEL.bed"
-        File dup_bed = "~{prefix}.DUP.bed"
-        File ins_bed = "~{prefix}.INS.bed"
-        File inv_bed = "~{prefix}.INV_CPX.bed"
-        File bnd_bed = "~{prefix}.BND_CTX.bed"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SelectMatchedSVs {
-    input {
-        File input_bed
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        Rscript /opt/gnomad-lr/scripts/benchmark/R1.bedtools_closest_CNV.R \
-            -i ~{input_bed} \
-            -o ~{prefix}.comparison
-    >>>
-
-    output {
-        File output_comp = "~{prefix}.comparison"
-    }    
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task SelectMatchedINSs {
-    input {
-        File input_bed
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-        
-        Rscript /opt/gnomad-lr/scripts/benchmark/R2.bedtools_closest_INS.R \
-            -i ~{input_bed} \
-            -o ~{prefix}.comparison
-    >>>
-
-    output {
-        File output_comp = "~{prefix}.comparison"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CreateBedtoolsAnnotationTsv {
-    input {
-        File truvari_unmatched_vcf
-        File truvari_unmatched_vcf_idx
-        File vcf_sv_truth
-        File vcf_sv_truth_idx
-        File closest_bed
+        File vcf_eval
+        File vcf_eval_idx
+        File vcf_truth
+        File vcf_truth_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -363,55 +91,116 @@ task CreateBedtoolsAnnotationTsv {
 
         export LC_ALL=C
 
-        bcftools query \
-            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{truvari_unmatched_vcf} \
-        | sort -k5,5 > vcf_info.tsv
+        split_vcf_to_beds() {
+            local vcf="$1"
+            local prefix="$2"
+            local include_af="$3"
 
-        grep -v "query_svid" ~{closest_bed} \
-            | awk -F'\t' '$1 != "" {print $1"\t"$2}' \
+            if [[ "$include_af" == "true" ]]; then
+                svtk vcf2bed -i SVTYPE -i SVLEN -i AF "$vcf" tmp.${prefix}.bed
+                awk 'BEGIN{FS=OFS="\t"} NR == 1 {print $1,$2,$3,$4,"svtype",$7,$8,$9; next} {af=$9; if (af == "") af="."; print $1,$2,$3,$4,$7,$7,$8,af}' tmp.${prefix}.bed > ${prefix}.bed
+            else
+                svtk vcf2bed -i SVTYPE -i SVLEN "$vcf" tmp.${prefix}.bed
+                cut -f1-4,7-8 tmp.${prefix}.bed > ${prefix}.bed
+            fi
+
+            head -1 ${prefix}.bed > ${prefix}.header
+            type_col=5
+            if [[ "$include_af" == "true" ]]; then
+                type_col=6
+            fi
+            cat ${prefix}.header <(awk -v c="$type_col" 'toupper($c) == "DEL"' ${prefix}.bed) > ${prefix}.DEL.bed
+            cat ${prefix}.header <(awk -v c="$type_col" 'toupper($c) == "DUP"' ${prefix}.bed) > ${prefix}.DUP.bed
+            cat ${prefix}.header <(awk -v c="$type_col" 'toupper($c) ~ /^(INS|INS:ME|INS:ME:ALU|INS:ME:LINE1|INS:ME:SVA|ALU|LINE1|SVA|HERVK)$/' ${prefix}.bed) > ${prefix}.INS.bed
+            cat ${prefix}.header <(awk -v c="$type_col" 'toupper($c) == "INV" || toupper($c) == "CPX"' ${prefix}.bed) > ${prefix}.INV.bed
+            cat ${prefix}.header <(awk -v c="$type_col" 'toupper($c) == "BND" || toupper($c) == "CTX"' ${prefix}.bed) > ${prefix}.BND.bed
+        }
+
+        run_closest() {
+            local svtype="$1"
+            local selector="$2"
+            local query_bed="eval.${svtype}.bed"
+            local truth_bed="truth.${svtype}.bed"
+            local closest_bed="${svtype}.closest.bed"
+            local comparison="${svtype}.comparison"
+
+            paste <(head -1 "$query_bed") <(head -1 "$truth_bed") \
+                | sed -e "s/#//g" \
+                | awk 'BEGIN{OFS="\t"} {print $0,"overlap"}' \
+                > "$closest_bed"
+            expected_columns=$(awk -F'\t' 'NR == 1 {print NF}' "$closest_bed")
+
+            tail -n +2 "$query_bed" | awk 'NF > 0' | sort -k1,1 -k2,2n > query.body.bed
+            tail -n +2 "$truth_bed" | awk 'NF > 0' | sort -k1,1 -k2,2n > truth.body.bed
+
+            if [[ -s query.body.bed && -s truth.body.bed ]]; then
+                bedtools closest \
+                    -wo \
+                    -a query.body.bed \
+                    -b truth.body.bed \
+                | awk -v expected_columns="$expected_columns" 'BEGIN{FS=OFS="\t"} NF == expected_columns {print} NF != expected_columns {print "Skipping malformed bedtools closest row with " NF " columns: " $0 > "/dev/stderr"}' \
+                >> "$closest_bed"
+            fi
+
+            Rscript "$selector" \
+                -i "$closest_bed" \
+                -o "$comparison" \
+                -p pop
+        }
+
+        split_vcf_to_beds ~{vcf_eval} eval false
+        split_vcf_to_beds ~{vcf_truth} truth true
+        echo "ALL" > pop
+
+        run_closest DEL /opt/sv-pipeline/05_annotation/scripts/R1.bedtools_closest_CNV.R
+        run_closest DUP /opt/sv-pipeline/05_annotation/scripts/R1.bedtools_closest_CNV.R
+        run_closest INS /opt/sv-pipeline/05_annotation/scripts/R2.bedtools_closest_INS.R
+        run_closest INV /opt/sv-pipeline/05_annotation/scripts/R1.bedtools_closest_CNV.R
+        run_closest BND /opt/sv-pipeline/05_annotation/scripts/R2.bedtools_closest_INS.R
+
+        awk 'FNR == 1 && NR != 1 {next} {print}' \
+            DEL.comparison \
+            DUP.comparison \
+            INS.comparison \
+            INV.comparison \
+            BND.comparison \
+            > ~{prefix}.comparison.tsv
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' ~{vcf_eval} \
+        | sort -k5,5 > eval_info.tsv
+
+        awk -F'\t' 'BEGIN{OFS="\t"} $1 != "query_svid" && $1 != "" && $2 != "" {
+            truth_af = ($3 == "" ? "." : $3)
+            print $1, $2, truth_af
+        }' ~{prefix}.comparison.tsv \
             | sort -k1,1 > matched_ids.tsv
-        
+
         join \
             -1 5 \
             -2 1 \
             -t $'\t' \
-            vcf_info.tsv \
+            eval_info.tsv \
             matched_ids.tsv \
             > joined.tsv
 
-        bcftools query \
-            -f '%ID\t%INFO/AF\n' ~{vcf_sv_truth} \
-        | sort -k1,1 > truth_af.tsv
-
-        sort -k6,6 joined.tsv > joined_by_truth.tsv
-
-        join \
-            -1 6 \
-            -2 1 \
-            -t $'\t' \
-            -a 1 \
-            -e "." \
-            -o '1.1,1.2,1.3,1.4,1.5,1.6,2.2' \
-            joined_by_truth.tsv \
-            truth_af.tsv \
-            > joined_with_af.tsv
-
         awk -F'\t' 'BEGIN{OFS="\t"} {
             print $2, $3, $4, $5, $1, "BEDTOOLS_CLOSEST", $6, "SV", $7
-        }' joined_with_af.tsv > ~{prefix}.bedtools_matched.tsv
+        }' joined.tsv > ~{prefix}.bedtools_matched.tsv
     >>>
 
     output {
+        File closest_bed = "~{prefix}.comparison.tsv"
         File annotation_tsv = "~{prefix}.bedtools_matched.tsv"
     }
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(vcf_sv_truth, "GB") + size(closest_bed, "GB")) + 5,
+        disk_gb: 5 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
-        max_retries: 0
+        max_retries: 1
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
