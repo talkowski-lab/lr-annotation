@@ -96,7 +96,7 @@ task TrainSVGenotyping {
   }
 
   Int default_disk_gb = ceil(size([vcf, rd_file], "GB") + 50)
-  Float java_mem_mib = select_first([mem_gib, 16]) * 0.8 * 1024
+  Int java_mem_mib = ceil(select_first([mem_gib, 16]) * 0.8 * 1024)
 
   runtime {
     cpu: select_first([cpu, 1])
@@ -156,7 +156,7 @@ task GenotypeSVs {
   }
 
   Int default_disk_gb = ceil(size([vcf, rd_file], "GB") + 50)
-  Float java_mem_mib = select_first([mem_gib, 4]) * 0.8 * 1024
+  Int java_mem_mib = ceil(select_first([mem_gib, 4]) * 0.8 * 1024)
 
   runtime {
     cpu: select_first([cpu, 1])
