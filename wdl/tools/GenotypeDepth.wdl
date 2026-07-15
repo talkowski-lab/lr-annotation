@@ -171,13 +171,13 @@ task GenotypeSVs {
   command <<<
     set -euo pipefail
 
-    gatk --java-options '-Xmx~{java_mem_mib}' PrintSVEvidence \
+    gatk --java-options '-Xmx~{java_mem_mib}M' PrintSVEvidence \
       --sequence-dictionary ~{reference_dict} \
       --evidence-file ~{rd_file} \
       ~{"-L " + contig} \
       -O local.rd.txt.gz
 
-    gatk --java-options '-Xmx~{java_mem_mib}' GenotypeSVs \
+    gatk --java-options '-Xmx~{java_mem_mib}M' GenotypeSVs \
       -V '~{vcf}' \
       -O '~{output_prefix}.vcf.gz' \
       ~{"-L " + contig} \
