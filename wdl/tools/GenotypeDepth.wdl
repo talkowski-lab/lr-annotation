@@ -2,61 +2,69 @@ version 1.0
 
 workflow GenotypeDepth {
   input {
+    String batch_id
     File vcf
-    File vcf_index
+
     File training_intervals
     File median_coverage
-    File rd
-    File rd_index
+    File rd_file
     File reference_dict
     File ploidy_table
-    File? depth_exclusion_intervals
-    File? depth_exclusion_intervals_index
+
+    File contig_list
 
     String chr_x = "chrX"
     String chr_y = "chrY"
 
-    String output_prefix
     String gatk_docker
+    String sv_base_mini_docker
   }
 
   call TrainSVGenotyping {
     input:
       vcf = vcf,
-      vcf_index = vcf_index,
+      vcf_index = vcf + ".tbi",
+      output_prefix = batch_id,
       training_intervals = training_intervals,
       median_coverage = median_coverage,
-      rd = rd,
-      rd_index = rd_index,
-      reference_dict = reference_dict,
-      ploidy_table = ploidy_table,
       chr_x = chr_x,
       chr_y = chr_y,
-      depth_exclusion_intervals = depth_exclusion_intervals,
-      depth_exclusion_intervals_index = depth_exclusion_intervals_index,
-      output_prefix = output_prefix,
+      rd_file = rd_file,
+      rd_file_index = rd_file + ".tbi",
+      reference_dict = reference_dict,
+      ploidy_table = ploidy_table,
       gatk_docker = gatk_docker
   }
 
-  call GenotypeSVs {
+  scatter (contig in read_lines(contig_list)) {
+    call GenotypeSVs {
+      input:
+        vcf = vcf,
+        vcf_index = vcf + ".tbi",
+        output_prefix = "~{batch_id}.genotype_batch.~{contig}",
+        contig = contig,
+        median_coverage = median_coverage,
+        rd_file = rd_file,
+        rd_file_index = rd_file + ".tbi",
+        reference_dict = reference_dict,
+        ploidy_table = ploidy_table,
+        rd_table = TrainSVGenotyping.rd_table,
+        gatk_docker = gatk_docker
+    }
+  }
+
+  call ConcatVCFs {
     input:
-      vcf = vcf,
-      vcf_index = vcf_index,
-      output_prefix = output_prefix,
-      median_coverage = median_coverage,
-      rd = rd,
-      rd_index = rd_index,
-      reference_dict = reference_dict,
-      ploidy_table = ploidy_table,
-      depth_exclusion_intervals = depth_exclusion_intervals,
-      depth_exclusion_intervals_index = depth_exclusion_intervals_index,
-      rd_table = TrainSVGenotyping.rd_table,
-      gatk_docker = gatk_docker
+      vcfs = GenotypeSVs.out,
+      vcf_idxs = GenotypeSVs.out_index,
+      output_prefix = batch_id + ".genotype_batch",
+      sv_base_mini_docker = sv_base_mini_docker
   }
 
   output {
-    File genotyped_depth_vcf = GenotypeSVs.genotyped_vcf
-    File genotyped_depth_vcf_index = GenotypeSVs.genotyped_vcf_index
+    File genotyped_depth_vcf = ConcatVCFs.concat_vcf
+    File genotyped_depth_vcf_index = ConcatVCFs.concat_vcf_index
+    File genotyping_rd_table = TrainSVGenotyping.rd_table
   }
 }
 
@@ -66,14 +74,12 @@ task TrainSVGenotyping {
     File vcf_index
     File training_intervals
     File median_coverage
-    File rd
-    File rd_index
-    File reference_dict
-    File ploidy_table
+    File rd_file
+    File rd_file_index
     String chr_x
     String chr_y
-    File? depth_exclusion_intervals
-    File? depth_exclusion_intervals_index
+    File reference_dict
+    File ploidy_table
     String output_prefix
 
     String gatk_docker
@@ -85,7 +91,12 @@ task TrainSVGenotyping {
     Int? max_retries
   }
 
-  Int default_disk_gb = ceil(size([vcf, rd], "GB") * 2) + 32
+  parameter_meta {
+    rd_file: { localization_optional: true }
+  }
+
+  Int default_disk_gb = ceil(size([vcf, rd_file], "GB") + 50)
+  Float java_mem_mib = select_first([mem_gib, 16]) * 0.8 * 1024
 
   runtime {
     cpu: select_first([cpu, 1])
@@ -97,24 +108,20 @@ task TrainSVGenotyping {
     maxRetries: select_first([max_retries, 1])
   }
 
-  Int command_mem_mb = ceil(select_first([mem_gib, 16]) * 800)
-
   command <<<
     set -euo pipefail
 
-    gatk --java-options "-Xmx${command_mem_mb}" TrainSVGenotyping \
+    gatk --java-options "-Xmx~{java_mem_mib}M" TrainSVGenotyping \
       -XL '~{chr_x}' -XL '~{chr_y}' \
       -V '~{vcf}' \
-      --training_intervals '~{training_intervals}' \
+      --training-intervals '~{training_intervals}' \
       -O '~{output_prefix}.vcf.gz' \
-      --median_coverage '~{median_coverage}' \
-      --rd-file '~{rd}' \
+      --median-coverage '~{median_coverage}' \
+      --rd-file '~{rd_file}' \
       --sequence-dictionary '~{reference_dict}' \
       --ploidy-table '~{ploidy_table}' \
-      ~{"--depth-exclusion-intervals '" +  depth_exclusion_intervals + "'"} \
       --output-dir ./ \
-      --output-prefix '~{output_prefix}'
-
+      --output-name ~{output_prefix}
   >>>
 
   output {
@@ -128,13 +135,12 @@ task GenotypeSVs {
     File vcf_index
     String output_prefix
     File median_coverage
-    File rd
-    File rd_index
+    File rd_file
+    File rd_file_index
     File reference_dict
     File ploidy_table
-    File? depth_exclusion_intervals
-    File? depth_exclusion_intervals_index
     File rd_table
+    String? contig
 
     String gatk_docker
     Float? mem_gib
@@ -143,14 +149,18 @@ task GenotypeSVs {
     Int? boot_disk_gb
     Int? preemptible_tries
     Int? max_retries
-
   }
 
-  Int default_disk_gb = ceil(size([vcf, rd], "GB") * 2) + 32
+  parameter_meta {
+    rd_file: { localization_optional: true }
+  }
+
+  Int default_disk_gb = ceil(size([vcf, rd_file], "GB") + 50)
+  Float java_mem_mib = select_first([mem_gib, 4]) * 0.8 * 1024
 
   runtime {
     cpu: select_first([cpu, 1])
-    memory: select_first([mem_gib, 8]) + " GiB"
+    memory: select_first([mem_gib, 4]) + " GiB"
     disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
     bootDiskSizeGb: select_first([boot_disk_gb, 10])
     docker: gatk_docker
@@ -158,24 +168,70 @@ task GenotypeSVs {
     maxRetries: select_first([max_retries, 1])
   }
 
-  Int command_mem_mb = ceil(select_first([mem_gib, 8]) * 800)
+  command <<<
+    set -euo pipefail
+
+    gatk --java-options '-Xmx~{java_mem_mib}' PrintSVEvidence \
+      --sequence-dictionary ~{reference_dict} \
+      --evidence-file ~{rd_file} \
+      ~{"-L " + contig} \
+      -O local.rd.txt.gz
+
+    gatk --java-options '-Xmx~{java_mem_mib}' GenotypeSVs \
+      -V '~{vcf}' \
+      -O '~{output_prefix}.vcf.gz' \
+      ~{"-L " + contig} \
+      --median-coverage '~{median_coverage}' \
+      --rd-file local.pe.txt.gz \
+      --sequence-dictionary '~{reference_dict}' \
+      --ploidy-table '~{ploidy_table}' \
+      --rd-table '~{rd_table}' \
+  >>>
+
+  output {
+    File out = "~{output_prefix}.vcf.gz"
+    File out_index = "~{output_prefix}.vcf.gz.tbi"
+  }
+}
+
+task ConcatVCFs {
+  input {
+    Array[File] vcfs
+    Array[File] vcf_idxs
+    String output_prefix
+
+    String sv_base_mini_docker
+    Float? mem_gib
+    Int? disk_gb
+    Int? cpu
+    Int? boot_disk_gb
+    Int? preemptible_tries
+    Int? max_retries
+  }
+
+  Int default_disk_gb = ceil(size(vcfs, "GB") * 3) + 50
+
+  runtime {
+    cpu: select_first([cpu, 1])
+    memory: select_first([mem_gib, 4]) + " GiB"
+    disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
+    bootDiskSizeGb: select_first([boot_disk_gb, 10])
+    docker: sv_base_mini_docker
+    preemptible: select_first([preemptible_tries, 3])
+    maxRetries: select_first([max_retries, 1])
+    noAddress: true
+  }
 
   command <<<
     set -euo pipefail
 
-    gatk --java-options "-Xmx~{command_mem_mb}" GenotypeSVs \
-      -V '~{vcf}' \
-      -O '~{output_prefix}.vcf.gz' \
-      --median-coverage '~{median_coverage}' \
-      --rd-file '~{rd}' \
-      --sequence-dictionary '~{reference_dict}' \
-      --ploidy-table '~{ploidy_table}' \
-      ~{"--depth-exclusion-intervals '" +  depth_exclusion_intervals + "'"} \
-      --rd-table '~{rd_table}'
+    bcftools concat --no-version --allow-overlaps --output-type z --output '~{output_prefix}.vcf.gz' \
+     --file-list '~{write_lines(vcfs)}'
+    tabix '~{output_prefix}.vcf.gz'
   >>>
 
   output {
-    File genotyped_vcf = "~{output_prefix}.vcf.gz"
-    File genotyped_vcf_index = "~{output_prefix}.vcf.gz.tbi"
+    File concat_vcf = "~{output_prefix}.vcf.gz"
+    File concat_vcf_index = "~{output_prefix}.vcf.gz.tbi"
   }
 }
