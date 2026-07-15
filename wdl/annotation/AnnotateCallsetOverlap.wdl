@@ -18,21 +18,22 @@ workflow AnnotateCallsetOverlap {
         Array[String] contigs
         String prefix
 
-        Int? records_per_shard
-
         Boolean compare_annotations = true
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
+
         Int min_sv_length_eval_truvari
         Int min_sv_length_truth_truvari
         Int min_sv_length_eval_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
+
         String type_field_eval = "allele_type"
         String length_field_eval = "allele_length"
         String source_tag_vcf_truth = "SNV_indel"
         String source_tag_vcf_sv_truth = "SV"
         String skip_vep_categories = ""
+        
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
