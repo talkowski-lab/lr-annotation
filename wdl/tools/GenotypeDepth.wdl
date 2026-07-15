@@ -156,11 +156,11 @@ task GenotypeSVs {
   }
 
   Int default_disk_gb = ceil(size([vcf, rd_file], "GB") + 50)
-  Int java_mem_mib = ceil(select_first([mem_gib, 4]) * 0.8 * 1024)
+  Int java_mem_mib = ceil(select_first([mem_gib, 8]) * 0.8 * 1024)
 
   runtime {
     cpu: select_first([cpu, 1])
-    memory: select_first([mem_gib, 4]) + " GiB"
+    memory: select_first([mem_gib, 8]) + " GiB"
     disks: "local-disk " + select_first([disk_gb, default_disk_gb]) + " HDD"
     bootDiskSizeGb: select_first([boot_disk_gb, 10])
     docker: gatk_docker
