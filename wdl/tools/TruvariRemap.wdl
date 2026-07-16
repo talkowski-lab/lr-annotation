@@ -14,6 +14,9 @@ workflow TruvariRemap {
 
         Int? records_per_shard
 
+        String type_field = "allele_type"
+        String type_ins = "ins"
+
         Int min_length
         Int max_length
         Int mm2_threshold
@@ -35,7 +38,7 @@ workflow TruvariRemap {
                 vcf = vcf,
                 vcf_idx = vcf_idx,
                 contig = contig,
-                extra_args = "-G -i 'INFO/allele_type=\"ins\"'",
+                extra_args = "-i 'INFO/~{type_field}=\"~{type_ins}\"'",
                 prefix = "~{prefix}.~{contig}.ins",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig
