@@ -2802,6 +2802,8 @@ task SubsetVcfToContig {
 
         if ~{!defined(vcf_idx)}; then
             tabix -p vcf ~{vcf}
+        elif [[ "~{vcf_idx}" != "~{vcf}.tbi" ]]; then
+            ln -sf "~{vcf_idx}" "~{vcf}.tbi"
         fi
 
         bcftools view \

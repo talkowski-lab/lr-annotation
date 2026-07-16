@@ -5,10 +5,10 @@ import "../utils/Structs.wdl"
 
 workflow TruvariMatch {
     input {
-        File vcf_eval
-        File vcf_eval_idx
-        File vcf_truth
-        File vcf_truth_idx
+        File vcf
+        File vcf_idx
+        File truth_snv_indel_vcf
+        File truth_snv_indel_vcf_idx
         File ref_fa
         File ref_fai
         String prefix
@@ -22,14 +22,16 @@ workflow TruvariMatch {
 
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
-        RuntimeAttr? runtime_attr_run_truvari
+        RuntimeAttr? runtime_attr_run_truvari_09
+        RuntimeAttr? runtime_attr_run_truvari_07
+        RuntimeAttr? runtime_attr_run_truvari_05
         RuntimeAttr? runtime_attr_concat_matched
     }
 
     call Helpers.SubsetVcfByLength as SubsetEval {
         input:
-            vcf = vcf_eval,
-            vcf_idx = vcf_eval_idx,
+            vcf = vcf,
+            vcf_idx = vcf_idx,
             length_field = length_field_eval,
             min_length = min_sv_length_eval,
             prefix = "~{prefix}.subset_eval",
@@ -39,8 +41,8 @@ workflow TruvariMatch {
 
     call Helpers.SubsetVcfByArgs as SubsetTruth {
         input:
-            vcf = vcf_truth,
-            vcf_idx = vcf_truth_idx,
+            vcf = truth_snv_indel_vcf,
+            vcf_idx = truth_snv_indel_vcf_idx,
             include_args = 'abs(ILEN) >= ~{min_sv_length_truth}',
             prefix = "~{prefix}.subset_truth",
             docker = utils_docker,
@@ -49,10 +51,10 @@ workflow TruvariMatch {
 
     call RunTruvari as RunTruvari_09 {
         input:
-            vcf_eval = SubsetEval.subset_vcf,
-            vcf_eval_idx = SubsetEval.subset_vcf_idx,
-            vcf_truth = SubsetTruth.subset_vcf,
-            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
+            vcf = SubsetEval.subset_vcf,
+            vcf_idx = SubsetEval.subset_vcf_idx,
+            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
+            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.9,
@@ -62,15 +64,15 @@ workflow TruvariMatch {
             source_tag = source_tag,
             prefix = "~{prefix}.0.9",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari
+            runtime_attr_override = runtime_attr_run_truvari_09
     }
 
     call RunTruvari as RunTruvari_07 {
         input:
-            vcf_eval = RunTruvari_09.unmatched_vcf,
-            vcf_eval_idx = RunTruvari_09.unmatched_vcf_idx,
-            vcf_truth = SubsetTruth.subset_vcf,
-            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
+            vcf = RunTruvari_09.unmatched_vcf,
+            vcf_idx = RunTruvari_09.unmatched_vcf_idx,
+            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
+            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.7,
@@ -80,15 +82,15 @@ workflow TruvariMatch {
             source_tag = source_tag,
             prefix = "~{prefix}.0.7",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari
+            runtime_attr_override = runtime_attr_run_truvari_07
     }
 
     call RunTruvari as RunTruvari_05 {
         input:
-            vcf_eval = RunTruvari_07.unmatched_vcf,
-            vcf_eval_idx = RunTruvari_07.unmatched_vcf_idx,
-            vcf_truth = SubsetTruth.subset_vcf,
-            vcf_truth_idx = SubsetTruth.subset_vcf_idx,
+            vcf = RunTruvari_07.unmatched_vcf,
+            vcf_idx = RunTruvari_07.unmatched_vcf_idx,
+            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
+            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.5,
@@ -98,7 +100,7 @@ workflow TruvariMatch {
             source_tag = source_tag,
             prefix = "~{prefix}.0.5",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_run_truvari
+            runtime_attr_override = runtime_attr_run_truvari_05
     }
 
     call Helpers.ConcatTsvs as ConcatAnnotationTsvs {
@@ -119,10 +121,10 @@ workflow TruvariMatch {
 
 task RunTruvari {
     input {
-        File vcf_eval
-        File vcf_eval_idx
-        File vcf_truth
-        File vcf_truth_idx
+        File vcf
+        File vcf_idx
+        File truth_snv_indel_vcf
+        File truth_snv_indel_vcf_idx
         File ref_fa
         File ref_fai
         Float pctseq
@@ -141,16 +143,16 @@ task RunTruvari {
         if [ -d "~{prefix}_truvari" ]; then
             rm -r "~{prefix}_truvari"
         fi
-        
+
         truvari bench \
-            -b ~{vcf_truth} \
-            -c ~{vcf_eval} \
+            -b ~{truth_snv_indel_vcf} \
+            -c ~{vcf} \
             -o "~{prefix}_truvari" \
             --reference ~{ref_fa} \
             --pctseq ~{pctseq} \
             --sizemin ~{sizemin} \
             --sizefilt ~{sizefilt}
-        
+
         bcftools query -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/MatchId\n' "~{prefix}_truvari/tp-comp.vcf.gz" \
             | awk 'BEGIN{FS=OFS="\t"} {split($6,a,","); print $1,$2,$3,$4,$5,a[1]}' \
             | LC_ALL=C sort -k6,6 > comp.mid.tsv
@@ -184,7 +186,7 @@ task RunTruvari {
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 10 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 10,
+        disk_gb: 10 * ceil(size(vcf, "GB") + size(truth_snv_indel_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
