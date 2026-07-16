@@ -278,10 +278,10 @@ workflow AnnotateCallsetOverlap_AF {
         if (do_bedtools_closest) {
             call BedtoolsClosestSV.BedtoolsClosestSV {
                 input:
-                    vcf_eval = vcf_post_truvari,
-                    vcf_eval_idx = vcf_post_truvari_idx,
-                    vcf_sv_truth = truth_sv_vcf_final,
-                    vcf_sv_truth_idx = truth_sv_vcf_final_idx,
+                    vcf = vcf_post_truvari,
+                    vcf_idx = vcf_post_truvari_idx,
+                    truth_sv_vcf = truth_sv_vcf_final,
+                    truth_sv_vcf_idx = truth_sv_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.bedtools_closest",
                     min_sv_length_eval = min_sv_length_eval_bedtools_closest,
                     min_sv_length_truth = min_sv_length_truth_bedtools_closest,
@@ -319,10 +319,10 @@ workflow AnnotateCallsetOverlap_AF {
         call AppendTruthAFACAN {
             input:
                 annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
-                vcf_truth_snv = truth_snv_indel_vcf_final,
-                vcf_truth_snv_idx = truth_snv_indel_vcf_final_idx,
-                vcf_truth_sv = truth_sv_vcf_final,
-                vcf_truth_sv_idx = truth_sv_vcf_final_idx,
+                truth_snv_indel_vcf = truth_snv_indel_vcf_final,
+                truth_snv_indel_vcf_idx = truth_snv_indel_vcf_final_idx,
+                truth_sv_vcf = truth_sv_vcf_final,
+                truth_sv_vcf_idx = truth_sv_vcf_final_idx,
                 af_field_sv_truth = af_field_sv_truth,
                 ac_field_sv_truth = ac_field_sv_truth,
                 an_field_sv_truth = an_field_sv_truth,
@@ -355,10 +355,10 @@ workflow AnnotateCallsetOverlap_AF {
                     annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                     vcf = vcf_final,
                     vcf_idx = vcf_final_idx,
-                    vcf_truth_snv = truth_snv_indel_vcf_final,
-                    vcf_truth_snv_idx = truth_snv_indel_vcf_final_idx,
-                    vcf_truth_sv = truth_sv_vcf_final,
-                    vcf_truth_sv_idx = truth_sv_vcf_final_idx,
+                    truth_snv_indel_vcf = truth_snv_indel_vcf_final,
+                    truth_snv_indel_vcf_idx = truth_snv_indel_vcf_final_idx,
+                    truth_sv_vcf = truth_sv_vcf_final,
+                    truth_sv_vcf_idx = truth_sv_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.collected",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_collect_matched_ids
@@ -366,8 +366,8 @@ workflow AnnotateCallsetOverlap_AF {
 
             call ComputeSummaryForContig {
                 input:
-                    eval_vcf = vcf_final,
-                    eval_vcf_idx = vcf_final_idx,
+                    vcf = vcf_final,
+                    vcf_idx = vcf_final_idx,
                     annotation_tsv = BuildAnnotationTsv.concatenated_tsv,
                     matched_with_info_tsv = CollectMatchedIDsAndINFO.matched_with_info_tsv,
                     eval_vep_header = ExtractEvalVepHeader.vep_header_txt,
@@ -563,10 +563,10 @@ task CollectMatchedIDsAndINFO {
         File annotation_tsv
         File vcf
         File vcf_idx
-        File vcf_truth_snv
-        File vcf_truth_snv_idx
-        File vcf_truth_sv
-        File vcf_truth_sv_idx
+        File truth_snv_indel_vcf
+        File truth_snv_indel_vcf_idx
+        File truth_sv_vcf
+        File truth_sv_vcf_idx
         String prefix
         String docker
         RuntimeAttr? runtime_attr_override
@@ -580,8 +580,8 @@ import subprocess
 
 annotation_tsv = "~{annotation_tsv}"
 vcf_eval = "~{vcf}"
-vcf_truth_snv = "~{vcf_truth_snv}"
-vcf_truth_sv = "~{vcf_truth_sv}"
+truth_snv_indel_vcf = "~{truth_snv_indel_vcf}"
+truth_sv_vcf = "~{truth_sv_vcf}"
 prefix = "~{prefix}"
 
 eval_to_truth = {}
@@ -607,7 +607,7 @@ for line in proc.stdout:
 proc.wait()
 
 truth_info = {}
-for vcf in [vcf_truth_snv, vcf_truth_sv]:
+for vcf in [truth_snv_indel_vcf, truth_sv_vcf]:
     cmd = f"bcftools query -f '%ID\\t%INFO\\n' {vcf}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
     for line in proc.stdout:
@@ -632,7 +632,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(vcf, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        disk_gb: 2 * ceil(size(vcf, "GB") + size(truth_snv_indel_vcf, "GB") + size(truth_sv_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -652,10 +652,10 @@ EOF
 task AppendTruthAFACAN {
     input {
         File annotation_tsv
-        File vcf_truth_snv
-        File vcf_truth_snv_idx
-        File vcf_truth_sv
-        File vcf_truth_sv_idx
+        File truth_snv_indel_vcf
+        File truth_snv_indel_vcf_idx
+        File truth_sv_vcf
+        File truth_sv_vcf_idx
         String af_field_sv_truth = "AF"
         String ac_field_sv_truth = "AC"
         String an_field_sv_truth = "AN"
@@ -671,8 +671,8 @@ task AppendTruthAFACAN {
 import subprocess
 
 annotation_tsv = "~{annotation_tsv}"
-vcf_truth_snv = "~{vcf_truth_snv}"
-vcf_truth_sv = "~{vcf_truth_sv}"
+truth_snv_indel_vcf = "~{truth_snv_indel_vcf}"
+truth_sv_vcf = "~{truth_sv_vcf}"
 af_field_sv_truth = "~{af_field_sv_truth}"
 ac_field_sv_truth = "~{ac_field_sv_truth}"
 an_field_sv_truth = "~{an_field_sv_truth}"
@@ -680,8 +680,8 @@ prefix = "~{prefix}"
 
 truth_af = {}
 for vcf, af_field, ac_field, an_field in [
-    (vcf_truth_snv, "AF", "AC", "AN"),
-    (vcf_truth_sv, af_field_sv_truth, ac_field_sv_truth, an_field_sv_truth)
+    (truth_snv_indel_vcf, "AF", "AC", "AN"),
+    (truth_sv_vcf, af_field_sv_truth, ac_field_sv_truth, an_field_sv_truth)
 ]:
     cmd = f"bcftools query -f '%ID\\t%INFO/{af_field}\\t%INFO/{ac_field}\\t%INFO/{an_field}\\n' {vcf}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
@@ -708,7 +708,7 @@ EOF
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
         mem_gb: 4,
-        disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(vcf_truth_snv, "GB") + size(vcf_truth_sv, "GB")) + 10,
+        disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(truth_snv_indel_vcf, "GB") + size(truth_sv_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
@@ -908,8 +908,8 @@ task MergeShardBenchmarks {
 
 task ComputeSummaryForContig {
     input {
-        File eval_vcf
-        File eval_vcf_idx
+        File vcf
+        File vcf_idx
         File annotation_tsv
         File matched_with_info_tsv
         File eval_vep_header
@@ -926,7 +926,7 @@ task ComputeSummaryForContig {
         python3 /opt/gnomad-lr/scripts/benchmark/compute_summary_for_contig.py \
             --prefix ~{prefix} \
             --contig ~{contig} \
-            --eval_vcf ~{eval_vcf} \
+            --eval_vcf ~{vcf} \
             --annotation_tsv ~{annotation_tsv} \
             --matched_with_info_tsv ~{matched_with_info_tsv} \
             --eval_vep_header ~{eval_vep_header} \
@@ -941,7 +941,7 @@ task ComputeSummaryForContig {
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
         mem_gb: 4,
-        disk_gb: 50 * ceil(size(eval_vcf, "GB")) + 5,
+        disk_gb: 50 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

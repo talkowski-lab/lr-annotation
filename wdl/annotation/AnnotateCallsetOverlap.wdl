@@ -22,13 +22,13 @@ workflow AnnotateCallsetOverlap {
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
 
-        Int min_sv_length_eval_truvari
-        Int min_sv_length_truth_truvari
-        Int min_sv_length_eval_bedtools_closest
-        Int min_sv_length_truth_bedtools_closest
+        Int min_sv_length_truvari_vcf
+        Int min_sv_length_truvari_truth_vcf
+        Int min_sv_length_bedtools_closest_vcf
+        Int min_sv_length_bedtools_closest_truth_vcf
 
-        String type_field_eval = "allele_type"
-        String length_field_eval = "allele_length"
+        String type_field_vcf = "allele_type"
+        String length_field_vcf = "allele_length"
         String source_tag_truth_snv_indel_vcf = "SNV_indel"
         String source_tag_truth_sv_vcf = "SV"
 
@@ -263,9 +263,9 @@ workflow AnnotateCallsetOverlap {
                     truth_snv_indel_vcf = truth_snv_indel_vcf_final,
                     truth_snv_indel_vcf_idx = truth_snv_indel_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.truvari",
-                    min_sv_length_eval = min_sv_length_eval_truvari,
-                    min_sv_length_truth = min_sv_length_truth_truvari,
-                    length_field_eval = length_field_eval,
+                    min_sv_length_eval = min_sv_length_truvari_vcf,
+                    min_sv_length_truth = min_sv_length_truvari_truth_vcf,
+                    length_field_eval = length_field_vcf,
                     source_tag = source_tag_truth_snv_indel_vcf,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
@@ -296,15 +296,15 @@ workflow AnnotateCallsetOverlap {
         if (do_bedtools_closest) {
             call BedtoolsClosestSV.BedtoolsClosestSV {
                 input:
-                    vcf_eval = vcf_post_truvari,
-                    vcf_eval_idx = vcf_post_truvari_idx,
-                    vcf_sv_truth = truth_sv_vcf_final,
-                    vcf_sv_truth_idx = truth_sv_vcf_final_idx,
+                    vcf = vcf_post_truvari,
+                    vcf_idx = vcf_post_truvari_idx,
+                    truth_sv_vcf = truth_sv_vcf_final,
+                    truth_sv_vcf_idx = truth_sv_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.bedtools_closest",
-                    min_sv_length_eval = min_sv_length_eval_bedtools_closest,
-                    min_sv_length_truth = min_sv_length_truth_bedtools_closest,
-                    type_field_eval = type_field_eval,
-                    length_field_eval = length_field_eval,
+                    min_sv_length_eval = min_sv_length_bedtools_closest_vcf,
+                    min_sv_length_truth = min_sv_length_bedtools_closest_truth_vcf,
+                    type_field_eval = type_field_vcf,
+                    length_field_eval = length_field_vcf,
                     source_tag = source_tag_truth_sv_vcf,
                     benchmark_annotations_docker = benchmark_annotations_docker,
                     utils_docker = utils_docker,
