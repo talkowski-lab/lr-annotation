@@ -12,13 +12,18 @@ workflow AnnotateSVAN {
 
         Int? records_per_shard
 
+        String type_field = "allele_type"
+        String type_ins = "ins"
+        String length_field = "allele_length"
+        Int min_length = 0
+
         File vntr_bed
         File exons_bed
         File repeats_bed
-        File mei_fa
-        Array[File] mei_fa_indices
         File ref_fa
         Array[File] ref_fa_indices
+        File mei_fa
+        Array[File] mei_fa_indices
 
         String utils_docker
         String svan_docker
@@ -66,7 +71,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
-                include_args = 'INFO/allele_type="ins"',
+                include_args = "-i 'INFO/~{type_field}=\"~{type_ins}\" && abs(INFO/~{length_field}) >= ~{min_length}'",
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_ins
