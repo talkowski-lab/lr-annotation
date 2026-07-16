@@ -19,9 +19,12 @@ workflow TruvariRemap {
 
         String remap_docker
         String utils_docker
+        Int? records_per_shard
 
         RuntimeAttr? runtime_attr_subset_contig
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_ins_remap
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -37,25 +40,55 @@ workflow TruvariRemap {
                 runtime_attr_override = runtime_attr_subset_contig
         }
 
-        call InsRemap {
-            input:
-                vcf = SubsetVcfToContig.subset_vcf,
-                vcf_idx = SubsetVcfToContig.subset_vcf_idx,
-                min_length = min_length,
-                max_length = max_length,
-                mm2_threshold = mm2_threshold,
-                cov_threshold = cov_threshold,
-                ref_fa = ref_fa,
-                ref_bwa_indices = ref_bwa_indices,
-                prefix = "~{prefix}.~{contig}.remapped",
-                docker = remap_docker,
-                runtime_attr_override = runtime_attr_ins_remap
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = SubsetVcfToContig.subset_vcf,
+                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.ins",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call InsRemap {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    min_length = min_length,
+                    max_length = max_length,
+                    mm2_threshold = mm2_threshold,
+                    cov_threshold = cov_threshold,
+                    ref_fa = ref_fa,
+                    ref_bwa_indices = ref_bwa_indices,
+                    prefix = "~{prefix}.~{contig}.remapped.shard_~{i}",
+                    docker = remap_docker,
+                    runtime_attr_override = runtime_attr_ins_remap
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = InsRemap.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.remap_annotations",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, InsRemap.annotations_tsv[0]])
     }
 
     call Helpers.ConcatTsvs {
         input:
-            tsvs = InsRemap.annotations_tsv,
+            tsvs = final_annotations_tsv,
             sort_output = false,
             prefix = "~{prefix}.remap_annotations",
             docker = utils_docker,

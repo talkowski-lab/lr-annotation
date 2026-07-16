@@ -13,12 +13,11 @@ workflow AnnotateCallsetOverlap {
         File vcf_truth_idx
         File vcf_sv_truth
         File vcf_sv_truth_idx
-        File ref_fa
-        File ref_fai
         Array[String] contigs
         String prefix
 
-        Boolean compare_annotations = true
+        Int? shard_bin_size_exact_match
+
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
@@ -32,8 +31,7 @@ workflow AnnotateCallsetOverlap {
         String length_field_eval = "allele_length"
         String source_tag_vcf_truth = "SNV_indel"
         String source_tag_vcf_sv_truth = "SV"
-        String skip_vep_categories = ""
-        
+
         String? args_string_vcf
         String? args_string_vcf_truth
         String? args_string_vcf_sv_truth
@@ -44,21 +42,29 @@ workflow AnnotateCallsetOverlap {
         Boolean? rename_id_strip_chr_vcf_truth
         Boolean? rename_id_strip_chr_vcf_sv_truth
 
+        File ref_fa
+        File ref_fai
+
         String benchmark_annotations_docker
         String utils_docker
 
+        RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_subset_eval
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_subset_sv_truth
-        RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_rename_eval
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
+        RuntimeAttr? runtime_attr_shard_exact
         RuntimeAttr? runtime_attr_exact_match
+        RuntimeAttr? runtime_attr_concat_exact_annotations
+        RuntimeAttr? runtime_attr_concat_exact_unmatched
+        RuntimeAttr? runtime_attr_append_exact_annotations
         RuntimeAttr? runtime_attr_truvari_subset_eval
         RuntimeAttr? runtime_attr_truvari_subset_truth
         RuntimeAttr? runtime_attr_truvari_run_truvari
         RuntimeAttr? runtime_attr_truvari_concat_matched
+        RuntimeAttr? runtime_attr_append_truvari_annotations
         RuntimeAttr? runtime_attr_bedtools_subset_eval
         RuntimeAttr? runtime_attr_bedtools_subset_truth
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
@@ -67,18 +73,28 @@ workflow AnnotateCallsetOverlap {
         RuntimeAttr? runtime_attr_bedtools_compare
         RuntimeAttr? runtime_attr_bedtools_calculate
         RuntimeAttr? runtime_attr_bedtools_merge_comparisons
+        RuntimeAttr? runtime_attr_append_bedtools_annotations
         RuntimeAttr? runtime_attr_build_annotation_tsv
         RuntimeAttr? runtime_attr_merge_annotation_tsvs
     }
 
     Boolean single_contig = length(contigs) == 1
 
+    call Helpers.StripGenotypes {
+        input:
+            vcf = vcf_eval,
+            vcf_idx = vcf_eval_idx,
+            prefix = "~{prefix}.eval",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_strip_genotypes
+    }
+
     scatter (contig in contigs) {
         if (!single_contig || defined(args_string_vcf)) {
             call Helpers.SubsetVcfByArgs as SubsetEval {
                 input:
-                    vcf = vcf_eval,
-                    vcf_idx = vcf_eval_idx,
+                    vcf = StripGenotypes.stripped_vcf,
+                    vcf_idx = StripGenotypes.stripped_vcf_idx,
                     include_args = args_string_vcf,
                     extra_args = if single_contig then "" else "--regions ~{contig}",
                     prefix = "~{prefix}.~{contig}.eval",
@@ -113,27 +129,18 @@ workflow AnnotateCallsetOverlap {
             }
         }
 
-        File subset_eval_vcf = select_first([SubsetEval.subset_vcf, vcf_eval])
-        File subset_eval_vcf_idx = select_first([SubsetEval.subset_vcf_idx, vcf_eval_idx])
+        File eval_vcf_subsetted = select_first([SubsetEval.subset_vcf, StripGenotypes.stripped_vcf])
+        File eval_vcf_subsetted_idx = select_first([SubsetEval.subset_vcf_idx, StripGenotypes.stripped_vcf_idx])
         File subset_truth_vcf = select_first([SubsetTruth.subset_vcf, vcf_truth])
         File subset_truth_vcf_idx = select_first([SubsetTruth.subset_vcf_idx, vcf_truth_idx])
         File subset_sv_truth_vcf = select_first([SubsetSVTruth.subset_vcf, vcf_sv_truth])
         File subset_sv_truth_vcf_idx = select_first([SubsetSVTruth.subset_vcf_idx, vcf_sv_truth_idx])
 
-        call Helpers.StripGenotypes {
-            input:
-                vcf = subset_eval_vcf,
-                vcf_idx = subset_eval_vcf_idx,
-                prefix = "~{prefix}.~{contig}.eval",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_strip_genotypes
-        }
-
         if (defined(rename_id_string_vcf)) {
             call Helpers.RenameVariantIds as RenameEvalIds {
                 input:
-                    vcf = StripGenotypes.stripped_vcf,
-                    vcf_idx = StripGenotypes.stripped_vcf_idx,
+                    vcf = eval_vcf_subsetted,
+                    vcf_idx = eval_vcf_subsetted_idx,
                     prefix = "~{prefix}.~{contig}.eval.renamed",
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
@@ -168,29 +175,83 @@ workflow AnnotateCallsetOverlap {
             }
         }
 
-        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, StripGenotypes.stripped_vcf])
-        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, StripGenotypes.stripped_vcf_idx])
+        File eval_vcf_final = select_first([RenameEvalIds.renamed_vcf, eval_vcf_subsetted])
+        File eval_vcf_final_idx = select_first([RenameEvalIds.renamed_vcf_idx, eval_vcf_subsetted_idx])
         File truth_vcf_final = select_first([RenameTruthIds.renamed_vcf, subset_truth_vcf])
         File truth_vcf_final_idx = select_first([RenameTruthIds.renamed_vcf_idx, subset_truth_vcf_idx])
         File sv_truth_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, subset_sv_truth_vcf])
         File sv_truth_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, subset_sv_truth_vcf_idx])
 
         if (do_exact) {
-            call ExactMatch {
+            if (defined(shard_bin_size_exact_match)) {
+                call Helpers.ShardVcfByRecords as ShardExact {
+                    input:
+                        vcf = eval_vcf_final,
+                        vcf_idx = eval_vcf_final_idx,
+                        records_per_shard = select_first([shard_bin_size_exact_match]),
+                        prefix = "~{prefix}.~{contig}.exact",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_shard_exact
+                }
+            }
+
+            Array[File] exact_shards = select_first([ShardExact.shards, [eval_vcf_final]])
+            Array[File] exact_shard_idxs = select_first([ShardExact.shard_idxs, [eval_vcf_final_idx]])
+
+            scatter (i in range(length(exact_shards))) {
+                call ExactMatch {
+                    input:
+                        vcf_eval = exact_shards[i],
+                        vcf_eval_idx = exact_shard_idxs[i],
+                        vcf_truth = truth_vcf_final,
+                        vcf_truth_idx = truth_vcf_final_idx,
+                        source_tag = source_tag_vcf_truth,
+                        prefix = "~{prefix}.~{contig}.exact_~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_exact_match
+                }
+            }
+
+            if (defined(shard_bin_size_exact_match)) {
+                call Helpers.ConcatTsvs as ConcatExactAnnotations {
+                    input:
+                        tsvs = ExactMatch.annotation_tsv,
+                        sort_output = true,
+                        prefix = "~{prefix}.~{contig}.exact_annotations",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_concat_exact_annotations
+                }
+
+                call Helpers.ConcatVcfs as ConcatExactUnmatched {
+                    input:
+                        vcfs = ExactMatch.unmatched_vcf,
+                        vcf_idxs = ExactMatch.unmatched_vcf_idx,
+                        allow_overlaps = false,
+                        naive = false,
+                        prefix = "~{prefix}.~{contig}.exact_unmatched",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_concat_exact_unmatched
+                }
+            }
+
+            File exact_annotation_tsv = select_first([ConcatExactAnnotations.concatenated_tsv, ExactMatch.annotation_tsv[0]])
+            File exact_unmatched_vcf = select_first([ConcatExactUnmatched.concat_vcf, ExactMatch.unmatched_vcf[0]])
+            File exact_unmatched_vcf_idx = select_first([ConcatExactUnmatched.concat_vcf_idx, ExactMatch.unmatched_vcf_idx[0]])
+
+            call AppendAnnotationsFromVcf as AppendExactAnnotations {
                 input:
-                    vcf_eval = eval_vcf_final,
-                    vcf_eval_idx = eval_vcf_final_idx,
+                    annotation_tsv = exact_annotation_tsv,
                     vcf_truth = truth_vcf_final,
                     vcf_truth_idx = truth_vcf_final_idx,
-                    source_tag = source_tag_vcf_truth,
-                    prefix = "~{prefix}.~{contig}.exact",
+                    is_sv_truth = false,
+                    prefix = "~{prefix}.~{contig}.exact_annotated",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_exact_match
+                    runtime_attr_override = runtime_attr_append_exact_annotations
             }
         }
 
-        File post_exact_vcf = select_first([ExactMatch.unmatched_vcf, eval_vcf_final])
-        File post_exact_vcf_idx = select_first([ExactMatch.unmatched_vcf_idx, eval_vcf_final_idx])
+        File post_exact_vcf = select_first([exact_unmatched_vcf, eval_vcf_final])
+        File post_exact_vcf_idx = select_first([exact_unmatched_vcf_idx, eval_vcf_final_idx])
 
         if (do_truvari) {
             call TruvariMatch.TruvariMatch {
@@ -211,6 +272,17 @@ workflow AnnotateCallsetOverlap {
                     runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
                     runtime_attr_run_truvari = runtime_attr_truvari_run_truvari,
                     runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
+            }
+
+            call AppendAnnotationsFromVcf as AppendTruvariAnnotations {
+                input:
+                    annotation_tsv = TruvariMatch.annotation_tsv,
+                    vcf_truth = truth_vcf_final,
+                    vcf_truth_idx = truth_vcf_final_idx,
+                    is_sv_truth = false,
+                    prefix = "~{prefix}.~{contig}.truvari_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_append_truvari_annotations
             }
         }
 
@@ -241,19 +313,29 @@ workflow AnnotateCallsetOverlap {
                     runtime_attr_calculate = runtime_attr_bedtools_calculate,
                     runtime_attr_merge_comparisons = runtime_attr_bedtools_merge_comparisons
             }
+
+            call AppendAnnotationsFromVcf as AppendBedtoolsAnnotations {
+                input:
+                    annotation_tsv = BedtoolsClosestSV.annotation_tsv,
+                    vcf_truth = sv_truth_vcf_final,
+                    vcf_truth_idx = sv_truth_vcf_final_idx,
+                    is_sv_truth = true,
+                    prefix = "~{prefix}.~{contig}.bedtools_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_append_bedtools_annotations
+            }
         }
 
-        Array[File] annotation_tsvs_to_merge = select_all([
-            ExactMatch.annotation_tsv,
-            TruvariMatch.annotation_tsv,
-            BedtoolsClosestSV.annotation_tsv,
+        Array[File] extended_annotation_tsvs = select_all([
+            AppendExactAnnotations.annotated_tsv,
+            AppendTruvariAnnotations.annotated_tsv,
+            AppendBedtoolsAnnotations.annotated_tsv,
         ])
 
-        call Helpers.ConcatTsvs as BuildAnnotationTsv {
+        call BuildBenchmarkAnnotationTsv {
             input:
-                tsvs = annotation_tsvs_to_merge,
-                sort_output = true,
-                prefix = "~{prefix}.~{contig}.annotations",
+                tsvs = extended_annotation_tsvs,
+                prefix = "~{prefix}.~{contig}.benchmark_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_build_annotation_tsv
         }
@@ -262,8 +344,9 @@ workflow AnnotateCallsetOverlap {
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotationTsvs {
             input:
-                tsvs = BuildAnnotationTsv.concatenated_tsv,
+                tsvs = BuildBenchmarkAnnotationTsv.merged_tsv,
                 sort_output = false,
+                preserve_header = true,
                 prefix = "~{prefix}.benchmark_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_annotation_tsvs
@@ -271,7 +354,8 @@ workflow AnnotateCallsetOverlap {
     }
 
     output {
-        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, BuildAnnotationTsv.concatenated_tsv[0]])
+        File annotations_tsv_benchmark = select_first([MergeAnnotationTsvs.concatenated_tsv, BuildBenchmarkAnnotationTsv.merged_tsv[0]])
+        File annotations_header_benchmark = BuildBenchmarkAnnotationTsv.merged_header[0]
     }
 }
 
@@ -343,6 +427,227 @@ task ExactMatch {
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 5 * ceil(size(vcf_eval, "GB") + size(vcf_truth, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AppendAnnotationsFromVcf {
+    input {
+        File annotation_tsv
+        File vcf_truth
+        File vcf_truth_idx
+        Boolean is_sv_truth
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'EOF'
+import subprocess
+import re
+
+annotation_tsv = "~{annotation_tsv}"
+vcf_truth = "~{vcf_truth}"
+is_sv_truth = ~{true="True" false="False" is_sv_truth}
+prefix = "~{prefix}"
+
+def get_ac_af_an_fields(vcf_path):
+    cmd = f"bcftools view -h {vcf_path}"
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+    fields = {'AC': [], 'AF': [], 'AN': []}
+    for line in proc.stdout:
+        m = re.match(r'##INFO=<ID=([^,]+)', line)
+        if m:
+            fid = m.group(1)
+            for p in ['AC', 'AF', 'AN']:
+                if fid.startswith(p + '_'):
+                    fields[p].append(fid)
+    proc.wait()
+    return fields
+
+vcf_fields = get_ac_af_an_fields(vcf_truth)
+dyn_cols = sorted(vcf_fields['AC']) + sorted(vcf_fields['AF']) + sorted(vcf_fields['AN'])
+
+if is_sv_truth:
+    extra_fields = ['N_HOMREF', 'N_HET', 'N_HOMALT']
+else:
+    extra_fields = [
+        'dp_hist_all_bin_freq', 'dp_hist_all_n_larger',
+        'ab_hist_alt_bin_freq', 'dp_hist_alt_n_larger',
+        'age_hist_het_bin_freq', 'age_hist_het_n_smaller', 'age_hist_het_n_larger',
+        'nhomalt',
+    ]
+
+query_fields = list(vcf_fields['AC']) + list(vcf_fields['AF']) + list(vcf_fields['AN']) + extra_fields
+fmt = '%ID\\t' + '\\t'.join(f'%INFO/{f}' for f in query_fields) + '\\n'
+cmd = f"bcftools query -f '{fmt}' {vcf_truth}"
+proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+truth_info = {}
+for line in proc.stdout:
+    parts = line.rstrip('\n').split('\t')
+    if len(parts) == len(query_fields) + 1:
+        truth_info[parts[0]] = {query_fields[i]: parts[i + 1] for i in range(len(query_fields))}
+proc.wait()
+
+def parse_hist(val):
+    if not val or val == '.':
+        return 0
+    try:
+        return sum(float(x) for x in val.split('|') if x and x != '.')
+    except Exception:
+        return 0
+
+def to_num(val):
+    try:
+        return float(val) if val and val != '.' else 0
+    except Exception:
+        return 0
+
+def compute_genotype_counts(info):
+    if is_sv_truth:
+        return info.get('N_HOMREF', '.'), info.get('N_HET', '.'), info.get('N_HOMALT', '.')
+    homref = str(int(
+        parse_hist(info.get('dp_hist_all_bin_freq', '.')) + to_num(info.get('dp_hist_all_n_larger', '.')) -
+        parse_hist(info.get('ab_hist_alt_bin_freq', '.')) - to_num(info.get('dp_hist_alt_n_larger', '.'))
+    ))
+    het = str(int(
+        parse_hist(info.get('age_hist_het_bin_freq', '.')) +
+        to_num(info.get('age_hist_het_n_smaller', '.')) +
+        to_num(info.get('age_hist_het_n_larger', '.'))
+    ))
+    return homref, het, info.get('nhomalt', '.')
+
+extra_cols = ['match_type', 'truth_ID', 'source_tag', 'filter'] + dyn_cols + ['homref_count', 'het_count', 'homalt_count']
+header_row = '\t'.join(['#CHROM', 'POS', 'REF', 'ALT', 'ID'] + extra_cols)
+
+with open(annotation_tsv) as fin, open(f"{prefix}.tsv", 'w') as fout:
+    fout.write(header_row + '\n')
+    for line in fin:
+        fields = line.rstrip('\n').split('\t')
+        truth_id = fields[6]
+        info = truth_info.get(truth_id, {})
+        dyn_vals = [info.get(f, '.') for f in dyn_cols]
+        homref, het, homalt = compute_genotype_counts(info)
+        fout.write('\t'.join(fields + dyn_vals + [homref, het, homalt]) + '\n')
+
+EOF
+    >>>
+
+    output {
+        File annotated_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 8,
+        disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(vcf_truth, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task BuildBenchmarkAnnotationTsv {
+    input {
+        Array[File] tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'EOF'
+import re
+
+input_files = "~{sep=',' tsvs}".split(',')
+prefix = "~{prefix}"
+
+fixed_cols = ['#CHROM', 'POS', 'REF', 'ALT', 'ID']
+static_extra = ['match_type', 'truth_ID', 'source_tag', 'filter']
+genotype_cols = ['homref_count', 'het_count', 'homalt_count']
+skip_cols = set(static_extra + genotype_cols)
+
+# Collect AC_/AF_/AN_ field names from all TSV headers
+all_ac, all_af, all_an = set(), set(), set()
+for f in input_files:
+    with open(f) as fh:
+        header = fh.readline().strip().split('\t')
+    for col in header[5:]:
+        if col in skip_cols:
+            continue
+        if col.startswith('AC_'):
+            all_ac.add(col)
+        elif col.startswith('AF_'):
+            all_af.add(col)
+        elif col.startswith('AN_'):
+            all_an.add(col)
+
+dyn_cols = sorted(all_ac) + sorted(all_af) + sorted(all_an)
+all_extra = static_extra + dyn_cols + genotype_cols
+master_header = fixed_cols + all_extra
+
+with open(f"{prefix}.tsv", 'w') as fout:
+    fout.write('\t'.join(master_header) + '\n')
+    for f in input_files:
+        with open(f) as fh:
+            file_cols = fh.readline().strip().split('\t')
+            col_map = {name: i for i, name in enumerate(file_cols)}
+            for line in fh:
+                parts = line.rstrip('\n').split('\t')
+                row = []
+                for col in master_header:
+                    if col in col_map:
+                        try:
+                            row.append(parts[col_map[col]])
+                        except IndexError:
+                            row.append('.')
+                    else:
+                        row.append('.')
+                fout.write('\t'.join(row) + '\n')
+
+with open(f"{prefix}.header.txt", 'w') as hout:
+    for col in all_extra:
+        hout.write(col + '\n')
+
+EOF
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+        File merged_header = "~{prefix}.header.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0
