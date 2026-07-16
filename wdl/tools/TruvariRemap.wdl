@@ -141,10 +141,10 @@ task InsRemap {
             ~{vcf}
 
         bcftools query \
+            -i 'INFO/remap_classification!="."' \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\t%INFO/remap_classification\t%INFO/remap_coords\t%INFO/remap_ori\t%INFO/remap_perc\n' \
             ~{prefix}.vcf.gz \
-        | awk -F'\t' '($6 != "." || $7 != "." || $8 != "." || $9 != ".")' \
-        > ~{prefix}.tsv
+            > ~{prefix}.tsv
     >>>
 
     output {

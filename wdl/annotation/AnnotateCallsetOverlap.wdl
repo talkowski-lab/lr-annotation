@@ -16,16 +16,16 @@ workflow AnnotateCallsetOverlap {
         Array[String] contigs
         String prefix
 
+        Int min_sv_length_truvari_vcf
+        Int min_sv_length_truvari_truth_vcf
+        Int min_sv_length_bedtools_closest_vcf
+        Int min_sv_length_bedtools_closest_truth_vcf
+
         Int? shard_bin_size_exact_match
 
         Boolean do_exact = true
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
-
-        Int min_sv_length_truvari_vcf
-        Int min_sv_length_truvari_truth_vcf
-        Int min_sv_length_bedtools_closest_vcf
-        Int min_sv_length_bedtools_closest_truth_vcf
 
         String type_field_vcf = "allele_type"
         String length_field_vcf = "allele_length"
