@@ -12,6 +12,8 @@ workflow TruvariRemap {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Int min_length
         Int max_length
         Int mm2_threshold
@@ -19,7 +21,6 @@ workflow TruvariRemap {
 
         String remap_docker
         String utils_docker
-        Int? records_per_shard
 
         RuntimeAttr? runtime_attr_subset_contig
         RuntimeAttr? runtime_attr_shard
