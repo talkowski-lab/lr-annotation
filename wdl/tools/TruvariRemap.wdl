@@ -133,12 +133,12 @@ task InsRemap {
 
         truvari anno remap \
             -r ref_files/$ref_fa_basename \
-            -o ~{prefix}.vcf.gz \
             --min-length ~{min_length} \
             --max-length ~{max_length} \
             --mm2-threshold ~{mm2_threshold} \
-            --threads ${N_THREADS} \
             --cov-threshold ~{cov_threshold} \
+            --threads ${N_THREADS} \
+            -o ~{prefix}.vcf.gz \
             ~{vcf}
 
         bcftools query \

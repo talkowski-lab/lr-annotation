@@ -10,16 +10,14 @@ workflow CountAnnotations {
         String prefix
 
         Int? records_per_shard
-        Int? shard_bin_size
-        Array[Int] length_bins = [0, 1, 50, 100, 500, 5000, 50000]
+        Array[Int] length_bins_summary = [0, 1, 50, 500]
+        Array[Int] length_bins_plotting = [0, 1, 50, 100, 500, 5000, 50000]
 
         Boolean create_per_sample = false
         Boolean create_per_allele = false
         Boolean create_list = false
         Boolean create_functional = false
-        Boolean create_sample_specific = false
-        Boolean create_allele_specific = false
-        Boolean create_denovo = false
+        Boolean create_plotting = false
 
         Boolean use_ssd = false
         Boolean split_by_region = false
@@ -27,25 +25,23 @@ workflow CountAnnotations {
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
-        File? ref_fai
         File? ped
 
         String utils_docker
 
+        RuntimeAttr? runtime_attr_strip
         RuntimeAttr? runtime_attr_subset
         RuntimeAttr? runtime_attr_shard
-        RuntimeAttr? runtime_attr_create_shards
-        RuntimeAttr? runtime_attr_region_subset
         RuntimeAttr? runtime_attr_count
         RuntimeAttr? runtime_attr_merge
         RuntimeAttr? runtime_attr_find_trios
-        RuntimeAttr? runtime_attr_denovo
     }
 
-    Boolean sites_only = !(create_per_sample || create_per_allele || create_sample_specific || create_allele_specific || create_denovo)
+    Boolean sites_only = !(create_per_sample || create_per_allele || create_plotting)
+    Boolean run_denovo = create_plotting && defined(ped)
 
-    if (create_denovo) {
-        call FindTrios {
+    if (run_denovo) {
+        call Helpers.FindTrios {
             input:
                 vcf = vcfs[0],
                 vcf_idx = vcf_idxs[0],
@@ -57,40 +53,26 @@ workflow CountAnnotations {
     }
 
     scatter (i in range(length(vcfs))) {
-        if (defined(shard_bin_size)) {
-            call Helpers.CreateShardsFromVcfIndex {
-                input:
-                    vcf_idx = vcf_idxs[i],
-                    ref_fai = select_first([ref_fai]),
-                    shard_bin_size = select_first([shard_bin_size]),
-                    use_ssd = use_ssd,
-                    prefix = "~{prefix}.input_~{i}.shards",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_create_shards
-            }
-
-            scatter (k in range(length(CreateShardsFromVcfIndex.shard_regions))) {
-                call Helpers.SubsetVcfToRegionStreaming {
-                    input:
-                        vcf = vcfs[i],
-                        vcf_idx = vcf_idxs[i],
-                        region = CreateShardsFromVcfIndex.shard_regions[k],
-                        sites_only = sites_only,
-                        use_ssd = use_ssd,
-                        prefix = "~{prefix}.input_~{i}.region_~{k}",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_region_subset
-                }
-            }
-        }
-
-        if (!defined(shard_bin_size) && defined(records_per_shard)) {
-            call Helpers.ShardVcfByRecords {
+        if (sites_only) {
+            call Helpers.StripGenotypes {
                 input:
                     vcf = vcfs[i],
                     vcf_idx = vcf_idxs[i],
+                    prefix = "~{prefix}.input_~{i}.stripped",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_strip
+            }
+        }
+
+        File vcf_for_shard = select_first([StripGenotypes.stripped_vcf, vcfs[i]])
+        File vcf_idx_for_shard = select_first([StripGenotypes.stripped_vcf_idx, vcf_idxs[i]])
+
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = vcf_for_shard,
+                    vcf_idx = vcf_idx_for_shard,
                     records_per_shard = select_first([records_per_shard]),
-                    sites_only = sites_only,
                     use_ssd = use_ssd,
                     prefix = "~{prefix}.input_~{i}",
                     docker = utils_docker,
@@ -98,8 +80,8 @@ workflow CountAnnotations {
             }
         }
 
-        Array[File] shard_vcfs = select_first([SubsetVcfToRegionStreaming.subset_vcf, ShardVcfByRecords.shards, [vcfs[i]]])
-        Array[File] shard_vcf_idxs = select_first([SubsetVcfToRegionStreaming.subset_vcf_idx, ShardVcfByRecords.shard_idxs, [vcf_idxs[i]]])
+        Array[File] shard_vcfs = select_first([ShardVcfByRecords.shards, [vcf_for_shard]])
+        Array[File] shard_vcf_idxs = select_first([ShardVcfByRecords.shard_idxs, [vcf_idx_for_shard]])
 
         scatter (j in range(length(shard_vcfs))) {
             call Helpers.SubsetVcfByArgs {
@@ -107,7 +89,6 @@ workflow CountAnnotations {
                     vcf = shard_vcfs[j],
                     vcf_idx = shard_vcf_idxs[j],
                     extra_args = subset_vcf_string,
-                    sites_only = sites_only,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}.subset",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_subset
@@ -120,43 +101,17 @@ workflow CountAnnotations {
                     create_per_sample = create_per_sample,
                     create_per_allele = create_per_allele,
                     create_list = create_list,
+                    create_plotting = create_plotting,
                     split_by_region = split_by_region,
                     create_variant_attributes = create_variant_attributes,
-                    create_sample_specific = create_sample_specific,
-                    create_allele_specific = create_allele_specific,
-                    length_bins = length_bins,
+                    trio_definitions = FindTrios.trio_definitions,
+                    length_bins_summary = length_bins_summary,
+                    length_bins_plotting = length_bins_plotting,
                     max_length = max_length,
                     min_length = min_length,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_count
-            }
-
-            if (create_denovo) {
-                call Helpers.SubsetVcfToSamples as SubsetToTrioSamples {
-                    input:
-                        vcf = SubsetVcfByArgs.subset_vcf,
-                        vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
-                        samples = read_lines(select_first([FindTrios.trio_sample_ids_file])),
-                        prefix = "~{prefix}.input_~{i}.shard_~{j}.trio_subset",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_subset
-                }
-
-                call CountAnnotationShardDenovo {
-                    input:
-                        vcf = SubsetToTrioSamples.subset_vcf,
-                        vcf_idx = SubsetToTrioSamples.subset_vcf_idx,
-                        trio_definitions = select_first([FindTrios.trio_definitions]),
-                        create_variant_attributes = create_variant_attributes,
-                        split_by_region = split_by_region,
-                        length_bins = length_bins,
-                        max_length = max_length,
-                        min_length = min_length,
-                        prefix = "~{prefix}.input_~{i}.shard_~{j}",
-                        docker = utils_docker,
-                        runtime_attr_override = runtime_attr_denovo
-                }
             }
         }
     }
@@ -169,8 +124,6 @@ workflow CountAnnotations {
     Array[File] functional_site_count_tables = flatten(CountAnnotationShard.gene_counts_tsv)
     Array[File] functional_sample_count_tables = flatten(CountAnnotationShard.gene_sample_counts_tsv)
     Array[File] functional_allele_count_tables = flatten(CountAnnotationShard.gene_allele_counts_tsv)
-    Array[File] sample_specific_tables = flatten(CountAnnotationShard.sample_specific_tsv)
-    Array[File] allele_specific_tables = flatten(CountAnnotationShard.allele_specific_tsv)
 
     call MergeAnnotationCountTables as MergeSiteCounts {
         input:
@@ -178,7 +131,7 @@ workflow CountAnnotations {
             sample_count_files = sample_count_files,
             normalization_mode = "sites",
             split_by_region = split_by_region,
-            prefix = "~{prefix}.counts_sites",
+            prefix = "~{prefix}.summary_sites",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_merge
     }
@@ -190,7 +143,7 @@ workflow CountAnnotations {
                 sample_count_files = sample_count_files,
                 normalization_mode = "samples",
                 split_by_region = split_by_region,
-                prefix = "~{prefix}.counts_samples",
+                prefix = "~{prefix}.summary_samples",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -203,7 +156,7 @@ workflow CountAnnotations {
                 sample_count_files = sample_count_files,
                 normalization_mode = "alleles",
                 split_by_region = split_by_region,
-                prefix = "~{prefix}.counts_alleles",
+                prefix = "~{prefix}.summary_alleles",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -213,7 +166,7 @@ workflow CountAnnotations {
         call MergeAnnotationListTables {
             input:
                 list_tsvs = list_tables,
-                prefix = "~{prefix}.counts_list",
+                prefix = "~{prefix}.summary_list",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -223,7 +176,7 @@ workflow CountAnnotations {
         call MergeGeneCountTables as MergeGeneCounts {
             input:
                 count_tsvs = functional_site_count_tables,
-                prefix = "~{prefix}.counts_functional",
+                prefix = "~{prefix}.summary_functional",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -233,7 +186,7 @@ workflow CountAnnotations {
         call MergeGeneCountTables as MergeGeneSampleCounts {
             input:
                 count_tsvs = functional_sample_count_tables,
-                prefix = "~{prefix}.counts_functional_samples",
+                prefix = "~{prefix}.summary_functional_samples",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
@@ -243,53 +196,64 @@ workflow CountAnnotations {
         call MergeGeneCountTables as MergeGeneAlleleCounts {
             input:
                 count_tsvs = functional_allele_count_tables,
-                prefix = "~{prefix}.counts_functional_alleles",
+                prefix = "~{prefix}.summary_functional_alleles",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
     }
 
-    if (create_sample_specific) {
-        call MergeSampleSpecificTables as MergeSampleSpecific {
+    if (create_plotting) {
+        call MergeAnnotationCountTables as MergePlottingSites {
             input:
-                count_tsvs = sample_specific_tables,
-                prefix = "~{prefix}.counts_sample_specific",
+                count_tsvs = flatten(CountAnnotationShard.plotting_site_tsv),
+                sample_count_files = sample_count_files,
+                normalization_mode = "sites",
+                split_by_region = split_by_region,
+                prefix = "~{prefix}.plotting_sites",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
-    }
 
-    if (create_allele_specific) {
-        call MergeSampleSpecificTables as MergeAlleleSpecific {
+        call MergeSampleSpecificTables as MergePlottingSamples {
             input:
-                count_tsvs = allele_specific_tables,
-                prefix = "~{prefix}.counts_allele_specific",
+                count_tsvs = flatten(CountAnnotationShard.plotting_sample_tsv),
+                prefix = "~{prefix}.plotting_samples",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
         }
-    }
 
-    if (create_denovo) {
-        call MergeSampleSpecificTables as MergeDenovo {
+        call MergeSampleSpecificTables as MergePlottingAlleles {
             input:
-                count_tsvs = select_all(flatten(CountAnnotationShardDenovo.denovo_tsv)),
-                prefix = "~{prefix}.counts_denovo",
+                count_tsvs = flatten(CountAnnotationShard.plotting_allele_tsv),
+                prefix = "~{prefix}.plotting_alleles",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
+        }
+
+        if (run_denovo) {
+            call MergeSampleSpecificTables as MergePlottingDenovo {
+                input:
+                    count_tsvs = select_all(flatten(CountAnnotationShard.plotting_denovo_tsv)),
+                    prefix = "~{prefix}.plotting_denovo",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_merge
+            }
         }
     }
 
     output {
-        File annotation_counts_sites_tsv = MergeSiteCounts.merged_counts_tsv
-        File? annotation_counts_samples_tsv = MergeSampleCounts.merged_counts_tsv
-        File? annotation_counts_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
-        File? annotation_counts_list_tsv = MergeAnnotationListTables.merged_list_tsv
-        File? annotation_counts_functional_tsv = MergeGeneCounts.merged_counts_tsv
-        File? annotation_counts_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
-        File? annotation_counts_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
-        File? annotation_counts_sample_specific_tsv = MergeSampleSpecific.merged_tsv
-        File? annotation_counts_allele_specific_tsv = MergeAlleleSpecific.merged_tsv
-        File? annotation_counts_denovo_tsv = MergeDenovo.merged_tsv
+        File summary_sites_tsv = MergeSiteCounts.merged_counts_tsv
+        File? summary_samples_tsv = MergeSampleCounts.merged_counts_tsv
+        File? summary_alleles_tsv = MergeAlleleCounts.merged_counts_tsv
+        File? summary_list_tsv = MergeAnnotationListTables.merged_list_tsv
+        File? summary_functional_tsv = MergeGeneCounts.merged_counts_tsv
+        File? summary_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
+        File? summary_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
+
+        File? plotting_sites_tsv = MergePlottingSites.merged_counts_tsv
+        File? plotting_samples_tsv = MergePlottingSamples.merged_tsv
+        File? plotting_alleles_tsv = MergePlottingAlleles.merged_tsv
+        File? plotting_denovo_tsv = MergePlottingDenovo.merged_tsv
     }
 }
 
@@ -300,11 +264,12 @@ task CountAnnotationShard {
         Boolean create_per_sample
         Boolean create_per_allele
         Boolean create_list
+        Boolean create_plotting
         Boolean split_by_region
         Boolean create_variant_attributes
-        Boolean create_sample_specific
-        Boolean create_allele_specific
-        Array[Int] length_bins
+        File? trio_definitions
+        Array[Int] length_bins_summary
+        Array[Int] length_bins_plotting
         Int max_length
         Int min_length
         String prefix
@@ -316,11 +281,14 @@ task CountAnnotationShard {
         set -euo pipefail
 
         python3 <<'PYCODE'
+# Imports
 import csv
 import re
 from collections import defaultdict
 import pysam
 
+
+# Constants
 VCF_PATH = "~{vcf}"
 SITE_OUTPUT = "~{prefix}.sites.raw.tsv"
 SAMPLE_OUTPUT = "~{prefix}.samples.raw.tsv"
@@ -330,37 +298,52 @@ GENE_OUTPUT = "~{prefix}.genes.raw.tsv"
 GENE_SAMPLE_OUTPUT = "~{prefix}.genes.samples.raw.tsv"
 GENE_ALLELE_OUTPUT = "~{prefix}.genes.alleles.raw.tsv"
 SAMPLE_COUNT_OUTPUT = "~{prefix}.sample_count.txt"
+PLOT_SITE_OUTPUT = "~{prefix}.plotting_sites.raw.tsv"
+PLOT_SAMPLE_OUTPUT = "~{prefix}.plotting_samples.raw.tsv"
+PLOT_ALLELE_OUTPUT = "~{prefix}.plotting_alleles.raw.tsv"
+DENOVO_OUTPUT = "~{prefix}.plotting_denovo.raw.tsv"
+
 CREATE_PER_SAMPLE = "~{create_per_sample}".lower() == "true"
 CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
 CREATE_LIST = "~{create_list}".lower() == "true"
+CREATE_PLOTTING = "~{create_plotting}".lower() == "true"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
 CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
-CREATE_SAMPLE_SPECIFIC = "~{create_sample_specific}".lower() == "true"
-CREATE_ALLELE_SPECIFIC = "~{create_allele_specific}".lower() == "true"
-SAMPLE_SPECIFIC_OUTPUT = "~{prefix}.sample_specific.raw.tsv"
-ALLELE_SPECIFIC_OUTPUT = "~{prefix}.allele_specific.raw.tsv"
+TRIO_DEF_PATH = "~{trio_definitions}"
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
 MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
 MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
 
-LENGTH_BINS = [~{sep=", " length_bins}]
-SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
+LENGTH_BINS_SUMMARY = [~{sep=", " length_bins_summary}]
+SIZE_LABELS_SUMMARY = [f"{s}-{e - 1}" for s, e in zip(LENGTH_BINS_SUMMARY, LENGTH_BINS_SUMMARY[1:])] + [f"{LENGTH_BINS_SUMMARY[-1]}+"]
 
-COLUMN_BUCKETS = ["SNV"]
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"DEL {_label}")
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"INS {_label}")
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"DUP {_label}")
-COLUMN_BUCKETS += ["TRV", "Other"]
+COLUMN_BUCKETS_SUMMARY = ["SNV"]
+for _label in SIZE_LABELS_SUMMARY:
+    COLUMN_BUCKETS_SUMMARY.append(f"DEL {_label}")
+for _label in SIZE_LABELS_SUMMARY:
+    COLUMN_BUCKETS_SUMMARY.append(f"INS {_label}")
+for _label in SIZE_LABELS_SUMMARY:
+    COLUMN_BUCKETS_SUMMARY.append(f"DUP {_label}")
+COLUMN_BUCKETS_SUMMARY += ["TRV", "Other"]
 
-def get_size_bucket(allele_length):
+LENGTH_BINS_PLOTTING = [~{sep=", " length_bins_plotting}]
+SIZE_LABELS_PLOTTING = [f"{s}-{e - 1}" for s, e in zip(LENGTH_BINS_PLOTTING, LENGTH_BINS_PLOTTING[1:])] + [f"{LENGTH_BINS_PLOTTING[-1]}+"]
+
+COLUMN_BUCKETS_PLOTTING = ["SNV"]
+for _label in SIZE_LABELS_PLOTTING:
+    COLUMN_BUCKETS_PLOTTING.append(f"DEL {_label}")
+for _label in SIZE_LABELS_PLOTTING:
+    COLUMN_BUCKETS_PLOTTING.append(f"INS {_label}")
+for _label in SIZE_LABELS_PLOTTING:
+    COLUMN_BUCKETS_PLOTTING.append(f"DUP {_label}")
+COLUMN_BUCKETS_PLOTTING += ["TRV", "Other"]
+
+def get_size_bucket(allele_length, length_bins, size_labels):
     size = abs(allele_length)
-    for index, start in enumerate(LENGTH_BINS):
-        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
-            return SIZE_LABELS[index]
+    for index, start in enumerate(length_bins):
+        if index + 1 == len(length_bins) or size < length_bins[index + 1]:
+            return size_labels[index]
 
 INTERNAL_TOTAL_LABEL = "Total"
 DISPLAY_ALL_LABEL = "All"
@@ -450,8 +433,11 @@ PREDICTED_FIELDS = [
     "PREDICTED_PROMOTER"
 ]
 
-def init_table():
-    return defaultdict(lambda: {column: 0.0 for column in COLUMN_BUCKETS})
+
+# Helper Functions
+def init_table(column_buckets):
+    cols = list(column_buckets)
+    return defaultdict(lambda: {col: 0.0 for col in cols})
 
 def first_value(value):
     if isinstance(value, (list, tuple)):
@@ -544,13 +530,13 @@ def determine_svannotate_label(record):
             return label
     return None
 
-def determine_column(allele_type, allele_length, variant_id):
+def determine_column(allele_type, allele_length, variant_id, length_bins, size_labels):
     allele_type = (allele_type or "").lower()
     variant_id = (variant_id or "").upper()
     if allele_type == "snv": return "SNV"
     if allele_type == "trv": return "TRV"
     if allele_length is None: return "Other"
-    size_label = get_size_bucket(allele_length)
+    size_label = get_size_bucket(allele_length, length_bins, size_labels)
     if "dup" in allele_type: return f"DUP {size_label}"
     if allele_type == "ins" or "INS" in variant_id: return f"INS {size_label}"
     if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
@@ -669,13 +655,13 @@ def get_list_columns():
             list_columns.append(default_label)
     return list_columns
 
-def write_table(path, table_data, integer_output, split_by_region):
+def write_table(path, table_data, integer_output, split_by_region, column_buckets):
     with open(path, "w", newline="") as handle:
         writer = csv.writer(handle, delimiter="\t")
         header = ["category", "sub_category", "tr_status"]
         if split_by_region:
             header.append("region")
-        writer.writerow(header + COLUMN_BUCKETS)
+        writer.writerow(header + column_buckets)
         for key in sorted(table_data.keys()):
             if split_by_region:
                 category, sub_category, tr_status, region = key
@@ -689,8 +675,8 @@ def write_table(path, table_data, integer_output, split_by_region):
                 display_region = DISPLAY_ALL_LABEL if region == INTERNAL_TOTAL_LABEL else region
                 row_prefix.append(display_region)
             values = []
-            for column in COLUMN_BUCKETS:
-                value = table_data[key][column]
+            for col in column_buckets:
+                value = table_data[key].get(col, 0.0)
                 if integer_output: values.append(str(int(value)))
                 else: values.append(str(value))
             writer.writerow(row_prefix + values)
@@ -703,49 +689,43 @@ def write_gene_counts(path, gene_count_data):
             for category, count in gene_count_data[gene].items():
                 writer.writerow([gene, category, str(count)])
 
-def make_sample_specific_columns():
-    col_keys = []
-    col_names = []
-    for col_bucket in COLUMN_BUCKETS:
-        for row_key in ROW_ORDER:
-            group, ann = row_key
-            label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
-            annotation_label = f"{group}:{label}" if group else label
-            base_name = f"{annotation_label} - {col_bucket}"
-            col_keys.append((row_key, col_bucket, INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL))
-            col_names.append(base_name)
-            for tr in ['TR', 'Not TR']:
-                col_keys.append((row_key, col_bucket, tr, INTERNAL_TOTAL_LABEL))
-                col_names.append(f"{base_name} - {tr}")
-            if SPLIT_BY_REGION:
-                for region in REGION_ORDER:
-                    col_keys.append((row_key, col_bucket, INTERNAL_TOTAL_LABEL, region))
-                    col_names.append(f"{base_name} - {region}")
-    return col_keys, col_names
 
-def write_sample_specific(path, table_data, col_keys, col_names, sample_names):
-    with open(path, "w", newline="") as handle:
-        writer = csv.writer(handle, delimiter="\t")
-        writer.writerow(["sample_id"] + col_names)
-        for sample_name in sample_names:
-            writer.writerow([sample_name] + [str(table_data[sample_name].get(key, 0)) for key in col_keys])
-
-site_table = init_table()
-sample_table = init_table()
-allele_table = init_table()
+# Initialize data
+site_table = init_table(COLUMN_BUCKETS_SUMMARY)
+sample_table = init_table(COLUMN_BUCKETS_SUMMARY)
+allele_table = init_table(COLUMN_BUCKETS_SUMMARY)
 
 vcf_in = pysam.VariantFile(VCF_PATH)
 vep_field_indices = get_vep_field_indices(vcf_in.header)
 sample_count = len(vcf_in.header.samples)
 
-if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
-    sample_names = list(vcf_in.header.samples)
-    sample_specific_table = {s: defaultdict(int) for s in sample_names}
-    allele_specific_table = {s: defaultdict(int) for s in sample_names}
-
 with open(SAMPLE_COUNT_OUTPUT, "w") as handle:
     handle.write(f"{sample_count}\n")
 
+trios = []
+all_probands = []
+if CREATE_PLOTTING and TRIO_DEF_PATH:
+    with open(TRIO_DEF_PATH) as f:
+        for line in f:
+            fields = line.strip().split("\t")
+            if len(fields) >= 3:
+                trios.append((fields[0], fields[1], fields[2]))
+    all_probands = sorted(set(child for child, _, _ in trios))
+
+if CREATE_PLOTTING:
+    plotting_sample_names = list(vcf_in.header.samples)
+    plot_site_table = defaultdict(lambda: {col: 0 for col in COLUMN_BUCKETS_PLOTTING})
+    plot_sample_table = {s: defaultdict(int) for s in plotting_sample_names}
+    plot_allele_table = {s: defaultdict(int) for s in plotting_sample_names}
+
+    if trios:
+        DENOVO_SITE_TYPES = ['Proband', 'Mendelian', 'Paternal', 'Maternal', 'Paternal Total', 'Maternal Total']
+        DENOVO_ALLELE_TYPES = ['Proband Alleles', 'Mendelian Alleles', 'Paternal Alleles', 'Maternal Alleles',
+                               'Paternal Total Alleles', 'Maternal Total Alleles']
+        DENOVO_COUNT_TYPES = DENOVO_SITE_TYPES + DENOVO_ALLELE_TYPES
+        plot_denovo_table = {ct: {s: defaultdict(float) for s in all_probands} for ct in DENOVO_COUNT_TYPES}
+
+# Populate outputs
 with open(LIST_OUTPUT, "w", newline="") as handle:
     writer = csv.writer(handle, delimiter="\t")
     writer.writerow(["variant_id", "classification"] + get_list_columns())
@@ -770,7 +750,8 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
             if MIN_LENGTH is not None and (allele_length_val is None or allele_length_val < MIN_LENGTH):
                 continue
 
-            column = determine_column(allele_type_val, allele_length_val, record.id)
+            column_summary = determine_column(allele_type_val, allele_length_val, record.id, LENGTH_BINS_SUMMARY, SIZE_LABELS_SUMMARY)
+            column_plotting = determine_column(allele_type_val, allele_length_val, record.id, LENGTH_BINS_PLOTTING, SIZE_LABELS_PLOTTING) if CREATE_PLOTTING else None
             row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
 
             tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
@@ -831,34 +812,86 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                     if SPLIT_BY_REGION:
                         for current_region in regions:
                             full_key = (cat, ann, current_tr_status, current_region)
-                            site_table[full_key][column] += weight
-                            if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
-                            if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
+                            site_table[full_key][column_summary] += weight
+                            if CREATE_PER_SAMPLE: sample_table[full_key][column_summary] += carrier_count * weight
+                            if CREATE_PER_ALLELE: allele_table[full_key][column_summary] += alt_allele_count * weight
                     else:
                         full_key = (cat, ann, current_tr_status)
-                        site_table[full_key][column] += weight
-                        if CREATE_PER_SAMPLE: sample_table[full_key][column] += carrier_count * weight
-                        if CREATE_PER_ALLELE: allele_table[full_key][column] += alt_allele_count * weight
+                        site_table[full_key][column_summary] += weight
+                        if CREATE_PER_SAMPLE: sample_table[full_key][column_summary] += carrier_count * weight
+                        if CREATE_PER_ALLELE: allele_table[full_key][column_summary] += alt_allele_count * weight
 
-            if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
+            if CREATE_PLOTTING:
+                # Update plotting site table (Total annotation row only)
+                for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
+                    for current_region in regions:
+                        if SPLIT_BY_REGION:
+                            plot_site_key = (INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, current_tr_status, current_region)
+                        else:
+                            plot_site_key = (INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, current_tr_status)
+                        plot_site_table[plot_site_key][column_plotting] += 1
+
+                # Update per-sample plotting tables
                 for sample_name, sample_data in record.samples.items():
                     genotype = sample_data.get("GT")
                     if genotype is None:
                         continue
-                    if alt_idx_1based is not None:
-                        n_alleles = sum(1 for a in genotype if a == alt_idx_1based)
-                    else:
-                        n_alleles = sum(1 for a in genotype if a is not None and a > 0)
+                    n_alleles = sum(1 for a in genotype if a is not None and a > 0)
                     if n_alleles == 0:
                         continue
-                    for row_key in row_weights:
-                        for tr_stat in [INTERNAL_TOTAL_LABEL, tr_status]:
-                            for reg in regions:
-                                key = (row_key, column, tr_stat, reg)
-                                if CREATE_SAMPLE_SPECIFIC:
-                                    sample_specific_table[sample_name][key] += 1
-                                if CREATE_ALLELE_SPECIFIC:
-                                    allele_specific_table[sample_name][key] += n_alleles
+                    for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
+                        for current_region in regions:
+                            skey = (column_plotting, current_tr_status, current_region)
+                            plot_sample_table[sample_name][skey] += 1
+                            plot_allele_table[sample_name][skey] += n_alleles
+
+                # Update plotting denovo table
+                if trios:
+                    for child, father, mother in trios:
+                        child_sample = record.samples.get(child)
+                        child_gt = child_sample.get("GT") if child_sample is not None else None
+                        child_carries = child_gt is not None and any(a is not None and a > 0 for a in child_gt)
+
+                        father_sample = record.samples.get(father)
+                        father_gt = father_sample.get("GT") if father_sample is not None else None
+                        father_has = father_gt is not None and any(a is not None and a > 0 for a in father_gt)
+
+                        mother_sample = record.samples.get(mother)
+                        mother_gt = mother_sample.get("GT") if mother_sample is not None else None
+                        mother_has = mother_gt is not None and any(a is not None and a > 0 for a in mother_gt)
+
+                        is_mendelian = father_has or mother_has
+                        n_child = sum(1 for a in child_gt if a is not None and a > 0) if child_gt else 0
+                        n_father = sum(1 for a in father_gt if a is not None and a > 0) if father_gt else 0
+                        n_mother = sum(1 for a in mother_gt if a is not None and a > 0) if mother_gt else 0
+                        n_child_denovo = max(0, n_child - n_father - n_mother)
+                        n_child_inherited = n_child - n_child_denovo
+                        parental_total = n_father + n_mother
+                        # Proportional inheritance formula
+                        fa_transmitted = (n_child_inherited * n_father / parental_total) if parental_total > 0 else 0.0
+                        mo_transmitted = (n_child_inherited * n_mother / parental_total) if parental_total > 0 else 0.0
+
+                        for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
+                            for current_region in regions:
+                                full_key = (column_plotting, current_tr_status, current_region)
+                                if father_has:
+                                    plot_denovo_table['Paternal Total'][child][full_key] += 1
+                                if mother_has:
+                                    plot_denovo_table['Maternal Total'][child][full_key] += 1
+                                if child_carries:
+                                    plot_denovo_table['Proband'][child][full_key] += 1
+                                    if is_mendelian:
+                                        plot_denovo_table['Mendelian'][child][full_key] += 1
+                                    if father_has:
+                                        plot_denovo_table['Paternal'][child][full_key] += 1
+                                    if mother_has:
+                                        plot_denovo_table['Maternal'][child][full_key] += 1
+                                plot_denovo_table['Paternal Total Alleles'][child][full_key] += n_father
+                                plot_denovo_table['Maternal Total Alleles'][child][full_key] += n_mother
+                                plot_denovo_table['Proband Alleles'][child][full_key] += n_child
+                                plot_denovo_table['Mendelian Alleles'][child][full_key] += n_child_inherited
+                                plot_denovo_table['Paternal Alleles'][child][full_key] += fa_transmitted
+                                plot_denovo_table['Maternal Alleles'][child][full_key] += mo_transmitted
 
             if CREATE_LIST:
                 list_id = str(record.id or ".")
@@ -866,28 +899,75 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                     list_id = f"{list_id}.alt_{alt_idx_1based}"
                 writer.writerow([
                     list_id,
-                    column,
+                    column_summary,
                 ] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
 
-write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
-write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
-write_table(ALLELE_OUTPUT, allele_table, integer_output=True, split_by_region=SPLIT_BY_REGION)
+# Write output tables
+write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_SUMMARY)
+write_table(SAMPLE_OUTPUT, sample_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_SUMMARY)
+write_table(ALLELE_OUTPUT, allele_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_SUMMARY)
 write_gene_counts(GENE_OUTPUT, gene_counts)
 write_gene_counts(GENE_SAMPLE_OUTPUT, gene_sample_counts)
 write_gene_counts(GENE_ALLELE_OUTPUT, gene_allele_counts)
 
-if CREATE_SAMPLE_SPECIFIC or CREATE_ALLELE_SPECIFIC:
-    col_keys, col_names = make_sample_specific_columns()
-    if CREATE_SAMPLE_SPECIFIC:
-        write_sample_specific(SAMPLE_SPECIFIC_OUTPUT, sample_specific_table, col_keys, col_names, sample_names)
-    if CREATE_ALLELE_SPECIFIC:
-        write_sample_specific(ALLELE_SPECIFIC_OUTPUT, allele_specific_table, col_keys, col_names, sample_names)
+if CREATE_PLOTTING:
+    write_table(PLOT_SITE_OUTPUT, plot_site_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_PLOTTING)
+    plot_col_keys = []
+    plot_col_names = []
+    for col_bucket in COLUMN_BUCKETS_PLOTTING:
+        plot_col_keys.append((col_bucket, INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL))
+        plot_col_names.append(f'All - {col_bucket}')
+        for tr in ['TR', 'Not TR']:
+            plot_col_keys.append((col_bucket, tr, INTERNAL_TOTAL_LABEL))
+            plot_col_names.append(f'All - {col_bucket} - {tr}')
+        if SPLIT_BY_REGION:
+            for region in REGION_ORDER:
+                plot_col_keys.append((col_bucket, INTERNAL_TOTAL_LABEL, region))
+                plot_col_names.append(f'All - {col_bucket} - {region}')
 
-if not CREATE_SAMPLE_SPECIFIC:
-    with open(SAMPLE_SPECIFIC_OUTPUT, "w") as handle:
+    with open(PLOT_SAMPLE_OUTPUT, 'w', newline='') as handle:
+        writer = csv.writer(handle, delimiter='\t')
+        writer.writerow(['sample_id'] + plot_col_names)
+        for sample_name in plotting_sample_names:
+            writer.writerow([sample_name] + [str(int(plot_sample_table[sample_name].get(k, 0))) for k in plot_col_keys])
+
+    with open(PLOT_ALLELE_OUTPUT, 'w', newline='') as handle:
+        writer = csv.writer(handle, delimiter='\t')
+        writer.writerow(['sample_id'] + plot_col_names)
+        for sample_name in plotting_sample_names:
+            writer.writerow([sample_name] + [str(int(plot_allele_table[sample_name].get(k, 0))) for k in plot_col_keys])
+
+    if trios:
+        denovo_col_keys = []
+        denovo_col_names = []
+        denovo_combos = [(INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, '')]
+        denovo_combos += [('TR', INTERNAL_TOTAL_LABEL, ' - TR'), ('Not TR', INTERNAL_TOTAL_LABEL, ' - Not TR')]
+        if SPLIT_BY_REGION:
+            denovo_combos += [(INTERNAL_TOTAL_LABEL, r, f' - {r}') for r in REGION_ORDER]
+        for col_bucket in COLUMN_BUCKETS_PLOTTING:
+            for tr_stat, reg, suffix in denovo_combos:
+                for count_type in DENOVO_COUNT_TYPES:
+                    denovo_col_keys.append((col_bucket, tr_stat, reg, count_type))
+                    denovo_col_names.append(f'All - {col_bucket}{suffix} ({count_type})')
+
+        def fmt_val(v):
+            return str(int(v)) if v % 1 == 0 else str(round(v, 6))
+
+        with open(DENOVO_OUTPUT, 'w', newline='') as handle:
+            writer = csv.writer(handle, delimiter='\t')
+            writer.writerow(['sample_id'] + denovo_col_names)
+            for proband in all_probands:
+                row = [proband]
+                for col_bucket, tr_stat, reg, count_type in denovo_col_keys:
+                    full_key = (col_bucket, tr_stat, reg)
+                    row.append(fmt_val(plot_denovo_table[count_type][proband].get(full_key, 0)))
+                writer.writerow(row)
+else:
+    with open(PLOT_SITE_OUTPUT, "w") as handle:
         pass
-if not CREATE_ALLELE_SPECIFIC:
-    with open(ALLELE_SPECIFIC_OUTPUT, "w") as handle:
+    with open(PLOT_SAMPLE_OUTPUT, "w") as handle:
+        pass
+    with open(PLOT_ALLELE_OUTPUT, "w") as handle:
         pass
 
 if not CREATE_LIST:
@@ -905,8 +985,10 @@ PYCODE
         File gene_sample_counts_tsv = "~{prefix}.genes.samples.raw.tsv"
         File gene_allele_counts_tsv = "~{prefix}.genes.alleles.raw.tsv"
         File sample_count_file = "~{prefix}.sample_count.txt"
-        File sample_specific_tsv = "~{prefix}.sample_specific.raw.tsv"
-        File allele_specific_tsv = "~{prefix}.allele_specific.raw.tsv"
+        File plotting_site_tsv = "~{prefix}.plotting_sites.raw.tsv"
+        File plotting_sample_tsv = "~{prefix}.plotting_samples.raw.tsv"
+        File plotting_allele_tsv = "~{prefix}.plotting_alleles.raw.tsv"
+        File? plotting_denovo_tsv = "~{prefix}.plotting_denovo.raw.tsv"
     }
 
     RuntimeAttr default_attr = object {
@@ -999,7 +1081,9 @@ group_column_count = 4 if SPLIT_BY_REGION else 3
 for path in COUNT_FILES:
     with open(path, "r", newline="") as handle:
         reader = csv.reader(handle, delimiter="\t")
-        current_header = next(reader)
+        current_header = next(reader, None)
+        if current_header is None:
+            continue
         if header is None:
             header = current_header
         elif current_header != header:
@@ -1257,11 +1341,7 @@ for path in COUNT_FILES:
 
 with open(OUTPUT, "w", newline="") as out_handle:
     writer = csv.writer(out_handle, delimiter="\t")
-    
-    # Write header
     writer.writerow(["gene_name"] + new_columns)
-        
-    # Write data
     for gene in sorted(gene_counts.keys()):
         counts = gene_counts[gene]
         row = [gene] + [str(counts.get(col, 0)) for col in new_columns]
@@ -1278,512 +1358,6 @@ PYCODE
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task FindTrios {
-    input {
-        File vcf
-        File vcf_idx
-        File ped
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<'PYCODE'
-import pysam
-
-vcf = pysam.VariantFile("~{vcf}")
-vcf_samples = set(vcf.header.samples)
-vcf.close()
-
-trios = []
-with open("~{ped}") as f:
-    for line in f:
-        if line.startswith("#"):
-            continue
-        fields = line.strip().split("\t")
-        sample, father, mother = fields[1], fields[2], fields[3]
-        if father != "0" and mother != "0":
-            if sample in vcf_samples and father in vcf_samples and mother in vcf_samples:
-                trios.append((sample, father, mother))
-
-with open("~{prefix}.trio_definitions.tsv", "w") as out:
-    for child, father, mother in trios:
-        out.write(f"{child}\t{father}\t{mother}\n")
-
-all_samples = set()
-for child, father, mother in trios:
-    all_samples.update([child, father, mother])
-
-with open("~{prefix}.trio_sample_ids.txt", "w") as out:
-    for sample in sorted(all_samples):
-        out.write(sample + "\n")
-PYCODE
-    >>>
-
-    output {
-        File trio_definitions = "~{prefix}.trio_definitions.tsv"
-        File trio_sample_ids_file = "~{prefix}.trio_sample_ids.txt"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CountAnnotationShardDenovo {
-    input {
-        File vcf
-        File vcf_idx
-        File trio_definitions
-        Boolean create_variant_attributes
-        Boolean split_by_region
-        Array[Int] length_bins
-        Int max_length
-        Int min_length
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        python3 <<'PYCODE'
-import csv
-import re
-from collections import defaultdict
-import pysam
-
-VCF_PATH = "~{vcf}"
-DENOVO_OUTPUT = "~{prefix}.denovo.raw.tsv"
-CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
-SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
-REGION_ORDER_LOCAL = ["US", "RM", "SD", "SR"]
-MAX_LENGTH = ~{max_length}
-MIN_LENGTH = ~{min_length}
-MAX_LENGTH = MAX_LENGTH if MAX_LENGTH > 0 else None
-MIN_LENGTH = MIN_LENGTH if MIN_LENGTH > 0 else None
-
-LENGTH_BINS = [~{sep=", " length_bins}]
-SIZE_LABELS = [f"{start}-{end - 1}" for start, end in zip(LENGTH_BINS, LENGTH_BINS[1:])] + [f"{LENGTH_BINS[-1]}+"]
-
-COLUMN_BUCKETS = ["SNV"]
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"DEL {_label}")
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"INS {_label}")
-for _label in SIZE_LABELS:
-    COLUMN_BUCKETS.append(f"DUP {_label}")
-COLUMN_BUCKETS += ["TRV", "Other"]
-
-def get_size_bucket(allele_length):
-    size = abs(allele_length)
-    for index, start in enumerate(LENGTH_BINS):
-        if index + 1 == len(LENGTH_BINS) or size < LENGTH_BINS[index + 1]:
-            return SIZE_LABELS[index]
-
-INTERNAL_TOTAL_LABEL = "Total"
-DISPLAY_ALL_LABEL = "All"
-
-CONSEQUENCE_PRIORITY = [
-    ("LoF", {
-        "transcript_ablation", "stop_gained", "frameshift_variant",
-        "splice_donor_variant", "splice_acceptor_variant", "stop_lost",
-        "start_lost", "transcript_amplification", "feature_elongation",
-        "feature_truncation",
-    }),
-    ("Missense", {
-        "missense_variant", "inframe_insertion", "inframe_deletion",
-        "protein_altering_variant",
-    }),
-    ("Synonymous", {
-        "synonymous_variant", "stop_retained_variant", "start_retained_variant",
-        "incomplete_terminal_codon_variant", "coding_sequence_variant",
-    }),
-    ("Intronic", {
-        "intron_variant", "splice_region_variant", "splice_donor_region_variant",
-        "splice_polypyrimidine_tract_variant", "splice_donor_5th_base_variant",
-        "NMD_transcript_variant", "non_coding_transcript_exon_variant",
-        "non_coding_transcript_variant",
-    }),
-    ("Intergenic", {
-        "intergenic_variant", "upstream_gene_variant", "downstream_gene_variant",
-        "regulatory_region_variant", "regulatory_region_ablation",
-        "regulatory_region_amplification", "TF_binding_site_variant",
-        "TFBS_ablation", "TFBS_amplification", "3_prime_UTR_variant",
-        "5_prime_UTR_variant",
-    }),
-]
-
-SVANNOTATE_PRIORITY = [
-    ("LoF", "PREDICTED_LOF"),
-    ("Copy Gain", "PREDICTED_COPY_GAIN"),
-    ("IED", "PREDICTED_INTRAGENIC_EXON_DUP"),
-    ("PED", "PREDICTED_PARTIAL_EXON_DUP"),
-    ("TSSD", "PREDICTED_TSS_DUP"),
-    ("DP", "PREDICTED_DUP_PARTIAL"),
-    ("UTR", "PREDICTED_UTR"),
-]
-
-VEP_LABELS = [label for label, _ in CONSEQUENCE_PRIORITY] + ["Other"]
-SVANNOTATE_LABELS = [label for label, _ in SVANNOTATE_PRIORITY]
-
-ROW_ORDER = [
-    ("", INTERNAL_TOTAL_LABEL),
-    ("", "ME"),
-    ("ME", "ALU"),
-    ("ME", "LINE"),
-    ("ME", "SVA"),
-    ("", "Duplication"),
-    ("Duplication", "Tandem"),
-    ("Duplication", "Interspersed"),
-    ("Duplication", "Complex"),
-    ("", "TR Parsed"),
-    ("", "NUMT"),
-    ("", "VEP"),
-]
-ROW_ORDER += [("VEP", label) for label in VEP_LABELS]
-ROW_ORDER.append(("", "SVAnnotate"))
-ROW_ORDER += [("SVAnnotate", label) for label in SVANNOTATE_LABELS]
-ROW_ORDER.append(("", "Concordance"))
-for missing_label in ["dbSNP Missing", "gnomAD Missing", "dbSNP/gnomAD Missing"]:
-    ROW_ORDER.append(("Concordance", missing_label))
-    ROW_ORDER += [("Concordance", f"{missing_label} + {label} (VEP)") for label in VEP_LABELS]
-    ROW_ORDER += [("Concordance", f"{missing_label} + {label} (SVAnnotate)") for label in SVANNOTATE_LABELS]
-
-def first_value(value):
-    if isinstance(value, (list, tuple)):
-        return value[0] if value else None
-    return value
-
-def get_info_value(record, key):
-    try:
-        return record.info.get(key)
-    except ValueError:
-        return None
-
-def get_string_info(record, key):
-    value = first_value(get_info_value(record, key))
-    return "" if value is None else str(value)
-
-def get_int_info(record, key):
-    value = first_value(get_info_value(record, key))
-    if value is None or value == ".":
-        return None
-    return abs(int(value))
-
-def has_info(record, key):
-    return key in record.info
-
-def get_vep_field_indices(header):
-    if "vep" not in header.info:
-        return {}
-    description = header.info["vep"].description or ""
-    match = re.search(r"Format:\s*([^\"]+)", description)
-    if match is None:
-        return {}
-    fields = [field.strip() for field in match.group(1).strip().rstrip(".").split("|")]
-    return {field: idx for idx, field in enumerate(fields)}
-
-def extract_all_consequences(record, vep_field_indices):
-    consequence_idx = vep_field_indices.get("Consequence")
-    if consequence_idx is None or "vep" not in record.info:
-        return set()
-    annotations = get_info_value(record, "vep")
-    if isinstance(annotations, str):
-        annotations = [annotations]
-    consequences = set()
-    for annotation in annotations:
-        fields = annotation.split("|")
-        if consequence_idx >= len(fields):
-            continue
-        for consequence in fields[consequence_idx].split("&"):
-            consequence = consequence.strip()
-            if consequence:
-                consequences.add(consequence)
-    return consequences
-
-def determine_vep_label(consequences):
-    for label, consequence_terms in CONSEQUENCE_PRIORITY:
-        if consequence_terms & consequences:
-            return label
-    return "Other"
-
-def determine_svannotate_label(record):
-    for label, field in SVANNOTATE_PRIORITY:
-        if has_info(record, field):
-            return label
-    return None
-
-def determine_column(allele_type, allele_length, variant_id):
-    allele_type = (allele_type or "").lower()
-    variant_id = (variant_id or "").upper()
-    if allele_type == "snv": return "SNV"
-    if allele_type == "trv": return "TRV"
-    if allele_length is None: return "Other"
-    size_label = get_size_bucket(allele_length)
-    if "dup" in allele_type: return f"DUP {size_label}"
-    if allele_type == "ins" or "INS" in variant_id: return f"INS {size_label}"
-    if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
-    return "Other"
-
-def determine_row_weights(record, allele_type_value, vep_field_indices):
-    allele_type = (allele_type_value or "").lower()
-    consequences = extract_all_consequences(record, vep_field_indices)
-    vep_label = determine_vep_label(consequences)
-    svannotate_label = determine_svannotate_label(record)
-
-    row_weights = {row: 0 for row in ROW_ORDER}
-    row_weights[("", INTERNAL_TOTAL_LABEL)] = 1
-
-    is_alu = "alu" in allele_type
-    is_line = "line" in allele_type
-    is_sva = "sva" in allele_type
-    if is_alu or is_line or is_sva: row_weights[("", "ME")] = 1
-    if is_alu: row_weights[("ME", "ALU")] = 1
-    if is_line: row_weights[("ME", "LINE")] = 1
-    if is_sva: row_weights[("ME", "SVA")] = 1
-
-    is_dup_interspersed = "dup_interspersed" in allele_type
-    is_dup_complex = "complex_dup" in allele_type
-    is_dup_tandem = "dup" in allele_type and not is_dup_interspersed and not is_dup_complex
-    is_numt = "numt" in allele_type
-    is_tr_parsed = has_info(record, "TR_PARSED")
-
-    if is_dup_tandem or is_dup_interspersed or is_dup_complex:
-        row_weights[("", "Duplication")] = 1
-    if is_dup_tandem: row_weights[("Duplication", "Tandem")] = 1
-    if is_dup_interspersed: row_weights[("Duplication", "Interspersed")] = 1
-    if is_dup_complex: row_weights[("Duplication", "Complex")] = 1
-    if is_numt: row_weights[("", "NUMT")] = 1
-    if is_tr_parsed: row_weights[("", "TR Parsed")] = 1
-
-    row_weights[("", "VEP")] = 1
-    row_weights[("VEP", vep_label)] = 1
-
-    if svannotate_label is not None:
-        row_weights[("", "SVAnnotate")] = 1
-        row_weights[("SVAnnotate", svannotate_label)] = 1
-
-    is_dbsnp = has_info(record, "dbSNP_ID") or has_info(record, "dbGaP_ID")
-    is_gnomad_matched = has_info(record, "gnomAD_V4_match_ID")
-
-    row_weights[("", "Concordance")] = 1
-    if not is_dbsnp:
-        row_weights[("Concordance", "dbSNP Missing")] = 1
-        row_weights[("Concordance", f"dbSNP Missing + {vep_label} (VEP)")] = 1
-        if svannotate_label is not None:
-            row_weights[("Concordance", f"dbSNP Missing + {svannotate_label} (SVAnnotate)")] = 1
-
-    if not is_gnomad_matched:
-        row_weights[("Concordance", "gnomAD Missing")] = 1
-        row_weights[("Concordance", f"gnomAD Missing + {vep_label} (VEP)")] = 1
-        if svannotate_label is not None:
-            row_weights[("Concordance", f"gnomAD Missing + {svannotate_label} (SVAnnotate)")] = 1
-
-    if not is_dbsnp and not is_gnomad_matched:
-        row_weights[("Concordance", "dbSNP/gnomAD Missing")] = 1
-        row_weights[("Concordance", f"dbSNP/gnomAD Missing + {vep_label} (VEP)")] = 1
-        if svannotate_label is not None:
-            row_weights[("Concordance", f"dbSNP/gnomAD Missing + {svannotate_label} (SVAnnotate)")] = 1
-
-    return {row_key: weight for row_key, weight in row_weights.items() if weight > 0}
-
-def compute_allele_attributes(ref, alt):
-    ref_length = len(ref)
-    alt_length = len(alt)
-    if alt_length > ref_length:
-        return "ins", alt_length - ref_length
-    if alt_length < ref_length:
-        return "del", ref_length - alt_length
-    return "snv", 0
-
-trios = []
-with open("~{trio_definitions}") as f:
-    for line in f:
-        fields = line.strip().split("\t")
-        trios.append((fields[0], fields[1], fields[2]))
-
-all_probands = sorted(set(child for child, _, _ in trios))
-
-SITE_COUNT_TYPES = ['Proband', 'Mendelian', 'Paternal', 'Maternal', 'Paternal Total', 'Maternal Total']
-ALLELE_COUNT_TYPES = ['Proband Alleles', 'Mendelian Alleles', 'Paternal Alleles', 'Maternal Alleles',
-                      'Paternal Total Alleles', 'Maternal Total Alleles']
-COUNT_TYPES = SITE_COUNT_TYPES + ALLELE_COUNT_TYPES
-tables = {ct: {s: defaultdict(int) for s in all_probands} for ct in SITE_COUNT_TYPES}
-tables.update({ct: {s: defaultdict(float) for s in all_probands} for ct in ALLELE_COUNT_TYPES})
-
-vcf_in = pysam.VariantFile(VCF_PATH)
-vep_field_indices = get_vep_field_indices(vcf_in.header)
-
-for record in vcf_in:
-    if CREATE_VARIANT_ATTRIBUTES:
-        alts = list(record.alts or [])
-        if not alts:
-            continue
-        iterations = []
-        for idx, alt in enumerate(alts):
-            a_type, a_length = compute_allele_attributes(record.ref, alt)
-            iterations.append((a_type, a_length, idx + 1))
-    else:
-        a_type = get_string_info(record, "allele_type")
-        a_length = get_int_info(record, "allele_length")
-        iterations = [(a_type, a_length, None)]
-
-    for allele_type_val, allele_length_val, alt_idx_1based in iterations:
-        if MAX_LENGTH is not None and (allele_length_val is None or allele_length_val > MAX_LENGTH):
-            continue
-        if MIN_LENGTH is not None and (allele_length_val is None or allele_length_val < MIN_LENGTH):
-            continue
-
-        column = determine_column(allele_type_val, allele_length_val, record.id)
-        row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
-        tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
-        regions = [INTERNAL_TOTAL_LABEL]
-        if SPLIT_BY_REGION:
-            region_val = get_string_info(record, "REGION")
-            if region_val in REGION_ORDER_LOCAL:
-                regions.append(region_val)
-
-        for child, father, mother in trios:
-            child_sample = record.samples.get(child)
-            child_gt = child_sample.get("GT") if child_sample is not None else None
-            child_carries = False
-            if child_gt is not None:
-                if alt_idx_1based is not None:
-                    child_carries = any(a == alt_idx_1based for a in child_gt)
-                else:
-                    child_carries = any(a is not None and a > 0 for a in child_gt)
-
-            father_has = False
-            father_sample = record.samples.get(father)
-            father_gt = father_sample.get("GT") if father_sample is not None else None
-            if father_gt is not None:
-                if alt_idx_1based is not None:
-                    father_has = any(a == alt_idx_1based for a in father_gt)
-                else:
-                    father_has = any(a is not None and a > 0 for a in father_gt)
-
-            mother_has = False
-            mother_sample = record.samples.get(mother)
-            mother_gt = mother_sample.get("GT") if mother_sample is not None else None
-            if mother_gt is not None:
-                if alt_idx_1based is not None:
-                    mother_has = any(a == alt_idx_1based for a in mother_gt)
-                else:
-                    mother_has = any(a is not None and a > 0 for a in mother_gt)
-
-            is_mendelian = father_has or mother_has
-
-            # Allele counts using gatk-sv proportional inheritance formula
-            if alt_idx_1based is not None:
-                n_child = sum(1 for a in child_gt if a == alt_idx_1based) if child_gt else 0
-                n_father = sum(1 for a in father_gt if a == alt_idx_1based) if father_gt else 0
-                n_mother = sum(1 for a in mother_gt if a == alt_idx_1based) if mother_gt else 0
-            else:
-                n_child = sum(1 for a in child_gt if a is not None and a > 0) if child_gt else 0
-                n_father = sum(1 for a in father_gt if a is not None and a > 0) if father_gt else 0
-                n_mother = sum(1 for a in mother_gt if a is not None and a > 0) if mother_gt else 0
-            n_child_denovo = max(0, n_child - n_father - n_mother)
-            n_child_inherited = n_child - n_child_denovo
-            parental_total = n_father + n_mother
-            fa_transmitted = (n_child_inherited * n_father / parental_total) if parental_total > 0 else 0.0
-            mo_transmitted = (n_child_inherited * n_mother / parental_total) if parental_total > 0 else 0.0
-
-            for row_key in row_weights:
-                for tr_stat in [INTERNAL_TOTAL_LABEL, tr_status]:
-                    for reg in regions:
-                        full_key = (row_key, column, tr_stat, reg)
-                        if father_has:
-                            tables['Paternal Total'][child][full_key] += 1
-                        if mother_has:
-                            tables['Maternal Total'][child][full_key] += 1
-                        if child_carries:
-                            tables['Proband'][child][full_key] += 1
-                            if is_mendelian:
-                                tables['Mendelian'][child][full_key] += 1
-                            if father_has:
-                                tables['Paternal'][child][full_key] += 1
-                            if mother_has:
-                                tables['Maternal'][child][full_key] += 1
-                        tables['Paternal Total Alleles'][child][full_key] += n_father
-                        tables['Maternal Total Alleles'][child][full_key] += n_mother
-                        tables['Proband Alleles'][child][full_key] += n_child
-                        tables['Mendelian Alleles'][child][full_key] += n_child_inherited
-                        tables['Paternal Alleles'][child][full_key] += fa_transmitted
-                        tables['Maternal Alleles'][child][full_key] += mo_transmitted
-
-col_keys = []
-col_names = []
-for col_bucket in COLUMN_BUCKETS:
-    for row_key in ROW_ORDER:
-        group, ann = row_key
-        label = DISPLAY_ALL_LABEL if ann == INTERNAL_TOTAL_LABEL else ann
-        annotation_label = f"{group}:{label}" if group else label
-        base_name = f"{annotation_label} - {col_bucket}"
-        combos = [(INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, "")]
-        combos += [("TR", INTERNAL_TOTAL_LABEL, " - TR"), ("Not TR", INTERNAL_TOTAL_LABEL, " - Not TR")]
-        if SPLIT_BY_REGION:
-            combos += [(INTERNAL_TOTAL_LABEL, r, f" - {r}") for r in REGION_ORDER_LOCAL]
-        for tr_stat, reg, suffix in combos:
-            for count_type in COUNT_TYPES:
-                col_keys.append((row_key, col_bucket, tr_stat, reg, count_type))
-                col_names.append(f"{base_name}{suffix} ({count_type})")
-
-with open(DENOVO_OUTPUT, "w", newline="") as handle:
-    writer = csv.writer(handle, delimiter="\t")
-    writer.writerow(["sample_id"] + col_names)
-    for proband in all_probands:
-        row = [proband]
-        for (row_key, col_bucket, tr_stat, reg, count_type) in col_keys:
-            full_key = (row_key, col_bucket, tr_stat, reg)
-            row.append(str(tables[count_type][proband].get(full_key, 0)))
-        writer.writerow(row)
-PYCODE
-    >>>
-
-    output {
-        File denovo_tsv = "~{prefix}.denovo.raw.tsv"
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

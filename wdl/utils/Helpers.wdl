@@ -2690,7 +2690,6 @@ task SubsetVcfByArgs {
         String? include_args
         String? exclude_args
         String? extra_args
-        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -2704,7 +2703,6 @@ task SubsetVcfByArgs {
             ~{if defined(include_args) then "-i '~{include_args}'" else ""} \
             ~{if defined(exclude_args) then "-e '~{exclude_args}'" else ""} \
             ~{if defined(extra_args) then extra_args else ""} \
-            ~{if sites_only then "-G" else ""} \
             -Oz -o ~{prefix}.vcf.gz
 
         tabix -p vcf "~{prefix}.vcf.gz"
@@ -2938,7 +2936,6 @@ task SubsetVcfToRegionStreaming {
         File vcf
         File vcf_idx
         String region
-        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -2958,7 +2955,6 @@ task SubsetVcfToRegionStreaming {
 
             if bcftools view \
                     -r ~{region} \
-                    ~{if sites_only then "-G" else ""} \
                     --threads $(nproc) \
                     ~{vcf} \
                     -Oz -o ~{prefix}.vcf.gz; then
@@ -3114,7 +3110,6 @@ task ShardVcfByRecords {
         File vcf
         File vcf_idx
         Int records_per_shard
-        Boolean sites_only = false
         Boolean use_ssd = false
         String prefix
         String docker
@@ -3126,20 +3121,12 @@ task ShardVcfByRecords {
 
         mkdir scatter_output
 
-        if [[ "~{sites_only}" == "true" ]]; then
-            bcftools view -G ~{vcf} -Oz -o scatter_input.vcf.gz
-            tabix -p vcf scatter_input.vcf.gz
-            SCATTER_INPUT=scatter_input.vcf.gz
-        else
-            SCATTER_INPUT=~{vcf}
-        fi
-
         bcftools +scatter \
             --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -n ~{records_per_shard} \
             --prefix ~{prefix}. \
             -Oz -o scatter_output \
-            "$SCATTER_INPUT"
+            ~{vcf}
 
         mkdir shards
         
@@ -3211,6 +3198,76 @@ task StripInfoFields {
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
         preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task FindTrios {
+    input {
+        File vcf
+        File vcf_idx
+        File ped
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'PYCODE'
+import pysam
+
+vcf = pysam.VariantFile("~{vcf}")
+vcf_samples = set(vcf.header.samples)
+vcf.close()
+
+trios = []
+with open("~{ped}") as f:
+    for line in f:
+        if line.startswith("#"):
+            continue
+        fields = line.strip().split("\t")
+        sample, father, mother = fields[1], fields[2], fields[3]
+        if father != "0" and mother != "0":
+            if sample in vcf_samples and father in vcf_samples and mother in vcf_samples:
+                trios.append((sample, father, mother))
+
+with open("~{prefix}.trio_definitions.tsv", "w") as out:
+    for child, father, mother in trios:
+        out.write(f"{child}\t{father}\t{mother}\n")
+
+all_samples = set()
+for child, father, mother in trios:
+    all_samples.update([child, father, mother])
+
+with open("~{prefix}.trio_sample_ids.txt", "w") as out:
+    for sample in sorted(all_samples):
+        out.write(sample + "\n")
+PYCODE
+    >>>
+
+    output {
+        File trio_definitions = "~{prefix}.trio_definitions.tsv"
+        File trio_sample_ids_file = "~{prefix}.trio_sample_ids.txt"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
