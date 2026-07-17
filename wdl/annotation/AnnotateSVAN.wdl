@@ -332,7 +332,7 @@ task GenerateTRF {
 
     RuntimeAttr default_attr = object {
         cpu_cores: 2,
-        mem_gb: 16,
+        mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) * 3 + 20,
         boot_disk_gb: 10,
         preemptible_tries: 2,
