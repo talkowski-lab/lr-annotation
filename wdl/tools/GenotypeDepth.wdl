@@ -182,7 +182,7 @@ task GenotypeSVs {
       -O '~{output_prefix}.vcf.gz' \
       ~{"-L " + contig} \
       --median-coverage '~{median_coverage}' \
-      --rd-file local.pe.txt.gz \
+      --rd-file local.rd.txt.gz \
       --sequence-dictionary '~{reference_dict}' \
       --ploidy-table '~{ploidy_table}' \
       --rd-table '~{rd_table}' \
