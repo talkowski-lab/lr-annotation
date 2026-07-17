@@ -12,6 +12,7 @@ workflow CountAnnotations {
         Int? records_per_shard
         Array[Int] length_bins_summary = [0, 1, 50, 500]
         Array[Int] length_bins_plotting = [0, 1, 50, 100, 500, 5000, 50000]
+        Array[Float] af_bins_plotting = [0.0, 0.01, 0.05, 0.1, 0.5]
 
         Boolean create_per_sample = false
         Boolean create_per_allele = false
@@ -105,6 +106,7 @@ workflow CountAnnotations {
                     trio_definitions = FindTrios.trio_definitions,
                     length_bins_summary = length_bins_summary,
                     length_bins_plotting = length_bins_plotting,
+                    af_bins_plotting = af_bins_plotting,
                     max_length = max_length,
                     min_length = min_length,
                     prefix = "~{prefix}.input_~{i}.shard_~{j}",
@@ -277,6 +279,7 @@ task CountAnnotationShard {
         File? trio_definitions
         Array[Int] length_bins_summary
         Array[Int] length_bins_plotting
+        Array[Float] af_bins_plotting
         Int max_length
         Int min_length
         String prefix
@@ -345,6 +348,18 @@ for _label in SIZE_LABELS_PLOTTING:
 for _label in SIZE_LABELS_PLOTTING:
     COLUMN_BUCKETS_PLOTTING.append(f"DUP {_label}")
 COLUMN_BUCKETS_PLOTTING += ["TRV", "Other"]
+
+AF_BINS_PLOTTING = [~{sep=", " af_bins_plotting}]
+if len(AF_BINS_PLOTTING) > 1:
+    AF_LABELS_PLOTTING = [f"{AF_BINS_PLOTTING[i]}-{AF_BINS_PLOTTING[i + 1]}" for i in range(len(AF_BINS_PLOTTING) - 1)]
+    AF_LABELS_PLOTTING.append(f">{AF_BINS_PLOTTING[-1]}")
+else:
+    AF_LABELS_PLOTTING = []
+
+COLUMN_BUCKETS_PLOTTING_AF = []
+for _type in ["SNV", "DEL", "INS", "DUP", "TRV", "Other"]:
+    for _af_label in AF_LABELS_PLOTTING:
+        COLUMN_BUCKETS_PLOTTING_AF.append(f"{_type} [{_af_label}]")
 
 def get_size_bucket(allele_length, length_bins, size_labels):
     size = abs(allele_length)
@@ -549,6 +564,35 @@ def determine_column(allele_type, allele_length, variant_id, length_bins, size_l
     if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
     return "Other"
 
+def get_af_bucket(af_value, af_bins, af_labels):
+    if not af_labels or af_value is None:
+        return None
+    for i, label in enumerate(af_labels):
+        if i == 0:
+            if af_value <= af_bins[1]:
+                return label
+        elif i < len(af_bins) - 1:
+            if af_bins[i] < af_value <= af_bins[i + 1]:
+                return label
+        else:
+            if af_value > af_bins[-1]:
+                return label
+    return None
+
+def determine_af_column(allele_type, af_value, af_bins, af_labels):
+    if not af_labels or af_value is None:
+        return None
+    allele_type = (allele_type or "").lower()
+    af_label = get_af_bucket(af_value, af_bins, af_labels)
+    if af_label is None:
+        return None
+    if allele_type == "snv": return f"SNV [{af_label}]"
+    if allele_type == "trv": return f"TRV [{af_label}]"
+    if "dup" in allele_type: return f"DUP [{af_label}]"
+    if "ins" in allele_type: return f"INS [{af_label}]"
+    if "del" in allele_type or allele_type == "numt": return f"DEL [{af_label}]"
+    return f"Other [{af_label}]"
+
 def determine_row_weights(record, allele_type_value, vep_field_indices):
     allele_type = (allele_type_value or "").lower()
     consequences = extract_all_consequences(record, vep_field_indices)
@@ -724,7 +768,7 @@ if CREATE_PLOTTING and TRIO_DEF_PATH:
 
 if CREATE_PLOTTING:
     plotting_sample_names = list(vcf_in.header.samples)
-    plot_site_table = defaultdict(lambda: {col: 0 for col in COLUMN_BUCKETS_PLOTTING})
+    plot_site_table = defaultdict(lambda: {col: 0 for col in COLUMN_BUCKETS_PLOTTING + COLUMN_BUCKETS_PLOTTING_AF})
     plot_sample_table = {s: defaultdict(int) for s in plotting_sample_names}
     plot_allele_table = {s: defaultdict(int) for s in plotting_sample_names}
 
@@ -831,6 +875,10 @@ with open(VARIANT_LIST_OUTPUT, 'w', newline='') as vl_handle:
                         else:
                             plot_site_key = (INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, current_tr_status)
                         plot_site_table[plot_site_key][column_plotting] += 1
+                        if COLUMN_BUCKETS_PLOTTING_AF:
+                            af_col = determine_af_column(a_type, af, AF_BINS_PLOTTING, AF_LABELS_PLOTTING)
+                            if af_col is not None:
+                                plot_site_table[plot_site_key][af_col] += 1
 
                 # Update per-sample plotting tables and collect genotype counts
                 vl_n_ref = vl_n_het = vl_n_hom = vl_n_miss = 0
@@ -853,6 +901,12 @@ with open(VARIANT_LIST_OUTPUT, 'w', newline='') as vl_handle:
                             skey = (column_plotting, current_tr_status, current_region)
                             plot_sample_table[sample_name][skey] += 1
                             plot_allele_table[sample_name][skey] += n_alleles
+                            if COLUMN_BUCKETS_PLOTTING_AF:
+                                af_col = determine_af_column(a_type, af, AF_BINS_PLOTTING, AF_LABELS_PLOTTING)
+                                if af_col is not None:
+                                    af_skey = (af_col, current_tr_status, current_region)
+                                    plot_sample_table[sample_name][af_skey] += 1
+                                    plot_allele_table[sample_name][af_skey] += n_alleles
 
                 # Write variant list row(s)
                 rec_region = get_string_info(record, "REGION") if SPLIT_BY_REGION else ""
@@ -936,10 +990,10 @@ write_gene_counts(GENE_SAMPLE_OUTPUT, gene_sample_counts)
 write_gene_counts(GENE_ALLELE_OUTPUT, gene_allele_counts)
 
 if CREATE_PLOTTING:
-    write_table(PLOT_SITE_OUTPUT, plot_site_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_PLOTTING)
+    write_table(PLOT_SITE_OUTPUT, plot_site_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_PLOTTING + COLUMN_BUCKETS_PLOTTING_AF)
     plot_col_keys = []
     plot_col_names = []
-    for col_bucket in COLUMN_BUCKETS_PLOTTING:
+    for col_bucket in COLUMN_BUCKETS_PLOTTING + COLUMN_BUCKETS_PLOTTING_AF:
         plot_col_keys.append((col_bucket, INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL))
         plot_col_names.append(f'All - {col_bucket}')
         for tr in ['TR', 'Not TR']:
