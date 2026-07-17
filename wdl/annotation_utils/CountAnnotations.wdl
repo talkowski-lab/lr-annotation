@@ -21,7 +21,6 @@ workflow CountAnnotations {
 
         Boolean use_ssd = false
         Boolean split_by_region = false
-        Boolean create_variant_attributes = false
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
@@ -103,7 +102,6 @@ workflow CountAnnotations {
                     create_list = create_list,
                     create_plotting = create_plotting,
                     split_by_region = split_by_region,
-                    create_variant_attributes = create_variant_attributes,
                     trio_definitions = FindTrios.trio_definitions,
                     length_bins_summary = length_bins_summary,
                     length_bins_plotting = length_bins_plotting,
@@ -117,6 +115,7 @@ workflow CountAnnotations {
     }
 
     Array[File] site_count_tables = flatten(CountAnnotationShard.site_counts_tsv)
+    Array[File] variant_list_tables = flatten(CountAnnotationShard.plotting_variant_list_tsv)
     Array[File] sample_count_tables = flatten(CountAnnotationShard.sample_counts_tsv)
     Array[File] allele_count_tables = flatten(CountAnnotationShard.allele_counts_tsv)
     Array[File] list_tables = flatten(CountAnnotationShard.list_tsv)
@@ -239,6 +238,14 @@ workflow CountAnnotations {
                     runtime_attr_override = runtime_attr_merge
             }
         }
+
+        call MergeVariantListTables {
+            input:
+                variant_list_tsvs = variant_list_tables,
+                prefix = "~{prefix}.plotting_variant_list",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_merge
+        }
     }
 
     output {
@@ -254,6 +261,7 @@ workflow CountAnnotations {
         File? plotting_samples_tsv = MergePlottingSamples.merged_tsv
         File? plotting_alleles_tsv = MergePlottingAlleles.merged_tsv
         File? plotting_denovo_tsv = MergePlottingDenovo.merged_tsv
+        File? plotting_variant_list_tsv = MergeVariantListTables.merged_tsv
     }
 }
 
@@ -266,7 +274,6 @@ task CountAnnotationShard {
         Boolean create_list
         Boolean create_plotting
         Boolean split_by_region
-        Boolean create_variant_attributes
         File? trio_definitions
         Array[Int] length_bins_summary
         Array[Int] length_bins_plotting
@@ -308,7 +315,7 @@ CREATE_PER_ALLELE = "~{create_per_allele}".lower() == "true"
 CREATE_LIST = "~{create_list}".lower() == "true"
 CREATE_PLOTTING = "~{create_plotting}".lower() == "true"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
-CREATE_VARIANT_ATTRIBUTES = "~{create_variant_attributes}".lower() == "true"
+VARIANT_LIST_OUTPUT = "~{prefix}.plotting_variant_list.raw.tsv"
 TRIO_DEF_PATH = "~{trio_definitions}"
 MAX_LENGTH = ~{max_length}
 MIN_LENGTH = ~{min_length}
@@ -615,25 +622,28 @@ def get_genotype_weights(record):
         if alt_alleles > 0: carrier_count += 1
     return carrier_count, alt_allele_count
 
-def get_genotype_weights_for_alt(record, alt_idx_1based):
-    carrier_count = 0
-    alt_allele_count = 0
-    for sample in record.samples.values():
-        genotype = sample.get("GT")
-        if genotype is None: continue
-        n_matching = sum(1 for allele in genotype if allele == alt_idx_1based)
-        alt_allele_count += n_matching
-        if n_matching > 0: carrier_count += 1
-    return carrier_count, alt_allele_count
+def trim_alleles(ref, alt):
+    i = 0
+    while i < min(len(ref), len(alt)) and ref[i] == alt[i]:
+        i += 1
+    ref, alt = ref[i:], alt[i:]
+    j = 0
+    while j < min(len(ref), len(alt)) and ref[-1-j] == alt[-1-j]:
+        j += 1
+    return (ref[:-j], alt[:-j]) if j else (ref, alt)
 
-def compute_allele_attributes(ref, alt):
-    ref_length = len(ref)
-    alt_length = len(alt)
-    if alt_length > ref_length:
-        return "ins", alt_length - ref_length
-    if alt_length < ref_length:
-        return "del", ref_length - alt_length
-    return "snv", 0
+def count_genotypes_for_alt(record, alt_idx_1based):
+    n_ref = n_het = n_hom = n_missing = 0
+    for s in record.samples.values():
+        gt = s.get("GT")
+        if gt is None or all(a is None for a in gt):
+            n_missing += 1
+            continue
+        n = sum(1 for a in gt if a == alt_idx_1based)
+        if n == 0: n_ref += 1
+        elif n == 1: n_het += 1
+        else: n_hom += 1
+    return n_ref, n_het, n_hom, n_missing
 
 def format_list_column(row_key):
     annotation_group, annotation = row_key
@@ -726,33 +736,27 @@ if CREATE_PLOTTING:
         plot_denovo_table = {ct: {s: defaultdict(float) for s in all_probands} for ct in DENOVO_COUNT_TYPES}
 
 # Populate outputs
-with open(LIST_OUTPUT, "w", newline="") as handle:
-    writer = csv.writer(handle, delimiter="\t")
-    writer.writerow(["variant_id", "classification"] + get_list_columns())
+with open(VARIANT_LIST_OUTPUT, 'w', newline='') as vl_handle:
+    vl_writer = csv.writer(vl_handle, delimiter='\t')
+    if CREATE_PLOTTING:
+        vl_writer.writerow(['allele_class', 'svlen', 'af', 'n_ref', 'n_het', 'n_hom', 'n_missing', 'region'])
 
-    for record in vcf_in:
-        if CREATE_VARIANT_ATTRIBUTES:
-            alts = list(record.alts or [])
-            if not alts:
-                continue
-            iterations = []
-            for idx, alt in enumerate(alts):
-                a_type, a_length = compute_allele_attributes(record.ref, alt)
-                iterations.append((a_type, a_length, idx + 1))
-        else:
+    with open(LIST_OUTPUT, "w", newline="") as handle:
+        writer = csv.writer(handle, delimiter="\t")
+        writer.writerow(["variant_id", "classification"] + get_list_columns())
+
+        for record in vcf_in:
             a_type = get_string_info(record, "allele_type")
             a_length = get_int_info(record, "allele_length")
-            iterations = [(a_type, a_length, None)]
 
-        for allele_type_val, allele_length_val, alt_idx_1based in iterations:
-            if MAX_LENGTH is not None and (allele_length_val is None or allele_length_val > MAX_LENGTH):
+            if MAX_LENGTH is not None and (a_length is None or a_length > MAX_LENGTH):
                 continue
-            if MIN_LENGTH is not None and (allele_length_val is None or allele_length_val < MIN_LENGTH):
+            if MIN_LENGTH is not None and (a_length is None or a_length < MIN_LENGTH):
                 continue
 
-            column_summary = determine_column(allele_type_val, allele_length_val, record.id, LENGTH_BINS_SUMMARY, SIZE_LABELS_SUMMARY)
-            column_plotting = determine_column(allele_type_val, allele_length_val, record.id, LENGTH_BINS_PLOTTING, SIZE_LABELS_PLOTTING) if CREATE_PLOTTING else None
-            row_weights = determine_row_weights(record, allele_type_val, vep_field_indices)
+            column_summary = determine_column(a_type, a_length, record.id, LENGTH_BINS_SUMMARY, SIZE_LABELS_SUMMARY)
+            column_plotting = determine_column(a_type, a_length, record.id, LENGTH_BINS_PLOTTING, SIZE_LABELS_PLOTTING) if CREATE_PLOTTING else None
+            row_weights = determine_row_weights(record, a_type, vep_field_indices)
 
             tr_status = "TR" if has_info(record, "TR_ENVELOPED") else "Not TR"
             regions = [INTERNAL_TOTAL_LABEL]
@@ -762,17 +766,14 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                     regions.append(region)
 
             if CREATE_PER_SAMPLE or CREATE_PER_ALLELE:
-                if alt_idx_1based is not None:
-                    carrier_count, alt_allele_count = get_genotype_weights_for_alt(record, alt_idx_1based)
-                else:
-                    carrier_count, alt_allele_count = get_genotype_weights(record)
+                carrier_count, alt_allele_count = get_genotype_weights(record)
             else:
                 carrier_count, alt_allele_count = 0, 0
 
             af = get_float_info(record, "AF")
             ac = get_int_info(record, "AC")
 
-            is_large = allele_length_val is not None and allele_length_val > 50000
+            is_large = a_length is not None and a_length > 50000
 
             buckets = ["all"]
             if is_large:
@@ -831,12 +832,20 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                             plot_site_key = (INTERNAL_TOTAL_LABEL, INTERNAL_TOTAL_LABEL, current_tr_status)
                         plot_site_table[plot_site_key][column_plotting] += 1
 
-                # Update per-sample plotting tables
+                # Update per-sample plotting tables and collect genotype counts
+                vl_n_ref = vl_n_het = vl_n_hom = vl_n_miss = 0
                 for sample_name, sample_data in record.samples.items():
                     genotype = sample_data.get("GT")
-                    if genotype is None:
+                    if genotype is None or all(a is None for a in genotype):
+                        vl_n_miss += 1
                         continue
                     n_alleles = sum(1 for a in genotype if a is not None and a > 0)
+                    if n_alleles == 0:
+                        vl_n_ref += 1
+                    elif n_alleles == 1:
+                        vl_n_het += 1
+                    else:
+                        vl_n_hom += 1
                     if n_alleles == 0:
                         continue
                     for current_tr_status in [INTERNAL_TOTAL_LABEL, tr_status]:
@@ -844,6 +853,28 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                             skey = (column_plotting, current_tr_status, current_region)
                             plot_sample_table[sample_name][skey] += 1
                             plot_allele_table[sample_name][skey] += n_alleles
+
+                # Write variant list row(s)
+                rec_region = get_string_info(record, "REGION") if SPLIT_BY_REGION else ""
+                if a_type.lower() == 'trv':
+                    for alt_idx, alt in enumerate(record.alts or []):
+                        tref, talt = trim_alleles(record.ref, alt)
+                        net = len(talt) - len(tref)
+                        svlen = abs(net)
+                        cls = "TR_SNV" if net == 0 else ("TR_INS" if net > 0 else "TR_DEL")
+                        n_r, n_h, n_ho, n_m = count_genotypes_for_alt(record, alt_idx + 1)
+                        n_geno = n_r + n_h + n_ho
+                        af_info = get_info_value(record, "AF")
+                        if isinstance(af_info, (list, tuple)) and alt_idx < len(af_info):
+                            af_v = af_info[alt_idx]
+                        elif n_geno > 0:
+                            af_v = (n_h + 2 * n_ho) / (n_geno * 2)
+                        else:
+                            af_v = ""
+                        vl_writer.writerow([cls, svlen, af_v, n_r, n_h, n_ho, n_m, rec_region])
+                else:
+                    af_v = get_float_info(record, "AF")
+                    vl_writer.writerow([a_type, a_length or 0, af_v if af_v is not None else "", vl_n_ref, vl_n_het, vl_n_hom, vl_n_miss, rec_region])
 
                 # Update plotting denovo table
                 if trios:
@@ -894,13 +925,7 @@ with open(LIST_OUTPUT, "w", newline="") as handle:
                                 plot_denovo_table['Maternal Alleles'][child][full_key] += mo_transmitted
 
             if CREATE_LIST:
-                list_id = str(record.id or ".")
-                if CREATE_VARIANT_ATTRIBUTES and len(record.alts or []) > 1:
-                    list_id = f"{list_id}.alt_{alt_idx_1based}"
-                writer.writerow([
-                    list_id,
-                    column_summary,
-                ] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
+                writer.writerow([str(record.id or "."), column_summary] + ["1" if row_key in row_weights else "0" for row_key in ROW_ORDER])
 
 # Write output tables
 write_table(SITE_OUTPUT, site_table, integer_output=True, split_by_region=SPLIT_BY_REGION, column_buckets=COLUMN_BUCKETS_SUMMARY)
@@ -989,6 +1014,7 @@ PYCODE
         File plotting_sample_tsv = "~{prefix}.plotting_samples.raw.tsv"
         File plotting_allele_tsv = "~{prefix}.plotting_alleles.raw.tsv"
         File? plotting_denovo_tsv = "~{prefix}.plotting_denovo.raw.tsv"
+        File plotting_variant_list_tsv = "~{prefix}.plotting_variant_list.raw.tsv"
     }
 
     RuntimeAttr default_attr = object {
@@ -1358,6 +1384,64 @@ PYCODE
         cpu_cores: 1,
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 2,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task MergeVariantListTables {
+    input {
+        Array[File] variant_list_tsvs
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'PYCODE'
+import csv
+
+INPUT_FILES = "~{sep=',' variant_list_tsvs}".split(",")
+OUTPUT = "~{prefix}.tsv"
+
+header = None
+with open(OUTPUT, "w", newline="") as out_handle:
+    writer = csv.writer(out_handle, delimiter="\t")
+    for path in INPUT_FILES:
+        with open(path, "r", newline="") as handle:
+            reader = csv.reader(handle, delimiter="\t")
+            current_header = next(reader, None)
+            if current_header is None:
+                continue
+            if header is None:
+                header = current_header
+                writer.writerow(header)
+            for row in reader:
+                writer.writerow(row)
+PYCODE
+    >>>
+
+    output {
+        File merged_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 4 * ceil(size(variant_list_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
         max_retries: 0

@@ -26,6 +26,7 @@ workflow TruvariMatch {
         RuntimeAttr? runtime_attr_run_truvari_07
         RuntimeAttr? runtime_attr_run_truvari_05
         RuntimeAttr? runtime_attr_concat_matched
+        RuntimeAttr? runtime_attr_concat_matched_truth
     }
 
     call Helpers.SubsetVcfByLength as SubsetEval {
@@ -112,8 +113,21 @@ workflow TruvariMatch {
             runtime_attr_override = runtime_attr_concat_matched
     }
 
+    call Helpers.ConcatVcfs as ConcatMatchedTruth {
+        input:
+            vcfs = [RunTruvari_09.matched_truth_vcf, RunTruvari_07.matched_truth_vcf, RunTruvari_05.matched_truth_vcf],
+            vcf_idxs = [RunTruvari_09.matched_truth_vcf_idx, RunTruvari_07.matched_truth_vcf_idx, RunTruvari_05.matched_truth_vcf_idx],
+            allow_overlaps = true,
+            naive = false,
+            prefix = "~{prefix}.matched_truth",
+            docker = utils_docker,
+            runtime_attr_override = runtime_attr_concat_matched_truth
+    }
+
     output {
         File annotation_tsv = ConcatAnnotationTsvs.concatenated_tsv
+        File matched_truth_vcf = ConcatMatchedTruth.concat_vcf
+        File matched_truth_vcf_idx = ConcatMatchedTruth.concat_vcf_idx
         File unmatched_vcf = RunTruvari_05.unmatched_vcf
         File unmatched_vcf_idx = RunTruvari_05.unmatched_vcf_idx
     }
@@ -179,6 +193,8 @@ task RunTruvari {
 
     output {
         File annotation_tsv = "~{prefix}.annotation.tsv"
+        File matched_truth_vcf = "~{prefix}_truvari/tp-base.vcf.gz"
+        File matched_truth_vcf_idx = "~{prefix}_truvari/tp-base.vcf.gz.tbi"
         File unmatched_vcf = "~{prefix}_truvari/fp.vcf.gz"
         File unmatched_vcf_idx = "~{prefix}_truvari/fp.vcf.gz.tbi"
     }

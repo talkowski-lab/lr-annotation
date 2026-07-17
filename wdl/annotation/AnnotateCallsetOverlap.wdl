@@ -68,6 +68,7 @@ workflow AnnotateCallsetOverlap {
         RuntimeAttr? runtime_attr_truvari_run_truvari_07
         RuntimeAttr? runtime_attr_truvari_run_truvari_05
         RuntimeAttr? runtime_attr_truvari_concat_matched
+        RuntimeAttr? runtime_attr_truvari_concat_matched_truth
         RuntimeAttr? runtime_attr_append_truvari_annotations
         RuntimeAttr? runtime_attr_bedtools_subset_vcf
         RuntimeAttr? runtime_attr_bedtools_subset_truth
@@ -280,8 +281,8 @@ workflow AnnotateCallsetOverlap {
                 call AppendAnnotationsFromVcf as AppendExactAnnotationsFull {
                     input:
                         annotation_tsv = ExactMatchFull.annotation_tsv,
-                        truth_vcf = truth_snv_indel_vcf_final,
-                        truth_vcf_idx = truth_snv_indel_vcf_final_idx,
+                        truth_vcf = ExactMatchFull.matched_truth_vcf,
+                        truth_vcf_idx = ExactMatchFull.matched_truth_vcf_idx,
                         is_sv_truth = false,
                         prefix = "~{prefix}.~{contig}.exact_annotated",
                         docker = utils_docker,
@@ -317,14 +318,15 @@ workflow AnnotateCallsetOverlap {
                     runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
                     runtime_attr_run_truvari_07 = runtime_attr_truvari_run_truvari_07,
                     runtime_attr_run_truvari_05 = runtime_attr_truvari_run_truvari_05,
-                    runtime_attr_concat_matched = runtime_attr_truvari_concat_matched
+                    runtime_attr_concat_matched = runtime_attr_truvari_concat_matched,
+                    runtime_attr_concat_matched_truth = runtime_attr_truvari_concat_matched_truth
             }
 
             call AppendAnnotationsFromVcf as AppendTruvariAnnotations {
                 input:
                     annotation_tsv = TruvariMatch.annotation_tsv,
-                    truth_vcf = truth_snv_indel_vcf_final,
-                    truth_vcf_idx = truth_snv_indel_vcf_final_idx,
+                    truth_vcf = TruvariMatch.matched_truth_vcf,
+                    truth_vcf_idx = TruvariMatch.matched_truth_vcf_idx,
                     is_sv_truth = false,
                     prefix = "~{prefix}.~{contig}.truvari_annotated",
                     docker = utils_docker,
@@ -427,6 +429,9 @@ task ExactMatch {
             ~{vcf} \
             ~{truth_snv_indel_vcf}
 
+        bgzip -c isec_matched/0001.vcf > ~{prefix}.matched_truth.vcf.gz
+        tabix -p vcf ~{prefix}.matched_truth.vcf.gz
+
         bcftools query \
             -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
             isec_matched/0000.vcf \
@@ -465,6 +470,8 @@ task ExactMatch {
 
     output {
         File annotation_tsv = "~{prefix}.tsv"
+        File matched_truth_vcf = "~{prefix}.matched_truth.vcf.gz"
+        File matched_truth_vcf_idx = "~{prefix}.matched_truth.vcf.gz.tbi"
         File unmatched_vcf = "~{prefix}.vcf.gz"
         File unmatched_vcf_idx = "~{prefix}.vcf.gz.tbi"
     }
