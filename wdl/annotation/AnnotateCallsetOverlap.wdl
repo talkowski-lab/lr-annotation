@@ -248,6 +248,7 @@ workflow AnnotateCallsetOverlap {
                     input:
                         tsvs = AppendExactAnnotationsShard.annotated_tsv,
                         sort_output = true,
+                        preserve_header = true,
                         prefix = "~{prefix}.~{contig}.exact_annotations",
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_concat_exact_annotations
@@ -394,7 +395,7 @@ workflow AnnotateCallsetOverlap {
             input:
                 tsvs = BuildBenchmarkAnnotationTsv.merged_tsv,
                 sort_output = false,
-                preserve_header = true,
+                preserve_header = false,
                 prefix = "~{prefix}.benchmark_annotations",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge_annotation_tsvs
@@ -667,7 +668,6 @@ all_extra = static_extra + dyn_cols + genotype_cols
 master_header = fixed_cols + all_extra
 
 with open(f"{prefix}.tsv", 'w') as fout:
-    fout.write('\t'.join(master_header) + '\n')
     for f in input_files:
         with open(f) as fh:
             file_cols = fh.readline().strip().split('\t')
@@ -686,8 +686,7 @@ with open(f"{prefix}.tsv", 'w') as fout:
                 fout.write('\t'.join(row) + '\n')
 
 with open(f"{prefix}.header.txt", 'w') as hout:
-    for col in all_extra:
-        hout.write(col + '\n')
+    hout.write('\t'.join(all_extra) + '\n')
 
 EOF
     >>>
