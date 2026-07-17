@@ -42,6 +42,8 @@ workflow AnnotateSVAN {
         RuntimeAttr? runtime_attr_generate_trf_del
         RuntimeAttr? runtime_attr_annotate_ins
         RuntimeAttr? runtime_attr_annotate_del
+        RuntimeAttr? runtime_attr_strip_genotypes_ins
+        RuntimeAttr? runtime_attr_strip_genotypes_del
         RuntimeAttr? runtime_attr_reformat_dup_coord_ins
         RuntimeAttr? runtime_attr_extract_ins
         RuntimeAttr? runtime_attr_extract_del
@@ -116,10 +118,19 @@ workflow AnnotateSVAN {
                         runtime_attr_override = runtime_attr_generate_trf_ins
                 }
 
-                call RunSvanAnnotate as SvanAnnotateIns {
+                call Helpers.StripGenotypes as StripGenotypesIns {
                     input:
                         vcf = ResetIns.reset_vcf,
                         vcf_idx = ResetIns.reset_vcf_idx,
+                        prefix = "~{prefix}.~{contig}.ins_shard_~{i}.strip_genotypes",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_strip_genotypes_ins
+                }
+
+                call RunSvanAnnotate as SvanAnnotateIns {
+                    input:
+                        vcf = StripGenotypesIns.stripped_vcf,
+                        vcf_idx = StripGenotypesIns.stripped_vcf_idx,
                         trf_output = GenerateTRFIns.trf_output,
                         vntr_bed = vntr_bed,
                         exons_bed = exons_bed,
@@ -218,10 +229,19 @@ workflow AnnotateSVAN {
                         runtime_attr_override = runtime_attr_generate_trf_del
                 }
 
-                call RunSvanAnnotate as SvanAnnotateDel {
+                call Helpers.StripGenotypes as StripGenotypesDel {
                     input:
                         vcf = ResetDel.reset_vcf,
                         vcf_idx = ResetDel.reset_vcf_idx,
+                        prefix = "~{prefix}.~{contig}.del_shard_~{i}.strip_genotypes",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_strip_genotypes_del
+                }
+
+                call RunSvanAnnotate as SvanAnnotateDel {
+                    input:
+                        vcf = StripGenotypesDel.stripped_vcf,
+                        vcf_idx = StripGenotypesDel.stripped_vcf_idx,
                         trf_output = GenerateTRFDel.trf_output,
                         vntr_bed = vntr_bed,
                         exons_bed = exons_bed,
