@@ -230,11 +230,22 @@ workflow AnnotateCallsetOverlap {
                             docker = utils_docker,
                             runtime_attr_override = runtime_attr_exact_match
                     }
+
+                    call AppendAnnotationsFromVcf as AppendExactAnnotationsShard {
+                        input:
+                            annotation_tsv = ExactMatchShard.annotation_tsv,
+                            truth_vcf = SubsetExactTruth.subset_vcf,
+                            truth_vcf_idx = SubsetExactTruth.subset_vcf_idx,
+                            is_sv_truth = false,
+                            prefix = "~{prefix}.~{contig}.exact_annotated_~{k}",
+                            docker = utils_docker,
+                            runtime_attr_override = runtime_attr_append_exact_annotations
+                    }
                 }
 
                 call Helpers.ConcatTsvs as ConcatExactAnnotations {
                     input:
-                        tsvs = ExactMatchShard.annotation_tsv,
+                        tsvs = AppendExactAnnotationsShard.annotated_tsv,
                         sort_output = true,
                         prefix = "~{prefix}.~{contig}.exact_annotations",
                         docker = utils_docker,
@@ -265,22 +276,22 @@ workflow AnnotateCallsetOverlap {
                         docker = utils_docker,
                         runtime_attr_override = runtime_attr_exact_match
                 }
+
+                call AppendAnnotationsFromVcf as AppendExactAnnotationsFull {
+                    input:
+                        annotation_tsv = ExactMatchFull.annotation_tsv,
+                        truth_vcf = truth_snv_indel_vcf_final,
+                        truth_vcf_idx = truth_snv_indel_vcf_final_idx,
+                        is_sv_truth = false,
+                        prefix = "~{prefix}.~{contig}.exact_annotated",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_append_exact_annotations
+                }
             }
 
-            File exact_annotation_tsv = select_first([ConcatExactAnnotations.concatenated_tsv, ExactMatchFull.annotation_tsv])
+            File exact_extended_tsv = select_first([ConcatExactAnnotations.concatenated_tsv, AppendExactAnnotationsFull.annotated_tsv])
             File exact_unmatched_vcf = select_first([ConcatExactUnmatched.concat_vcf, ExactMatchFull.unmatched_vcf])
             File exact_unmatched_vcf_idx = select_first([ConcatExactUnmatched.concat_vcf_idx, ExactMatchFull.unmatched_vcf_idx])
-
-            call AppendAnnotationsFromVcf as AppendExactAnnotations {
-                input:
-                    annotation_tsv = exact_annotation_tsv,
-                    truth_vcf = truth_snv_indel_vcf_final,
-                    truth_vcf_idx = truth_snv_indel_vcf_final_idx,
-                    is_sv_truth = false,
-                    prefix = "~{prefix}.~{contig}.exact_annotated",
-                    docker = utils_docker,
-                    runtime_attr_override = runtime_attr_append_exact_annotations
-            }
         }
 
         File vcf_post_exact = select_first([exact_unmatched_vcf, vcf_final])
@@ -362,7 +373,7 @@ workflow AnnotateCallsetOverlap {
         }
 
         Array[File] extended_annotation_tsvs = select_all([
-            AppendExactAnnotations.annotated_tsv,
+            exact_extended_tsv,
             AppendTruvariAnnotations.annotated_tsv,
             AppendBedtoolsAnnotations.annotated_tsv,
         ])
