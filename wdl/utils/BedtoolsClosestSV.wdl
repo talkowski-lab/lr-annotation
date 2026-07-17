@@ -11,19 +11,19 @@ workflow BedtoolsClosestSV {
         File truth_sv_vcf_idx
         String prefix
 
-        Int min_sv_length_eval
+        Int min_sv_length
         Int min_sv_length_truth
-        String type_field_eval
-        String length_field_eval
+        String type_field
+        String length_field
         String source_tag = "SV"
 
         String benchmark_annotations_docker
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_convert_to_symbolic
-        RuntimeAttr? runtime_attr_split_eval
+        RuntimeAttr? runtime_attr_split_vcf
         RuntimeAttr? runtime_attr_split_truth
         RuntimeAttr? runtime_attr_compare
         RuntimeAttr? runtime_attr_calculate
@@ -34,11 +34,11 @@ workflow BedtoolsClosestSV {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
-            length_field = length_field_eval,
-            min_length = min_sv_length_eval,
+            length_field = length_field,
+            min_length = min_sv_length,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_eval
+            runtime_attr_override = runtime_attr_subset_vcf
     }
 
     call SplitVcf as SplitEvalMoved {
@@ -48,7 +48,7 @@ workflow BedtoolsClosestSV {
             split_cpx = false,
             prefix = "~{prefix}.eval.moved",
             docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_split_eval
+            runtime_attr_override = runtime_attr_split_vcf
     }
 
     call Helpers.ConvertToSymbolic as ConvertEvalMoved {
@@ -56,8 +56,8 @@ workflow BedtoolsClosestSV {
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
             move_all_dups = false,
-            type_field = type_field_eval,
-            length_field = length_field_eval,
+            type_field = type_field,
+            length_field = length_field,
             prefix = "~{prefix}.eval.symbolic.moved",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
@@ -68,8 +68,8 @@ workflow BedtoolsClosestSV {
             vcf = SubsetEval.subset_vcf,
             vcf_idx = SubsetEval.subset_vcf_idx,
             move_all_dups = false,
-            type_field = type_field_eval,
-            length_field = length_field_eval,
+            type_field = type_field,
+            length_field = length_field,
             prefix = "~{prefix}.eval.symbolic.unmoved",
             docker = utils_docker,
             runtime_attr_override = runtime_attr_convert_to_symbolic
@@ -82,7 +82,7 @@ workflow BedtoolsClosestSV {
             split_cpx = false,
             prefix = "~{prefix}.eval.unmoved",
             docker = benchmark_annotations_docker,
-            runtime_attr_override = runtime_attr_split_eval
+            runtime_attr_override = runtime_attr_split_vcf
     }
 
     call Helpers.SubsetVcfByLength as SubsetTruth {

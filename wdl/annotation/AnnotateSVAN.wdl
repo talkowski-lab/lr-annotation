@@ -71,7 +71,7 @@ workflow AnnotateSVAN {
             input:
                 vcf = contig_vcf,
                 vcf_idx = contig_vcf_idx,
-                include_args = "-i 'INFO/~{type_field}=\"~{type_ins}\" && abs(INFO/~{length_field}) >= ~{min_length}'",
+                include_args = "INFO/~{type_field}=\"~{type_ins}\" && abs(INFO/~{length_field}) >= ~{min_length}",
                 prefix = "~{prefix}.~{contig}.ins_subset",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_ins

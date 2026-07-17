@@ -13,14 +13,14 @@ workflow TruvariMatch {
         File ref_fai
         String prefix
 
-        Int min_sv_length_eval
+        Int min_sv_length
         Int min_sv_length_truth
-        String length_field_eval
+        String length_field
         String source_tag = "SNV_indel"
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_run_truvari_09
         RuntimeAttr? runtime_attr_run_truvari_07
@@ -32,11 +32,11 @@ workflow TruvariMatch {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
-            length_field = length_field_eval,
-            min_length = min_sv_length_eval,
+            length_field = length_field,
+            min_length = min_sv_length,
             prefix = "~{prefix}.subset_eval",
             docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_eval
+            runtime_attr_override = runtime_attr_subset_vcf
     }
 
     call Helpers.SubsetVcfByArgs as SubsetTruth {

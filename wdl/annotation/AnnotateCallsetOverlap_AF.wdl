@@ -28,12 +28,12 @@ workflow AnnotateCallsetOverlap_AF {
         Boolean do_truvari = true
         Boolean do_bedtools_closest = true
 
-        Int min_sv_length_eval_truvari
+        Int min_sv_length_truvari
         Int min_sv_length_truth_truvari
-        Int min_sv_length_eval_bedtools_closest
+        Int min_sv_length_bedtools_closest
         Int min_sv_length_truth_bedtools_closest
-        String type_field_eval = "allele_type"
-        String length_field_eval = "allele_length"
+        String type_field = "allele_type"
+        String length_field = "allele_length"
         String source_tag_truth_snv_indel_vcf = "SNV_indel"
         String source_tag_truth_sv_vcf = "SV"
         String normalize_check_ref = "w"
@@ -55,26 +55,26 @@ workflow AnnotateCallsetOverlap_AF {
         String benchmark_annotations_docker
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_eval
+        RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_subset_sv_truth
         RuntimeAttr? runtime_attr_strip_genotypes
-        RuntimeAttr? runtime_attr_normalize_eval
-        RuntimeAttr? runtime_attr_annotate_attributes_eval
-        RuntimeAttr? runtime_attr_rename_eval
+        RuntimeAttr? runtime_attr_normalize_vcf
+        RuntimeAttr? runtime_attr_annotate_attributes_vcf
+        RuntimeAttr? runtime_attr_rename_vcf
         RuntimeAttr? runtime_attr_rename_truth
         RuntimeAttr? runtime_attr_rename_sv_truth
         RuntimeAttr? runtime_attr_exact_match
-        RuntimeAttr? runtime_attr_truvari_subset_eval
+        RuntimeAttr? runtime_attr_truvari_subset_vcf
         RuntimeAttr? runtime_attr_truvari_subset_truth
         RuntimeAttr? runtime_attr_truvari_run_truvari_09
         RuntimeAttr? runtime_attr_truvari_run_truvari_07
         RuntimeAttr? runtime_attr_truvari_run_truvari_05
         RuntimeAttr? runtime_attr_truvari_concat_matched
-        RuntimeAttr? runtime_attr_bedtools_subset_eval
+        RuntimeAttr? runtime_attr_bedtools_subset_vcf
         RuntimeAttr? runtime_attr_bedtools_subset_truth
         RuntimeAttr? runtime_attr_bedtools_convert_to_symbolic
-        RuntimeAttr? runtime_attr_bedtools_split_eval
+        RuntimeAttr? runtime_attr_bedtools_split_vcf
         RuntimeAttr? runtime_attr_bedtools_split_truth
         RuntimeAttr? runtime_attr_bedtools_compare
         RuntimeAttr? runtime_attr_bedtools_calculate
@@ -82,9 +82,9 @@ workflow AnnotateCallsetOverlap_AF {
         RuntimeAttr? runtime_attr_build_annotation_tsv
         RuntimeAttr? runtime_attr_append_truth_af
         RuntimeAttr? runtime_attr_collect_matched_ids
-        RuntimeAttr? runtime_attr_extract_eval_vep_header
+        RuntimeAttr? runtime_attr_extract_vcf_vep_header
         RuntimeAttr? runtime_attr_extract_truth_vep_header
-        RuntimeAttr? runtime_attr_shard_matched_eval
+        RuntimeAttr? runtime_attr_shard_matched_vcf
         RuntimeAttr? runtime_attr_compute_shard_benchmarks
         RuntimeAttr? runtime_attr_merge_shard_benchmarks
         RuntimeAttr? runtime_attr_compute_summary_for_contig
@@ -108,7 +108,7 @@ workflow AnnotateCallsetOverlap_AF {
                     extra_args = if single_contig then "" else "--regions ~{contig}",
                     prefix = "~{prefix}.~{contig}.eval",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_subset_eval
+                    runtime_attr_override = runtime_attr_subset_vcf
             }
         }
 
@@ -164,7 +164,7 @@ workflow AnnotateCallsetOverlap_AF {
                     check_ref = normalize_check_ref,
                     prefix = "~{prefix}.~{contig}.eval.normalized",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_normalize_eval
+                    runtime_attr_override = runtime_attr_normalize_vcf
             }
         }
 
@@ -178,7 +178,7 @@ workflow AnnotateCallsetOverlap_AF {
                     vcf_idx = vcf_normalized_idx,
                     prefix = "~{prefix}.~{contig}.eval.attributes",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_annotate_attributes_eval
+                    runtime_attr_override = runtime_attr_annotate_attributes_vcf
             }
         }
 
@@ -194,7 +194,7 @@ workflow AnnotateCallsetOverlap_AF {
                     id_format = select_first([rename_id_string_vcf]),
                     strip_chr = select_first([rename_id_strip_chr_vcf, false]),
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_rename_eval
+                    runtime_attr_override = runtime_attr_rename_vcf
             }
         }
 
@@ -256,14 +256,14 @@ workflow AnnotateCallsetOverlap_AF {
                     truth_snv_indel_vcf = truth_snv_indel_vcf_final,
                     truth_snv_indel_vcf_idx = truth_snv_indel_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.truvari",
-                    min_sv_length_eval = min_sv_length_eval_truvari,
+                    min_sv_length = min_sv_length_truvari,
                     min_sv_length_truth = min_sv_length_truth_truvari,
-                    length_field_eval = length_field_eval,
+                    length_field = length_field,
                     source_tag = source_tag_truth_snv_indel_vcf,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     utils_docker = utils_docker,
-                    runtime_attr_subset_eval = runtime_attr_truvari_subset_eval,
+                    runtime_attr_subset_vcf = runtime_attr_truvari_subset_vcf,
                     runtime_attr_subset_truth = runtime_attr_truvari_subset_truth,
                     runtime_attr_run_truvari_09 = runtime_attr_truvari_run_truvari_09,
                     runtime_attr_run_truvari_07 = runtime_attr_truvari_run_truvari_07,
@@ -283,17 +283,17 @@ workflow AnnotateCallsetOverlap_AF {
                     truth_sv_vcf = truth_sv_vcf_final,
                     truth_sv_vcf_idx = truth_sv_vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.bedtools_closest",
-                    min_sv_length_eval = min_sv_length_eval_bedtools_closest,
+                    min_sv_length = min_sv_length_bedtools_closest,
                     min_sv_length_truth = min_sv_length_truth_bedtools_closest,
-                    type_field_eval = type_field_eval,
-                    length_field_eval = length_field_eval,
+                    type_field = type_field,
+                    length_field = length_field,
                     source_tag = source_tag_truth_sv_vcf,
                     benchmark_annotations_docker = benchmark_annotations_docker,
                     utils_docker = utils_docker,
-                    runtime_attr_subset_eval = runtime_attr_bedtools_subset_eval,
+                    runtime_attr_subset_vcf = runtime_attr_bedtools_subset_vcf,
                     runtime_attr_subset_truth = runtime_attr_bedtools_subset_truth,
                     runtime_attr_convert_to_symbolic = runtime_attr_bedtools_convert_to_symbolic,
-                    runtime_attr_split_eval = runtime_attr_bedtools_split_eval,
+                    runtime_attr_split_vcf = runtime_attr_bedtools_split_vcf,
                     runtime_attr_split_truth = runtime_attr_bedtools_split_truth,
                     runtime_attr_compare = runtime_attr_bedtools_compare,
                     runtime_attr_calculate = runtime_attr_bedtools_calculate,
@@ -347,7 +347,7 @@ workflow AnnotateCallsetOverlap_AF {
                     vcf_idx = vcf_final_idx,
                     prefix = "~{prefix}.~{contig}.eval",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_extract_eval_vep_header
+                    runtime_attr_override = runtime_attr_extract_vcf_vep_header
             }
 
             call CollectMatchedIDsAndINFO {
@@ -385,7 +385,7 @@ workflow AnnotateCallsetOverlap_AF {
                         records_per_shard = select_first([records_per_shard]),
                         prefix = "~{prefix}.~{contig}.sharded",
                         docker = utils_docker,
-                        runtime_attr_override = runtime_attr_shard_matched_eval
+                        runtime_attr_override = runtime_attr_shard_matched_vcf
                 }
             }
 
