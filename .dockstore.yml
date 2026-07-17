@@ -649,6 +649,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: PAV
+    primaryDescriptorPath: /wdl/tools/PAV.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: RepeatMasker
     primaryDescriptorPath: /wdl/tools/RepeatMasker.wdl
     filters:
