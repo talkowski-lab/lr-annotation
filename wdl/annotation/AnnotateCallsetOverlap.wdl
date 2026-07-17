@@ -600,7 +600,7 @@ EOF
 
     RuntimeAttr default_attr = object {
         cpu_cores: 1,
-        mem_gb: 8,
+        mem_gb: 25,
         disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(truth_vcf, "GB")) + 10,
         boot_disk_gb: 10,
         preemptible_tries: 2,
