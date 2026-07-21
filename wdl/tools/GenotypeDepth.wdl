@@ -171,6 +171,11 @@ task GenotypeSVs {
   command <<<
     set -euo pipefail
 
+    printf 'pe_count\tmedian_hom\tsd_het\n0\t0\t0\n' > pe_table.tsv
+    printf 'copy_state\tmean\tsd\tcutoffs\n0\t0\t0\t0\n' > pesr_depths_table.tsv
+    printf 'sr_count\tmedian_hom\tsd_het\trare_min\trare_max\tcommon_min\tcommon_max\trare_pass\trare_fail\tcommon_pass\tcommon_fail\trare_single\trare_both\tcommon_single\tcommon_both\n' > sr_table.tsv
+    printf '0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t0\tn' >> sr_table.tsv
+
     gatk --java-options '-Xmx~{java_mem_mib}M' PrintSVEvidence \
       --sequence-dictionary ~{reference_dict} \
       --evidence-file ~{rd_file} \
@@ -186,6 +191,9 @@ task GenotypeSVs {
       --sequence-dictionary '~{reference_dict}' \
       --ploidy-table '~{ploidy_table}' \
       --rd-table '~{rd_table}' \
+      --rd-pesr-table pesr_depths_table.tsv \
+      --pe-table pe_table.tsv \
+      --sr-table sr_table.tsv
   >>>
 
   output {
