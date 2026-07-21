@@ -1,5 +1,5 @@
 # LR Annotation
-This repository contains all code for processing long-read sequencing cohorts end-to-end - from variant calling and callset integration through phasing and annotation. The pipeline was run on two cohorts: a combined HPRC/HGSVC set (292 samples) and All of Us Phase 1 (1027 samples).
+This repository contains code for processing long-read sequencing cohorts end-to-end - from variant calling and callset integration through phasing and annotation. The pipeline was run on two cohorts: a combined HPRC/HGSVC set (292 samples) and All of Us Phase 1 (1027 samples).
 
 The pipeline covers three broad stages. 
 1. Callset Generation: Per-sample variant calls from DeepVariant (for SNVs/indels), a series of SV callers and TRGT (for tandem repeats) are integrated into cohort-level VCFs and filtered.

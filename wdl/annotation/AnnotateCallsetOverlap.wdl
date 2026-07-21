@@ -686,7 +686,8 @@ with open(f"{prefix}.tsv", 'w') as fout:
                 fout.write('\t'.join(row) + '\n')
 
 with open(f"{prefix}.header.txt", 'w') as hout:
-    hout.write('\t'.join(all_extra) + '\n')
+    for col in all_extra:
+        hout.write(col + '\n')
 
 EOF
     >>>
