@@ -13,6 +13,7 @@ workflow AnnotateIndelTRs {
         String prefix
 
         Int? records_per_shard
+        String subset_vcf_string = "-i 'INFO/allele_type!=\"trv\" && INFO/TR_ENVELOPED!=1'"
 
         Int min_tandem_repeat_length = 9
         Int min_repeats = 3
@@ -35,8 +36,7 @@ workflow AnnotateIndelTRs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                exclude_args = "INFO/allele_type=\"trv\" || INFO/TR_ENVELOPED=1",
-                extra_args = if single_contig then "" else "--regions " + contig,
+                extra_args = subset_vcf_string + if single_contig then "" else " --regions " + contig,
                 prefix = "~{prefix}.~{contig}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset
