@@ -523,19 +523,21 @@ prefix = "~{prefix}"
 def get_ac_af_an_fields(vcf_path):
     cmd = f"bcftools view -h {vcf_path}"
     proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
-    fields = {'AC': [], 'AF': [], 'AN': []}
+    fields = {'AC': {}, 'AF': {}, 'AN': {}}
     for line in proc.stdout:
         m = re.match(r'##INFO=<ID=([^,]+)', line)
         if m:
             fid = m.group(1)
+            norm_id = fid.upper().replace('_REMAINING', '_RMI')
             for p in ['AC', 'AF', 'AN']:
-                if fid == p or fid.startswith(p + '_'):
-                    fields[p].append(fid)
+                if norm_id == p or norm_id.startswith(p + '_'):
+                    fields[p][norm_id] = fid
     proc.wait()
     return fields
 
 vcf_fields = get_ac_af_an_fields(truth_vcf)
 dyn_cols = sorted(vcf_fields['AC']) + sorted(vcf_fields['AF']) + sorted(vcf_fields['AN'])
+norm_to_orig = {**vcf_fields['AC'], **vcf_fields['AF'], **vcf_fields['AN']}
 
 if is_sv_truth:
     extra_fields = ['N_HOMREF', 'N_HET', 'N_HOMALT']
@@ -547,15 +549,15 @@ else:
         'nhomalt',
     ]
 
-query_fields = list(vcf_fields['AC']) + list(vcf_fields['AF']) + list(vcf_fields['AN']) + extra_fields
-fmt = '%ID\\t' + '\\t'.join(f'%INFO/{f}' for f in query_fields) + '\\n'
+query_field_pairs = [(c, norm_to_orig[c]) for c in dyn_cols] + [(f, f) for f in extra_fields]
+fmt = '%ID\\t' + '\\t'.join(f'%INFO/{orig}' for _, orig in query_field_pairs) + '\\n'
 cmd = f"bcftools query -f '{fmt}' {truth_vcf}"
 proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
 truth_info = {}
 for line in proc.stdout:
     parts = line.rstrip('\n').split('\t')
-    if len(parts) == len(query_fields) + 1:
-        truth_info[parts[0]] = {query_fields[i]: parts[i + 1] for i in range(len(query_fields))}
+    if len(parts) == len(query_field_pairs) + 1:
+        truth_info[parts[0]] = {query_field_pairs[i][0]: parts[i + 1] for i in range(len(query_field_pairs))}
 proc.wait()
 
 def parse_hist(val):
