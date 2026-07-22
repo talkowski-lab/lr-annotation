@@ -38,12 +38,9 @@ workflow SplitAndConvertVcfWorkflow {
         additional_disk_gb  = additional_disk_gb,
         machine_mem_gb      = machine_mem_gb,
         preemptible_attempts = preemptible_attempts
-    }
-  }
 
   # ── Task 2 ─────────────────────────────────────────────────────────────────
   # Run svtk vcf2bed independently for each class and each contig (scattered)
-  scatter (i in range(length(input_vcfs))) {
     call VcfToBedSnv {
       input:
         input_vcf            = SplitVcfByVariantClass.snv_vcf[i],
