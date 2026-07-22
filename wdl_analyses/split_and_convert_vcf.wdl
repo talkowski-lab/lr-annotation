@@ -73,33 +73,30 @@ workflow SplitAndConvertVcfWorkflow {
   }
 
   # ── Task 3 ─────────────────────────────────────────────────────────────────
-  # Concatenate each class across all contigs — three independent tasks
+  # Concatenate each BED class across all contigs — three independent tasks
 
-  call ConcatVcfs as ConcatSnvVcfs {
+  call ConcatBeds as ConcatSnvBeds {
     input:
-      input_vcfs           = SplitVcfByVariantClass.snv_vcf,
+      input_beds           = VcfToBedSnv.output_bed,
       output_prefix        = "merged.SNV",
-      docker               = bcftools_docker,
       additional_disk_gb   = additional_disk_gb,
       machine_mem_gb       = machine_mem_gb,
       preemptible_attempts = preemptible_attempts
   }
 
-  call ConcatVcfs as ConcatIndelVcfs {
+  call ConcatBeds as ConcatIndelBeds {
     input:
-      input_vcfs           = SplitVcfByVariantClass.indel_vcf,
+      input_beds           = VcfToBedIndel.output_bed,
       output_prefix        = "merged.indel",
-      docker               = bcftools_docker,
       additional_disk_gb   = additional_disk_gb,
       machine_mem_gb       = machine_mem_gb,
       preemptible_attempts = preemptible_attempts
   }
 
-  call ConcatVcfs as ConcatSvVcfs {
+  call ConcatBeds as ConcatSvBeds {
     input:
-      input_vcfs           = SplitVcfByVariantClass.sv_vcf,
+      input_beds           = VcfToBedSv.output_bed,
       output_prefix        = "merged.SV",
-      docker               = bcftools_docker,
       additional_disk_gb   = additional_disk_gb,
       machine_mem_gb       = machine_mem_gb,
       preemptible_attempts = preemptible_attempts
@@ -116,10 +113,10 @@ workflow SplitAndConvertVcfWorkflow {
     Array[File] per_contig_indel_beds = VcfToBedIndel.output_bed
     Array[File] per_contig_sv_beds    = VcfToBedSv.output_bed
 
-    # Merged VCFs across all contigs
-    File merged_snv_vcf   = ConcatSnvVcfs.merged_vcf
-    File merged_indel_vcf = ConcatIndelVcfs.merged_vcf
-    File merged_sv_vcf    = ConcatSvVcfs.merged_vcf
+    # Merged BEDs across all contigs
+    File merged_snv_bed   = ConcatSnvBeds.merged_bed
+    File merged_indel_bed = ConcatIndelBeds.merged_bed
+    File merged_sv_bed    = ConcatSvBeds.merged_bed
   }
 }
 
@@ -311,45 +308,30 @@ task VcfToBedSv {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Task 3: Concatenate VCFs across contigs (used independently per class)
+# Task 3: Concatenate BEDs across contigs (used independently per class)
 # ─────────────────────────────────────────────────────────────────────────────
-task ConcatVcfs {
+task ConcatBeds {
   input {
-    Array[File] input_vcfs
+    Array[File] input_beds
     String output_prefix
-    String docker
     Int additional_disk_gb   = 20
     Int machine_mem_gb       = 8
     Int preemptible_attempts = 1
   }
 
-  Int disk_gb = ceil(size(input_vcfs, "GB") * 4) + additional_disk_gb
+  Int disk_gb = ceil(size(input_beds, "GB") * 4) + additional_disk_gb
 
   command <<<
     set -euo pipefail
 
-    # Write VCF list and index any that are missing .tbi
-    while IFS= read -r vcf; do
-      [ -f "${vcf}.tbi" ] || bcftools index -t "$vcf"
-      echo "$vcf"
-    done < ~{write_lines(input_vcfs)} > vcf.list
-
-    bcftools concat \
-      --file-list vcf.list \
-      --allow-overlaps \
-      -Oz \
-      -o ~{output_prefix}.vcf.gz
-
-    bcftools index -t ~{output_prefix}.vcf.gz
+    cat ~{sep=' ' input_beds} > ~{output_prefix}.bed
   >>>
 
   output {
-    File merged_vcf       = "~{output_prefix}.vcf.gz"
-    File merged_vcf_index = "~{output_prefix}.vcf.gz.tbi"
+    File merged_bed = "~{output_prefix}.bed"
   }
 
   runtime {
-    docker:      docker
     cpu:         2
     memory:      machine_mem_gb + " GB"
     disks:       "local-disk " + disk_gb + " HDD"
