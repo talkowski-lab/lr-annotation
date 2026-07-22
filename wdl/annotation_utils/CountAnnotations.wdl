@@ -34,6 +34,7 @@ workflow CountAnnotations {
         RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_count
         RuntimeAttr? runtime_attr_merge
+        RuntimeAttr? runtime_attr_convert
         RuntimeAttr? runtime_attr_find_trios
     }
 
@@ -215,12 +216,28 @@ workflow CountAnnotations {
                 runtime_attr_override = runtime_attr_merge
         }
 
+        call Helpers.ConvertTsvToParquet as ConvertPlottingSites {
+            input:
+                tsv = MergePlottingSites.merged_counts_tsv,
+                prefix = "~{prefix}.plotting_sites",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_convert
+        }
+
         call MergeSampleSpecificTables as MergePlottingSamples {
             input:
                 count_tsvs = flatten(CountAnnotationShard.plotting_sample_tsv),
                 prefix = "~{prefix}.plotting_samples",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
+        }
+
+        call Helpers.ConvertTsvToParquet as ConvertPlottingSamples {
+            input:
+                tsv = MergePlottingSamples.merged_tsv,
+                prefix = "~{prefix}.plotting_samples",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_convert
         }
 
         call MergeSampleSpecificTables as MergePlottingAlleles {
@@ -231,6 +248,14 @@ workflow CountAnnotations {
                 runtime_attr_override = runtime_attr_merge
         }
 
+        call Helpers.ConvertTsvToParquet as ConvertPlottingAlleles {
+            input:
+                tsv = MergePlottingAlleles.merged_tsv,
+                prefix = "~{prefix}.plotting_alleles",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_convert
+        }
+
         if (run_denovo) {
             call MergeSampleSpecificTables as MergePlottingDenovo {
                 input:
@@ -238,6 +263,14 @@ workflow CountAnnotations {
                     prefix = "~{prefix}.plotting_denovo",
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_merge
+            }
+
+            call Helpers.ConvertTsvToParquet as ConvertPlottingDenovo {
+                input:
+                    tsv = MergePlottingDenovo.merged_tsv,
+                    prefix = "~{prefix}.plotting_denovo",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_convert
             }
         }
 
@@ -247,6 +280,14 @@ workflow CountAnnotations {
                 prefix = "~{prefix}.plotting_variant_list",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_merge
+        }
+
+        call Helpers.ConvertTsvToParquet as ConvertPlottingVariantList {
+            input:
+                tsv = MergeVariantListTables.merged_tsv,
+                prefix = "~{prefix}.plotting_variant_list",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_convert
         }
     }
 
@@ -259,11 +300,11 @@ workflow CountAnnotations {
         File? summary_functional_samples_tsv = MergeGeneSampleCounts.merged_counts_tsv
         File? summary_functional_alleles_tsv = MergeGeneAlleleCounts.merged_counts_tsv
 
-        File? plotting_sites_tsv = MergePlottingSites.merged_counts_tsv
-        File? plotting_samples_tsv = MergePlottingSamples.merged_tsv
-        File? plotting_alleles_tsv = MergePlottingAlleles.merged_tsv
-        File? plotting_denovo_tsv = MergePlottingDenovo.merged_tsv
-        File? plotting_variant_list_tsv = MergeVariantListTables.merged_tsv
+        File? plotting_sites_parquet = ConvertPlottingSites.parquet
+        File? plotting_samples_parquet = ConvertPlottingSamples.parquet
+        File? plotting_alleles_parquet = ConvertPlottingAlleles.parquet
+        File? plotting_denovo_parquet = ConvertPlottingDenovo.parquet
+        File? plotting_variant_list_parquet = ConvertPlottingVariantList.parquet
     }
 }
 
@@ -559,7 +600,7 @@ def determine_column(allele_type, allele_length, variant_id, length_bins, size_l
     if allele_type == "trv": return "TRV"
     if allele_length is None: return "Other"
     size_label = get_size_bucket(allele_length, length_bins, size_labels)
-    if "dup" in allele_type: return f"DUP {size_label}"
+    if "dup" in allele_type or allele_type == "numt": return f"DUP {size_label}"
     if allele_type == "ins" or "INS" in variant_id: return f"INS {size_label}"
     if allele_type == "del" or "DEL" in variant_id: return f"DEL {size_label}"
     return "Other"
@@ -588,9 +629,9 @@ def determine_af_column(allele_type, af_value, af_bins, af_labels):
         return None
     if allele_type == "snv": return f"SNV [{af_label}]"
     if allele_type == "trv": return f"TRV [{af_label}]"
-    if "dup" in allele_type: return f"DUP [{af_label}]"
+    if "dup" in allele_type or allele_type == "numt": return f"DUP [{af_label}]"
     if "ins" in allele_type: return f"INS [{af_label}]"
-    if "del" in allele_type or allele_type == "numt": return f"DEL [{af_label}]"
+    if "del" in allele_type: return f"DEL [{af_label}]"
     return f"Other [{af_label}]"
 
 def determine_row_weights(record, allele_type_value, vep_field_indices):
