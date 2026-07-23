@@ -32,8 +32,8 @@ version 1.0
 
 workflow LRCNVs {
     meta {
-        description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of normal samples with HiFi long-read sequencing reads."
-        notes: "The genome must be binned into 100b intervals and the median depth at each interval, rounded to an integer, must be computed for each sample. It is ok to exclude some genomic intervals, but all samples must have the same set of intervals."
+        description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of normal samples with long-read sequencing reads."
+        notes: "The genome must be binned into 2Kb intervals and the median depth at each interval, rounded to an integer, must be computed for each sample. It is ok to exclude some genomic intervals, but all samples must have the same set of intervals."
     }
     parameter_meta {
         intervals: "GATK-style intervals used to collect depth profiles."
