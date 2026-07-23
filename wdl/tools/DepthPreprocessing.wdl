@@ -4,7 +4,7 @@ version 1.0
 
 workflow DepthPreprocessing {
   input {
-    Array[String] samples
+    Array[String] sample_ids
     Array[File] genotyped_segments_vcfs
     File contig_ploidy_calls_tar
     File primary_contigs_list
@@ -21,10 +21,10 @@ workflow DepthPreprocessing {
     Float? defragment_max_dist
   }
 
-  scatter (i in range(length(samples))) {
+  scatter (i in range(length(sample_ids))) {
     call GcnvVcfToBed {
       input:
-        sample_id = samples[i],
+        sample_id = sample_ids[i],
         sample_index = i,
         vcf = genotyped_segments_vcfs[i],
         contig_ploidy_calls_tar = contig_ploidy_calls_tar,
@@ -33,20 +33,20 @@ workflow DepthPreprocessing {
     }
   }
 
-  scatter (i in range(length(samples))) {
+  scatter (i in range(length(sample_ids))) {
     call MergeSample as merge_sample_del {
       input:
-        sample_id = samples[i],
+        sample_id = sample_ids[i],
         gcnv = GcnvVcfToBed.del_bed[i],
         max_dist = defragment_max_dist,
         sv_pipeline_docker = sv_pipeline_docker
     }
   }
 
-  scatter (i in range(length(samples))) {
+  scatter (i in range(length(sample_ids))) {
     call MergeSample as merge_sample_dup {
       input:
-        sample_id = samples[i],
+        sample_id = sample_ids[i],
         gcnv = GcnvVcfToBed.dup_bed[i],
         max_dist = defragment_max_dist,
         sv_pipeline_docker = sv_pipeline_docker
@@ -82,7 +82,7 @@ workflow DepthPreprocessing {
   call CNVBEDToVCF as make_del_vcf {
     input:
       bed = merge_set_del.out,
-      sample_list = write_lines(samples),
+      sample_list = write_lines(sample_ids),
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
       ref_fai = ref_fai,
@@ -94,7 +94,7 @@ workflow DepthPreprocessing {
   call CNVBEDToVCF as make_dup_vcf {
     input:
       bed = merge_set_dup.out,
-      sample_list = write_lines(samples),
+      sample_list = write_lines(sample_ids),
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
       ref_fai = ref_fai,
