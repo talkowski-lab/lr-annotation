@@ -50,7 +50,7 @@ workflow LRCNVs {
         File intervals
         Array[String]+ sample_ids
         Array[String]+ depth_profiles
-        String cohort_entity_id
+        String cohort_id
         File contig_ploidy_priors
         Int num_intervals_per_scatter = 10000
         File ref_fa
@@ -175,7 +175,7 @@ workflow LRCNVs {
 
     call DetermineGermlineContigPloidyCohortMode {
         input:
-            cohort_entity_id = cohort_entity_id,
+            cohort_id = cohort_id,
             intervals = FilterIntervals.filtered_intervals,
             read_count_files = depth_profiles,
             contig_ploidy_priors = contig_ploidy_priors,
@@ -202,7 +202,7 @@ workflow LRCNVs {
         call GermlineCNVCallerCohortMode {
             input:
                 scatter_index = scatter_index,
-                cohort_entity_id = cohort_entity_id,
+                cohort_id = cohort_id,
                 read_count_files = depth_profiles,
                 contig_ploidy_calls_tar = DetermineGermlineContigPloidyCohortMode.contig_ploidy_calls_tar,
                 intervals = ScatterIntervals.scattered_interval_lists[scatter_index],
@@ -694,7 +694,7 @@ task CollectModelQualityMetrics {
 
 task DetermineGermlineContigPloidyCohortMode {
     input {
-      String cohort_entity_id
+      String cohort_id
       File? intervals
       Array[File] read_count_files
       File contig_ploidy_priors
@@ -737,15 +737,15 @@ task DetermineGermlineContigPloidyCohortMode {
             --contig-ploidy-priors ~{contig_ploidy_priors} \
             --interval-merging-rule OVERLAPPING_ONLY \
             --output ~{output_dir_} \
-            --output-prefix ~{cohort_entity_id} \
+            --output-prefix ~{cohort_id} \
             --verbosity DEBUG \
             --mean-bias-standard-deviation ~{default="0.01" mean_bias_standard_deviation} \
             --mapping-error-rate ~{default="0.01" mapping_error_rate} \
             --global-psi-scale ~{default="0.001" global_psi_scale} \
             --sample-psi-scale ~{default="0.0001" sample_psi_scale}
 
-        tar czf ~{cohort_entity_id}-contig-ploidy-model.tar.gz -C ~{output_dir_}/~{cohort_entity_id}-model .
-        tar czf ~{cohort_entity_id}-contig-ploidy-calls.tar.gz -C ~{output_dir_}/~{cohort_entity_id}-calls .
+        tar czf ~{cohort_id}-contig-ploidy-model.tar.gz -C ~{output_dir_}/~{cohort_id}-model .
+        tar czf ~{cohort_id}-contig-ploidy-calls.tar.gz -C ~{output_dir_}/~{cohort_id}-calls .
     >>>
 
     runtime {
@@ -757,15 +757,15 @@ task DetermineGermlineContigPloidyCohortMode {
     }
 
     output {
-        File contig_ploidy_model_tar = "~{cohort_entity_id}-contig-ploidy-model.tar.gz"
-        File contig_ploidy_calls_tar = "~{cohort_entity_id}-contig-ploidy-calls.tar.gz"
+        File contig_ploidy_model_tar = "~{cohort_id}-contig-ploidy-model.tar.gz"
+        File contig_ploidy_calls_tar = "~{cohort_id}-contig-ploidy-calls.tar.gz"
     }
 }
 
 task GermlineCNVCallerCohortMode {
     input {
       Int scatter_index
-      String cohort_entity_id
+      String cohort_id
       Array[File] read_count_files
       File contig_ploidy_calls_tar
       File intervals
@@ -852,7 +852,7 @@ task GermlineCNVCallerCohortMode {
             ~{"--annotated-intervals " + annotated_intervals} \
             --interval-merging-rule OVERLAPPING_ONLY \
             --output ~{output_dir_} \
-            --output-prefix ~{cohort_entity_id} \
+            --output-prefix ~{cohort_id} \
             --verbosity DEBUG \
             --p-alt ~{default="1e-6" p_alt} \
             --p-active ~{default="1e-2" p_active} \
@@ -892,15 +892,15 @@ task GermlineCNVCallerCohortMode {
             --caller-external-admixing-rate ~{default="1.00" caller_external_admixing_rate} \
             --disable-annealing ~{default="false" disable_annealing}
 
-        tar czf ~{cohort_entity_id}-gcnv-model-shard-~{scatter_index}.tar.gz -C ~{output_dir_}/~{cohort_entity_id}-model .
-        tar czf ~{cohort_entity_id}-gcnv-tracking-shard-~{scatter_index}.tar.gz -C ~{output_dir_}/~{cohort_entity_id}-tracking .
+        tar czf ~{cohort_id}-gcnv-model-shard-~{scatter_index}.tar.gz -C ~{output_dir_}/~{cohort_id}-model .
+        tar czf ~{cohort_id}-gcnv-tracking-shard-~{scatter_index}.tar.gz -C ~{output_dir_}/~{cohort_id}-tracking .
 
         CURRENT_SAMPLE=0
         NUM_SAMPLES=~{num_samples}
         NUM_DIGITS=${#NUM_SAMPLES}
         while [ $CURRENT_SAMPLE -lt $NUM_SAMPLES ]; do
             CURRENT_SAMPLE_WITH_LEADING_ZEROS=$(printf "%0${NUM_DIGITS}d" $CURRENT_SAMPLE)
-            tar czf ~{cohort_entity_id}-gcnv-calls-shard-~{scatter_index}-sample-$CURRENT_SAMPLE_WITH_LEADING_ZEROS.tar.gz -C ~{output_dir_}/~{cohort_entity_id}-calls/SAMPLE_$CURRENT_SAMPLE .
+            tar czf ~{cohort_id}-gcnv-calls-shard-~{scatter_index}-sample-$CURRENT_SAMPLE_WITH_LEADING_ZEROS.tar.gz -C ~{output_dir_}/~{cohort_id}-calls/SAMPLE_$CURRENT_SAMPLE .
             CURRENT_SAMPLE=$((CURRENT_SAMPLE+1))
         done
 
@@ -916,12 +916,12 @@ task GermlineCNVCallerCohortMode {
     }
 
     output {
-        File gcnv_model_tar = "~{cohort_entity_id}-gcnv-model-shard-~{scatter_index}.tar.gz"
-        Array[File] gcnv_call_tars = glob("~{cohort_entity_id}-gcnv-calls-shard-~{scatter_index}-sample-*.tar.gz")
-        File gcnv_tracking_tar = "~{cohort_entity_id}-gcnv-tracking-shard-~{scatter_index}.tar.gz"
-        File calling_config_json = "~{output_dir_}/~{cohort_entity_id}-calls/calling_config.json"
-        File denoising_config_json = "~{output_dir_}/~{cohort_entity_id}-calls/denoising_config.json"
-        File gcnvkernel_version_json = "~{output_dir_}/~{cohort_entity_id}-calls/gcnvkernel_version.json"
-        File sharded_interval_list = "~{output_dir_}/~{cohort_entity_id}-calls/interval_list.tsv"
+        File gcnv_model_tar = "~{cohort_id}-gcnv-model-shard-~{scatter_index}.tar.gz"
+        Array[File] gcnv_call_tars = glob("~{cohort_id}-gcnv-calls-shard-~{scatter_index}-sample-*.tar.gz")
+        File gcnv_tracking_tar = "~{cohort_id}-gcnv-tracking-shard-~{scatter_index}.tar.gz"
+        File calling_config_json = "~{output_dir_}/~{cohort_id}-calls/calling_config.json"
+        File denoising_config_json = "~{output_dir_}/~{cohort_id}-calls/denoising_config.json"
+        File gcnvkernel_version_json = "~{output_dir_}/~{cohort_id}-calls/gcnvkernel_version.json"
+        File sharded_interval_list = "~{output_dir_}/~{cohort_id}-calls/interval_list.tsv"
     }
 }
