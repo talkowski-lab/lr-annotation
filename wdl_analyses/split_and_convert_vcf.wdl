@@ -44,7 +44,7 @@ workflow SplitAndConvertVcfWorkflow {
   # Run svtk vcf2bed independently for each class and each contig (scattered)
     call VcfToBedSnv {
       input:
-        input_vcf            = SplitVcfByVariantClass.snv_vcf[i],
+        input_vcf            = SplitVcfByVariantClass.snv_vcf,
         docker               = svtk_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
@@ -53,7 +53,7 @@ workflow SplitAndConvertVcfWorkflow {
 
     call VcfToBedIndel {
       input:
-        input_vcf            = SplitVcfByVariantClass.indel_vcf[i],
+        input_vcf            = SplitVcfByVariantClass.indel_vcf,
         docker               = svtk_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
@@ -62,7 +62,7 @@ workflow SplitAndConvertVcfWorkflow {
 
     call VcfToBedSv {
       input:
-        input_vcf            = SplitVcfByVariantClass.sv_vcf[i],
+        input_vcf            = SplitVcfByVariantClass.sv_vcf,
         docker               = svtk_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
