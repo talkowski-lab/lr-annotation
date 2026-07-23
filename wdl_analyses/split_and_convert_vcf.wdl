@@ -46,7 +46,7 @@ workflow SplitAndConvertVcfWorkflow {
 
     # ── Task 2 ─────────────────────────────────────────────────────────────────
     # Run svtk vcf2bed independently for each class and each contig (scattered)
-    call VcfToBedSnv {
+    call VcfToBed as VcfToBedSnv {
       input:
         input_vcf            = SplitVcfByVariantClass.snv_vcf,
         docker               = svtk_docker,
@@ -55,7 +55,7 @@ workflow SplitAndConvertVcfWorkflow {
         preemptible_attempts = preemptible_attempts
     }
 
-    call VcfToBedIndel {
+    call VcfToBed as VcfToBedIndel {
       input:
         input_vcf            = SplitVcfByVariantClass.indel_vcf,
         docker               = svtk_docker,
@@ -64,7 +64,7 @@ workflow SplitAndConvertVcfWorkflow {
         preemptible_attempts = preemptible_attempts
     }
 
-    call VcfToBedSv {
+    call VcfToBed as VcfToBedSv {
       input:
         input_vcf            = SplitVcfByVariantClass.sv_vcf,
         docker               = svtk_docker,
@@ -200,7 +200,7 @@ task SplitVcfByVariantClass {
 # Task 2 helpers: svtk vcf2bed for each variant class (separate tasks so
 #                 SNV / indel / SV scatter arms run fully independently)
 # ─────────────────────────────────────────────────────────────────────────────
-task VcfToBedSnv {
+task VcfToBed {
   input {
     File input_vcf
     String docker
@@ -215,72 +215,11 @@ task VcfToBedSnv {
   command <<<
     set -euo pipefail
     svtk vcf2bed -i ALL --include-filters ~{input_vcf} ~{base}.bed
+    bgzip ~{base}.bed
   >>>
 
   output {
-    File output_bed = "~{base}.bed"
-  }
-
-  runtime {
-    docker:      docker
-    cpu:         2
-    memory:      machine_mem_gb + " GB"
-    disks:       "local-disk " + disk_gb + " HDD"
-    preemptible: preemptible_attempts
-    maxRetries:  preemptible_attempts
-  }
-}
-
-task VcfToBedIndel {
-  input {
-    File input_vcf
-    String docker
-    Int additional_disk_gb   = 20
-    Int machine_mem_gb       = 8
-    Int preemptible_attempts = 1
-  }
-
-  String base = basename(input_vcf, ".vcf.gz")
-  Int disk_gb = ceil(size(input_vcf, "GB") * 4) + additional_disk_gb
-
-  command <<<
-    set -euo pipefail
-    svtk vcf2bed -i ALL --include-filters ~{input_vcf} ~{base}.bed
-  >>>
-
-  output {
-    File output_bed = "~{base}.bed"
-  }
-
-  runtime {
-    docker:      docker
-    cpu:         2
-    memory:      machine_mem_gb + " GB"
-    disks:       "local-disk " + disk_gb + " HDD"
-    preemptible: preemptible_attempts
-    maxRetries:  preemptible_attempts
-  }
-}
-
-task VcfToBedSv {
-  input {
-    File input_vcf
-    String docker
-    Int additional_disk_gb   = 20
-    Int machine_mem_gb       = 8
-    Int preemptible_attempts = 1
-  }
-
-  String base = basename(input_vcf, ".vcf.gz")
-  Int disk_gb = ceil(size(input_vcf, "GB") * 4) + additional_disk_gb
-
-  command <<<
-    set -euo pipefail
-    svtk vcf2bed -i ALL --include-filters ~{input_vcf} ~{base}.bed
-  >>>
-
-  output {
-    File output_bed = "~{base}.bed"
+    File output_bed = "~{base}.bed.gz"
   }
 
   runtime {
