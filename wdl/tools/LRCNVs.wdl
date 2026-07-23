@@ -32,8 +32,7 @@ version 1.0
 
 workflow LRCNVs {
     meta {
-        description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of normal samples with long-read sequencing reads."
-        notes: "The genome must be binned into 2Kb intervals and the median depth at each interval, rounded to an integer, must be computed for each sample. It is ok to exclude some genomic intervals, but all samples must have the same set of intervals."
+        description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of samples with long-read sequencing reads."
     }
     parameter_meta {
         intervals: "GATK-style intervals used to collect depth profiles."
@@ -48,9 +47,6 @@ workflow LRCNVs {
     }
 
     input {
-        ##################################
-        #### required basic arguments ####
-        ##################################
         File intervals
         Array[String]+ entity_ids
         Array[String]+ depth_profiles
@@ -62,15 +58,10 @@ workflow LRCNVs {
         File ref_dict
         String gatk_docker = "broadinstitute/gatk:4.6.2.0"
 
-        #################################
-        #### optional basic arguments ###
-        #################################
         File? gatk4_jar_override 
         Int? preemptible_attempts
 
-        ##################################################
-        #### optional arguments for AnnotateIntervals ####
-        ##################################################
+        # AnnotateIntervals
         File? mappability_track_bed
         File? mappability_track_bed_idx
         File? segmental_duplication_track_bed
@@ -78,9 +69,7 @@ workflow LRCNVs {
         Int? feature_query_lookahead
         Int? mem_gb_for_annotate_intervals
 
-        #################################################
-        #### optional arguments for FilterIntervals ####
-        ################################################
+        # FilterIntervals
         File? blacklist_intervals
         Int? low_count_filter_count_threshold
         Float? low_count_filter_percentage_of_samples
@@ -89,9 +78,7 @@ workflow LRCNVs {
         Float? extreme_count_filter_percentage_of_samples
         Int? mem_gb_for_filter_intervals
 
-        ########################################################################
-        #### optional arguments for DetermineGermlineContigPloidyCohortMode ####
-        ########################################################################
+        # DeterminGermlineContigPloidyCohortMode
         Float? ploidy_mean_bias_standard_deviation
         Float? ploidy_mapping_error_rate
         Float? ploidy_global_psi_scale
@@ -99,9 +86,7 @@ workflow LRCNVs {
         Int? mem_gb_for_determine_germline_contig_ploidy
         Int? cpu_for_determine_germline_contig_ploidy
 
-        ############################################################
-        #### optional arguments for GermlineCNVCallerCohortMode ####
-        ############################################################
+        # GermlineCNVCallerCohortMode
         Float? gcnv_p_alt
         Float? gcnv_p_active
         Float? gcnv_cnv_coherence_length
@@ -110,7 +95,7 @@ workflow LRCNVs {
         Int? mem_gb_for_germline_cnv_caller
         Int? cpu_for_germline_cnv_caller
 
-        # optional arguments for germline CNV denoising model
+        # GermlineCNVCallerCohortMode - germline CNV denoising model
         Int? gcnv_max_bias_factors
         Float? gcnv_mapping_error_rate
         Float? gcnv_interval_psi_scale
@@ -124,7 +109,7 @@ workflow LRCNVs {
         Boolean? gcnv_enable_bias_factors
         Int? gcnv_active_class_padding_hybrid_mode
 
-        # optional arguments for Hybrid ADVI
+        # GermlineCNVCallerCohortMode - Hybrid ADVI
         Float? gcnv_learning_rate
         Float? gcnv_adamax_beta_1
         Float? gcnv_adamax_beta_2
@@ -146,15 +131,11 @@ workflow LRCNVs {
         Float? gcnv_caller_external_admixing_rate
         Boolean? gcnv_disable_annealing
 
-        ###################################################
-        #### arguments for PostprocessGermlineCNVCalls ####
-        ###################################################
+        # PostprocessGermlineCNVCalls
         Int ref_copy_number_autosomal_contigs = 2
         Array[String]? allosomal_contigs
 
-        ##########################
-        #### arguments for QC ####
-        ##########################
+        # CollectSampleQualityMetrics
         Int maximum_number_events_per_sample = 1000
     }
 
