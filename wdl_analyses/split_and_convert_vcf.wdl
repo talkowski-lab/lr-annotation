@@ -1,6 +1,6 @@
 version 1.0
 
-import Structs.wdl
+import "Structs.wdl"
 
 # Workflow: Split per-contig VCFs into SNV/indel/SV, run svtk vcf2bed, then
 # concatenate across contigs for each variant class.
