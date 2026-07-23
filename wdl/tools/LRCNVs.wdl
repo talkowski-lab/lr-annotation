@@ -48,7 +48,7 @@ workflow LRCNVs {
 
     input {
         File intervals
-        Array[String]+ entity_ids
+        Array[String]+ sample_ids
         Array[String]+ depth_profiles
         String cohort_entity_id
         File contig_ploidy_priors
@@ -254,10 +254,10 @@ workflow LRCNVs {
 
     Array[Array[File]] call_tars_sample_by_shard = transpose(GermlineCNVCallerCohortMode.gcnv_call_tars)
 
-    scatter (sample_index in range(length(entity_ids))) {
+    scatter (sample_index in range(length(sample_ids))) {
         call PostprocessGermlineCNVCalls {
             input:
-                entity_id = entity_ids[sample_index],
+                sample_id = sample_ids[sample_index],
                 gcnv_calls_tars = call_tars_sample_by_shard[sample_index],
                 gcnv_model_tars = GermlineCNVCallerCohortMode.gcnv_model_tar,
                 calling_configs = GermlineCNVCallerCohortMode.calling_config_json,
@@ -276,7 +276,7 @@ workflow LRCNVs {
         call CollectSampleQualityMetrics {
             input:
                 genotyped_segments_vcf = PostprocessGermlineCNVCalls.genotyped_segments_vcf,
-                entity_id = entity_ids[sample_index],
+                sample_id = sample_ids[sample_index],
                 maximum_number_events = maximum_number_events_per_sample,
                 gatk_docker = gatk_docker,
                 preemptible_attempts = preemptible_attempts
@@ -499,7 +499,7 @@ task ScatterIntervals {
 
 task PostprocessGermlineCNVCalls {
     input {
-      String entity_id
+      String sample_id
       Array[File] gcnv_calls_tars
       Array[File] gcnv_model_tars
       Array[File] calling_configs
@@ -524,9 +524,9 @@ task PostprocessGermlineCNVCalls {
     Int machine_mem_mb = select_first([mem_gb, 7]) * 1000
     Int command_mem_mb = ceil(machine_mem_mb * 0.8)
 
-    String genotyped_intervals_vcf_filename = "genotyped-intervals-~{entity_id}.vcf.gz"
-    String genotyped_segments_vcf_filename = "genotyped-segments-~{entity_id}.vcf.gz"
-    String denoised_copy_ratios_filename = "denoised_copy_ratios-~{entity_id}.tsv"
+    String genotyped_intervals_vcf_filename = "genotyped-intervals-~{sample_id}.vcf.gz"
+    String genotyped_segments_vcf_filename = "genotyped-segments-~{sample_id}.vcf.gz"
+    String denoised_copy_ratios_filename = "denoised_copy_ratios-~{sample_id}.tsv"
 
     Array[String] allosomal_contigs_args = if defined(allosomal_contigs) then prefix("--allosomal-contig ", select_first([allosomal_contigs])) else []
 
@@ -603,7 +603,7 @@ task PostprocessGermlineCNVCalls {
 task CollectSampleQualityMetrics {
     input {
       File genotyped_segments_vcf
-      String entity_id
+      String sample_id
       Int maximum_number_events
 
       # Runtime parameters
@@ -622,9 +622,9 @@ task CollectSampleQualityMetrics {
 
         NUM_SEGMENTS=$(gunzip -c ~{genotyped_segments_vcf} | grep -v '#' | wc -l)
         if [ $NUM_SEGMENTS -lt ~{maximum_number_events} ]; then
-            echo "PASS" >> ~{entity_id}.qcStatus.txt
+            echo "PASS" >> ~{sample_id}.qcStatus.txt
         else 
-            echo "EXCESSIVE_NUMBER_OF_EVENTS" >> ~{entity_id}.qcStatus.txt
+            echo "EXCESSIVE_NUMBER_OF_EVENTS" >> ~{sample_id}.qcStatus.txt
         fi
     >>>
 
@@ -637,8 +637,8 @@ task CollectSampleQualityMetrics {
     }
 
     output {
-        File qc_status_file = "~{entity_id}.qcStatus.txt"
-        String qc_status_string = read_string("~{entity_id}.qcStatus.txt")
+        File qc_status_file = "~{sample_id}.qcStatus.txt"
+        String qc_status_string = read_string("~{sample_id}.qcStatus.txt")
     }
 }
 
