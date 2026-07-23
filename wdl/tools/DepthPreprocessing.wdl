@@ -4,8 +4,8 @@ version 1.0
 
 workflow DepthPreprocessing {
   input {
-    Array[String] sample_ids
-    Array[File] genotyped_segments_vcfs
+    Array[String]+ sample_ids
+    Array[File]+ genotyped_segments_vcfs
     File contig_ploidy_calls_tar
     File primary_contigs_list
     File ref_fai
