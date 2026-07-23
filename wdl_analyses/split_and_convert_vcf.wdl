@@ -20,6 +20,7 @@ workflow SplitAndConvertVcfWorkflow {
     String prefix
 
     String sv_base_mini_docker
+    String sv_pipeline_base_docker
     String bcftools_docker = "staphb/bcftools:1.17"
 
     Int sv_size_threshold   = 50   # variants >= this size (bp) classified as SV
@@ -48,7 +49,7 @@ workflow SplitAndConvertVcfWorkflow {
     call VcfToBed as VcfToBedSnv {
       input:
         input_vcf            = SplitVcfByVariantClass.snv_vcf,
-        docker               = sv_base_mini_docker,
+        docker               = sv_pipeline_base_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
         preemptible_attempts = preemptible_attempts
@@ -57,7 +58,7 @@ workflow SplitAndConvertVcfWorkflow {
     call VcfToBed as VcfToBedIndel {
       input:
         input_vcf            = SplitVcfByVariantClass.indel_vcf,
-        docker               = sv_base_mini_docker,
+        docker               = sv_pipeline_base_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
         preemptible_attempts = preemptible_attempts
@@ -66,7 +67,7 @@ workflow SplitAndConvertVcfWorkflow {
     call VcfToBed as VcfToBedSv {
       input:
         input_vcf            = SplitVcfByVariantClass.sv_vcf,
-        docker               = sv_base_mini_docker,
+        docker               = sv_pipeline_base_docker,
         additional_disk_gb   = additional_disk_gb,
         machine_mem_gb       = machine_mem_gb,
         preemptible_attempts = preemptible_attempts
