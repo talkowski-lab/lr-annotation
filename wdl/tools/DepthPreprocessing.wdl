@@ -9,16 +9,17 @@ workflow DepthPreprocessing {
     File contig_ploidy_calls_tar
     File primary_contigs_list
     File ref_fai
-    File ped
+    File pedigree
     String batch
 
     String? chr_x
     String? chr_y
 
-    String sv_base_mini_docker
-    String sv_pipeline_docker
     Int gcnv_qs_cutoff
     Float? defragment_max_dist
+
+    String sv_base_mini_docker
+    String sv_pipeline_docker
   }
 
   scatter (i in range(length(sample_ids))) {
@@ -71,7 +72,7 @@ workflow DepthPreprocessing {
 
   call MakePloidyTable {
     input:
-      ped = ped,
+      pedigree = pedigree,
       contigs_list = primary_contigs_list,
       chr_x = chr_x,
       chr_y = chr_y,
@@ -275,7 +276,7 @@ task MergeSet {
 
 task MakePloidyTable {
   input {
-    File ped
+    File pedigree
     File contigs_list
     String? chr_x
     String? chr_y
@@ -290,7 +291,7 @@ task MakePloidyTable {
     Int? max_retries
   }
 
-  Int default_disk_gb = ceil(size(ped, "GB") * 3) + 50
+  Int default_disk_gb = ceil(size(pedigree, "GB") * 3) + 50
 
   runtime {
     cpu: select_first([cpu, 1])
@@ -307,7 +308,7 @@ task MakePloidyTable {
     set -euo pipefail
 
     python /opt/sv-pipeline/scripts/ploidy_table_from_ped.py \
-      --ped '~{ped}' \
+      --ped '~{pedigree}' \
       --out '~{output_prefix}.tsv' \
       --contigs '~{contigs_list}' \
       ~{"--chr-x " + chr_x} \
