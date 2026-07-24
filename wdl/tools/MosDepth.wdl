@@ -10,7 +10,7 @@ workflow MosDepth {
         Array[String] contigs
         String prefix
 
-        Boolean quantize_mode
+        Int? bin_size
 
         File? ref_fa
         File? ref_fai
@@ -26,7 +26,7 @@ workflow MosDepth {
                 bam = bam,
                 bai = bai,
                 contig = contig,
-                quantize_mode = quantize_mode,
+                bin_size = bin_size,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.~{contig}.coverage",
@@ -38,10 +38,10 @@ workflow MosDepth {
     output {
         Array[File] mosdepth_dist = RunMosDepth.dist
         Array[File] mosdepth_summary = RunMosDepth.summary
-        Array[File] mosdepth_per_base = RunMosDepth.per_base
-        Array[File] mosdepth_per_base_csi = RunMosDepth.per_base_csi
-        Array[File] mosdepth_quantized_bed = select_all(RunMosDepth.quantized_bed)
-        Array[File] mosdepth_quantized_bed_csi = select_all(RunMosDepth.quantized_bed_csi)
+        Array[File] mosdepth_per_base = select_all(RunMosDepth.per_base)
+        Array[File] mosdepth_per_base_csi = select_all(RunMosDepth.per_base_csi)
+        Array[File] mosdepth_regions_bed = select_all(RunMosDepth.regions_bed)
+        Array[File] mosdepth_regions_bed_csi = select_all(RunMosDepth.regions_bed_csi)
     }
 }
 
@@ -50,7 +50,7 @@ task RunMosDepth {
         File bam
         File bai
         String contig
-        Boolean quantize_mode
+        Int? bin_size
         File? ref_fa
         File? ref_fai
         String prefix
@@ -61,38 +61,23 @@ task RunMosDepth {
     command <<<
         set -euo pipefail
 
-        if [ "~{quantize_mode}" == "true" ]; then
-            export MOSDEPTH_Q0=NO_COVERAGE
-            export MOSDEPTH_Q1=LOW_COVERAGE
-            export MOSDEPTH_Q2=CALLABLE
-            export MOSDEPTH_Q3=HIGH_COVERAGE
-
-            mosdepth \
-                -t 4 \
-                -c "~{contig}" \
-                -x \
-                ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
-                --quantize 0:1:5:150: \
-                ~{prefix} \
-                ~{bam}
-        else
-            mosdepth \
-                -t 2 \
-                -c "~{contig}" \
-                -x \
-                ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
-                ~{prefix} \
-                ~{bam}
-        fi
+        mosdepth \
+            -t 4 \
+            -c "~{contig}" \
+            -x \
+            ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
+            ~{if defined(bin_size) then "--by " + bin_size + " --no-per-base" else ""} \
+            ~{prefix} \
+            ~{bam}
     >>>
 
     output {
         File dist = "~{prefix}.mosdepth.global.dist.txt"
         File summary = "~{prefix}.mosdepth.summary.txt"
-        File per_base = "~{prefix}.per-base.bed.gz"
-        File per_base_csi = "~{prefix}.per-base.bed.gz.csi"
-        File? quantized_bed = "~{prefix}.quantized.bed.gz"
-        File? quantized_bed_csi = "~{prefix}.quantized.bed.gz.csi"
+        File? per_base = "~{prefix}.per-base.bed.gz"
+        File? per_base_csi = "~{prefix}.per-base.bed.gz.csi"
+        File? regions_bed = "~{prefix}.regions.bed.gz"
+        File? regions_bed_csi = "~{prefix}.regions.bed.gz.csi"
     }
 
     RuntimeAttr default_attr = object {
