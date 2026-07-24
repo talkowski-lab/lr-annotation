@@ -34,16 +34,18 @@ workflow LRCNVs {
     meta {
         description: "Workflow for creating a GATK GermlineCNVCaller denoising model and generating calls given a list of samples with long-read sequencing reads."
     }
+
     parameter_meta {
         intervals: "GATK-style intervals used to collect depth profiles."
+        sample_ids: "Identifier for each sample."
         depth_profiles: "Median depth at each interval, rounded to an integer. One file per sample. See the TSV format here https://gatk.broadinstitute.org/hc/en-us/articles/35967568802843-CollectReadCounts."
-        cohort_entity_id: "Identifier for the cohort used for denoising model generation."
-        contig_ploidy_priors: "File containing contig ploidy priors."
+        cohort_id: "Identifier for the cohort used for denoising model generation."
+        contig_ploidy_priors: "File containing contig ploidy priors. See input comment."
+        num_intervals_per_scatter: "Number of intervals to process in each scatter."
         ref_fa: "Reference sequences FASTA file."
         ref_fai: "Reference sequences FASTA file index."
         ref_dict: "Reference sequences dictionary."
-        num_intervals_per_scatter: "Number of intervals to process in each scatter.  Default is 10000."
-        gatk_docker: "Docker image for the GATK tool.  Default is broadinstitute/gatk:broadinstitute/gatk:4.6.2.0."
+        gatk_docker: "Docker image for the GATK tool."
     }
 
     input {
@@ -51,6 +53,14 @@ workflow LRCNVs {
         Array[String]+ sample_ids
         Array[String]+ depth_profiles
         String cohort_id
+        # A TSV with the prior probability of each ploidy state of each contig.
+        # e.g.
+        # CONTIG_NAME PLOIDY_PRIOR_0 PLOIDY_PRIOR_1 PLOIDY_PRIOR_2 PLOIDY_PRIOR_3
+        #        chr1            0.0           0.01           0.98           0.01
+        #        chr2            0.0           0.01           0.98           0.01
+        # ...
+        #        chrX           0.01           0.49           0.49           0.01
+        #        chrY          0.495          0.495           0.01            0.0
         File contig_ploidy_priors
         Int num_intervals_per_scatter = 10000
         File ref_fa
