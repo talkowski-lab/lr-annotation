@@ -10,7 +10,7 @@ workflow DepthPreprocessing {
     File primary_contigs_list
     File ref_fai
     File pedigree
-    String batch
+    String batch_id
 
     String? chr_x
     String? chr_y
@@ -58,7 +58,7 @@ workflow DepthPreprocessing {
     input:
       beds = merge_sample_del.sample_bed,
       svtype = "DEL",
-      batch = batch,
+      batch_id = batch_id,
       sv_base_mini_docker = sv_base_mini_docker
   }
 
@@ -66,7 +66,7 @@ workflow DepthPreprocessing {
     input:
       beds = merge_sample_dup.sample_bed,
       svtype = "DUP",
-      batch = batch,
+      batch_id = batch_id,
       sv_base_mini_docker = sv_base_mini_docker
   }
 
@@ -76,7 +76,7 @@ workflow DepthPreprocessing {
       contigs_list = primary_contigs_list,
       chr_x = chr_x,
       chr_y = chr_y,
-      output_prefix = "~{batch}-ploidy",
+      output_prefix = "~{batch_id}-ploidy",
       sv_pipeline_docker = sv_pipeline_docker
   }
 
@@ -87,7 +87,7 @@ workflow DepthPreprocessing {
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
       ref_fai = ref_fai,
-      vid_prefix = "~{batch}_DEL",
+      vid_prefix = "~{batch_id}_DEL",
       output_prefix = "merged_del",
       sv_pipeline_docker = sv_pipeline_docker
   }
@@ -99,7 +99,7 @@ workflow DepthPreprocessing {
       contig_list = primary_contigs_list,
       ploidy_table = MakePloidyTable.ploidy_table,
       ref_fai = ref_fai,
-      vid_prefix = "~{batch}_DUP",
+      vid_prefix = "~{batch_id}_DUP",
       output_prefix = "merged_dup",
       sv_pipeline_docker = sv_pipeline_docker
   }
@@ -108,7 +108,7 @@ workflow DepthPreprocessing {
     input:
       vcfs = [make_del_vcf.vcf, make_dup_vcf.vcf],
       vcf_idxs = [make_del_vcf.vcf_index, make_dup_vcf.vcf_index],
-      output_prefix = "~{batch}_raw_depth_CNVs",
+      output_prefix = "~{batch_id}_raw_depth_CNVs",
       sv_base_mini_docker = sv_base_mini_docker
   }
 
@@ -232,7 +232,7 @@ task MergeSet {
   input {
     Array[File] beds
     String svtype
-    String batch
+    String batch_id
 
     String sv_base_mini_docker
     Float? mem_gib
@@ -262,15 +262,15 @@ task MergeSet {
     cat ~{write_lines(beds)} \
       | xargs cat \
       | sort -k1,1V -k2,2n \
-      | awk -v OFS="\t" -v svtype=~{svtype} -v batch=~{batch} '{$4=batch"_"svtype"_"NR; print}' \
+      | awk -v OFS="\t" -v svtype=~{svtype} -v batch=~{batch_id} '{$4=batch"_"svtype"_"NR; print}' \
       | cat <(echo -e "#chr\\tstart\\tend\\tname\\tsample\\tsvtype\\tsources") - \
-      | bgzip -c > ~{batch}.~{svtype}.bed.gz;
-    tabix -p bed ~{batch}.~{svtype}.bed.gz
+      | bgzip -c > ~{batch_id}.~{svtype}.bed.gz;
+    tabix -p bed ~{batch_id}.~{svtype}.bed.gz
   >>>
 
   output {
-    File out = "~{batch}.~{svtype}.bed.gz"
-    File out_idx = "~{batch}.~{svtype}.bed.gz.tbi"
+    File out = "~{batch_id}.~{svtype}.bed.gz"
+    File out_idx = "~{batch_id}.~{svtype}.bed.gz.tbi"
   }
 }
 
