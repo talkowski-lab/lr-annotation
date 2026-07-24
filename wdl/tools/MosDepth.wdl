@@ -62,7 +62,7 @@ task RunMosDepth {
         set -euo pipefail
 
         mosdepth \
-            -t 4 \
+            -t ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             -c "~{contig}" \
             -x \
             ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
@@ -85,7 +85,7 @@ task RunMosDepth {
         mem_gb: 4,
         disk_gb: ceil(size(bam, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
