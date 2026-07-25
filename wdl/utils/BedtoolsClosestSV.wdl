@@ -17,7 +17,7 @@ workflow BedtoolsClosestSV {
         String length_field
         String source_tag = "SV"
 
-        String benchmark_annotations_docker
+        String sv_pipeline_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -47,7 +47,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = ConvertEvalMoved.processed_vcf_idx,
             split_cpx = false,
             prefix = "~{prefix}.eval.moved",
-            docker = benchmark_annotations_docker,
+            docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
 
@@ -81,7 +81,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = ConvertEvalUnmoved.processed_vcf_idx,
             split_cpx = false,
             prefix = "~{prefix}.eval.unmoved",
-            docker = benchmark_annotations_docker,
+            docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
 
@@ -102,7 +102,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = SubsetTruth.subset_vcf_idx,
             split_cpx = true,
             prefix = "~{prefix}.truth",
-            docker = benchmark_annotations_docker,
+            docker = sv_pipeline_docker,
             runtime_attr_override = runtime_attr_split_truth
     }
 
@@ -119,7 +119,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareDEL.output_bed,
             prefix = "~{prefix}.DEL",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -136,7 +136,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareINS.output_bed,
             prefix = "~{prefix}.INS",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -153,7 +153,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareDUP.output_bed,
             prefix = "~{prefix}.DUP",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -178,7 +178,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareINS_DUP.output_bed,
             prefix = "~{prefix}.INS_DUP",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -203,7 +203,7 @@ workflow BedtoolsClosestSV {
         input:
             input_bed = CompareDUP_INS.output_bed,
             prefix = "~{prefix}.DUP_INS",
-            docker = benchmark_annotations_docker,
+            docker = utils_docker,
             runtime_attr_override = runtime_attr_calculate
     }
 
@@ -283,7 +283,7 @@ task SplitVcf {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -309,7 +309,7 @@ task SelectMatchedSVs {
     command <<<
         set -euo pipefail
 
-        Rscript /opt/gnomad-lr/scripts/benchmark/R1.bedtools_closest_CNV.R \
+        Rscript /opt/scripts/benchmark/R1.bedtools_closest_CNV.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
@@ -323,7 +323,7 @@ task SelectMatchedSVs {
         mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -349,7 +349,7 @@ task SelectMatchedINSs {
     command <<<
         set -euo pipefail
 
-        Rscript /opt/gnomad-lr/scripts/benchmark/R2.bedtools_closest_INS.R \
+        Rscript /opt/scripts/benchmark/R2.bedtools_closest_INS.R \
             -i ~{input_bed} \
             -o ~{prefix}.comparison
     >>>
@@ -363,7 +363,7 @@ task SelectMatchedINSs {
         mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -403,7 +403,7 @@ task CollapseRangedToPoint {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(bed, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -448,7 +448,7 @@ task PrioritizedConcatComparisons {
         mem_gb: 4,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -540,7 +540,7 @@ task CreateBedtoolsAnnotationTsv {
         mem_gb: 4,
         disk_gb: 5 * ceil(size(truvari_unmatched_vcf, "GB") + size(truth_sv_vcf, "GB") + size(closest_bed, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

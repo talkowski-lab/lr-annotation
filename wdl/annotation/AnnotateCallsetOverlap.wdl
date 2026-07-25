@@ -45,7 +45,7 @@ workflow AnnotateCallsetOverlap {
         File ref_fa
         File ref_fai
 
-        String benchmark_annotations_docker
+        String sv_pipeline_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_strip_genotypes
@@ -189,10 +189,11 @@ workflow AnnotateCallsetOverlap {
 
         if (do_exact) {
             if (defined(shard_bin_size_exact_match)) {
-                call Helpers.CreateShardsFromVcfIndex as CreateExactShards {
+                call Helpers.CreateContigShards as CreateExactShards {
                     input:
-                        vcf_idx = vcf_final_idx,
-                        ref_fai = ref_fai,
+                        vcfs = [vcf_final, truth_snv_indel_vcf_final],
+                        vcf_idxs = [vcf_final_idx, truth_snv_indel_vcf_final_idx],
+                        contig = contig,
                         shard_bin_size = select_first([shard_bin_size_exact_match]),
                         prefix = "~{prefix}.~{contig}.exact_shards",
                         docker = utils_docker,
@@ -351,7 +352,7 @@ workflow AnnotateCallsetOverlap {
                     type_field = type_field_vcf,
                     length_field = length_field_vcf,
                     source_tag = source_tag_truth_sv_vcf,
-                    benchmark_annotations_docker = benchmark_annotations_docker,
+                    sv_pipeline_docker = sv_pipeline_docker,
                     utils_docker = utils_docker,
                     runtime_attr_subset_vcf = runtime_attr_bedtools_subset_vcf,
                     runtime_attr_subset_truth = runtime_attr_bedtools_subset_truth,
@@ -482,7 +483,7 @@ task ExactMatch {
         mem_gb: 4,
         disk_gb: 5 * ceil(size(vcf, "GB") + size(truth_snv_indel_vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -542,12 +543,7 @@ norm_to_orig = {**vcf_fields['AC'], **vcf_fields['AF'], **vcf_fields['AN']}
 if is_sv_truth:
     extra_fields = ['N_HOMREF', 'N_HET', 'N_HOMALT']
 else:
-    extra_fields = [
-        'dp_hist_all_bin_freq', 'dp_hist_all_n_larger',
-        'ab_hist_alt_bin_freq', 'dp_hist_alt_n_larger',
-        'age_hist_het_bin_freq', 'age_hist_het_n_smaller', 'age_hist_het_n_larger',
-        'nhomalt',
-    ]
+    extra_fields = ['nhomalt']
 
 query_field_pairs = [(c, norm_to_orig[c]) for c in dyn_cols] + [(f, f) for f in extra_fields]
 fmt = '%ID\\t' + '\\t'.join(f'%INFO/{orig}' for _, orig in query_field_pairs) + '\\n'
@@ -560,14 +556,6 @@ for line in proc.stdout:
         truth_info[parts[0]] = {query_field_pairs[i][0]: parts[i + 1] for i in range(len(query_field_pairs))}
 proc.wait()
 
-def parse_hist(val):
-    if not val or val == '.':
-        return 0
-    try:
-        return sum(float(x) for x in val.split('|') if x and x != '.')
-    except Exception:
-        return 0
-
 def to_num(val):
     try:
         return float(val) if val and val != '.' else 0
@@ -577,18 +565,12 @@ def to_num(val):
 def compute_genotype_counts(info):
     if is_sv_truth:
         return info.get('N_HOMREF', '.'), info.get('N_HET', '.'), info.get('N_HOMALT', '.')
-    homref = str(int(
-        parse_hist(info.get('dp_hist_all_bin_freq', '.')) + to_num(info.get('dp_hist_all_n_larger', '.')) -
-        parse_hist(info.get('ab_hist_alt_bin_freq', '.')) - to_num(info.get('dp_hist_alt_n_larger', '.'))
-    ))
-    het = str(int(
-        parse_hist(info.get('age_hist_het_bin_freq', '.')) +
-        to_num(info.get('age_hist_het_n_smaller', '.')) +
-        to_num(info.get('age_hist_het_n_larger', '.'))
-    ))
-    return homref, het, info.get('nhomalt', '.')
+    homalt = to_num(info.get('nhomalt', '.'))
+    het = to_num(info.get('AC', '.')) - 2 * homalt
+    homref = to_num(info.get('AN', '.')) / 2 - homalt - het
+    return str(int(homref)), str(int(het)), info.get('nhomalt', '.')
 
-extra_cols = ['match_type', 'truth_ID', 'source_tag', 'filter'] + dyn_cols + ['homref_count', 'het_count', 'homalt_count']
+extra_cols = ['match_type', 'truth_ID', 'source_tag', 'filter'] + dyn_cols + ['N_HOMREF', 'N_HET', 'N_HOMALT']
 header_row = '\t'.join(['#CHROM', 'POS', 'REF', 'ALT', 'ID'] + extra_cols)
 
 with open(annotation_tsv) as fin, open(f"{prefix}.tsv", 'w') as fout:
@@ -613,7 +595,7 @@ EOF
         mem_gb: 25,
         disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(truth_vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -647,7 +629,7 @@ prefix = "~{prefix}"
 
 fixed_cols = ['#CHROM', 'POS', 'REF', 'ALT', 'ID']
 static_extra = ['match_type', 'truth_ID', 'source_tag', 'filter']
-genotype_cols = ['homref_count', 'het_count', 'homalt_count']
+genotype_cols = ['N_HOMREF', 'N_HET', 'N_HOMALT']
 skip_cols = set(static_extra + genotype_cols)
 
 # Collect AC_/AF_/AN_ field names from all TSV headers
@@ -704,7 +686,7 @@ EOF
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
