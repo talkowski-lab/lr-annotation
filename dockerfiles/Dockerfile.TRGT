@@ -1,0 +1,13 @@
+FROM us-central1-docker.pkg.dev/talkowski-sv-gnomad/kj-dockers/utils:latest
+
+MAINTAINER Karan Jaisingh
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install TRGT
+ARG TRGT_VERSION
+RUN wget -q https://github.com/PacificBiosciences/trgt/releases/download/${TRGT_VERSION}/trgt-${TRGT_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+    && tar xzf trgt-${TRGT_VERSION}-x86_64-unknown-linux-gnu.tar.gz \
+    && mv trgt-${TRGT_VERSION}-x86_64-unknown-linux-gnu/trgt /usr/local/bin/ \
+    && rm -rf trgt-${TRGT_VERSION}-x86_64-unknown-linux-gnu* \
+    && trgt --help

@@ -28,10 +28,10 @@ workflow AnnotateVEPHail {
         Boolean split_by_chromosome = false
         Boolean split_into_shards = false
 
-        String vep_hail_docker
         String hail_docker
         String sv_base_mini_docker
         String utils_docker
+        String vep_hail_docker
 
         RuntimeAttr? runtime_attr_strip_genotypes
         RuntimeAttr? runtime_attr_subset_vcf
@@ -126,6 +126,7 @@ workflow AnnotateVEPHail {
                 vep_annotate_hail_python_script = vep_annotate_hail_python_script,
                 genome_build = genome_build,
                 vep_json_schema = vep_json_schema,
+                prefix = shard_prefix,
                 docker = vep_hail_docker,
                 runtime_attr_override = runtime_attr_vep_annotate
         }
@@ -173,12 +174,10 @@ task VepAnnotate {
         String vep_annotate_hail_python_script
         String genome_build
         String vep_json_schema
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
-
-    String filename = basename(vcf)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf, ".vcf.gz") else basename(vcf, ".vcf.bgz")
 
     command <<<
         set -euo pipefail
@@ -231,7 +230,7 @@ task VepAnnotate {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_vep_cache, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

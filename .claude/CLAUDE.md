@@ -120,7 +120,7 @@ RuntimeAttr default_attr = object {
     mem_gb: 4,
     disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
     boot_disk_gb: 10,
-    preemptible_tries: 2,
+    preemptible_tries: 1,
     max_retries: 0
 }
 RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -138,7 +138,7 @@ Defaults to follow:
 - `disk_gb`: Calculate dynamically from input file sizes. Define inline unless the formula is complex.
 - `mem_gb`, `boot_disk_gb`, `cpu_cores`: Set based on task compute intensity, not input file size.
 - `boot_disk_gb`: Always `10`.
-- `preemptible_tries`: Always `2`.
+- `preemptible_tries`: Always `1`.
 - `max_retries`: Always `0`.
 - Use `default_attr` and `runtime_attr` as variable names (not `runtime_default`/`runtime_override`).
 - Memory unit is `GiB` (not `GB`).
@@ -167,7 +167,7 @@ Annotation workflows should output a TSV file rather than a VCF, unless underlyi
 - Named `Dockerfile.<ToolName>` (e.g., `Dockerfile.Utils`, `Dockerfile.PALMER`).
 - Common base images: `ubuntu:22.04` for general-purpose containers, tool-specific bases for specialized containers.
 - Docker image strings are never hardcoded in WDL — they are passed as `String` inputs (e.g., `String utils_docker`).
-- The `env/` subdirectory in `dockerfiles/` contains conda environment YAML files.
+- Conda/mamba environment specs are inlined directly in the Dockerfile that needs them (as exact `package=version=build` pins), not kept as separate YAML files.
 
 
 ## Change Propagation

@@ -12,11 +12,15 @@ workflow AnnotateDbSNP {
         Array[String] contigs
         String prefix
 
+        Int? shard_bin_size
+
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_dbsnp_vcf
+        RuntimeAttr? runtime_attr_create_shards
         RuntimeAttr? runtime_attr_annotate
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -50,22 +54,83 @@ workflow AnnotateDbSNP {
         File contig_dbsnp_vcf = select_first([SubsetDbSNPVcf.subset_vcf, dbsnp_vcf])
         File contig_dbsnp_vcf_idx = select_first([SubsetDbSNPVcf.subset_vcf_idx, dbsnp_vcf_idx])
 
-        call AnnotateDbSNPIds {
-            input:
-                vcf = contig_vcf,
-                vcf_idx = contig_vcf_idx,
-                dbsnp_vcf = contig_dbsnp_vcf,
-                dbsnp_vcf_idx = contig_dbsnp_vcf_idx,
-                prefix = "~{prefix}.~{contig}.annotated",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate
+        if (defined(shard_bin_size)) {
+            call Helpers.CreateContigShards {
+                input:
+                    vcfs = [contig_vcf, contig_dbsnp_vcf],
+                    vcf_idxs = [contig_vcf_idx, contig_dbsnp_vcf_idx],
+                    contig = contig,
+                    shard_bin_size = select_first([shard_bin_size]),
+                    prefix = "~{prefix}.~{contig}.shards",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_create_shards
+            }
+
+            scatter (i in range(length(CreateContigShards.shard_regions))) {
+                String shard_region = CreateContigShards.shard_regions[i]
+
+                call Helpers.SubsetVcfToRegion as SubsetVcfShard {
+                    input:
+                        vcf = contig_vcf,
+                        vcf_idx = contig_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_vcf
+                }
+
+                call Helpers.SubsetVcfToRegion as SubsetDbSNPVcfShard {
+                    input:
+                        vcf = contig_dbsnp_vcf,
+                        vcf_idx = contig_dbsnp_vcf_idx,
+                        region = shard_region,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.dbsnp",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_subset_dbsnp_vcf
+                }
+
+                call AnnotateDbSNPIds as AnnotateDbSNPIdsShard {
+                    input:
+                        vcf = SubsetVcfShard.subset_vcf,
+                        vcf_idx = SubsetVcfShard.subset_vcf_idx,
+                        dbsnp_vcf = SubsetDbSNPVcfShard.subset_vcf,
+                        dbsnp_vcf_idx = SubsetDbSNPVcfShard.subset_vcf_idx,
+                        prefix = "~{prefix}.~{contig}.shard_~{i}.annotated",
+                        docker = utils_docker,
+                        runtime_attr_override = runtime_attr_annotate
+                }
+            }
+
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = AnnotateDbSNPIdsShard.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.dbsnp_annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
         }
+
+        if (!defined(shard_bin_size)) {
+            call AnnotateDbSNPIds {
+                input:
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
+                    dbsnp_vcf = contig_dbsnp_vcf,
+                    dbsnp_vcf_idx = contig_dbsnp_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.annotated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate
+            }
+        }
+
+        File contig_annotations_tsv = select_first([ConcatShards.concatenated_tsv, AnnotateDbSNPIds.annotations_tsv])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = AnnotateDbSNPIds.annotations_tsv,
+                tsvs = contig_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.dbsnp_annotated",
                 docker = utils_docker,
@@ -74,7 +139,7 @@ workflow AnnotateDbSNP {
     }
 
     output {
-        File annotations_tsv_dbsnp = select_first([ConcatTsvs.concatenated_tsv, AnnotateDbSNPIds.annotations_tsv[0]])
+        File annotations_tsv_dbsnp = select_first([ConcatTsvs.concatenated_tsv, contig_annotations_tsv[0]])
     }
 }
 
@@ -137,7 +202,7 @@ task AnnotateDbSNPIds {
         mem_gb: 4,
         disk_gb: 2 * ceil(size([vcf, dbsnp_vcf], "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

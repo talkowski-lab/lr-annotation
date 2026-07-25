@@ -75,7 +75,7 @@ task CpgPileup {
         mem_gb: 12,
         disk_gb: 3 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

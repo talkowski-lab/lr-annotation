@@ -1,32 +1,27 @@
 version 1.0
 
-import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
 workflow TRGT {
     input {
         File bam
         File bai
-        File ref_fa
-        File ref_fai
-        File repeat_catalog_trgt
         String prefix
 
         String sample_id
         String sex
         String catalog_name
-        String gcs_out_dir
+
+        File ref_fa
+        File ref_fai
+        File repeat_catalog_trgt
 
         String trgt_docker
-        String finalize_docker
 
         RuntimeAttr? runtime_attr_process_with_trgt
-        RuntimeAttr? runtime_attr_finalize_vcf
-        RuntimeAttr? runtime_attr_finalize_vcf_idx
     }
 
     Boolean is_female = 'F' == sex
-    String outdir = sub(gcs_out_dir, "/$", "") + "/TRGT/" + catalog_name
 
     call ProcessWithTRGT {
         input:
@@ -37,30 +32,14 @@ workflow TRGT {
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             repeat_catalog_trgt = repeat_catalog_trgt,
-            outprefix = sample_id,
+            prefix = "~{prefix}.~{sample_id}",
             docker = trgt_docker,
             runtime_attr_override = runtime_attr_process_with_trgt
     }
 
-    call Helpers.FinalizeToFile as FinalizeVcf {
-        input:
-            file = ProcessWithTRGT.trgt_output_vcf,
-            outdir = outdir,
-            docker = finalize_docker,
-            runtime_attr_override = runtime_attr_finalize_vcf
-    }
-
-    call Helpers.FinalizeToFile as FinalizeTbi {
-        input:
-            file = ProcessWithTRGT.trgt_output_vcf_idx,
-            outdir = outdir,
-            docker = finalize_docker,
-            runtime_attr_override = runtime_attr_finalize_vcf_idx
-    }
-
     output {
-        File trgt_vcf = FinalizeVcf.gcs_path
-        File trgt_vcf_idx = FinalizeTbi.gcs_path
+        File trgt_vcf = ProcessWithTRGT.trgt_output_vcf
+        File trgt_vcf_idx = ProcessWithTRGT.trgt_output_vcf_idx
     }
 }
 
@@ -74,18 +53,16 @@ task ProcessWithTRGT {
         File ref_fa
         File ref_fai
         File repeat_catalog_trgt
-        String outprefix
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
 
-    String vcf_out_name = outprefix + "_trgt." + catalog_name
+    String vcf_out_name = prefix + "_trgt." + catalog_name
     String karyotype = if(is_female) then "XX" else "XY"
 
     command <<<
         set -euo pipefail
-
-        nproc=$(cat /proc/cpuinfo | awk '/^processor/{print $3}' | wc -l)
 
         time \
         trgt \
@@ -94,11 +71,9 @@ task ProcessWithTRGT {
             --genome ~{ref_fa} \
             --repeats ~{repeat_catalog_trgt} \
             --reads ~{bam} \
-            --threads "${nproc}" \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             --output-prefix ~{vcf_out_name} \
             --karyotype ~{karyotype}
-
-        find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
 
         bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
@@ -121,13 +96,13 @@ task ProcessWithTRGT {
         mem_gb: 6,
         disk_gb: ceil(size(bam, "GB") + size(ref_fa, "GB") + size(repeat_catalog_trgt, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
     runtime {
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GB"
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " SSD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker

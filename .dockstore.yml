@@ -22,15 +22,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: AnnotateCallsetOverlap_AF
-    primaryDescriptorPath: /wdl/annotation/AnnotateCallsetOverlap_AF.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: AnnotateDbSNP
     primaryDescriptorPath: /wdl/annotation/AnnotateDbSNP.wdl
     filters:
@@ -157,6 +148,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: AnnotateTruvariRemap
+    primaryDescriptorPath: /wdl/annotation/AnnotateTruvariRemap.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateVEPHail
     primaryDescriptorPath: /wdl/annotation/AnnotateVEPHail.wdl
     filters:
@@ -177,15 +177,6 @@ workflows:
   # --------------------
   # Annotation Utilities
   # --------------------
-  - subclass: WDL
-    name: AddEndTRs
-    primaryDescriptorPath: /wdl/annotation_utils/AddEndTRs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
   - subclass: WDL
     name: AnnotateAlleleType
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateAlleleType.wdl
@@ -214,42 +205,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: CombineCohortTRs
-    primaryDescriptorPath: /wdl/annotation_utils/CombineCohortTRs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CombineTRs
-    primaryDescriptorPath: /wdl/annotation_utils/CombineTRs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CombineVcfsAcrossContigs
-    primaryDescriptorPath: /wdl/annotation_utils/CombineVcfsAcrossContigs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CompareBAMs
-    primaryDescriptorPath: /wdl/annotation_utils/CompareBAMs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: ConcatenateMosDepth
     primaryDescriptorPath: /wdl/annotation_utils/ConcatenateMosDepth.wdl
     filters:
@@ -261,15 +216,6 @@ workflows:
   - subclass: WDL
     name: CountAnnotations
     primaryDescriptorPath: /wdl/annotation_utils/CountAnnotations.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: CreateBiallelicVcf
-    primaryDescriptorPath: /wdl/annotation_utils/CreateBiallelicVcf.wdl
     filters:
       branches:
         - main
@@ -295,35 +241,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: CreatePEDAncestry
-    primaryDescriptorPath: /wdl/annotation_utils/CreatePEDAncestry.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: CreateReadCountsFile
     primaryDescriptorPath: /wdl/annotation_utils/CreateReadCountsFile.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: DownloadAWSFile
-    primaryDescriptorPath: /wdl/annotation_utils/DownloadAWSFile.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: DownloadConvertBAM
-    primaryDescriptorPath: /wdl/annotation_utils/DownloadConvertBAM.wdl
     filters:
       branches:
         - main
@@ -349,53 +268,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: FillFormatFields
-    primaryDescriptorPath: /wdl/annotation_utils/FillFormatFields.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: FillPhasedGenotypes
-    primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: FilterTRGTCalls
-    primaryDescriptorPath: /wdl/annotation_utils/FilterTRGTCalls.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: FindUntrimmedAlleles
-    primaryDescriptorPath: /wdl/annotation_utils/FindUntrimmedAlleles.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: GenerateTRGTJson
     primaryDescriptorPath: /wdl/annotation_utils/GenerateTRGTJson.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: GQCalculateCounts
-    primaryDescriptorPath: /wdl/annotation_utils/GQCalculateCounts.wdl
     filters:
       branches:
         - main
@@ -414,33 +288,6 @@ workflows:
   - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: MergeBackbonePhased
-    primaryDescriptorPath: /wdl/annotation_utils/MergeBackbonePhased.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: MergeVcfs
-    primaryDescriptorPath: /wdl/annotation_utils/MergeVcfs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: ParseAbsoluteOrigin
-    primaryDescriptorPath: /wdl/annotation_utils/ParseAbsoluteOrigin.wdl
     filters:
       branches:
         - main
@@ -475,24 +322,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: SplitVcfPerContig
-    primaryDescriptorPath: /wdl/annotation_utils/SplitVcfPerContig.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetTRGTToCatalog
-    primaryDescriptorPath: /wdl/annotation_utils/SubsetTRGTToCatalog.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: SubsetTsvToColumns
     primaryDescriptorPath: /wdl/annotation_utils/SubsetTsvToColumns.wdl
     filters:
@@ -502,44 +331,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: SubsetVcfToContigs
-    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToContigs.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SubsetVcfToPerSample
-    primaryDescriptorPath: /wdl/annotation_utils/SubsetVcfToPerSample.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: SVAddRawCallers
-    primaryDescriptorPath: /wdl/annotation_utils/SVAddRawCallers.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: TransformINSToDUP
     primaryDescriptorPath: /wdl/annotation_utils/TransformINSToDUP.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: VcfToBed
-    primaryDescriptorPath: /wdl/annotation_utils/VcfToBed.wdl
     filters:
       branches:
         - main
@@ -561,6 +354,15 @@ workflows:
   - subclass: WDL
     name: BackbonePhase
     primaryDescriptorPath: /wdl/tools/BackbonePhase.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: HiFiCNV
+    primaryDescriptorPath: /wdl/tools/HiFiCNV.wdl
     filters:
       branches:
         - main
@@ -676,15 +478,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: TransferMethylationTags
-    primaryDescriptorPath: /wdl/tools/TransferMethylationTags.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: TRGT
     primaryDescriptorPath: /wdl/tools/TRGT.wdl
     filters:
@@ -696,15 +489,6 @@ workflows:
   - subclass: WDL
     name: TRGTLPS
     primaryDescriptorPath: /wdl/tools/TRGTLPS.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
-    name: TruvariRemap
-    primaryDescriptorPath: /wdl/tools/TruvariRemap.wdl
     filters:
       branches:
         - main

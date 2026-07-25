@@ -11,8 +11,8 @@ workflow RepeatMasker {
 
         Int? min_length
 
-        String utils_docker
         String repeatmasker_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_ins_to_fa
         RuntimeAttr? runtime_attr_repeat_masker
@@ -75,7 +75,7 @@ task INSToFa {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -120,7 +120,7 @@ task RepeatMasker {
         mem_gb: 4,
         disk_gb: 5 * ceil(size(fa, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

@@ -190,7 +190,7 @@ CODE
         mem_gb: 2,
         disk_gb: 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -453,7 +453,7 @@ CODE
         mem_gb: 12,
         disk_gb: 50 * ceil(size(backbone_phased_vcf, "GiB")) + ceil(size(base_vcf, "GiB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -581,7 +581,7 @@ CODE
         mem_gb: 6,
         disk_gb: ceil(size(backbone_phased_vcf, "GiB")) + ceil(size(status_tsv_gzs, "GiB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -682,7 +682,7 @@ CODE
         mem_gb: 4,
         disk_gb: ceil(size(outside_tr_tsvs, "GiB")) + ceil(size(tr_enveloped_tsvs, "GiB")) + 15,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

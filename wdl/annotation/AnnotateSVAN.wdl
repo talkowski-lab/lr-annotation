@@ -28,8 +28,8 @@ workflow AnnotateSVAN {
         File mei_fa
         Array[File] mei_fa_indices
 
-        String utils_docker
         String svan_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
         RuntimeAttr? runtime_attr_subset_ins
@@ -161,8 +161,8 @@ workflow AnnotateSVAN {
                         original_vcf = ResetIns.reset_vcf,
                         original_vcf_idx = ResetIns.reset_vcf_idx,
                         prefix = "~{prefix}.~{contig}.ins_shard_~{i}.annotations",
-                        docker = utils_docker,
                         add_header_row = true,
+                        docker = utils_docker,
                         runtime_attr_override = runtime_attr_extract_ins
                 }
             }
@@ -263,8 +263,8 @@ workflow AnnotateSVAN {
                         original_vcf = ResetDel.reset_vcf,
                         original_vcf_idx = ResetDel.reset_vcf_idx,
                         prefix = "~{prefix}.~{contig}.del_shard_~{i}.annotations",
-                        docker = utils_docker,
                         add_header_row = true,
+                        docker = utils_docker,
                         runtime_attr_override = runtime_attr_extract_del
                 }
             }
@@ -335,7 +335,7 @@ task GenerateTRF {
         mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) * 3 + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -420,7 +420,7 @@ task RunSvanAnnotate {
         mem_gb: 16,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(mei_fa, "GB") + size(mei_fa_indices, "GB") + size(ref_fa, "GB")  + size(ref_fa_indices, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -494,7 +494,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Structs.wdl"
 import "../utils/Helpers.wdl"
 
-workflow TruvariRemap {
+workflow AnnotateTruvariRemap {
     input {
         File vcf
         File vcf_idx
@@ -32,13 +32,15 @@ workflow TruvariRemap {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig {
+        call Helpers.SubsetVcfByArgs {
             input:
                 vcf = vcf,
                 vcf_idx = vcf_idx,
-                contig = contig,
-                extra_args = "-i 'INFO/~{type_field}=\"~{type_ins}\"'",
+                include_args = "INFO/~{type_field}=\"~{type_ins}\"",
+                extra_args = if single_contig then "" else "--regions ~{contig}",
                 prefix = "~{prefix}.~{contig}.ins",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_subset_contig
@@ -47,8 +49,8 @@ workflow TruvariRemap {
         if (defined(records_per_shard)) {
             call Helpers.ShardVcfByRecords {
                 input:
-                    vcf = SubsetVcfToContig.subset_vcf,
-                    vcf_idx = SubsetVcfToContig.subset_vcf_idx,
+                    vcf = SubsetVcfByArgs.subset_vcf,
+                    vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}.ins",
                     docker = utils_docker,
@@ -56,8 +58,8 @@ workflow TruvariRemap {
             }
         }
 
-        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfToContig.subset_vcf]])
-        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfToContig.subset_vcf_idx]])
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByArgs.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByArgs.subset_vcf_idx]])
 
         scatter (i in range(length(vcfs_to_process))) {
             call InsRemap {
@@ -90,17 +92,19 @@ workflow TruvariRemap {
         File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, InsRemap.annotations_tsv[0]])
     }
 
-    call Helpers.ConcatTsvs {
-        input:
-            tsvs = final_annotations_tsv,
-            sort_output = false,
-            prefix = "~{prefix}.remap_annotations",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = final_annotations_tsv,
+                sort_output = false,
+                prefix = "~{prefix}.remap_annotations",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File annotations_tsv_remap = ConcatTsvs.concatenated_tsv
+        File annotations_tsv_remap = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 
@@ -160,7 +164,7 @@ task InsRemap {
         mem_gb: 16,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(ref_fa, "GB") + size(ref_bwa_indices, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

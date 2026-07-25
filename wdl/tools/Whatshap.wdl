@@ -16,8 +16,8 @@ workflow Whatshap {
 
         String? extra_args
 
-        String whatshap_docker
         String utils_docker
+        String whatshap_docker
 
         RuntimeAttr? runtime_attr_subset_bam
         RuntimeAttr? runtime_attr_subset_vcf
@@ -124,7 +124,7 @@ task Haplotag {
         mem_gb: 8,
         disk_gb: 5 * ceil(size(bam, "GB") + size(ref_fa, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

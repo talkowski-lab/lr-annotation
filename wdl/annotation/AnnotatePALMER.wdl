@@ -12,12 +12,14 @@ workflow AnnotatePALMER {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         Array[String] mei_types
         Int min_length
         File rm_out
         Int rm_buffer
         File ref_fai
-        
+
         Int ins_breakpoint_window_alu = 200
         Float ins_reciprocal_overlap_alu = 0.9
         Float ins_sequence_similarity_alu = 0.9
@@ -45,7 +47,9 @@ workflow AnnotatePALMER {
         String annotate_palmer_docker
 
         RuntimeAttr? runtime_attr_subset
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_filter_palmer
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat
     }
 
@@ -63,46 +67,76 @@ workflow AnnotatePALMER {
                 runtime_attr_override = runtime_attr_subset
         }
 
-        call FilterPALMER {
-            input:
-                vcf = SubsetVcfByLength.subset_vcf,
-                vcf_idx = SubsetVcfByLength.subset_vcf_idx,
-                PALMER_vcf = PALMER_vcf,
-                PALMER_vcf_idx = PALMER_vcf_idx,
-                mei_types = mei_types,
-                rm_out = rm_out,
-                rm_buffer = rm_buffer,
-                ref_fai = ref_fai,
-                ins_breakpoint_window_alu = ins_breakpoint_window_alu,
-                ins_reciprocal_overlap_alu = ins_reciprocal_overlap_alu,
-                ins_sequence_similarity_alu = ins_sequence_similarity_alu,
-                ins_size_similarity_alu = ins_size_similarity_alu,
-                ins_min_shared_samples_alu = ins_min_shared_samples_alu,
-                ins_breakpoint_window_line = ins_breakpoint_window_line,
-                ins_reciprocal_overlap_line = ins_reciprocal_overlap_line,
-                ins_sequence_similarity_line = ins_sequence_similarity_line,
-                ins_size_similarity_line = ins_size_similarity_line,
-                ins_min_shared_samples_line = ins_min_shared_samples_line,
-                ins_breakpoint_window_sva = ins_breakpoint_window_sva,
-                ins_reciprocal_overlap_sva = ins_reciprocal_overlap_sva,
-                ins_sequence_similarity_sva = ins_sequence_similarity_sva,
-                ins_size_similarity_sva = ins_size_similarity_sva,
-                ins_min_shared_samples_sva = ins_min_shared_samples_sva,
-                ins_breakpoint_window_hervk = ins_breakpoint_window_hervk,
-                ins_reciprocal_overlap_hervk = ins_reciprocal_overlap_hervk,
-                ins_sequence_similarity_hervk = ins_sequence_similarity_hervk,
-                ins_size_similarity_hervk = ins_size_similarity_hervk,
-                ins_min_shared_samples_hervk = ins_min_shared_samples_hervk,
-                prefix = "~{prefix}.~{contig}.filtered",
-                docker = annotate_palmer_docker,
-                runtime_attr_override = runtime_attr_filter_palmer
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = SubsetVcfByLength.subset_vcf,
+                    vcf_idx = SubsetVcfByLength.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.filtered",
+                    docker = annotate_palmer_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByLength.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByLength.subset_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call FilterPALMER {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    PALMER_vcf = PALMER_vcf,
+                    PALMER_vcf_idx = PALMER_vcf_idx,
+                    mei_types = mei_types,
+                    rm_out = rm_out,
+                    rm_buffer = rm_buffer,
+                    ref_fai = ref_fai,
+                    ins_breakpoint_window_alu = ins_breakpoint_window_alu,
+                    ins_reciprocal_overlap_alu = ins_reciprocal_overlap_alu,
+                    ins_sequence_similarity_alu = ins_sequence_similarity_alu,
+                    ins_size_similarity_alu = ins_size_similarity_alu,
+                    ins_min_shared_samples_alu = ins_min_shared_samples_alu,
+                    ins_breakpoint_window_line = ins_breakpoint_window_line,
+                    ins_reciprocal_overlap_line = ins_reciprocal_overlap_line,
+                    ins_sequence_similarity_line = ins_sequence_similarity_line,
+                    ins_size_similarity_line = ins_size_similarity_line,
+                    ins_min_shared_samples_line = ins_min_shared_samples_line,
+                    ins_breakpoint_window_sva = ins_breakpoint_window_sva,
+                    ins_reciprocal_overlap_sva = ins_reciprocal_overlap_sva,
+                    ins_sequence_similarity_sva = ins_sequence_similarity_sva,
+                    ins_size_similarity_sva = ins_size_similarity_sva,
+                    ins_min_shared_samples_sva = ins_min_shared_samples_sva,
+                    ins_breakpoint_window_hervk = ins_breakpoint_window_hervk,
+                    ins_reciprocal_overlap_hervk = ins_reciprocal_overlap_hervk,
+                    ins_sequence_similarity_hervk = ins_sequence_similarity_hervk,
+                    ins_size_similarity_hervk = ins_size_similarity_hervk,
+                    ins_min_shared_samples_hervk = ins_min_shared_samples_hervk,
+                    prefix = "~{prefix}.~{contig}.filtered.shard_~{i}",
+                    docker = annotate_palmer_docker,
+                    runtime_attr_override = runtime_attr_filter_palmer
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = FilterPALMER.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.filtered",
+                    docker = annotate_palmer_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File contig_annotations_tsv = select_first([ConcatShards.concatenated_tsv, FilterPALMER.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs as MergeAnnotations {
             input:
-                tsvs = FilterPALMER.annotations_tsv,
+                tsvs = contig_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.palmer_annotations",
                 docker = annotate_palmer_docker,
@@ -111,7 +145,7 @@ workflow AnnotatePALMER {
     }
 
     output {
-        File annotations_tsv_palmer = select_first([MergeAnnotations.concatenated_tsv, FilterPALMER.annotations_tsv[0]])
+        File annotations_tsv_palmer = select_first([MergeAnnotations.concatenated_tsv, contig_annotations_tsv[0]])
     }
 }
 
@@ -220,7 +254,7 @@ task FilterPALMER {
                 -b PALMER_calls.bed \
                 > intersection.bed
 
-            python /opt/gnomad-lr/scripts/mei/PALMER_transfer_annotations.py \
+            python /opt/scripts/mei/PALMER_transfer_annotations.py \
                 --intersection intersection.bed \
                 --target-vcf ~{vcf} \
                 --me-type ${ME_type} \
@@ -249,7 +283,7 @@ task FilterPALMER {
         mem_gb: 4,
         disk_gb: 3*ceil(size(vcf, "GB")+size(PALMER_vcf, "GB")+size(rm_out, "GB"))+20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

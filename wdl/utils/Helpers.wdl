@@ -454,7 +454,7 @@ task AnnotateVariantAttributes {
         mem_gb: 4,
         disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -843,7 +843,7 @@ CODE
         mem_gb: 16,
         disk_gb: 5 * ceil(size(vcf, "GB")) + 25,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1041,16 +1041,18 @@ task ConvertTsvToParquet {
     command <<<
         set -euo pipefail
 
-        python3 <<CODE
+        if [[ -s "~{tsv}" ]]; then
+            python3 <<CODE
 import pandas as pd
 
 df = pd.read_csv("~{tsv}", sep="\t", low_memory=False)
 df.to_parquet("~{prefix}.parquet", index=False)
 CODE
+        fi
     >>>
 
     output {
-        File parquet = "~{prefix}.parquet"
+        File? parquet = "~{prefix}.parquet"
     }
 
     RuntimeAttr default_attr = object {
@@ -1058,7 +1060,7 @@ CODE
         mem_gb: 4 * ceil(size(tsv, "GB")) + 8,
         disk_gb: 4 * ceil(size(tsv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1066,75 +1068,6 @@ CODE
         cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task CreateShardsFromVcfIndex {
-    input {
-        File vcf_idx
-        File ref_fai
-        Int shard_bin_size
-        Boolean use_ssd = false
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    command <<<
-        set -euo pipefail
-
-        touch input.vcf.gz
-        ln -sf ~{vcf_idx} input.vcf.gz.tbi
-        tabix -l input.vcf.gz > contigs.txt
-
-        python3 <<CODE
-import math
-
-contig_lengths = {}
-with open("~{ref_fai}", "r") as f:
-    for line in f:
-        parts = line.strip().split("\t")
-        contig_lengths[parts[0]] = int(parts[1])
-
-shard_bin_size = ~{shard_bin_size}
-
-with open("contigs.txt", "r") as f:
-    contigs = [line.strip() for line in f if line.strip()]
-
-with open("~{prefix}.txt", "w") as out:
-    for contig in contigs:
-        if contig not in contig_lengths:
-            continue
-        max_pos = contig_lengths[contig]
-        shard_count = int(math.ceil(max_pos / shard_bin_size))
-        for shard_index in range(shard_count):
-            start = shard_index * shard_bin_size + 1
-            end = min((shard_index + 1) * shard_bin_size, max_pos)
-            out.write(f"{contig}:{start}-{end}\n")
-CODE
-    >>>
-
-    output {
-        Array[String] shard_regions = read_lines("~{prefix}.txt")
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 1,
-        disk_gb: 10,
-        boot_disk_gb: 10,
-        preemptible_tries: 2,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + if use_ssd then " SSD" else " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
         docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
@@ -1216,7 +1149,6 @@ CODE
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
-
 
 task AddMissingInfoHeaderLines {
     input {
@@ -1373,8 +1305,8 @@ task ExtractVcfAnnotations {
         File original_vcf
         File original_vcf_idx
         String prefix
-        String docker
         Boolean add_header_row = false
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
@@ -1643,90 +1575,6 @@ CODE
     }
 }
 
-task FinalizeToDir {
-    input {
-        Array[File] files
-        String outdir
-        File? keyfile
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    String gcs_output_dir = sub(outdir, "/+$", "")
-
-    command <<<
-        set -euo pipefail
-
-        cat ~{write_lines(files)} | gsutil -m cp -I "~{gcs_output_dir}"
-    >>>
-
-    output {
-        String gcs_dir = gcs_output_dir
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(files, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
-task FinalizeToFile {
-    input {
-        File file
-        String outdir
-        String? name
-        File? keyfile
-        String docker
-        RuntimeAttr? runtime_attr_override
-    }
-
-    String gcs_output_dir = sub(outdir, "/+$", "")
-    String gcs_output_file = gcs_output_dir + "/" + select_first([name, basename(file)])
-
-    command <<<
-        set -euo pipefail
-
-        gsutil -m cp "~{file}" "~{gcs_output_file}"
-    >>>
-
-    output {
-        String gcs_path = gcs_output_file
-    }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 4,
-        disk_gb: 2 * ceil(size(file, "GB")) + 5,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
-    runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
-    }
-}
-
 task GetContigsFromTsv {
     input {
         File tsv
@@ -1787,7 +1635,7 @@ task GetSamplesFromVcf {
         mem_gb: 1,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -2907,7 +2755,7 @@ task TransferAWSToGCS {
         mem_gb: 4,
         disk_gb: 600,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -3025,7 +2873,7 @@ task SubsetVcfToRegionStreaming {
         mem_gb: 6,
         disk_gb: 15,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -3240,7 +3088,7 @@ task StripInfoFields {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

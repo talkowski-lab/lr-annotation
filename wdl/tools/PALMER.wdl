@@ -23,9 +23,9 @@ workflow PALMER {
         Array[String] mei_types
         Array[String]? truvari_collapse_params
 
-        String utils_docker
-        String palmer_docker
         String annotate_palmer_docker
+        String palmer_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_split_bam
         RuntimeAttr? runtime_attr_run_palmer
@@ -88,6 +88,7 @@ workflow PALMER {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 haplotype = "1|0",
+                prefix = "~{prefix}.~{mei_type}.pat",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_palmer_to_vcf
         }
@@ -141,6 +142,7 @@ workflow PALMER {
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 haplotype = "0|1",
+                prefix = "~{prefix}.~{mei_type}.mat",
                 docker = annotate_palmer_docker,
                 runtime_attr_override = runtime_attr_palmer_to_vcf
         }
@@ -152,11 +154,10 @@ workflow PALMER {
                 vcf_pat_idx = ConvertPALMERToVcfPat.vcf_idx,
                 vcf_mat = ConvertPALMERToVcfMat.vcf,
                 vcf_mat_idx = ConvertPALMERToVcfMat.vcf_idx,
-                sample = sample,
-                mei_type = mei_type,
                 collapse_params = collapse_params,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
+                prefix = "~{prefix}.~{mei_type}",
                 docker = utils_docker,
                 runtime_attr_override = runtime_attr_truvari_collapse
         }
@@ -241,7 +242,7 @@ task RunPALMERShard {
         mem_gb: 4,
         disk_gb: 4,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -290,7 +291,7 @@ task MergePALMEROutputs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(calls_shards, "GB") + size(tsd_reads_shards, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -314,6 +315,7 @@ task ConvertPALMERToVcf {
         File ref_fa
         File ref_fai
         String haplotype
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -321,7 +323,7 @@ task ConvertPALMERToVcf {
     command <<<
         set -euo pipefail
 
-        python /opt/gnomad-lr/scripts/mei/PALMER_to_vcf.py \
+        python /opt/scripts/mei/PALMER_to_vcf.py \
             --palmer_calls ~{palmer_calls} \
             --palmer_tsd_reads ~{palmer_tsd_reads} \
             --mei_type ~{mei_type} \
@@ -332,14 +334,14 @@ task ConvertPALMERToVcf {
         | bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
-            -Oz -o ~{sample}.palmer_calls.~{mei_type}.vcf.gz
-        
-        tabix -p vcf ~{sample}.palmer_calls.~{mei_type}.vcf.gz
+            -Oz -o ~{prefix}.palmer_calls.vcf.gz
+
+        tabix -p vcf ~{prefix}.palmer_calls.vcf.gz
     >>>
 
     output {
-        File vcf = "~{sample}.palmer_calls.~{mei_type}.vcf.gz"
-        File vcf_idx = "~{sample}.palmer_calls.~{mei_type}.vcf.gz.tbi"
+        File vcf = "~{prefix}.palmer_calls.vcf.gz"
+        File vcf_idx = "~{prefix}.palmer_calls.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -347,7 +349,7 @@ task ConvertPALMERToVcf {
         mem_gb: 4,
         disk_gb: 5 * ceil(size(palmer_calls, "GB") + size(palmer_tsd_reads, "GB") + size(ref_fa, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -368,11 +370,10 @@ task TruvariCollapse {
         File vcf_pat_idx
         File vcf_mat
         File vcf_mat_idx
-        String sample
-        String mei_type
         String collapse_params
         File ref_fa
         File ref_fai
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -388,29 +389,29 @@ task TruvariCollapse {
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
             -Oz -o combined.vcf.gz
-        
+
         tabix combined.vcf.gz
 
         truvari collapse \
             --reference ~{ref_fa} \
             -i combined.vcf.gz \
-            -o ~{sample}.~{mei_type}.merged.vcf.gz \
-            -c ~{sample}.~{mei_type}.collapsed.vcf.gz \
+            -o ~{prefix}.merged.vcf.gz \
+            -c ~{prefix}.collapsed.vcf.gz \
             --hap \
             ~{collapse_params}
 
         bcftools sort \
             --max-mem ~{select_first([runtime_attr.mem_gb, default_attr.mem_gb]) - 1}G \
             -T . \
-            -Oz -o ~{sample}.~{mei_type}.merged.sorted.vcf.gz \
-            ~{sample}.~{mei_type}.merged.vcf.gz
-        
-        tabix -p vcf ~{sample}.~{mei_type}.merged.sorted.vcf.gz
+            -Oz -o ~{prefix}.merged.sorted.vcf.gz \
+            ~{prefix}.merged.vcf.gz
+
+        tabix -p vcf ~{prefix}.merged.sorted.vcf.gz
     >>>
 
     output {
-        File diploid_vcf = "~{sample}.~{mei_type}.merged.sorted.vcf.gz"
-        File diploid_vcf_idx = "~{sample}.~{mei_type}.merged.sorted.vcf.gz.tbi"
+        File diploid_vcf = "~{prefix}.merged.sorted.vcf.gz"
+        File diploid_vcf_idx = "~{prefix}.merged.sorted.vcf.gz.tbi"
     }
 
     RuntimeAttr default_attr = object {
@@ -418,7 +419,7 @@ task TruvariCollapse {
         mem_gb: 4,
         disk_gb: 3 * ceil(size(vcf_pat, "GB") + size(vcf_mat, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

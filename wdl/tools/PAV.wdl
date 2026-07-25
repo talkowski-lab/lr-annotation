@@ -3,29 +3,31 @@ version 1.0
 import "../utils/Structs.wdl"
 
 workflow PAV {
-	input {
-		Array[File] mat_haplotypes
-		Array[File] pat_haplotypes
-		Array[String] sample_ids
+    input {
+        Array[File] mat_haplotypes
+        Array[File] pat_haplotypes
+        Array[String] sample_ids
+        String prefix
 
-		File ref_fa
-		File ref_fai
+        File ref_fa
+        File ref_fai
 
-		String pav_docker
+        String pav_docker
 
-		RuntimeAttr? runtime_attr_run_pav
-	}
+        RuntimeAttr? runtime_attr_run_pav
+    }
 
-	call CallPAV {
-		input:
-			mat_haplotypes = mat_haplotypes,
-			pat_haplotypes = pat_haplotypes,
-			sample_ids = sample_ids,
-			ref_fa = ref_fa,
-			ref_fai = ref_fai,
-			docker = pav_docker,
-			runtime_attr_override = runtime_attr_run_pav
-	}
+    call CallPAV {
+        input:
+            mat_haplotypes = mat_haplotypes,
+            pat_haplotypes = pat_haplotypes,
+            sample_ids = sample_ids,
+            ref_fa = ref_fa,
+            ref_fai = ref_fai,
+            prefix = prefix,
+            docker = pav_docker,
+            runtime_attr_override = runtime_attr_run_pav
+    }
 
     output {
         File pav_results_tarball = CallPAV.results_tar
@@ -35,7 +37,7 @@ workflow PAV {
 
         File? debug_sam = CallPAV.debug_sam
         Array[File]? debug_temp = CallPAV.debug_temp
-	}
+    }
 }
 
 task CallPAV {
@@ -43,6 +45,7 @@ task CallPAV {
         Array[File] mat_haplotypes
         Array[File] pat_haplotypes
         Array[String] sample_ids
+        String prefix
 
         File ref_fa
         File ref_fai
@@ -107,13 +110,13 @@ CODE
 
         python3 -m pav3 batch --cores ~{effective_cpu}
 
-        tar -zcf pav_results.tar.gz results
-        tar -zcf pav_log.tar.gz log
+        tar -zcf ~{prefix}.pav_results.tar.gz results
+        tar -zcf ~{prefix}.pav_log.tar.gz log
     >>>
 
     output {
-        File results_tar = "pav_results.tar.gz"
-        File log_tar = "pav_log.tar.gz"
+        File results_tar = "~{prefix}.pav_results.tar.gz"
+        File log_tar = "~{prefix}.pav_log.tar.gz"
         Array[File] vcfs = glob("*.vcf.gz")
         Array[File] vcf_indices = glob("*.vcf.gz.csi")
 

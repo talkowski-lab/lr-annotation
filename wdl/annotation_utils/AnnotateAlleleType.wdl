@@ -188,7 +188,7 @@ task AddHeaders {
         mem_gb: 2,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -269,7 +269,7 @@ task AnnotateDup {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(dup_tsv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -341,7 +341,7 @@ task AnnotateMei {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(mei_tsv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -413,7 +413,7 @@ task AnnotateMed {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB") + size(med_tsv, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

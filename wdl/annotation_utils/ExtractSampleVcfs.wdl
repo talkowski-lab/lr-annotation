@@ -23,22 +23,29 @@ workflow ExtractSampleVcfs {
         RuntimeAttr? runtime_attr_concat_sv
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call Helpers.SubsetVcfToContig as SubsetContig {
-            input:
-                vcf = cohort_vcf,
-                vcf_idx = cohort_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetContig {
+                input:
+                    vcf = cohort_vcf,
+                    vcf_idx = cohort_vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contig
+            }
         }
+
+        File contig_vcf = select_first([SubsetContig.subset_vcf, cohort_vcf])
+        File contig_vcf_idx = select_first([SubsetContig.subset_vcf_idx, cohort_vcf_idx])
 
         scatter (sample_id in sample_ids) {
             call Helpers.ExtractSample {
                 input:
-                    vcf = SubsetContig.subset_vcf,
-                    vcf_idx = SubsetContig.subset_vcf_idx,
+                    vcf = contig_vcf,
+                    vcf_idx = contig_vcf_idx,
                     sample = sample_id,
                     prefix = "~{prefix}.~{sample_id}.~{contig}",
                     docker = utils_docker,

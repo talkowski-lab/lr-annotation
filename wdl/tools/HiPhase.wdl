@@ -203,7 +203,7 @@ task PreprocessVCF {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -253,7 +253,7 @@ task SyncContigs {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(small_vcf, "GB") + size(sv_vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -331,7 +331,7 @@ task HiPhase {
         mem_gb: 8,
         disk_gb: 2 * ceil(size(bam, "GB")) + 50,
         boot_disk_gb: 100,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

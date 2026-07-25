@@ -82,23 +82,30 @@ workflow IntegrateVcfs {
     File final_sv_vcf = select_first([SwapSv.swapped_vcf, sv_vcf])
     File final_sv_vcf_idx = select_first([SwapSv.swapped_vcf_idx, sv_vcf_idx])
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
         # SNV Indel Processing
-        call Helpers.SubsetVcfToContig as SubsetContigSnvIndel {
-            input:
-                vcf = final_snv_indel_vcf,
-                vcf_idx = final_snv_indel_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.snv_indel",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig_snv_indel
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetContigSnvIndel {
+                input:
+                    vcf = final_snv_indel_vcf,
+                    vcf_idx = final_snv_indel_vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.snv_indel",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contig_snv_indel
+            }
         }
+
+        File contig_snv_indel_vcf = select_first([SubsetContigSnvIndel.subset_vcf, final_snv_indel_vcf])
+        File contig_snv_indel_vcf_idx = select_first([SubsetContigSnvIndel.subset_vcf_idx, final_snv_indel_vcf_idx])
 
         if (defined(records_per_shard)) {
             call Helpers.ShardVcfByRecords as ShardSnvIndel {
                 input:
-                    vcf = SubsetContigSnvIndel.subset_vcf,
-                    vcf_idx = SubsetContigSnvIndel.subset_vcf_idx,
+                    vcf = contig_snv_indel_vcf,
+                    vcf_idx = contig_snv_indel_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}.snv_indel",
                     docker = utils_docker,
@@ -106,8 +113,8 @@ workflow IntegrateVcfs {
             }
         }
 
-        Array[File] snv_indel_vcfs_to_process = select_first([ShardSnvIndel.shards, [SubsetContigSnvIndel.subset_vcf]])
-        Array[File] snv_indel_vcf_idxs_to_process = select_first([ShardSnvIndel.shard_idxs, [SubsetContigSnvIndel.subset_vcf_idx]])
+        Array[File] snv_indel_vcfs_to_process = select_first([ShardSnvIndel.shards, [contig_snv_indel_vcf]])
+        Array[File] snv_indel_vcf_idxs_to_process = select_first([ShardSnvIndel.shard_idxs, [contig_snv_indel_vcf_idx]])
 
         scatter (i in range(length(snv_indel_vcfs_to_process))) {
             call Helpers.NormalizeVcf as NormalizeSnvIndel {
@@ -182,21 +189,26 @@ workflow IntegrateVcfs {
         File final_snv_indel_vcf_for_contig_idx = select_first([ConcatShardsSnvIndel.concat_vcf_idx, AddFilterSnvIndel.flagged_vcf_idx[0]])
 
         # SV Processing
-        call Helpers.SubsetVcfToContig as SubsetContigSv {
-            input:
-                vcf = final_sv_vcf,
-                vcf_idx = final_sv_vcf_idx,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}.sv",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_contig_sv
+        if (!single_contig) {
+            call Helpers.SubsetVcfToContig as SubsetContigSv {
+                input:
+                    vcf = final_sv_vcf,
+                    vcf_idx = final_sv_vcf_idx,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}.sv",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_contig_sv
+            }
         }
+
+        File contig_sv_vcf = select_first([SubsetContigSv.subset_vcf, final_sv_vcf])
+        File contig_sv_vcf_idx = select_first([SubsetContigSv.subset_vcf_idx, final_sv_vcf_idx])
 
         if (defined(records_per_shard)) {
             call Helpers.ShardVcfByRecords as ShardSv {
                 input:
-                    vcf = SubsetContigSv.subset_vcf,
-                    vcf_idx = SubsetContigSv.subset_vcf_idx,
+                    vcf = contig_sv_vcf,
+                    vcf_idx = contig_sv_vcf_idx,
                     records_per_shard = select_first([records_per_shard]),
                     prefix = "~{prefix}.~{contig}.sv",
                     docker = utils_docker,
@@ -204,8 +216,8 @@ workflow IntegrateVcfs {
             }
         }
 
-        Array[File] sv_vcfs_to_process = select_first([ShardSv.shards, [SubsetContigSv.subset_vcf]])
-        Array[File] sv_vcf_idxs_to_process = select_first([ShardSv.shard_idxs, [SubsetContigSv.subset_vcf_idx]])
+        Array[File] sv_vcfs_to_process = select_first([ShardSv.shards, [contig_sv_vcf]])
+        Array[File] sv_vcf_idxs_to_process = select_first([ShardSv.shard_idxs, [contig_sv_vcf_idx]])
 
         scatter (i in range(length(sv_vcfs_to_process))) {
             call Helpers.NormalizeVcf as NormalizeSv {
@@ -432,7 +444,7 @@ CODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

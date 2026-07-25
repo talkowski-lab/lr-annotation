@@ -1,0 +1,35 @@
+name: Dockstore Sync Check
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'wdl/**'
+      - '.dockstore.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'wdl/**'
+      - '.dockstore.yml'
+
+jobs:
+  dockstore_sync_check:
+    runs-on: ubuntu-latest
+    name: Dockstore Sync Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyyaml
+
+      - name: Check .dockstore.yml <-> wdl/ sync
+        run: |
+          python .github/scripts/check_dockstore_sync.py

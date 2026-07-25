@@ -35,7 +35,7 @@ workflow ScatterVcf {
                     input:
                         vcf_file = vcf_uri,
                         has_index = select_first([has_index]),
-                        sv_base_mini_docker = sv_base_mini_docker
+                        docker = sv_base_mini_docker
                 }
             }
         }
@@ -52,7 +52,8 @@ workflow ScatterVcf {
                     input:
                         vcf_file = file,
                         chromosome = chromosome,
-                        sv_base_mini_docker = sv_base_mini_docker,
+                        prefix = prefix,
+                        docker = sv_base_mini_docker,
                         runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
@@ -65,9 +66,10 @@ workflow ScatterVcf {
                     input:
                         vcf_file = vcf_uri,
                         chromosome = chromosome,
+                        prefix = prefix,
                         input_size = input_size_,
                         has_index = select_first([has_index]),
-                        sv_base_mini_docker = sv_base_mini_docker,
+                        docker = sv_base_mini_docker,
                         runtime_attr_override = runtime_attr_split_by_chr
                 }
             }
@@ -84,6 +86,7 @@ workflow ScatterVcf {
                 File chrom_shard = select_first([chrom_pair.left])
                 Float chrom_n_records = select_first([chrom_pair.right])
                 Int chrom_n_shards = ceil(chrom_n_records / select_first([records_per_shard, 0]))
+                String chrom_shard_prefix = basename(chrom_shard, ".vcf.gz")
 
                 call ExecuteScattering as scatterChromosomes {
                     input:
@@ -91,8 +94,9 @@ workflow ScatterVcf {
                         split_vcf_hail_script = split_vcf_hail_script,
                         n_shards = chrom_n_shards,
                         records_per_shard = 0,
-                        hail_docker = hail_docker,
+                        prefix = chrom_shard_prefix,
                         genome_build = genome_build,
+                        docker = hail_docker,
                         runtime_attr_override = runtime_attr_split_into_shards
                 }
             }
@@ -107,8 +111,9 @@ workflow ScatterVcf {
                         split_vcf_hail_script = split_vcf_hail_script,
                         n_shards = select_first([n_shards]),
                         records_per_shard = select_first([records_per_shard, 0]),
-                        hail_docker = hail_docker,
+                        prefix = prefix,
                         genome_build = genome_build,
+                        docker = hail_docker,
                         runtime_attr_override = runtime_attr_split_into_shards
                     }
             }
@@ -129,8 +134,9 @@ workflow ScatterVcf {
                         split_vcf_hail_script = split_vcf_hail_script,
                         n_shards = select_first([n_shards]),
                         records_per_shard = select_first([records_per_shard, 0]),
+                        prefix = prefix,
                         genome_build = genome_build,
-                        hail_docker = hail_docker,
+                        docker = hail_docker,
                         runtime_attr_override = runtime_attr_split_into_shards
                 }
             }
@@ -145,16 +151,14 @@ workflow ScatterVcf {
 task GetChromosomeSizes {
     input {
         String vcf_file
-        String sv_base_mini_docker
         Boolean has_index
+        String docker
         RuntimeAttr? runtime_attr_override
     }
     
     Float base_disk_gb = 10.0
-    String filename = basename(vcf_file)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-    
-    command <<<        
+
+    command <<<
         set -euo pipefail
 
         if [[ "~{has_index}" == "false" ]]; then
@@ -179,7 +183,7 @@ task GetChromosomeSizes {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -188,28 +192,27 @@ task GetChromosomeSizes {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_base_mini_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
-task SplitByChromosomeRemote { 
+task SplitByChromosomeRemote {
     input {
         String vcf_file
         String chromosome
-        String sv_base_mini_docker
+        String prefix
         Float input_size
         Boolean has_index
+        String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
-    String filename = basename(vcf_file)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
 
-    command <<<        
+    command <<<
         set -euo pipefail
         
         mkfifo /tmp/token_fifo
@@ -233,7 +236,7 @@ task SplitByChromosomeRemote {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -242,25 +245,24 @@ task SplitByChromosomeRemote {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_base_mini_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
 
-task SplitByChromosome { 
+task SplitByChromosome {
     input {
         File vcf_file
         String chromosome
-        String sv_base_mini_docker
+        String prefix
+        String docker
         RuntimeAttr? runtime_attr_override
     }
-    
+
     Float input_size = size(vcf_file, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 2.0
-    String filename = basename(vcf_file)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
 
     command <<<
         set -euo pipefail
@@ -286,7 +288,7 @@ task SplitByChromosome {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -295,7 +297,7 @@ task SplitByChromosome {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: sv_base_mini_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -306,18 +308,17 @@ task ExecuteScattering {
         File vcf_file
         Int n_shards
         Int records_per_shard
+        String prefix
         String split_vcf_hail_script
-        String hail_docker
         String genome_build
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
-    Float input_size = size(vcf_file, "GB") 
+    Float input_size = size(vcf_file, "GB")
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
-    String filename = basename(vcf_file)
-    String prefix = if (sub(filename, "\\.gz", "")!=filename) then basename(vcf_file, ".vcf.gz") else basename(vcf_file, ".vcf.bgz")
-    
+
     command <<<
         set -euo pipefail
         
@@ -341,7 +342,7 @@ task ExecuteScattering {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -350,7 +351,7 @@ task ExecuteScattering {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: hail_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
@@ -362,16 +363,16 @@ task ScatterVcfRemote {
         Float input_size
         Int n_shards
         Int records_per_shard
+        String prefix
         String split_vcf_hail_script
-        String hail_docker
         String genome_build
+        String docker
         RuntimeAttr? runtime_attr_override
     }
 
     Float base_disk_gb = 10.0
     Float input_disk_scale = 5.0
-    String prefix = if sub(vcf_file, '.mt', '')!=vcf_file then basename(vcf_file, '.mt') else basename(vcf_file, ".vcf.gz")
-    
+
     command <<<
         set -euo pipefail
         
@@ -395,7 +396,7 @@ task ScatterVcfRemote {
         mem_gb: 4,
         disk_gb: ceil(base_disk_gb + input_size * input_disk_scale),
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -404,7 +405,7 @@ task ScatterVcfRemote {
         memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
         disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
         bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: hail_docker
+        docker: docker
         preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }

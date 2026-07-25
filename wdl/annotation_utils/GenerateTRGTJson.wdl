@@ -18,19 +18,25 @@ workflow GenerateTRGTJson {
         RuntimeAttr? runtime_attr_concat
     }
 
+    Boolean single_contig = length(contigs) == 1
+
     scatter (contig in contigs) {
-        call SubsetLpsTsvToContig {
-            input:
-                tsv = lps_tsv,
-                contig = contig,
-                prefix = "~{prefix}.~{contig}",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_subset_tsv
+        if (!single_contig) {
+            call SubsetLpsTsvToContig {
+                input:
+                    tsv = lps_tsv,
+                    contig = contig,
+                    prefix = "~{prefix}.~{contig}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_subset_tsv
+            }
         }
+
+        File contig_lps_tsv = select_first([SubsetLpsTsvToContig.subset_tsv, lps_tsv])
 
         call ConvertLPSTableToAFHistograms {
             input:
-                lps_tsv = SubsetLpsTsvToContig.subset_tsv,
+                lps_tsv = contig_lps_tsv,
                 metadata_tsv = metadata_tsv,
                 prefix = "~{prefix}.~{contig}.af_histograms",
                 docker = stranalysis_docker,
@@ -38,19 +44,21 @@ workflow GenerateTRGTJson {
         }
     }
 
-    call Helpers.ConcatTsvs {
-        input:
-            tsvs = ConvertLPSTableToAFHistograms.af_histograms_tsv,
-            sort_output = false,
-            preserve_header = true,
-            compressed_tsvs = true,
-            prefix = "~{prefix}.af_histograms",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_concat
+    if (!single_contig) {
+        call Helpers.ConcatTsvs {
+            input:
+                tsvs = ConvertLPSTableToAFHistograms.af_histograms_tsv,
+                sort_output = false,
+                preserve_header = true,
+                compressed_tsvs = true,
+                prefix = "~{prefix}.af_histograms",
+                docker = utils_docker,
+                runtime_attr_override = runtime_attr_concat
+        }
     }
 
     output {
-        File trgt_histograms_tsv = ConcatTsvs.concatenated_tsv
+        File trgt_histograms_tsv = select_first([ConcatTsvs.concatenated_tsv, ConvertLPSTableToAFHistograms.af_histograms_tsv[0]])
     }
 }
 
@@ -99,7 +107,7 @@ task SubsetLpsTsvToContig {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(tsv, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -145,7 +153,7 @@ task ConvertLPSTableToAFHistograms {
         mem_gb: 8,
         disk_gb: 2 * ceil(size(lps_tsv, "GB")) + 20,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

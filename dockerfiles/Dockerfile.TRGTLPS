@@ -1,4 +1,4 @@
-FROM us.gcr.io/broad-dsp-lrma/lr-trgt:3.0.0
+FROM us-central1-docker.pkg.dev/talkowski-sv-gnomad/kj-dockers/trgt:latest
 
 # Install dependencies
 RUN apt-get update && \

@@ -15,8 +15,8 @@ workflow HiPhaseMerge {
         Boolean merge_trgt
         String merge_args = "--merge id"
 
-        String utils_docker
         String trgt_docker
+        String utils_docker
 
         RuntimeAttr? runtime_attr_subset_trgt
         RuntimeAttr? runtime_attr_drop_fields
@@ -197,7 +197,7 @@ CODE
         mem_gb: 4,
         disk_gb: ceil(size(vcf, "GB")) + 2,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -279,7 +279,7 @@ task AddTRGTEndTag {
         mem_gb: 4,
         disk_gb: 3 * ceil(size([vcf, vcf_idx], "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -326,7 +326,7 @@ task FixALHeader {
         mem_gb: 4,
         disk_gb: 2 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -378,7 +378,7 @@ task TRGTMergeContig {
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcfs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -450,7 +450,7 @@ CODE
         mem_gb: 8,
         disk_gb: 2 * ceil(size(merged_vcf, "GB")) + ceil(size(ps_tsvs, "GB")) + 5,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

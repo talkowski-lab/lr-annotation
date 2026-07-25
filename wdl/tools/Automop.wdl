@@ -9,6 +9,7 @@ workflow Automop {
         String workspace_name
         String user
         Boolean dry_run
+        String prefix
 
         String automop_docker
 
@@ -21,6 +22,7 @@ workflow Automop {
             workspace_name = workspace_name,
             user = user,
             dry_run = dry_run,
+            prefix = prefix,
             docker = automop_docker,
             runtime_attr_override = runtime_attr_mop
     }
@@ -32,6 +34,7 @@ task MopTask {
         String workspace_name
         String user
         Boolean dry_run
+        String prefix
         String docker
         RuntimeAttr? runtime_attr_override
     }
@@ -92,10 +95,12 @@ if __name__ == '__main__':
     main('~{workspace_namespace}', '~{workspace_name}', '~{user}')
 EOF
         python script.py
+
+        mv fissfc_log.log ~{prefix}.fissfc_log.log
     >>>
 
     output {
-        File fissfc_log = "fissfc_log.log"
+        File fissfc_log = "~{prefix}.fissfc_log.log"
     }
 
     RuntimeAttr default_attr = object {
@@ -103,7 +108,7 @@ EOF
         mem_gb: 16,
         disk_gb: 20,
         boot_disk_gb: 10,
-        preemptible_tries: 0,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])

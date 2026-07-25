@@ -1,10 +1,9 @@
-FROM ubuntu:16.04
+FROM us-central1-docker.pkg.dev/talkowski-sv-gnomad/kj-dockers/utils:latest
 
 MAINTAINER Karan Jaisingh
 
 RUN apt-get -y update \
-	&& apt-get -y install make cmake protobuf-compiler gcc g++ zlib1g-dev libcurl4-openssl-dev libbz2-dev tree \
-    liblzma-dev wget curl less pkg-config git libncurses5-dev \
+	&& apt-get -y install make cmake protobuf-compiler tree less pkg-config libncurses5-dev \
 	&& apt-get clean
 
 # Install blast

@@ -1,0 +1,12 @@
+FROM us-central1-docker.pkg.dev/talkowski-sv-gnomad/kj-dockers/utils:latest
+
+MAINTAINER Karan Jaisingh
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install mosdepth
+ARG MOSDEPTH_VERSION
+RUN wget -q https://github.com/brentp/mosdepth/releases/download/${MOSDEPTH_VERSION}/mosdepth \
+    -O /usr/local/bin/mosdepth \
+    && chmod +x /usr/local/bin/mosdepth \
+    && mosdepth -h

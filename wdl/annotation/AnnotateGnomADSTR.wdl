@@ -10,6 +10,8 @@ workflow AnnotateGnomADSTR {
         Array[String] contigs
         String prefix
 
+        Int? records_per_shard
+
         File gnomad_tr_json
         Float trv_reciprocal_overlap = 0.7
 
@@ -17,7 +19,9 @@ workflow AnnotateGnomADSTR {
 
         RuntimeAttr? runtime_attr_subset_contigs
         RuntimeAttr? runtime_attr_subset_trv
+        RuntimeAttr? runtime_attr_shard
         RuntimeAttr? runtime_attr_annotate_gnomad_str
+        RuntimeAttr? runtime_attr_concat_shards
         RuntimeAttr? runtime_attr_concat_vcf
     }
 
@@ -49,22 +53,52 @@ workflow AnnotateGnomADSTR {
                 runtime_attr_override = runtime_attr_subset_trv
         }
 
-        call AnnotateGnomADSTRLoci {
-            input:
-                vcf = SubsetVcfByArgs.subset_vcf,
-                vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
-                gnomad_tr_json = gnomad_tr_json,
-                trv_reciprocal_overlap = trv_reciprocal_overlap,
-                prefix = "~{prefix}.~{contig}.gnomad_str",
-                docker = utils_docker,
-                runtime_attr_override = runtime_attr_annotate_gnomad_str
+        if (defined(records_per_shard)) {
+            call Helpers.ShardVcfByRecords {
+                input:
+                    vcf = SubsetVcfByArgs.subset_vcf,
+                    vcf_idx = SubsetVcfByArgs.subset_vcf_idx,
+                    records_per_shard = select_first([records_per_shard]),
+                    prefix = "~{prefix}.~{contig}.trv",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_shard
+            }
         }
+
+        Array[File] vcfs_to_process = select_first([ShardVcfByRecords.shards, [SubsetVcfByArgs.subset_vcf]])
+        Array[File] vcf_idxs_to_process = select_first([ShardVcfByRecords.shard_idxs, [SubsetVcfByArgs.subset_vcf_idx]])
+
+        scatter (i in range(length(vcfs_to_process))) {
+            call AnnotateGnomADSTRLoci {
+                input:
+                    vcf = vcfs_to_process[i],
+                    vcf_idx = vcf_idxs_to_process[i],
+                    gnomad_tr_json = gnomad_tr_json,
+                    trv_reciprocal_overlap = trv_reciprocal_overlap,
+                    prefix = "~{prefix}.~{contig}.gnomad_str.shard_~{i}",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_annotate_gnomad_str
+            }
+        }
+
+        if (defined(records_per_shard)) {
+            call Helpers.ConcatTsvs as ConcatShards {
+                input:
+                    tsvs = AnnotateGnomADSTRLoci.annotations_tsv,
+                    sort_output = false,
+                    prefix = "~{prefix}.~{contig}.gnomad_str",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_shards
+            }
+        }
+
+        File final_annotations_tsv = select_first([ConcatShards.concatenated_tsv, AnnotateGnomADSTRLoci.annotations_tsv[0]])
     }
 
     if (!single_contig) {
         call Helpers.ConcatTsvs {
             input:
-                tsvs = AnnotateGnomADSTRLoci.annotations_tsv,
+                tsvs = final_annotations_tsv,
                 sort_output = false,
                 prefix = "~{prefix}.gnomad_str_annotated",
                 docker = utils_docker,
@@ -73,7 +107,7 @@ workflow AnnotateGnomADSTR {
     }
 
     output {
-        File annotations_tsv_gnomad_str = select_first([ConcatTsvs.concatenated_tsv, AnnotateGnomADSTRLoci.annotations_tsv[0]])
+        File annotations_tsv_gnomad_str = select_first([ConcatTsvs.concatenated_tsv, final_annotations_tsv[0]])
     }
 }
 
@@ -168,7 +202,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 2 * ceil(size(vcf, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
