@@ -9,7 +9,6 @@ workflow CountAnnotations {
         Array[File] vcf_idxs
         String prefix
 
-        Int? records_per_shard
         Array[Int] length_bins_summary = [0, 1, 50, 500]
         Array[Int] length_bins_plotting = [0, 1, 50, 100, 500, 5000, 50000]
         Array[Float] af_bins_plotting = [0.0, 0.01, 0.05, 0.1, 0.5]
@@ -25,6 +24,9 @@ workflow CountAnnotations {
         String subset_vcf_string = ""
         Int max_length = -1
         Int min_length = -1
+
+        Int? records_per_shard
+
         File? ped
 
         String utils_docker
@@ -1117,7 +1119,7 @@ PYCODE
         mem_gb: 8,
         disk_gb: 4 * ceil(size([vcf, vcf_idx], "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1149,7 +1151,7 @@ task MergeAnnotationCountTables {
         python3 <<'PYCODE'
 import csv
 
-COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
+COUNT_FILES = [path for path in "~{sep=',' count_tsvs}".split(",") if path]
 SAMPLE_COUNT_FILES = [path for path in "~{sep=',' sample_count_files}".split(",") if path]
 MODE = "~{normalization_mode}"
 SPLIT_BY_REGION = "~{split_by_region}".lower() == "true"
@@ -1296,7 +1298,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1326,7 +1328,7 @@ task MergeAnnotationListTables {
 import csv
 
 
-LIST_FILES = "~{sep=',' list_tsvs}".split(",")
+LIST_FILES = [path for path in "~{sep=',' list_tsvs}".split(",") if path]
 OUTPUT = "~{prefix}.tsv"
 
 
@@ -1382,7 +1384,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 4 * ceil(size(list_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1412,7 +1414,7 @@ task MergeGeneCountTables {
 import csv
 from collections import defaultdict
 
-COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
+COUNT_FILES = [path for path in "~{sep=',' count_tsvs}".split(",") if path]
 OUTPUT = "~{prefix}.tsv"
 
 PREDICTED_FIELDS = [
@@ -1480,7 +1482,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1509,7 +1511,7 @@ task MergeVariantListTables {
         python3 <<'PYCODE'
 import csv
 
-INPUT_FILES = "~{sep=',' variant_list_tsvs}".split(",")
+INPUT_FILES = [path for path in "~{sep=',' variant_list_tsvs}".split(",") if path]
 OUTPUT = "~{prefix}.tsv"
 
 header = None
@@ -1538,7 +1540,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 4 * ceil(size(variant_list_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
@@ -1568,7 +1570,7 @@ task MergeSampleSpecificTables {
 import csv
 from collections import defaultdict
 
-COUNT_FILES = "~{sep=',' count_tsvs}".split(",")
+COUNT_FILES = [path for path in "~{sep=',' count_tsvs}".split(",") if path]
 OUTPUT = "~{prefix}.tsv"
 
 header = None
@@ -1619,7 +1621,7 @@ PYCODE
         mem_gb: 4,
         disk_gb: 4 * ceil(size(count_tsvs, "GB")) + 10,
         boot_disk_gb: 10,
-        preemptible_tries: 2,
+        preemptible_tries: 1,
         max_retries: 0
     }
     RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
