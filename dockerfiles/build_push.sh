@@ -10,14 +10,17 @@ set -euo pipefail
 # as <image-name>__<ARG_NAME>. Every ARG declared in the target Dockerfile
 # (with no inline default) is resolved from there and passed as --build-arg.
 #
-# Usage: dockerfiles/build_push.sh <image-name> <Dockerfile.Suffix>
-# Example: dockerfiles/build_push.sh utils Dockerfile.Utils
+# Dockerfiles are named Dockerfile.<image-name> (lowercase), so the image
+# name is the only argument needed.
+#
+# Usage: dockerfiles/build_push.sh <image-name>
+# Example: dockerfiles/build_push.sh utils
 
 REGISTRY="us-central1-docker.pkg.dev/talkowski-sv-gnomad/kj-dockers"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 image_name="$1"
-dockerfile_name="$2"
+dockerfile_name="Dockerfile.${image_name}"
 dockerfile="${REPO_ROOT}/dockerfiles/${dockerfile_name}"
 
 source "${REPO_ROOT}/dockerfiles/versions.env"

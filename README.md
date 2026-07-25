@@ -21,7 +21,7 @@ scripts/
   mei/               # MEI analysis scripts
   benchmark/         # Benchmarking scripts
   miscellaneous/     # Other utility scripts
-dockerfiles/         # Dockerfile.<ToolName> for each container
+dockerfiles/         # Dockerfile.<image-name> (lowercase) for each container
 data/
   references/        # Reference genomes, catalogs, BED files
   base_vcfs/         # Test/base VCF files

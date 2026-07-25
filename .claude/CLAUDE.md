@@ -18,7 +18,7 @@ scripts/
   mei/               # MEI analysis scripts
   benchmark/         # Benchmarking scripts
   miscellaneous/     # Other utility scripts
-dockerfiles/         # Dockerfile.<ToolName> for each container
+dockerfiles/         # Dockerfile.<image-name> (lowercase) for each container
 data/
   references/        # Reference genomes, catalogs, BED files
   base_vcfs/         # Test/base VCF files
@@ -164,7 +164,7 @@ Annotation workflows should output a TSV file rather than a VCF, unless underlyi
 
 
 ## Dockerfiles
-- Named `Dockerfile.<ToolName>` (e.g., `Dockerfile.Utils`, `Dockerfile.PALMER`).
+- Named `Dockerfile.<image-name>`, lowercase, exactly matching the pushed Artifact Registry image name (e.g., `Dockerfile.utils`, `Dockerfile.palmer`).
 - Common base images: `ubuntu:22.04` for general-purpose containers, tool-specific bases for specialized containers.
 - Docker image strings are never hardcoded in WDL — they are passed as `String` inputs (e.g., `String utils_docker`).
 - Conda/mamba environment specs are inlined directly in the Dockerfile that needs them (as exact `package=version=build` pins), not kept as separate YAML files.
