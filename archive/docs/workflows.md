@@ -2,19 +2,6 @@
 
 ## Annotation Utilities
 
-### [AddEndTRs](../wdl/annotation_utils/AddEndTRs.wdl)
-This utility adds an `END` INFO tag to the tandem-repeat records of a VCF, computed per contig, so that downstream tools correctly interpret the span of each TR call. It outputs the updated VCF.
-
-Inputs:
-- `File vcf`: VCF to update.
-- `File vcf_idx`: Index for VCF to update.
-- `Array[String] contigs`: Contigs to process within the input VCF.
-
-Outputs:
-- `vcf_with_end`: VCF with `END` tags added to tandem-repeat records.
-- `vcf_with_end_idx`: Index for the updated VCF.
-
-
 ### [CombineCohortTRs](../wdl/annotation_utils/CombineCohortTRs.wdl)
 This utility combines tandem-repeat VCFs from multiple callers into a single cohort VCF. After checking sample consistency across the inputs, it sets missing filters to pass, tags each caller's calls, assigns TR identifiers, deduplicates overlapping variants and priority-merges the callers on a per-contig basis. It outputs the merged cohort TR VCF.
 
@@ -28,21 +15,6 @@ Inputs:
 Outputs:
 - `trgt_merged_vcf`: Merged cohort tandem-repeat VCF.
 - `trgt_merged_vcf_idx`: Index for the merged VCF.
-
-
-### [CombineTRs](../wdl/annotation_utils/CombineTRs.wdl)
-This utility combines tandem-repeat VCFs from multiple callers for a single sample into one VCF. It checks sample consistency, sets missing filters to pass, tags each caller's calls, assigns TR identifiers, deduplicates overlapping variants and priority-merges the callers per contig. It outputs the combined TR VCF.
-
-Inputs:
-- `Array[File] tr_vcfs`: Tandem-repeat VCFs to combine, one per caller.
-- `Array[File] tr_vcf_idxs`: Indexes for `tr_vcfs`.
-- `Array[String] tr_callers`: Caller name for each VCF in `tr_vcfs`, used for tagging and merge priority.
-- `Array[String] contigs`: Contigs to process.
-- `String sample_id`: Sample ID expected across all input VCFs.
-
-Outputs:
-- `trgt_combined_vcf`: Combined single-sample tandem-repeat VCF.
-- `trgt_combined_vcf_idx`: Index for the combined VCF.
 
 
 ### [CombineVcfsAcrossContigs](../wdl/annotation_utils/CombineVcfsAcrossContigs.wdl)
@@ -146,22 +118,6 @@ Outputs:
 - `refilled_vcf_idx`: Index for the refilled VCF.
 
 
-### [FillPhasedGenotypes](../wdl/annotation_utils/FillPhasedGenotypes.wdl)
-This utility transfers phasing information from a phased VCF onto the genotypes of an unphased VCF over matching sites, optionally sharding each contig by region. It outputs the phased VCF.
-
-Inputs:
-- `File phased_vcf`: VCF providing the phasing information.
-- `File phased_vcf_idx`: Index for `phased_vcf`.
-- `File unphased_vcf`: VCF whose genotypes are phased.
-- `File unphased_vcf_idx`: Index for `unphased_vcf`.
-- `Array[String] contigs`: Contigs to process.
-- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding each contig.
-
-Outputs:
-- `hiphase_phased_vcf`: Phased VCF.
-- `hiphase_phased_vcf_idx`: Index for the phased VCF.
-
-
 ### [FilterTRGTCalls](../wdl/annotation_utils/FilterTRGTCalls.wdl)
 This utility filters a TRGT tandem-repeat VCF, optionally dropping calls below a minimum repeat-unit length or length difference, or above a maximum catalog length. It outputs the filtered VCF.
 
@@ -217,10 +173,6 @@ Inputs:
 Outputs:
 - `trio_denovo_tsv`: GQ-stratified trio de novo count table.
 - `truth_concordance_tsv`: GQ-stratified truth-set concordance count table.
-
-
-### [MergeBackbonePhased](../wdl/annotation_utils/MergeBackbonePhased.wdl)
-TODO
 
 
 ### [MergeSites](../wdl/annotation_utils/MergeSites.wdl)

@@ -38,52 +38,50 @@ Outputs:
 
 
 ### [AnnotateCallsetOverlap](../wdl/annotation/AnnotateCallsetOverlap.wdl)
-This workflow ingests an evaluation VCF and two truth VCFs - one of SNVs & indels and one of SVs - and finds matching variants across them in order to compare the AF & VEP annotations of the matched pairs. This serves as a degree of benchmarking, as it ensures that annotations applied to a larger cohort (e.g. gnomAD) are in line with those we annotate. It also enables the identification of variants that are outliers relative to existing cohorts by pulling out those with a large amount of discordance in their annotation across the callsets.
+This workflow ingests a callset VCF and two truth VCFs - one of SNVs & indels and one of SVs - and finds matching variants across them, annotating each matched callset variant with the truth callset's AC/AF/AN and genotype-count fields. This enables benchmarking annotations against an existing cohort (e.g. gnomAD) and surfacing variants that are outliers relative to it.
 
 The workflow undergoes multiple rounds of variant matching in order to determine matched pairs:
 1. Exact match across CHROM, POS, REF and ALT.
 2. Truvari match with overlap percentages of 90%, 70% and 50%.
-3. Matching based on `bedtools closest`, finetuned for SVs. Here the evaluation and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run - one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity - so that each evaluation variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
+3. Matching based on `bedtools closest`, finetuned for SVs. Here the callset and truth variants are split by type and converted to a symbolic representation, after which separate `bedtools closest` passes are run - one tuned for deletions and duplications via reciprocal positional overlap, and one tuned for insertions via breakpoint proximity - so that each callset variant is paired with the nearest same-type truth variant above the per-callset minimum SV-length thresholds.
 
 > **Note:** When converting to symbolic representation, only canonical DUPs (allele_type = `DUP` exactly) are treated as DUP; other DUP subtypes (e.g., `dup_interspersed`, `inv_dup`) are treated as insertions.
 
 Inputs:
-- `File vcf_eval`: VCF whose annotations are being evaluated.
-- `File vcf_eval_idx`: Index for `vcf_eval`.
-- `File vcf_truth`: VCF containing SNVs & indels to evaluate against.
-- `File vcf_truth_idx`: Index for `vcf_truth`.
-- `File vcf_sv_truth`: VCF containing SVs to evaluate against.
-- `File vcf_sv_truth_idx`: Index for `vcf_sv_truth`.
+- `File vcf`: Callset VCF being annotated.
+- `File vcf_idx`: Index for `vcf`.
+- `File truth_snv_indel_vcf`: Truth VCF containing SNVs & indels to match against.
+- `File truth_snv_indel_vcf_idx`: Index for `truth_snv_indel_vcf`.
+- `File truth_sv_vcf`: Truth VCF containing SVs to match against.
+- `File truth_sv_vcf_idx`: Index for `truth_sv_vcf`.
 - `Array[String] contigs`: Contigs to evaluate.
-- `Int min_sv_length_eval_truvari`: Minimum length for an evaluation variant to enter the Truvari matching round.
-- `Int min_sv_length_truth_truvari`: Minimum length for a truth variant to enter the Truvari matching round.
-- `Int min_sv_length_eval_bedtools_closest`: Minimum length for an evaluation variant to enter the `bedtools closest` matching round.
-- `Int min_sv_length_truth_bedtools_closest`: Minimum length for a truth variant to enter the `bedtools closest` matching round.
-- `Boolean compare_annotations`: Whether to compute the downstream AF & VEP annotation comparison summaries (default `true`).
+- `Int min_sv_length_truvari_vcf`: Minimum length for a callset variant to enter the Truvari matching round.
+- `Int min_sv_length_truvari_truth_vcf`: Minimum length for a truth variant to enter the Truvari matching round.
+- `Int min_sv_length_bedtools_closest_vcf`: Minimum length for a callset variant to enter the `bedtools closest` matching round.
+- `Int min_sv_length_bedtools_closest_truth_vcf`: Minimum length for a truth variant to enter the `bedtools closest` matching round.
+- `Int? shard_bin_size_exact_match`: If set, shards the exact-match round into contig regions each containing roughly this many combined callset + truth records, run in parallel.
 - `Boolean do_exact`: Whether to run the exact matching round (default `true`).
 - `Boolean do_truvari`: Whether to run the Truvari matching round (default `true`).
 - `Boolean do_bedtools_closest`: Whether to run the `bedtools closest` matching round (default `true`).
-- `String type_field_eval`: INFO field in the evaluation VCF giving each variant's allele type (default `allele_type`).
-- `String length_field_eval`: INFO field in the evaluation VCF giving each variant's allele length (default `allele_length`).
-- `String skip_vep_categories`: Comma-separated VEP consequence categories to skip when comparing annotations (default empty).
-- `Int? records_per_shard`: Number of matched variants to keep within a single shard during benchmarking.
-- `String? args_string_vcf`: `bcftools view` arguments used to pre-subset the evaluation VCF.
-- `String? args_string_vcf_truth`: `bcftools view` arguments used to pre-subset the SNV & indel truth VCF.
-- `String? args_string_vcf_sv_truth`: `bcftools view` arguments used to pre-subset the SV truth VCF.
-- `String? rename_id_string_vcf`: Expression used to rename variant IDs in the evaluation VCF prior to matching.
-- `String? rename_id_string_vcf_truth`: Expression used to rename variant IDs in the SNV & indel truth VCF prior to matching.
-- `String? rename_id_string_vcf_sv_truth`: Expression used to rename variant IDs in the SV truth VCF prior to matching.
-- `Boolean? rename_id_strip_chr_vcf`: Whether to strip the `chr` prefix when renaming evaluation variant IDs.
-- `Boolean? rename_id_strip_chr_vcf_truth`: Whether to strip the `chr` prefix when renaming SNV & indel truth variant IDs.
-- `Boolean? rename_id_strip_chr_vcf_sv_truth`: Whether to strip the `chr` prefix when renaming SV truth variant IDs.
+- `String type_field_vcf`: INFO field in the callset VCF giving each variant's allele type (default `allele_type`).
+- `String length_field_vcf`: INFO field in the callset VCF giving each variant's allele length (default `allele_length`).
+- `String source_tag_truth_snv_indel_vcf`: Label used to tag matches against the SNV & indel truth VCF (default `SNV_indel`).
+- `String source_tag_truth_sv_vcf`: Label used to tag matches against the SV truth VCF (default `SV`).
+- `String? args_string_vcf`: `bcftools view` arguments used to pre-subset the callset VCF.
+- `String? args_string_truth_snv_indel_vcf`: `bcftools view` arguments used to pre-subset the SNV & indel truth VCF.
+- `String? args_string_truth_sv_vcf`: `bcftools view` arguments used to pre-subset the SV truth VCF.
+- `String? rename_id_string_vcf`: Expression used to rename variant IDs in the callset VCF prior to matching.
+- `String? rename_id_string_truth_snv_indel_vcf`: Expression used to rename variant IDs in the SNV & indel truth VCF prior to matching.
+- `String? rename_id_string_truth_sv_vcf`: Expression used to rename variant IDs in the SV truth VCF prior to matching.
+- `Boolean? rename_id_strip_chr_vcf`: Whether to strip the `chr` prefix when renaming callset variant IDs.
+- `Boolean? rename_id_strip_chr_truth_snv_indel_vcf`: Whether to strip the `chr` prefix when renaming SNV & indel truth variant IDs.
+- `Boolean? rename_id_strip_chr_truth_sv_vcf`: Whether to strip the `chr` prefix when renaming SV truth variant IDs.
 - `File ref_fa`: From [references](references.md).
 - `File ref_fai`: From [references](references.md).
 
 Outputs:
-- `annotations_tsv_benchmark`: TSV mapping evaluation variants to their matched truth variants and match type.
-- `benchmark_annotations_summary_tsv`: Per-variant comparison of AF & VEP annotations across matched pairs (only when `compare_annotations` is enabled).
-- `benchmark_annotations_stats_tsv`: Summary statistics of the annotation comparison (only when `compare_annotations` is enabled).
-- `benchmark_annotations_plots_tarball`: Tarball of annotation-comparison plots (only when `compare_annotations` is enabled).
+- `annotations_tsv_benchmark`: TSV mapping callset variants to their matched truth variants, match type, and the truth callset's AC/AF/AN and genotype-count fields.
+- `annotations_header_benchmark`: Header listing the extra annotation columns present in `annotations_tsv_benchmark`.
 
 
 ### [AnnotateDbSNP](../wdl/annotation/AnnotateDbSNP.wdl)
@@ -93,6 +91,7 @@ Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
+- `Int? shard_bin_size`: If set, shards each contig into regions each containing roughly this many combined VCF + dbSNP records, run in parallel.
 - `File dbsnp_vcf`: From [references](references.md).
 - `File dbsnp_vcf_idx`: From [references](references.md).
 
@@ -134,8 +133,9 @@ Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
-- `Float trv_reciprocal_overlap`: Minimum reciprocal overlap between a call and a catalog locus to be matched (default `0.7`).
+- `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
 - `File gnomad_tr_json`: From [references](references.md).
+- `Float trv_reciprocal_overlap`: Minimum reciprocal overlap between a call and a catalog locus to be matched (default `0.7`).
 
 Outputs:
 - `annotations_tsv_gnomad_str`: TSV mapping tandem-repeat calls to their gnomAD TR loci.
@@ -168,6 +168,7 @@ Inputs:
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
+- `String subset_vcf_string`: `bcftools view` arguments used to pre-subset the VCF before tandem-repeat filtering (default `-i 'INFO/allele_type!="trv" && INFO/TR_ENVELOPED!=1'`).
 - `Int min_tandem_repeat_length`: Minimum total tandem-repeat length for an indel to be flagged (default `9`).
 - `Int min_repeats`: Minimum number of repeats for an indel to be flagged (default `3`).
 - `Int min_repeat_unit_length`: Minimum repeat-unit length for an indel to be flagged (default `1`).
@@ -205,8 +206,8 @@ Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
-- `Int min_length`: Minimum insertion length to consider for MEI annotation.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
+- `Int min_length`: Minimum insertion length to consider for MEI annotation.
 
 Outputs:
 - `annotations_tsv_l1meaid`: TSV of L1ME-AID and INTACT_MEI MEI annotations.
@@ -221,9 +222,9 @@ Inputs:
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
 - `Int del_breakpoint_window`: Breakpoint window, in bp, for matching (default `500`).
-- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.7`).
+- `Float del_reciprocal_overlap`: Minimum reciprocal overlap for a deletion to match a catalog locus (default `0.0`).
 - `Float del_sequence_similarity`: Minimum sequence similarity for a deletion to match a catalog locus (default `0.7`).
-- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.0`).
+- `Float del_size_similarity`: Minimum size similarity for a deletion to match a catalog locus (default `0.7`).
 - `File mei_catalog`: From [references](references.md).
 
 Outputs:
@@ -253,6 +254,7 @@ Inputs:
 - `File PALMER_vcf`: VCF of PALMER MEI calls to match against.
 - `File PALMER_vcf_idx`: Index for `PALMER_vcf`.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
+- `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
 - `Array[String] mei_types`: MEI types to run on - must be a subset of [`ALU`, `SVA`, `LINE` or `HERVK`].
 - `Int min_length`: Minimum insertion length to consider for annotation.
 - `File rm_out`: _RepeatMasker_ output for the input VCF's insertions.
@@ -305,13 +307,20 @@ Inputs:
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
+- `String type_field`: INFO field giving each variant's allele type, used to select insertions/deletions for annotation (default `allele_type`).
+- `String type_ins`: Value of `type_field` identifying an insertion (default `ins`).
+- `String type_del`: Value of `type_field` identifying a deletion (default `del`).
+- `String length_field`: INFO field giving each variant's allele length (default `allele_length`).
+- `Int min_length`: Minimum insertion/deletion length to consider for annotation (default `0`).
+- `Boolean annotate_ins`: Whether to annotate insertions (default `true`).
+- `Boolean annotate_del`: Whether to annotate deletions (default `true`).
 - `File vntr_bed`: From [references](references.md).
 - `File exons_bed`: From [references](references.md).
 - `File repeats_bed`: From [references](references.md).
-- `File mei_fa`: From [references](references.md).
-- `Array[File] mei_fa_indices`: From [references](references.md).
 - `File ref_fa`: From [references](references.md).
 - `Array[File] ref_fa_indices`: From [references](references.md).
+- `File mei_fa`: From [references](references.md).
+- `Array[File] mei_fa_indices`: From [references](references.md).
 
 Outputs:
 - `annotations_tsv_svan`: TSV of SVAN annotations.
@@ -327,8 +336,8 @@ Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
-- `Int min_length`: Minimum length for a variant to be treated as an SV and annotated.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
+- `Int min_length`: Minimum length for a variant to be treated as an SV and annotated.
 - `File coding_gtf`: From [references](references.md).
 - `File noncoding_bed`: From [references](references.md).
 
@@ -344,6 +353,9 @@ Inputs:
 - `File vcf`: VCF whose insertions are remapped.
 - `File vcf_idx`: Index for VCF.
 - `Array[String] contigs`: Contigs to process.
+- `Int? records_per_shard`: Number of variants to keep within a single shard during annotation.
+- `String type_field`: INFO field giving each variant's allele type, used to select insertions to remap (default `allele_type`).
+- `String type_ins`: Value of `type_field` identifying an insertion (default `ins`).
 - `Int min_length`: Minimum insertion length to remap.
 - `Int max_length`: Maximum insertion length to remap.
 - `Int mm2_threshold`: Minimum minimap2 alignment score to flag an insertion.
@@ -399,6 +411,19 @@ Outputs:
 
 ## Annotation Utilities
 
+### [AddEndTRs](../wdl/annotation_utils/AddEndTRs.wdl)
+This utility adds an `END` INFO tag to the tandem-repeat records of a VCF, computed per contig, so that downstream tools correctly interpret the span of each TR call. It outputs the updated VCF.
+
+Inputs:
+- `File vcf`: VCF to update.
+- `File vcf_idx`: Index for VCF to update.
+- `Array[String] contigs`: Contigs to process within the input VCF.
+
+Outputs:
+- `vcf_with_end`: VCF with `END` tags added to tandem-repeat records.
+- `vcf_with_end_idx`: Index for the updated VCF.
+
+
 ### [AnnotateAlleleType](../wdl/annotation_utils/AnnotateAlleleType.wdl)
 This utility sets the `allele_type` INFO field on variants in a VCF using three annotation TSVs - one for mobile element deletions, one for mobile element insertions and one for duplications - applying each in turn. Each annotation source can have its values transformed via an optional prefix, suffix and lowercasing. It outputs the annotated VCF.
 
@@ -433,13 +458,14 @@ Inputs:
 - `Array[File] annotations_tsvs`: Annotation TSVs to apply, each as a set of INFO fields.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
 - `Int? records_per_shard`: Number of variants to keep within a single shard during annotation. When set, each contig VCF is sharded by record count, annotated in parallel and concatenated.
+- `Array[String]? strip_info_fields`: INFO fields to remove from the input VCF prior to annotation.
+- `Array[Boolean] sort_tsvs`: Per-TSV flag indicating whether to sort the TSV before annotation (default empty).
+- `Array[String] subset_vcf_strings`: Per-TSV `bcftools view` arguments used to pre-subset the VCF (default empty).
+- `Array[String] awk_tsv_conditions`: Per-TSV `awk` condition used to filter the TSV rows applied (default empty).
 - `Array[Array[String]] info_names`: INFO field names added by each annotation TSV.
 - `Array[Array[String]] info_descriptions`: INFO field header descriptions for each annotation TSV.
 - `Array[Array[String]] info_types`: INFO field types for each annotation TSV.
 - `Array[Array[String]] info_numbers`: INFO field `Number` values for each annotation TSV.
-- `Array[Boolean] sort_tsvs`: Per-TSV flag indicating whether to sort the TSV before annotation (default empty).
-- `Array[String] subset_vcf_strings`: Per-TSV `bcftools view` arguments used to pre-subset the VCF (default empty).
-- `Array[String] awk_tsv_conditions`: Per-TSV `awk` condition used to filter the TSV rows applied (default empty).
 
 Outputs:
 - `annotated_vcf`: Annotated VCF.
@@ -452,51 +478,84 @@ This utility is a variant of [AnnotateVcf](#annotatevcf) that, before applying t
 Inputs:
 - `File vcf`: VCF to annotate.
 - `File vcf_idx`: Index for VCF to annotate.
+- `File? subset_untrimmed_vcf`: Untrimmed VCF whose records are swapped in to restore full REF/ALT alleles.
+- `File? subset_untrimmed_vcf_idx`: Index for `subset_untrimmed_vcf`.
 - `Array[File] annotations_tsvs`: Annotation TSVs to apply, each as a set of INFO fields.
 - `Array[String] contigs`: Contigs to annotate within the input VCF.
+- `Array[Boolean]? sort_tsvs`: Per-TSV flag indicating whether to sort the TSV before annotation.
+- `Array[String]? subset_vcf_strings`: Per-TSV `bcftools view` arguments used to pre-subset the VCF.
+- `Array[String]? awk_tsv_conditions`: Per-TSV `awk` condition used to filter the TSV rows applied.
 - `Array[Array[String]] info_names`: INFO field names added by each annotation TSV.
 - `Array[Array[String]] info_descriptions`: INFO field header descriptions for each annotation TSV.
 - `Array[Array[String]] info_types`: INFO field types for each annotation TSV.
 - `Array[Array[String]] info_numbers`: INFO field `Number` values for each annotation TSV.
-- `File? subset_untrimmed_vcf`: Untrimmed VCF whose records are swapped in to restore full REF/ALT alleles.
-- `File? subset_untrimmed_vcf_idx`: Index for `subset_untrimmed_vcf`.
-- `Array[Boolean]? sort_tsvs`: Per-TSV flag indicating whether to sort the TSV before annotation.
-- `Array[String]? subset_vcf_strings`: Per-TSV `bcftools view` arguments used to pre-subset the VCF.
-- `Array[String]? awk_tsv_conditions`: Per-TSV `awk` condition used to filter the TSV rows applied.
 
 Outputs:
 - `annotated_vcf`: Annotated VCF.
 - `annotated_vcf_idx`: Index for the annotated VCF.
 
 
+### [CombineTRs](../wdl/annotation_utils/CombineTRs.wdl)
+This utility combines tandem-repeat VCFs from multiple callers for a single sample into one VCF. It checks sample consistency, sets missing filters to pass, tags each caller's calls, assigns TR identifiers, deduplicates overlapping variants and priority-merges the callers per contig. It outputs the combined TR VCF.
+
+Inputs:
+- `Array[File] tr_vcfs`: Tandem-repeat VCFs to combine, one per caller.
+- `Array[File] tr_vcf_idxs`: Indexes for `tr_vcfs`.
+- `Array[String] tr_callers`: Caller name for each VCF in `tr_vcfs`, used for tagging and merge priority.
+- `Array[String] contigs`: Contigs to process.
+- `String sample_id`: Sample ID expected across all input VCFs.
+
+Outputs:
+- `trgt_combined_vcf`: Combined single-sample tandem-repeat VCF.
+- `trgt_combined_vcf_idx`: Index for the combined VCF.
+
+
+### [ConcatenateMosDepth](../wdl/annotation_utils/ConcatenateMosDepth.wdl)
+This utility concatenates a sample's per-contig [MosDepth](#mosdepth) per-base coverage BED files into a single indexed BED. It outputs the combined per-base coverage BED and its index.
+
+Inputs:
+- `Array[File] mosdepth_bed_files`: Per-contig mosdepth per-base coverage BED files to concatenate.
+
+Outputs:
+- `mosdepth_per_base_combined`: Combined per-base coverage BED.
+- `mosdepth_per_base_combined_idx`: Index for the combined BED.
+
+
 ### [CountAnnotations](../wdl/annotation_utils/CountAnnotations.wdl)
-This utility tallies annotation values across one or more VCFs to produce summary count tables. It always counts at the site level and can optionally count per sample, per allele, per functional gene consequence and as raw value lists, with optional sharding, region splitting and length/region subsetting. It outputs a site-count TSV plus whichever optional breakdowns were requested.
+This utility tallies annotation values across one or more VCFs to produce summary count tables, size-binned by allele class (SNV/DEL/INS/DUP/TRV). It always counts at the site level and can optionally count per sample, per allele, per functional gene consequence (from VEP/SVAnnotate `PREDICTED_*` fields), as raw per-variant value lists, and — when `create_plotting` is enabled — produce a separate set of AF-binned, region-aware Parquet tables for plotting (including a de novo transmission breakdown when a PED file is supplied and trios are found).
 
 Inputs:
 - `Array[File] vcfs`: VCFs whose annotations are counted.
 - `Array[File] vcf_idxs`: Indexes for `vcfs`.
-- `Int? records_per_shard`: Number of variants to keep within a single record-based shard.
-- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding by genomic region instead of record count.
+- `Array[Int] length_bins_summary`: Size-bin edges used for the summary count tables (default `[0, 1, 50, 500]`).
+- `Array[Int] length_bins_plotting`: Size-bin edges used for the plotting tables (default `[0, 1, 50, 100, 500, 5000, 50000]`).
+- `Array[Float] af_bins_plotting`: Allele-frequency bin edges used for the plotting tables (default `[0.0, 0.01, 0.05, 0.1, 0.5]`).
 - `Boolean create_per_sample`: Whether to additionally produce per-sample counts (default `false`).
 - `Boolean create_per_allele`: Whether to additionally produce per-allele counts (default `false`).
-- `Boolean create_list`: Whether to additionally produce raw value-list tables (default `false`).
+- `Boolean create_list`: Whether to additionally produce raw per-variant value-list tables (default `false`).
 - `Boolean create_functional`: Whether to additionally produce per-gene functional counts (default `false`).
-- `Boolean create_variant_attributes`: Whether to additionally count variant attribute combinations (default `false`).
+- `Boolean create_plotting`: Whether to additionally produce AF-binned Parquet tables for plotting (default `false`).
 - `Boolean use_ssd`: Whether to use SSD-backed local disks (default `false`).
 - `Boolean split_by_region`: Whether to split each VCF by genomic region before counting (default `false`).
 - `String subset_vcf_string`: `bcftools view` arguments used to pre-subset the VCFs (default empty).
 - `Int max_length`: Maximum variant length to count, or `-1` for no maximum (default `-1`).
 - `Int min_length`: Minimum variant length to count, or `-1` for no minimum (default `-1`).
-- `File? ref_fai`: Reference index used when splitting by region.
+- `Int? records_per_shard`: Number of variants to keep within a single shard.
+- `File? ped`: PED file used to identify trios for the de novo transmission breakdown (only used when `create_plotting` is enabled).
 
 Outputs:
-- `annotation_counts_sites_tsv`: Site-level annotation counts.
-- `annotation_counts_functional_tsv`: Per-gene functional counts (when `create_functional`).
-- `annotation_counts_functional_samples_tsv`: Per-gene per-sample functional counts (when `create_functional` and `create_per_sample`).
-- `annotation_counts_functional_alleles_tsv`: Per-gene per-allele functional counts (when `create_functional` and `create_per_allele`).
-- `annotation_counts_list_tsv`: Raw annotation value lists (when `create_list`).
-- `annotation_counts_samples_tsv`: Per-sample counts (when `create_per_sample`).
-- `annotation_counts_alleles_tsv`: Per-allele counts (when `create_per_allele`).
+- `summary_sites_tsv`: Site-level annotation counts.
+- `summary_samples_tsv`: Per-sample counts (when `create_per_sample`).
+- `summary_alleles_tsv`: Per-allele counts (when `create_per_allele`).
+- `summary_list_tsv`: Raw per-variant value lists (when `create_list`).
+- `summary_functional_tsv`: Per-gene functional counts (when `create_functional`).
+- `summary_functional_samples_tsv`: Per-gene per-sample functional counts (when `create_functional` and `create_per_sample`).
+- `summary_functional_alleles_tsv`: Per-gene per-allele functional counts (when `create_functional` and `create_per_allele`).
+- `plotting_sites_parquet`: Site-level AF/size-binned counts, as Parquet (when `create_plotting`).
+- `plotting_samples_parquet`: Per-sample AF/size-binned counts, as Parquet (when `create_plotting`).
+- `plotting_alleles_parquet`: Per-allele AF/size-binned counts, as Parquet (when `create_plotting`).
+- `plotting_denovo_parquet`: Per-proband de novo transmission counts, as Parquet (when `create_plotting` and trios are found via `ped`).
+- `plotting_variant_list_parquet`: Raw per-variant genotype-count list, as Parquet (when `create_plotting`).
 
 
 ### [CreateCoverageFile](../wdl/annotation_utils/CreateCoverageFile.wdl)
@@ -571,6 +630,34 @@ Outputs:
 - `sv_vcf_idxs`: Indexes for the SV VCFs.
 
 
+### [FillPhasedGenotypes](../wdl/annotation_utils/FillPhasedGenotypes.wdl)
+This utility transfers phasing information from a phased VCF onto the genotypes of an unphased VCF over matching sites, optionally sharding each contig by region. It outputs the phased VCF.
+
+Inputs:
+- `File phased_vcf`: VCF providing the phasing information.
+- `File phased_vcf_idx`: Index for `phased_vcf`.
+- `File unphased_vcf`: VCF whose genotypes are phased.
+- `File unphased_vcf_idx`: Index for `unphased_vcf`.
+- `Array[String] contigs`: Contigs to process.
+- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding each contig.
+
+Outputs:
+- `hiphase_phased_vcf`: Phased VCF.
+- `hiphase_phased_vcf_idx`: Index for the phased VCF.
+
+
+### [GenerateTRGTJson](../wdl/annotation_utils/GenerateTRGTJson.wdl)
+This utility generates per-locus tandem repeat allele-frequency histograms, stratified by population and sex, from a multisample LPS (longest polymer sequence) table for use in the TR browser. It outputs a single combined histograms TSV.
+
+Inputs:
+- `File lps_tsv`: Multisample LPS table.
+- `File metadata_tsv`: Sample metadata (population, sex) used to stratify the histograms.
+- `Array[String] contigs`: Contigs to process within the LPS table.
+
+Outputs:
+- `trgt_histograms_tsv`: Combined per-locus allele-frequency histograms TSV.
+
+
 ### [IntegrateTRs](../wdl/annotation_utils/IntegrateTRs.wdl)
 This utility integrates tandem-repeat calls into a base VCF for a cohort. It aligns samples between the base and TR VCFs, sets missing filters to pass, tags TR records with their source catalog, assigns TR identifiers and annotates the base VCF with the integrated TR calls. It outputs the TR-annotated VCF.
 
@@ -617,6 +704,23 @@ Outputs:
 - `integrated_vcf_idx`: Index for the integrated VCF.
 
 
+### [MergeBackbonePhased](../wdl/annotation_utils/MergeBackbonePhased.wdl)
+This utility merges a backbone-phased VCF with its no-TRGT counterpart (the same backbone-phasing run without TRGT calls included): for each still-unphased heterozygous genotype in `backbone_phased_vcf`, if a matching variant exists in `backbone_phased_notrgt_vcf` with a phased genotype, that phased `GT` (and `PS`) is pulled into the output. Region sharding is optional. It outputs the merged VCF and a per-sample TSV of heterozygous/unphased/pulled genotype counts.
+
+Inputs:
+- `File backbone_phased_vcf`: Backbone-phased VCF whose remaining unphased het genotypes are filled.
+- `File backbone_phased_vcf_idx`: Index for `backbone_phased_vcf`.
+- `File backbone_phased_notrgt_vcf`: Backbone-phased VCF (without TRGT calls) providing phased genotypes to pull from.
+- `File backbone_phased_notrgt_vcf_idx`: Index for `backbone_phased_notrgt_vcf`.
+- `String contig`: Contig to process.
+- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the contig.
+
+Outputs:
+- `backbone_merged_vcf`: Merged VCF with phased genotypes pulled in where available.
+- `backbone_merged_vcf_idx`: Index for the merged VCF.
+- `backbone_merged_tsv`: Per-sample TSV of heterozygous, unphased, and post-pull unphased genotype counts.
+
+
 ### [PlotPhasingResults](../wdl/annotation_utils/PlotPhasingResults.wdl)
 This utility evaluates backbone-phasing accuracy by comparing backbone-phased VCFs against base (truth) VCFs. It assigns samples to their base VCFs, compares phased genotypes per contig and aggregates the results into tables broken down by variants outside tandem repeats, TR-enveloped variants and TR variants. It outputs these summary tables plus per-VCF status tables.
 
@@ -644,6 +748,7 @@ Inputs:
 - `File vcf`: VCF to post-process.
 - `File vcf_idx`: Index for VCF to post-process.
 - `Array[String] contigs`: Contigs to process within the input VCF.
+- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the per-record pass.
 - `Boolean run_transfer_genotypes`: Whether to transfer genotypes from `transfer_vcf` onto heterozygous calls (run first; requires `transfer_vcf`).
 - `Boolean run_unphase_samples`: Whether to unphase the samples in `unphase_samples` (requires `unphase_samples`).
 - `Boolean run_normalize_ploidy`: Whether to normalize ploidy by sex - clearing chrY female calls, making chrX/chrY male calls hemizygous, enforcing diploidy and right-aligning unphased calls (requires `ped`).
@@ -656,7 +761,6 @@ Inputs:
 - `File? transfer_vcf_idx`: Index for `transfer_vcf`.
 - `Array[String] unphase_samples`: Samples to unphase when `run_unphase_samples` is set (defaults to empty).
 - `File? ped`: Cohort pedigree file, used for ploidy normalization when `run_normalize_ploidy` is set.
-- `Int? shard_bin_size`: Region-bin size, in bp, used when sharding the per-record pass.
 
 Outputs:
 - `post_processed_vcf`: Post-processed VCF.
@@ -692,18 +796,18 @@ Outputs:
 
 
 ### [ResolveHaplotypeOverlaps](../wdl/annotation_utils/ResolveHaplotypeOverlaps.wdl)
-This utility detects and resolves haplotype-level overlaps among non-TR, non-TR-enveloped variants in a phased cohort VCF. For each sample, it extracts the sample's non-ref calls (excluding `allele_type="trv"` and `INFO/TR_ENVELOPED` variants), then sweeps each haplotype's variant intervals to find all overlapping pairs. Overlapping pairs are resolved by keeping the variant that spans more reference sequence (larger `len(REF)`) - which always favors DELs over INS or SNVs. When two variants span the same reference length, the higher-GQ call wins; remaining ties are broken by `INFO/allele_length`, then type rank (DEL > INS > SNV), then QUAL, then input-file order. The loser's FORMAT fields (`GT`, `GQ`, `DP`, `EV`, `BEV`, `AD`, `PL`) are cleared in the output VCF. The workflow scatters per-sample detection across all samples, then applies the collected clears contig-by-contig (with optional record-count sharding) to produce the resolved VCF.
+This utility detects and resolves haplotype-level overlaps among non-TR, non-TR-enveloped variants in a phased cohort VCF. For each sample, it extracts the sample's non-ref calls (excluding `allele_type="trv"` and `INFO/TR_ENVELOPED` variants), then sweeps each haplotype's variant intervals to find all overlapping pairs. Overlapping pairs are resolved by keeping the variant that spans more reference sequence (larger `len(REF)`) - which always favors DELs over INS or SNVs. When two variants span the same reference length, the higher-GQ call wins; remaining ties are broken by `INFO/allele_length`, then type rank (DEL > INS > SNV), then QUAL, then input-file order. The loser's FORMAT fields (`GT`, `GQ`, `DP`, `EV`, `BEV`, `AD`, `PL`) are cleared in the output VCF. The workflow scatters per-sample detection across all samples, then applies the collected clears to the given contig (with optional record-count sharding) to produce the resolved VCF.
 
 Inputs:
 - `File vcf`: Phased cohort VCF to resolve.
 - `File vcf_idx`: Index for `vcf`.
-- `Array[String] contigs`: Contigs to process.
-- `Int? records_per_shard`: When set, shards each contig into chunks of this many records for the clearing step.
+- `String contig`: Contig to process.
+- `Int? records_per_shard`: When set, shards the contig into chunks of this many records for the clearing step.
 
 Outputs:
-- `resolved_vcf`: VCF with overlapping loser genotypes cleared.
-- `resolved_vcf_idx`: Index for `resolved_vcf`.
-- `overlaps_tsv`: TSV of all detected overlap pairs, with columns `sample`, `haplotype`, `variant_id_retained`, `var_type_retained`, `size_bin_retained`, `variant_id_cleared`, `var_type_cleared`, `size_bin_cleared`.
+- `overlap_resolved_vcf`: VCF with overlapping loser genotypes cleared.
+- `overlap_resolved_vcf_idx`: Index for `overlap_resolved_vcf`.
+- `overlap_tsv`: TSV of all detected overlap pairs, with columns `sample`, `haplotype`, `variant_id_retained`, `var_type_retained`, `size_bin_retained`, `variant_id_cleared`, `var_type_cleared`, `size_bin_cleared`.
 
 
 ### [SubsetTsvToColumns](../wdl/annotation_utils/SubsetTsvToColumns.wdl)
@@ -731,8 +835,8 @@ Inputs:
 - `Int min_dup_size`: Minimum insertion size (bp) to consider for transformation (default `50`).
 
 Outputs:
-- `transformed_vcf`: VCF with qualifying DUP insertions converted to symbolic DUP records.
-- `transformed_vcf_idx`: Index for `transformed_vcf`.
+- `dup_transformed_vcf`: VCF with qualifying DUP insertions converted to symbolic DUP records.
+- `dup_transformed_vcf_idx`: Index for `dup_transformed_vcf`.
 
 
 ## Tools
@@ -872,13 +976,20 @@ Inputs:
 - `Array[String]+ entity_ids`: Sample IDs in the cohort.
 - `Array[String]+ depth_profiles`: Per-sample read-depth profiles, aligned to `entity_ids`.
 - `String cohort_entity_id`: Identifier for the cohort.
+- `File contig_ploidy_priors`: Contig ploidy priors used to determine per-sample contig ploidy.
 - `Int num_intervals_per_scatter`: Number of intervals processed per scatter shard (default `10000`).
 - `File? gatk4_jar_override`: Override GATK4 jar.
 - `File? mappability_track_bed`: Mappability track used to annotate intervals.
 - `File? mappability_track_bed_idx`: Index for `mappability_track_bed`.
 - `File? segmental_duplication_track_bed`: Segmental-duplication track used to annotate intervals.
 - `File? segmental_duplication_track_bed_idx`: Index for `segmental_duplication_track_bed`.
+- `Int? feature_query_lookahead`: Base pairs to look ahead when querying interval-annotation feature tracks.
 - `File? blacklist_intervals`: Intervals to exclude from calling.
+- `Int? low_count_filter_count_threshold`: Minimum read count for an interval to be considered well-covered in a sample.
+- `Float? low_count_filter_percentage_of_samples`: Minimum percentage of samples that must meet `low_count_filter_count_threshold` for an interval to pass.
+- `Float? extreme_count_filter_minimum_percentile`: Lower count percentile below which an interval is considered an outlier.
+- `Float? extreme_count_filter_maximum_percentile`: Upper count percentile above which an interval is considered an outlier.
+- `Float? extreme_count_filter_percentage_of_samples`: Minimum percentage of samples that must pass the extreme-count percentile bounds for an interval to pass.
 - `Int ref_copy_number_autosomal_contigs`: Reference copy number for autosomes (default `2`).
 - `Array[String]? allosomal_contigs`: Contigs treated as allosomal.
 - `Int maximum_number_events_per_sample`: Maximum number of events permitted per sample (default `1000`).
@@ -923,13 +1034,12 @@ Outputs:
 
 
 ### [MinimapAlignment](../wdl/tools/MinimapAlignment.wdl)
-This workflow leverages [Minimap2](https://github.com/lh3/minimap2) in order to align a sample's maternal and paternal assemblies to a reference, saving the resulting BAMs and PAFs to a specified output directory.
+This workflow leverages [Minimap2](https://github.com/lh3/minimap2) in order to align a sample's maternal and paternal assemblies to a reference.
 
 Inputs:
 - `File assembly_mat`: Maternal assembly.
 - `File assembly_pat`: Paternal assembly.
 - `String sample_id`: ID of the sample being aligned.
-- `String where_to_save`: Output directory to which the aligned assemblies are saved.
 - `String minimap_flags`: Parameters to use when running Minimap2 (default `-a -x asm20 --cs --eqx`).
 - `Int minimap_threads`: Number of alignment threads (default `32`).
 - `File ref_fa`: From [references](references.md).
@@ -945,38 +1055,42 @@ Outputs:
 
 
 ### [MosDepth](../wdl/tools/MosDepth.wdl)
-This tool runs [mosdepth](https://github.com/brentp/mosdepth) to compute sequencing depth over a sample's BAM per contig, optionally in quantized mode. It outputs the per-base, summary, distribution and (optional) quantized coverage files.
+This tool runs [mosdepth](https://github.com/brentp/mosdepth) to compute sequencing depth over a sample's BAM per contig. By default it emits per-base coverage; when `bin_size` is set, it instead windows depth into fixed-size bins (`--by`, `--no-per-base`) and emits per-region coverage.
 
 Inputs:
 - `File bam`: Aligned reads for the sample.
 - `File bai`: Index for `bam`.
 - `Array[String] contigs`: Contigs over which to compute depth.
-- `Boolean quantize_mode`: Whether to run mosdepth in quantized mode.
+- `Int? bin_size`: If set, windows depth into bins of this size (bp) and disables per-base output.
+- `File? ref_fa`: Reference FASTA, required for CRAM input.
+- `File? ref_fai`: Index for `ref_fa`.
 
 Outputs:
 - `mosdepth_dist`: Per-contig cumulative coverage distributions.
 - `mosdepth_summary`: Per-contig coverage summaries.
-- `mosdepth_per_base`: Per-contig per-base coverage.
+- `mosdepth_per_base`: Per-contig per-base coverage (when `bin_size` is unset).
 - `mosdepth_per_base_csi`: Indexes for the per-base coverage.
-- `mosdepth_quantized_bed`: Per-contig quantized coverage BEDs (when `quantize_mode`).
-- `mosdepth_quantized_bed_csi`: Indexes for the quantized BEDs (when `quantize_mode`).
+- `mosdepth_regions_bed`: Per-contig windowed coverage BEDs (when `bin_size` is set).
+- `mosdepth_regions_bed_csi`: Indexes for the windowed coverage BEDs.
 
 
 ### [PALMER](../wdl/tools/PALMER.wdl)
 This workflow runs PALMER on a pair of aligned assembly haplotypes in order to generate MEI calls. It then convets the raw PALMER calls generated into a VCF, merges calls across the haplotypes to create a diploid VCF per haplotype and then finally integrates these into a final VCF containing multiple MEI types.
 
 Inputs:
-- `File bam_pat`: Aligned assembly for paternal haplotype.
-- `File bai_pat`: Index for aligned assembly for paternal haplotype.
-- `File bam_mat`: Aligned assembly for maternal haplotype.
-- `File bai_mat`: Index for aligned assembly for maternal haplotype.
+- `File? bam_pat`: Aligned assembly for paternal haplotype.
+- `File? bai_pat`: Index for `bam_pat`.
+- `File? bam_mat`: Aligned assembly for maternal haplotype.
+- `File? bai_mat`: Index for `bam_mat`.
+- `Array[File]? override_palmer_calls_pat`: Optional precomputed PALMER calls for the paternal haplotype, causing the workflow to bypass execution.
+- `Array[File]? override_palmer_tsd_files_pat`: Optional precomputed PALMER TSD files for the paternal haplotype, causing the workflow to bypass execution.
+- `Array[File]? override_palmer_calls_mat`: Optional precomputed PALMER calls for the maternal haplotype, causing the workflow to bypass execution.
+- `Array[File]? override_palmer_tsd_files_mat`: Optional precomputed PALMER TSD files for the maternal haplotype, causing the workflow to bypass execution.
 - `Array[String] contigs`: Contigs to run PALMER on.
-- `Array[String] mei_types`: Series of MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
-- `String truvari_collapse_params`: Truvari parameters to use when merging across haplotypes.
-- `Array[File]? override_palmer_calls_pat`: Optional PALMER calls for paternal haplotype, causing the workflow to bypass its execution.
-- `Array[File]? override_palmer_tsd_reads_pat`: Optional PALMER TSD reads for paternal haplotype, causing the workflow to bypass its execution.
-- `Array[File]? override_palmer_calls_mat`: Optional PALMER calls for maternal haplotype, causing the workflow to bypass its execution.
-- `Array[File]? override_palmer_tsd_reads_mat`: Optional PALMER TSD reads for maternal haplotype, causing the workflow to bypass its execution.
+- `String sample`: ID of the sample being processed.
+- `String mode`: PALMER run mode.
+- `Array[String] mei_types`: MEI modes to run PALMER in - a subset of `ALU`, `SVA`, `LINE` or `HERVK`.
+- `Array[String]? truvari_collapse_params`: Per-MEI-type Truvari parameters used when merging calls across haplotypes (default `--pctsize 0.9 --pctovl 0.9 --pctseq 0.9 --refdist 500` for each type).
 - `File ref_fa`: From [references](references.md).
 - `File ref_fai`: From [references](references.md).
 
@@ -1032,6 +1146,25 @@ Outputs:
 - `palmer_merged_vcf_idx`: Index for the merged VCF.
 
 
+### [PAV](../wdl/tools/PAV.wdl)
+This tool runs [PAV](https://github.com/EichlerLab/pav) in batch mode across multiple samples' phased haplotype assemblies to call variants against the reference. It outputs per-sample VCFs, along with tarballs of the full PAV results and log directories.
+
+Inputs:
+- `Array[File] mat_haplotypes`: Maternal haplotype assemblies, one per sample.
+- `Array[File] pat_haplotypes`: Paternal haplotype assemblies, one per sample.
+- `Array[String] sample_ids`: Sample IDs, aligned by index to `mat_haplotypes`/`pat_haplotypes`.
+- `File ref_fa`: From [references](references.md).
+- `File ref_fai`: From [references](references.md).
+
+Outputs:
+- `pav_results_tarball`: Tarball of the full PAV results directory.
+- `pav_log_tarball`: Tarball of the full PAV log directory.
+- `pav_vcfs`: Per-sample called VCFs.
+- `pav_vcf_indices`: Indexes for the per-sample VCFs.
+- `debug_sam`: Optional debug alignment file.
+- `debug_temp`: Optional debug intermediate files.
+
+
 ### [RepeatMasker](../wdl/tools/RepeatMasker.wdl)
 This workflow leverages [RepeatMasker](https://github.com/Dfam-consortium/RepeatMasker) in order to annotate repeated and mobile-element content in the insertions of an input VCF. It extracts each insertion's inserted sequence to a FASTA, optionally restricted to a minimum length, and runs RepeatMasker over it.
 
@@ -1051,7 +1184,9 @@ This workflow leverages [TRGT](https://github.com/PacificBiosciences/trgt) in or
 Inputs:
 - `File bam`: Aligned reads.
 - `File bai`: Index for aligned reads.
+- `String sample_id`: ID of the sample being genotyped.
 - `String sex`: Sex of sample (one of `M` or `F`).
+- `String catalog_name`: Name of the repeat catalog used, included in the output VCF filename.
 - `File ref_fa`: From [references](references.md).
 - `File ref_fai`: From [references](references.md).
 - `File repeat_catalog_trgt`: From [references](references.md).

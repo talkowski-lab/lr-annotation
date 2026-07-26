@@ -178,6 +178,15 @@ workflows:
   # Annotation Utilities
   # --------------------
   - subclass: WDL
+    name: AddEndTRs
+    primaryDescriptorPath: /wdl/annotation_utils/AddEndTRs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: AnnotateAlleleType
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateAlleleType.wdl
     filters:
@@ -198,6 +207,15 @@ workflows:
   - subclass: WDL
     name: AnnotateVcfCleared
     primaryDescriptorPath: /wdl/annotation_utils/AnnotateVcfCleared.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: CombineTRs
+    primaryDescriptorPath: /wdl/annotation_utils/CombineTRs.wdl
     filters:
       branches:
         - main
@@ -268,6 +286,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: FillPhasedGenotypes
+    primaryDescriptorPath: /wdl/annotation_utils/FillPhasedGenotypes.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: GenerateTRGTJson
     primaryDescriptorPath: /wdl/annotation_utils/GenerateTRGTJson.wdl
     filters:
@@ -288,6 +315,15 @@ workflows:
   - subclass: WDL
     name: IntegrateVcfs
     primaryDescriptorPath: /wdl/annotation_utils/IntegrateVcfs.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
+    name: MergeBackbonePhased
+    primaryDescriptorPath: /wdl/annotation_utils/MergeBackbonePhased.wdl
     filters:
       branches:
         - main

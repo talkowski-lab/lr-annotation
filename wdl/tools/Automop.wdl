@@ -26,6 +26,10 @@ workflow Automop {
             docker = automop_docker,
             runtime_attr_override = runtime_attr_mop
     }
+
+    output {
+        File fissfc_log = MopTask.fissfc_log
+    }
 }
 
 task MopTask {

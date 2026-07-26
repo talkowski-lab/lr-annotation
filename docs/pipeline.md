@@ -69,7 +69,7 @@ The following workflows were run concurrently on the phased cohort VCF:
 - **[AnnotateL1MEAID](../wdl/annotation/AnnotateL1MEAID.wdl)** ([docs](workflows.md#annotatel1meaid)) - identified MEI calls using L1ME-AID and INTACT_MEI.
 - **[AnnotateSVAN](../wdl/annotation/AnnotateSVAN.wdl)** ([docs](workflows.md#annotatesvan)) - annotated MEIs, MEDs, tandem duplications, dispersed duplications and NUMTs using SVAN.
 - **[AnnotateMEDs](../wdl/annotation/AnnotateMEDs.wdl)** ([docs](workflows.md#annotatemeds)) - identified mobile element deletions by intersecting deletions against the MEI catalog.
-- **[AnnotateIndelTRs](../wdl/annotation/AnnotateIndelTRs.wdl)** ([docs](workflows.md#annotatetrs)) - flagged short indels that represent tandem repeats.
+- **[AnnotateIndelTRs](../wdl/annotation/AnnotateIndelTRs.wdl)** ([docs](workflows.md#annotateindeltrs)) - flagged short indels that represent tandem repeats.
 - **[AnnotateSQMetrics](../wdl/annotation/AnnotateSQMetrics.wdl)** ([docs](workflows.md#annotatesqmetrics)) - recomputed site-level quality metrics (HWE, inbreeding coefficient, AS fields).
 - **[AnnotateGQMetrics](../wdl/annotation/AnnotateGQMetrics.wdl)** ([docs](workflows.md#annotategqmetrics)) - computed binned distributions of genotype quality and allele balance.
 - **[AnnotateAgeMetrics](../wdl/annotation/AnnotateAgeMetrics.wdl)** ([docs](workflows.md#annotateagemetrics)) _(All of Us only)_ - computed age-bin carrier distributions per variant.
@@ -86,7 +86,7 @@ Additionally, the Cohort PALMER VCF was processed in parallel:
 ### MEI Consolidation and Allele Typing
 1. **[AnnotateMEIs](../wdl/annotation/AnnotateMEIs.wdl)** ([docs](workflows.md#annotatemeis)) - consolidated the L1MEAID, PALMER and SVAN MEI annotations into a single harmonized MEI TSV.
 2. **[SubsetTsvToColumns](../wdl/annotation_utils/SubsetTsvToColumns.wdl)** ([docs](workflows.md#subsettsvtocolumns)) - extracted the duplication-specific columns from the SVAN output.
-3. **[AnnotateAlleleType](../wdl/annotation_utils/AnnotateAlleleType.wdl)** ([docs](workflows.md#annotateallleletype)) - updated the `allele_type` INFO field using the MED, MEI and duplication annotation TSVs.
+3. **[AnnotateAlleleType](../wdl/annotation_utils/AnnotateAlleleType.wdl)** ([docs](workflows.md#annotatealleletype)) - updated the `allele_type` INFO field using the MED, MEI and duplication annotation TSVs.
 
 ### Functional and Overlap Annotation (parallel)
 The following workflows were run concurrently on the allele-type-annotated VCF:
@@ -99,4 +99,4 @@ The following workflows were run concurrently on the allele-type-annotated VCF:
 1. **[AnnotateVcf](../wdl/annotation_utils/AnnotateVcf.wdl)** ([docs](workflows.md#annotatevcf)) _(AnnotateVcf_Downstream)_ - integrated all annotation TSVs into the VCF as INFO fields.
 2. **[PostProcess](../wdl/annotation_utils/PostProcess.wdl)** ([docs](workflows.md#postprocess)) - applied final genotype updates using phased genotypes from the backbone-phased VCF, normalized ploidy, pruned MEIs, flagged homopolymer TRs and filtered singletons.
 3. **[AnnotateAF](https://github.com/broadinstitute/gatk-sv/blob/kj_project_gnomad_lr/wdl/AnnotateAF.wdl)** ([docs](workflows.md#annotateaf)) - annotated allele frequencies using sample ancestries and the TRGT LPS TSV.
-4. **[TransformINSToDUP](../wdl/annotation_utils/TransformINSToDUP.wdl)** ([docs](workflows.md#transforminstodupduplication)) - converted qualifying insertion variants with `allele_type=dup` into symbolic DUP records based on their `ORIGIN` coordinates.
+4. **[TransformINSToDUP](../wdl/annotation_utils/TransformINSToDUP.wdl)** ([docs](workflows.md#transforminstodup)) - converted qualifying insertion variants with `allele_type=dup` into symbolic DUP records based on their `ORIGIN` coordinates.

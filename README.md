@@ -17,6 +17,7 @@ wdl/
   tools/             # Individual bioinformatics tool wrappers
   utils/             # Shared structs (Structs.wdl) and helper tasks (Helpers.wdl)
 scripts/
+  annotation/        # Standalone annotation scripts (e.g. genomic context)
   vep/               # VEP and Hail-based annotation scripts
   mei/               # MEI analysis scripts
   benchmark/         # Benchmarking scripts
@@ -31,6 +32,8 @@ docs/                # Extended documentation
 archive/             # Deprecated workflows, scripts, and dockerfiles
 ```
 
+See [Repository Structure](docs/repository-structure.md) for a fuller walkthrough of how the WDL, Dockerfiles, scripts and CI fit together.
+
 
 ## Documentation
 - [Annotations](docs/annotations.md) - VCF INFO fields, FORMAT fields and filter definitions.
@@ -38,4 +41,5 @@ archive/             # Deprecated workflows, scripts, and dockerfiles
 - [Conventions](docs/conventions.md) - WDL, Python and codebase conventions.
 - [Pipeline](docs/pipeline.md) - end-to-end pipeline description covering callset generation, preprocessing and annotation.
 - [References](docs/references.md) - all reference files and their GCS locations.
+- [Repository Structure](docs/repository-structure.md) - directory layout, Dockerfile build/push conventions, scripts overview and CI/CD.
 - [Workflows](docs/workflows.md) - annotation workflows, annotation utilities and tool wrappers with inputs and outputs.

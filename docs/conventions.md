@@ -30,9 +30,9 @@
 - Tasks should always have input fields `docker` and `runtime_attr_override` defined, though what is passed to each one of these when calling the task should be explicitly named - e.g. `gatk_docker` and `runtime_attr_override_svannotate` respectively.
 - Tasks should also have a prefix input defined, which is passed and set at the workflow level - the outputs from the task should simply use the prefix along with the file type.
 - Every command block within a task should begin with `set -euo pipefail` followed by a blank line.
-- The default `disk_size` for a task should be calculated dynamically based on the largest sized input file - or multiple if there are several large inputs, like multiple reference fastas or input catalogs. It should be defined in-line in the default runtime attributes section, unless it is a complicated function in which it can have a dedicated variable `disk_size`.
-- The default `mem_gb`, `boot_disk_gb` and `compute_cores` for a task should be explicitly defined rather than based on an input file - it should be set based on the intensity of compute needed by that task.
-- The default `preemptible_tries` for a task should always be 2, besides tasks in `Helpers.wdl` which should be 1.
+- The default `disk_gb` for a task should be calculated dynamically based on the largest sized input file - or multiple if there are several large inputs, like multiple reference fastas or input catalogs. It should be defined in-line in the default runtime attributes section, unless it is a complicated function in which it can have a dedicated variable `disk_gb`.
+- The default `mem_gb`, `boot_disk_gb` and `cpu_cores` for a task should be explicitly defined rather than based on an input file - it should be set based on the intensity of compute needed by that task.
+- The default `preemptible_tries` for a task should always be 1.
 - The default `max_retries` for a task should always be 0.
 - The names of workflows and tasks should never include a `_` character within them - rather, they should always be in Pascal case.
 - The names of inputs, variables and outputs should include a `_` to separate words, and be entirely lowercase unless they refer to a noun that is capitalized (e.g. PALMER or L1MEAID) - i.e. they should always be in snake case.
@@ -47,14 +47,13 @@
 
 
 ## Python
-- All code should be formatted in-line with black's formatting, which can be applied via `black .`.
 - All code should be compliant with `flake8`.
 
 
 ## Codebase
 - Workflows in `wdl/annotation/` should begin with _Annotate_.
 - Workflows directly run in the pipeline should be in one of `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
-- Workflows directly run in the pipelien should have entries in `dockstore.yml` and `README.md`.
+- Workflows directly run in the pipeline should have entries in `.dockstore.yml` and `README.md`.
 
 
 ## Workspace

@@ -14,6 +14,7 @@ wdl/
   tools/             # Individual bioinformatics tool wrappers
   utils/             # Shared structs (Structs.wdl) and helper tasks (Helpers.wdl)
 scripts/
+  annotation/        # Standalone annotation scripts (e.g. genomic context)
   vep/               # VEP and Hail-based annotation scripts
   mei/               # MEI analysis scripts
   benchmark/         # Benchmarking scripts
@@ -44,7 +45,7 @@ flake8 scripts/ --max-line-length=130
 The `.flake8` config extends ignore for `E203` and `W503`, and excludes `data/*` and `archive/*`.
 
 ### Dockstore
-All workflows that are directly run in the pipeline must have entries in `.dockstore.yml`. Annotation workflows go under the `# Annotation Workflows` section, utilities under `# Annotation Utilities`, and tools under `# Tool Workflows`. Each entry follows this format:
+All workflows that are directly run in the pipeline must have entries in `.dockstore.yml`. Annotation workflows go under the `# Annotation Workflows` section, utilities under `# Annotation Utilities`, and tools under `# Tools`. Each entry follows this format:
 ```yaml
 - subclass: WDL
   name: WorkflowName

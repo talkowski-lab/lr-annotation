@@ -57,6 +57,7 @@ workflow VcfDist {
                 bed_regions = bed_regions,
                 mode = mode,
                 threshold = threshold,
+                vcfdist_args = vcfdist_args,
                 prefix = "~{prefix}.~{contig}",
                 docker = vcfdist_docker,
                 runtime_attr_override = runtime_attr_vcfdist

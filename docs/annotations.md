@@ -52,7 +52,7 @@
 		- `SV`: SV callset.
 	- `gnomAD_V4_match_type`: Method for generating match with gnomAD V4, which is one of the below.
 		- `BEDTOOLS_CLOSEST`: Bedtools closest match finetuned for SVs.
-		- `EXACT_MATCH`: Exact match across CHROM, POS, REF and ALT.
+		- `EXACT`: Exact match across CHROM, POS, REF and ALT.
 		- `TRUVARI_{X}`: Truvari match requiring X% sequence similarity.
 - `HOMOPOLYMER_TRV`: Flag indicating a tandem repeat call where the shortest motif has length 1.
 - Insilico Predictors: Pathogenicity and conservation scores for SNVs and indels from gnomAD V4.
