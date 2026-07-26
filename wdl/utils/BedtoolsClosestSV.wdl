@@ -17,7 +17,7 @@ workflow BedtoolsClosestSV {
         String length_field
         String source_tag = "SV"
 
-        String sv_pipeline_docker
+        String gatk_sv_lr_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_subset_vcf
@@ -47,7 +47,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = ConvertEvalMoved.processed_vcf_idx,
             split_cpx = false,
             prefix = "~{prefix}.eval.moved",
-            docker = sv_pipeline_docker,
+            docker = gatk_sv_lr_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
 
@@ -81,7 +81,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = ConvertEvalUnmoved.processed_vcf_idx,
             split_cpx = false,
             prefix = "~{prefix}.eval.unmoved",
-            docker = sv_pipeline_docker,
+            docker = gatk_sv_lr_docker,
             runtime_attr_override = runtime_attr_split_vcf
     }
 
@@ -102,7 +102,7 @@ workflow BedtoolsClosestSV {
             vcf_idx = SubsetTruth.subset_vcf_idx,
             split_cpx = true,
             prefix = "~{prefix}.truth",
-            docker = sv_pipeline_docker,
+            docker = gatk_sv_lr_docker,
             runtime_attr_override = runtime_attr_split_truth
     }
 

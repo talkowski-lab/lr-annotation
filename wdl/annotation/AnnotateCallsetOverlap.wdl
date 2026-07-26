@@ -45,7 +45,7 @@ workflow AnnotateCallsetOverlap {
         File ref_fa
         File ref_fai
 
-        String sv_pipeline_docker
+        String gatk_sv_lr_docker
         String utils_docker
 
         RuntimeAttr? runtime_attr_strip_genotypes
@@ -352,7 +352,7 @@ workflow AnnotateCallsetOverlap {
                     type_field = type_field_vcf,
                     length_field = length_field_vcf,
                     source_tag = source_tag_truth_sv_vcf,
-                    sv_pipeline_docker = sv_pipeline_docker,
+                    gatk_sv_lr_docker = gatk_sv_lr_docker,
                     utils_docker = utils_docker,
                     runtime_attr_subset_vcf = runtime_attr_bedtools_subset_vcf,
                     runtime_attr_subset_truth = runtime_attr_bedtools_subset_truth,

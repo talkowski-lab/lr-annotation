@@ -9,15 +9,20 @@ workflow HiFiCNV {
         File bai
         String prefix
 
+        String sex
+
         File ref_fa
         File ref_fai
         File exclude_bed
-        File sex_specific_cn
+        File expected_cn_male
+        File expected_cn_female
 
         String hificnv_docker
 
         RuntimeAttr? runtime_attr_run_hificnv
     }
+
+    File sex_specific_cn = if sex == 'M' then expected_cn_male else expected_cn_female
 
     call RunHiFiCNV {
         input:

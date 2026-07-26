@@ -878,10 +878,12 @@ This tool runs PacBio [HiFiCNV](https://github.com/PacificBiosciences/HiFiCNV) o
 Inputs:
 - `File bam`: Aligned reads for the sample.
 - `File bai`: Index for `bam`.
+- `String sex`: Sex of sample (one of `M` or `F`), used to select the matching expected-CN file.
 - `File ref_fa`: Reference sequences FASTA file.
 - `File ref_fai`: Index for `ref_fa`.
 - `File exclude_bed`: Regions to exclude from CNV calling (e.g. centromeres).
-- `File sex_specific_cn`: Sex-specific PAR regions and expected copy numbers for sex chromosomes.
+- `File expected_cn_male`: PAR regions and expected copy numbers for sex chromosomes, male.
+- `File expected_cn_female`: PAR regions and expected copy numbers for sex chromosomes, female.
 
 Outputs:
 - `hificnv_vcf`: CNV calls VCF.
