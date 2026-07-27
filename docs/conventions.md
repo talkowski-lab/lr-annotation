@@ -50,12 +50,6 @@
 - All code should be compliant with `flake8`.
 
 
-## Codebase
-- Workflows in `wdl/annotation/` should begin with _Annotate_.
-- Workflows directly run in the pipeline should be in one of `wdl/annotation/`, `wdl/annotation_utils/` or `wdl/tools/`.
-- Workflows directly run in the pipeline should have entries in `.dockstore.yml` and `README.md`.
-
-
 ## Workspace
 - All reference files - i.e. those not specific to an input callset - should be passed in via workspace data.
 - All dockers should be passed in via workspace data.

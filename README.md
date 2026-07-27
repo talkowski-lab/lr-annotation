@@ -9,36 +9,10 @@ The pipeline covers three broad stages.
 **Stack:** All workflows are written in WDL and executed via Cromwell on Terra, which is built on top of GCP. The code logic is a mixture of Python, R, Bash and Hail. 
 
 
-## Repository Layout
-```
-wdl/
-  annotation/        # Main annotation workflows (prefix: Annotate*)
-  annotation_utils/  # VCF manipulation and utility workflows
-  tools/             # Individual bioinformatics tool wrappers
-  utils/             # Shared structs (Structs.wdl) and helper tasks (Helpers.wdl)
-scripts/
-  annotation/        # Standalone annotation scripts (e.g. genomic context)
-  vep/               # VEP and Hail-based annotation scripts
-  mei/               # MEI analysis scripts
-  benchmark/         # Benchmarking scripts
-  miscellaneous/     # Other utility scripts
-dockerfiles/         # Dockerfile.<image-name> (lowercase) for each container
-data/
-  references/        # Reference genomes, catalogs, BED files
-  base_vcfs/         # Test/base VCF files
-  metadata/          # Sample metadata, pedigrees, ancestry
-  qc_annotations/    # QC annotation outputs
-docs/                # Extended documentation
-archive/             # Deprecated workflows, scripts, and dockerfiles
-```
-
-See [Repository Structure](docs/repository-structure.md) for a fuller walkthrough of how the WDL, Dockerfiles, scripts and CI fit together.
-
-
 ## Documentation
 - [Annotations](docs/annotations.md) - VCF INFO fields, FORMAT fields and filter definitions.
 - [Cohort](docs/cohort.md) - sample cohorts, sizes and metadata sources.
-- [Conventions](docs/conventions.md) - WDL, Python and codebase conventions.
+- [Conventions](docs/conventions.md) - WDL and Python style conventions.
 - [Pipeline](docs/pipeline.md) - end-to-end pipeline description covering callset generation, preprocessing and annotation.
 - [References](docs/references.md) - all reference files and their GCS locations.
 - [Repository Structure](docs/repository-structure.md) - directory layout, Dockerfile build/push conventions, scripts overview and CI/CD.

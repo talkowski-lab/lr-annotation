@@ -841,6 +841,10 @@ with open(VARIANT_LIST_OUTPUT, 'w', newline='') as vl_handle:
             if MIN_LENGTH is not None and (a_length is None or a_length < MIN_LENGTH):
                 continue
 
+            carrier_count, alt_allele_count = get_genotype_weights(record)
+            if carrier_count == 0:
+                continue
+
             column_summary = determine_column(a_type, a_length, record.id, LENGTH_BINS_SUMMARY, SIZE_LABELS_SUMMARY)
             column_plotting = determine_column(a_type, a_length, record.id, LENGTH_BINS_PLOTTING, SIZE_LABELS_PLOTTING) if CREATE_PLOTTING else None
             row_weights = determine_row_weights(record, a_type, vep_field_indices)
@@ -851,11 +855,6 @@ with open(VARIANT_LIST_OUTPUT, 'w', newline='') as vl_handle:
                 region = get_string_info(record, "REGION")
                 if region in REGION_ORDER:
                     regions.append(region)
-
-            if CREATE_PER_SAMPLE or CREATE_PER_ALLELE:
-                carrier_count, alt_allele_count = get_genotype_weights(record)
-            else:
-                carrier_count, alt_allele_count = 0, 0
 
             af = get_float_info(record, "AF")
             ac = get_int_info(record, "AC")
