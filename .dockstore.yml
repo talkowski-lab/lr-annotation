@@ -553,3 +553,10 @@ workflows:
         - gcnv
       tags:
         - /.*/
+  - subclass: WDL
+    name: LRCNVs
+    primaryDescriptorPath: /wdl/tools/LongReadCNVs.wdl
+    filters:
+      branches:
+        - main
+        - gcnv
