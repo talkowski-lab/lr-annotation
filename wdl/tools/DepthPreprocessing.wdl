@@ -119,6 +119,7 @@ workflow DepthPreprocessing {
         File dup_bed_index = merge_set_dup.out_idx
         File merged_vcf = ConcatVCFs.concat_vcf
         File merged_vcf_index = ConcatVCFs.concat_vcf_index
+        File ploidy_table = MakePloidyTable.ploidy_table
     }
 }
 
