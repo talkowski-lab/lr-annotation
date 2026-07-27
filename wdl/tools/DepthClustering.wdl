@@ -1,6 +1,6 @@
 version 1.0
 
-workflow ClusterDepth {
+workflow DepthClustering {
     input {
         File depth_vcf
         String output_prefix
