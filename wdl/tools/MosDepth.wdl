@@ -10,6 +10,7 @@ workflow MosDepth {
         Array[String] contigs
         String prefix
 
+        Boolean single_contig = false
         Int? bin_size
 
         File? ref_fa
@@ -20,28 +21,44 @@ workflow MosDepth {
         RuntimeAttr? runtime_attr_run_mosdepth
     }
 
-    scatter (contig in contigs) {
-        call RunMosDepth {
+    if (single_contig) {
+        call RunMosDepth as RunMosDepthAllContigs {
             input:
                 bam = bam,
                 bai = bai,
-                contig = contig,
                 bin_size = bin_size,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
-                prefix = "~{prefix}.~{contig}.coverage",
+                prefix = "~{prefix}.coverage",
                 docker = mosdepth_docker,
                 runtime_attr_override = runtime_attr_run_mosdepth
         }
     }
 
+    if (!single_contig) {
+        scatter (contig in contigs) {
+            call RunMosDepth as RunMosDepthPerContig {
+                input:
+                    bam = bam,
+                    bai = bai,
+                    contig = contig,
+                    bin_size = bin_size,
+                    ref_fa = ref_fa,
+                    ref_fai = ref_fai,
+                    prefix = "~{prefix}.~{contig}.coverage",
+                    docker = mosdepth_docker,
+                    runtime_attr_override = runtime_attr_run_mosdepth
+            }
+        }
+    }
+
     output {
-        Array[File] mosdepth_dist = RunMosDepth.dist
-        Array[File] mosdepth_summary = RunMosDepth.summary
-        Array[File] mosdepth_per_base = select_all(RunMosDepth.per_base)
-        Array[File] mosdepth_per_base_csi = select_all(RunMosDepth.per_base_csi)
-        Array[File] mosdepth_regions_bed = select_all(RunMosDepth.regions_bed)
-        Array[File] mosdepth_regions_bed_csi = select_all(RunMosDepth.regions_bed_csi)
+        Array[File] mosdepth_dist = flatten([select_all([RunMosDepthAllContigs.dist]), flatten(select_all([RunMosDepthPerContig.dist]))])
+        Array[File] mosdepth_summary = flatten([select_all([RunMosDepthAllContigs.summary]), flatten(select_all([RunMosDepthPerContig.summary]))])
+        Array[File] mosdepth_per_base = flatten([select_all([RunMosDepthAllContigs.per_base]), select_all(flatten(select_all([RunMosDepthPerContig.per_base])))])
+        Array[File] mosdepth_per_base_csi = flatten([select_all([RunMosDepthAllContigs.per_base_csi]), select_all(flatten(select_all([RunMosDepthPerContig.per_base_csi])))])
+        Array[File] mosdepth_regions_bed = flatten([select_all([RunMosDepthAllContigs.regions_bed]), select_all(flatten(select_all([RunMosDepthPerContig.regions_bed])))])
+        Array[File] mosdepth_regions_bed_csi = flatten([select_all([RunMosDepthAllContigs.regions_bed_csi]), select_all(flatten(select_all([RunMosDepthPerContig.regions_bed_csi])))])
     }
 }
 
@@ -49,7 +66,7 @@ task RunMosDepth {
     input {
         File bam
         File bai
-        String contig
+        String? contig
         Int? bin_size
         File? ref_fa
         File? ref_fai
@@ -58,12 +75,14 @@ task RunMosDepth {
         RuntimeAttr? runtime_attr_override
     }
 
+    String contig_flag = if defined(contig) then "-c \"" + select_first([contig]) + "\"" else ""
+
     command <<<
         set -euo pipefail
 
         mosdepth \
             -t ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
-            -c "~{contig}" \
+            ~{contig_flag} \
             -x \
             ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
             ~{if defined(bin_size) then "--by " + bin_size + " --no-per-base" else ""} \

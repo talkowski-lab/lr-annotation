@@ -26,7 +26,7 @@
 - `ploidy_bed_female`: [Panel for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/grch38_female.bed) from the [Kanpig references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `ploidy_bed_male`: [Panel for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/grch38_male.bed) from the [Kanpig references](https://broadinstitute.github.io/gatk-sv/docs/resources).
 - `ref_dict`: Sequence dictionary for `ref_fa`.
-- `ref_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/hg38.no_alt.fa) from the [PAV references](https://github.com/ACEnglish/kanpig/tree/main/ploidy_beds).
+- `ref_fa`: [Sequences for GRCh38](gs://fc-107e0442-e00c-4bb9-9810-bbe370bda6e5/files_kj/references/hg38.no_alt.fa) from the [PAV references](https://github.com/BeckLaboratory/pav#a-note-on-references).
 - `ref_fai`: Index for `ref_fa`.
 - `ref_fa_bwa_indices`: BWA indices for `ref_fa`.
 - `ref_fa_indices`: BWA and Minimap indices for `ref_fa`.
