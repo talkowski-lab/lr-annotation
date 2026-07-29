@@ -22,7 +22,9 @@ workflow PreprocessGregorVcf {
         RuntimeAttr? runtime_attr_normalize_vcf
         RuntimeAttr? runtime_attr_annotate_attributes
         RuntimeAttr? runtime_attr_rename_ids
-        RuntimeAttr? runtime_attr_concat_shards
+        RuntimeAttr? runtime_attr_strip_genotypes
+        RuntimeAttr? runtime_attr_concat_genotyped_shards
+        RuntimeAttr? runtime_attr_concat_stripped_shards
     }
 
     Boolean single_contig = length(contigs) == 1
@@ -87,27 +89,51 @@ workflow PreprocessGregorVcf {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_rename_ids
             }
+
+            call Helpers.StripGenotypes {
+                input:
+                    vcf = RenameVariantIds.renamed_vcf,
+                    vcf_idx = RenameVariantIds.renamed_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.stripped",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_strip_genotypes
+            }
         }
 
         if (defined(records_per_shard)) {
-            call Helpers.ConcatVcfs as ConcatShards {
+            call Helpers.ConcatVcfs as ConcatGenotypedShards {
                 input:
                     vcfs = RenameVariantIds.renamed_vcf,
                     vcf_idxs = RenameVariantIds.renamed_vcf_idx,
                     allow_overlaps = true,
                     naive = false,
-                    prefix = "~{prefix}.~{contig}.concatenated",
+                    prefix = "~{prefix}.~{contig}.genotyped.concatenated",
                     docker = utils_docker,
-                    runtime_attr_override = runtime_attr_concat_shards
+                    runtime_attr_override = runtime_attr_concat_genotyped_shards
+            }
+
+            call Helpers.ConcatVcfs as ConcatStrippedShards {
+                input:
+                    vcfs = StripGenotypes.stripped_vcf,
+                    vcf_idxs = StripGenotypes.stripped_vcf_idx,
+                    allow_overlaps = true,
+                    naive = false,
+                    prefix = "~{prefix}.~{contig}.stripped.concatenated",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_concat_stripped_shards
             }
         }
 
-        File final_contig_vcf = select_first([ConcatShards.concat_vcf, RenameVariantIds.renamed_vcf[0]])
-        File final_contig_vcf_idx = select_first([ConcatShards.concat_vcf_idx, RenameVariantIds.renamed_vcf_idx[0]])
+        File final_genotyped_vcf = select_first([ConcatGenotypedShards.concat_vcf, RenameVariantIds.renamed_vcf[0]])
+        File final_genotyped_vcf_idx = select_first([ConcatGenotypedShards.concat_vcf_idx, RenameVariantIds.renamed_vcf_idx[0]])
+        File final_stripped_vcf = select_first([ConcatStrippedShards.concat_vcf, StripGenotypes.stripped_vcf[0]])
+        File final_stripped_vcf_idx = select_first([ConcatStrippedShards.concat_vcf_idx, StripGenotypes.stripped_vcf_idx[0]])
     }
 
     output {
-        Array[File] processed_vcfs = final_contig_vcf
-        Array[File] processed_vcf_idxs = final_contig_vcf_idx
+        Array[File] full_vcf = final_genotyped_vcf
+        Array[File] full_vcf_idx = final_genotyped_vcf_idx
+        Array[File] stripped_vcf = final_stripped_vcf
+        Array[File] stripped_vcf_idx = final_stripped_vcf_idx
     }
 }
