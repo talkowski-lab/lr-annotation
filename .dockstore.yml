@@ -349,8 +349,8 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: PreprocesGregorVcf
-    primaryDescriptorPath: /wdl/annotation_utils/PreprocesGregorVcf.wdl
+    name: PreprocessGregorVcf
+    primaryDescriptorPath: /wdl/annotation_utils/PreprocessGregorVcf.wdl
     filters:
       branches:
         - main

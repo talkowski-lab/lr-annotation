@@ -3,7 +3,7 @@ version 1.0
 import "../utils/Helpers.wdl"
 import "../utils/Structs.wdl"
 
-workflow PreprocesGregorVcf {
+workflow PreprocessGregorVcf {
     input {
         File vcf
         File vcf_idx
@@ -21,6 +21,7 @@ workflow PreprocesGregorVcf {
         RuntimeAttr? runtime_attr_shard_vcf
         RuntimeAttr? runtime_attr_normalize_vcf
         RuntimeAttr? runtime_attr_annotate_attributes
+        RuntimeAttr? runtime_attr_rename_ids
         RuntimeAttr? runtime_attr_concat_shards
     }
 
@@ -77,13 +78,22 @@ workflow PreprocesGregorVcf {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_annotate_attributes
             }
+
+            call Helpers.RenameVariantIds {
+                input:
+                    vcf = AnnotateVariantAttributes.annotated_vcf,
+                    vcf_idx = AnnotateVariantAttributes.annotated_vcf_idx,
+                    prefix = "~{prefix}.~{contig}.shard_~{i}.renamed",
+                    docker = utils_docker,
+                    runtime_attr_override = runtime_attr_rename_ids
+            }
         }
 
         if (defined(records_per_shard)) {
             call Helpers.ConcatVcfs as ConcatShards {
                 input:
-                    vcfs = AnnotateVariantAttributes.annotated_vcf,
-                    vcf_idxs = AnnotateVariantAttributes.annotated_vcf_idx,
+                    vcfs = RenameVariantIds.renamed_vcf,
+                    vcf_idxs = RenameVariantIds.renamed_vcf_idx,
                     allow_overlaps = true,
                     naive = false,
                     prefix = "~{prefix}.~{contig}.concatenated",
@@ -92,8 +102,8 @@ workflow PreprocesGregorVcf {
             }
         }
 
-        File final_contig_vcf = select_first([ConcatShards.concat_vcf, AnnotateVariantAttributes.annotated_vcf[0]])
-        File final_contig_vcf_idx = select_first([ConcatShards.concat_vcf_idx, AnnotateVariantAttributes.annotated_vcf_idx[0]])
+        File final_contig_vcf = select_first([ConcatShards.concat_vcf, RenameVariantIds.renamed_vcf[0]])
+        File final_contig_vcf_idx = select_first([ConcatShards.concat_vcf_idx, RenameVariantIds.renamed_vcf_idx[0]])
     }
 
     output {
