@@ -10,7 +10,7 @@ set -euo pipefail
 # as <image-name>__<ARG_NAME>. Every ARG declared in the target Dockerfile
 # (with no inline default) is resolved from there and passed as --build-arg.
 #
-# Dockerfiles are named Dockerfile.<image-name> (lowercase), so the image
+# Dockerfiles are named Dockerfile.<image-name>, so the image
 # name is the only argument needed.
 #
 # Usage: dockerfiles/build_push.sh <image-name>
