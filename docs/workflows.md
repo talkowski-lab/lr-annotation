@@ -558,6 +558,25 @@ Outputs:
 - `plotting_variant_list_parquet`: Raw per-variant genotype-count list, as Parquet (when `create_plotting`).
 
 
+### [CreateCohortMethylationFile](../wdl/annotation_utils/CreateCohortMethylationFile.wdl)
+This utility builds cohort-level CpG methylation matrices from per-sample [MethylationProfiling](../wdl/tools/MethylationProfiling.wdl) BED outputs. For each contig, it merges every sample's combined and per-haplotype modification-score BEDs into a wide site-by-sample(/haplotype) matrix, filling `.` for sites missing in a given sample or haplotype. Samples can optionally be processed in shards (merged independently, then joined column-wise) to bound how many sample files are localized onto a single task at once.
+
+Inputs:
+- `Array[File] combined_beds`: Per-sample combined CpG pileup BEDs (`cpg_combined_bed` from MethylationProfiling).
+- `Array[File] combined_bed_idxs`: Indexes for `combined_beds`.
+- `Array[File] hap1_beds`: Per-sample haplotype 1 CpG pileup BEDs (`cpg_hap1_bed` from MethylationProfiling).
+- `Array[File] hap1_bed_idxs`: Indexes for `hap1_beds`.
+- `Array[File] hap2_beds`: Per-sample haplotype 2 CpG pileup BEDs (`cpg_hap2_bed` from MethylationProfiling).
+- `Array[File] hap2_bed_idxs`: Indexes for `hap2_beds`.
+- `Array[String] sample_ids`: Sample IDs, parallel to `combined_beds`/`hap1_beds`/`hap2_beds`.
+- `Array[String] contigs`: Contigs to process.
+- `Int? samples_per_shard`: Maximum number of samples merged per shard before shards are joined column-wise into the final matrix.
+
+Outputs:
+- `combined_methylation_beds`: Per-contig site-by-sample modification-score matrix BEDs.
+- `haplotype_methylation_beds`: Per-contig site-by-haplotype modification-score matrix BEDs.
+
+
 ### [CreateCoverageFile](../wdl/annotation_utils/CreateCoverageFile.wdl)
 This utility builds a binned coverage matrix across a cohort from per-sample mosdepth BED outputs. It tiles the genome into windows, computes the mean coverage and threshold-crossing counts within each bin for every sample, and concatenates the results into a single coverage TSV.
 

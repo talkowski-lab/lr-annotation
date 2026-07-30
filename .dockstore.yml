@@ -241,6 +241,15 @@ workflows:
         - /.*/
 
   - subclass: WDL
+    name: CreateCohortMethylationFile
+    primaryDescriptorPath: /wdl/annotation_utils/CreateCohortMethylationFile.wdl
+    filters:
+      branches:
+        - main
+      tags:
+        - /.*/
+
+  - subclass: WDL
     name: CreateCoverageFile
     primaryDescriptorPath: /wdl/annotation_utils/CreateCoverageFile.wdl
     filters:

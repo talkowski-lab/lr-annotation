@@ -13,15 +13,10 @@ workflow TruvariMatch {
         File ref_fai
         String prefix
 
-        Int min_sv_length
-        Int min_sv_length_truth
-        String length_field
         String source_tag = "SNV_indel"
 
         String utils_docker
 
-        RuntimeAttr? runtime_attr_subset_vcf
-        RuntimeAttr? runtime_attr_subset_truth
         RuntimeAttr? runtime_attr_run_truvari_09
         RuntimeAttr? runtime_attr_run_truvari_07
         RuntimeAttr? runtime_attr_run_truvari_05
@@ -29,33 +24,12 @@ workflow TruvariMatch {
         RuntimeAttr? runtime_attr_concat_matched_truth
     }
 
-    call Helpers.SubsetVcfByLength as SubsetEval {
+    call RunTruvari as RunTruvari_09 {
         input:
             vcf = vcf,
             vcf_idx = vcf_idx,
-            length_field = length_field,
-            min_length = min_sv_length,
-            prefix = "~{prefix}.subset_eval",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_vcf
-    }
-
-    call Helpers.SubsetVcfByArgs as SubsetTruth {
-        input:
-            vcf = truth_snv_indel_vcf,
-            vcf_idx = truth_snv_indel_vcf_idx,
-            include_args = 'abs(ILEN) >= ~{min_sv_length_truth}',
-            prefix = "~{prefix}.subset_truth",
-            docker = utils_docker,
-            runtime_attr_override = runtime_attr_subset_truth
-    }
-
-    call RunTruvari as RunTruvari_09 {
-        input:
-            vcf = SubsetEval.subset_vcf,
-            vcf_idx = SubsetEval.subset_vcf_idx,
-            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
-            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
+            truth_snv_indel_vcf = truth_snv_indel_vcf,
+            truth_snv_indel_vcf_idx = truth_snv_indel_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.9,
@@ -72,8 +46,8 @@ workflow TruvariMatch {
         input:
             vcf = RunTruvari_09.unmatched_vcf,
             vcf_idx = RunTruvari_09.unmatched_vcf_idx,
-            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
-            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
+            truth_snv_indel_vcf = truth_snv_indel_vcf,
+            truth_snv_indel_vcf_idx = truth_snv_indel_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.7,
@@ -90,8 +64,8 @@ workflow TruvariMatch {
         input:
             vcf = RunTruvari_07.unmatched_vcf,
             vcf_idx = RunTruvari_07.unmatched_vcf_idx,
-            truth_snv_indel_vcf = SubsetTruth.subset_vcf,
-            truth_snv_indel_vcf_idx = SubsetTruth.subset_vcf_idx,
+            truth_snv_indel_vcf = truth_snv_indel_vcf,
+            truth_snv_indel_vcf_idx = truth_snv_indel_vcf_idx,
             ref_fa = ref_fa,
             ref_fai = ref_fai,
             pctseq = 0.5,
