@@ -11,6 +11,7 @@ workflow MosDepth {
         String prefix
 
         Boolean single_contig = false
+        Boolean fast_mode = true
         Int? bin_size
 
         File? ref_fa
@@ -27,6 +28,7 @@ workflow MosDepth {
                 bam = bam,
                 bai = bai,
                 bin_size = bin_size,
+                fast_mode = fast_mode,
                 ref_fa = ref_fa,
                 ref_fai = ref_fai,
                 prefix = "~{prefix}.coverage",
@@ -43,6 +45,7 @@ workflow MosDepth {
                     bai = bai,
                     contig = contig,
                     bin_size = bin_size,
+                    fast_mode = fast_mode,
                     ref_fa = ref_fa,
                     ref_fai = ref_fai,
                     prefix = "~{prefix}.~{contig}.coverage",
@@ -68,6 +71,7 @@ task RunMosDepth {
         File bai
         String? contig
         Int? bin_size
+        Boolean fast_mode
         File? ref_fa
         File? ref_fai
         String prefix
@@ -75,17 +79,15 @@ task RunMosDepth {
         RuntimeAttr? runtime_attr_override
     }
 
-    String contig_flag = if defined(contig) then "-c \"" + select_first([contig]) + "\"" else ""
-
     command <<<
         set -euo pipefail
 
         mosdepth \
-            -t ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
-            ~{contig_flag} \
-            -x \
-            ~{if defined(ref_fa) then "-f " + ref_fa else ""} \
+            ~{if defined(contig) then "-c " + contig else ""} \
             ~{if defined(bin_size) then "--by " + bin_size + " --no-per-base" else ""} \
+            ~{if defined(ref_fa) then "--fasta " + ref_fa else ""} \
+            ~{if fast_mode then "--fast-mode" else ""} \
+            --threads ~{select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])} \
             ~{prefix} \
             ~{bam}
     >>>
