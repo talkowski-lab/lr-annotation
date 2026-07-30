@@ -154,6 +154,11 @@ workflow AnnotateCallsetOverlap {
         File truth_sv_vcf_final = select_first([RenameSVTruthIds.renamed_vcf, truth_sv_vcf_subsetted])
         File truth_sv_vcf_final_idx = select_first([RenameSVTruthIds.renamed_vcf_idx, truth_sv_vcf_subsetted_idx])
 
+        String? shard_rename_id_string_vcf = rename_id_string_vcf
+        Boolean shard_rename_id_strip_chr_vcf = select_first([rename_id_strip_chr_vcf, false])
+        String? shard_rename_id_string_truth_snv_indel_vcf = rename_id_string_truth_snv_indel_vcf
+        Boolean shard_rename_id_strip_chr_truth_snv_indel_vcf = select_first([rename_id_strip_chr_truth_snv_indel_vcf, false])
+
         if (defined(shard_bin_size_exact_match)) {
             call Helpers.CreateContigShards as CreateExactShards {
                 input:
@@ -165,11 +170,6 @@ workflow AnnotateCallsetOverlap {
                     docker = utils_docker,
                     runtime_attr_override = runtime_attr_create_exact_shards
             }
-
-            String? shard_rename_id_string_vcf = rename_id_string_vcf
-            Boolean shard_rename_id_strip_chr_vcf = select_first([rename_id_strip_chr_vcf, false])
-            String? shard_rename_id_string_truth_snv_indel_vcf = rename_id_string_truth_snv_indel_vcf
-            Boolean shard_rename_id_strip_chr_truth_snv_indel_vcf = select_first([rename_id_strip_chr_truth_snv_indel_vcf, false])
 
             scatter (k in range(length(CreateExactShards.shard_regions))) {
                 call Helpers.SubsetVcfToRegion as SubsetExactEval {
