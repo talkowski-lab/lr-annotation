@@ -3168,3 +3168,204 @@ PYCODE
         maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
     }
 }
+
+task ExactMatch {
+    input {
+        File vcf
+        File vcf_idx
+        File truth_snv_indel_vcf
+        File truth_snv_indel_vcf_idx
+        String source_tag
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        bcftools isec \
+            -c none \
+            -n=2 \
+            -p isec_matched \
+            ~{vcf} \
+            ~{truth_snv_indel_vcf}
+
+        bgzip -c isec_matched/0001.vcf > ~{prefix}.matched_truth.vcf.gz
+        tabix -p vcf ~{prefix}.matched_truth.vcf.gz
+
+        bcftools query \
+            -f '%CHROM\t%POS\t%REF\t%ALT\t%ID\n' \
+            isec_matched/0000.vcf \
+            > eval_matched.tsv
+
+        bcftools query \
+            -f '%ID\t%FILTER\n' \
+            isec_matched/0001.vcf \
+            | awk -F'\t' 'BEGIN{OFS="\t"} {
+                n = split($2, parts, ";")
+                out = ""
+                for (i = 1; i <= n; i++) {
+                    if (parts[i] != "." && parts[i] != "PASS") {
+                        out = (out == "" ? parts[i] : out "," parts[i])
+                    }
+                }
+                if (out == "") out = "."
+                print $1, out
+            }' > truth_matched.tsv
+
+        paste eval_matched.tsv truth_matched.tsv \
+            | awk -v src="~{source_tag}" 'BEGIN{OFS="\t"} {print $1,$2,$3,$4,$5,"EXACT",$6,src,$7}' \
+            > ~{prefix}.tsv
+
+        bcftools isec \
+            -C \
+            -c none \
+            -p isec_unmatched \
+            ~{vcf} \
+            ~{truth_snv_indel_vcf}
+
+        bgzip -c isec_unmatched/0000.vcf > ~{prefix}.vcf.gz
+
+        tabix -p vcf ~{prefix}.vcf.gz
+    >>>
+
+    output {
+        File annotation_tsv = "~{prefix}.tsv"
+        File matched_truth_vcf = "~{prefix}.matched_truth.vcf.gz"
+        File matched_truth_vcf_idx = "~{prefix}.matched_truth.vcf.gz.tbi"
+        File unmatched_vcf = "~{prefix}.vcf.gz"
+        File unmatched_vcf_idx = "~{prefix}.vcf.gz.tbi"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 4,
+        disk_gb: 5 * ceil(size(vcf, "GB") + size(truth_snv_indel_vcf, "GB")) + 5,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
+
+task AppendAnnotationsFromVcf {
+    input {
+        File annotation_tsv
+        File truth_vcf
+        File truth_vcf_idx
+        Boolean is_sv_truth
+        String prefix
+        String docker
+        RuntimeAttr? runtime_attr_override
+    }
+
+    command <<<
+        set -euo pipefail
+
+        python3 <<'EOF'
+import subprocess
+import re
+
+annotation_tsv = "~{annotation_tsv}"
+truth_vcf = "~{truth_vcf}"
+is_sv_truth = ~{true="True" false="False" is_sv_truth}
+prefix = "~{prefix}"
+
+def get_ac_af_an_fields(vcf_path):
+    cmd = f"bcftools view -h {vcf_path}"
+    proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+    fields = {'AC': {}, 'AF': {}, 'AN': {}}
+    for line in proc.stdout:
+        m = re.match(r'##INFO=<ID=([^,]+)', line)
+        if m:
+            fid = m.group(1)
+            norm_id = fid.upper().replace('_REMAINING', '_RMI')
+            for p in ['AC', 'AF', 'AN']:
+                if norm_id == p or norm_id.startswith(p + '_'):
+                    fields[p][norm_id] = fid
+    proc.wait()
+    return fields
+
+vcf_fields = get_ac_af_an_fields(truth_vcf)
+dyn_cols = sorted(vcf_fields['AC']) + sorted(vcf_fields['AF']) + sorted(vcf_fields['AN'])
+norm_to_orig = {**vcf_fields['AC'], **vcf_fields['AF'], **vcf_fields['AN']}
+
+if is_sv_truth:
+    extra_fields = ['N_HOMREF', 'N_HET', 'N_HOMALT']
+else:
+    extra_fields = ['nhomalt']
+
+query_field_pairs = [(c, norm_to_orig[c]) for c in dyn_cols] + [(f, f) for f in extra_fields]
+fmt = '%ID\\t' + '\\t'.join(f'%INFO/{orig}' for _, orig in query_field_pairs) + '\\n'
+cmd = f"bcftools query -f '{fmt}' {truth_vcf}"
+proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, text=True)
+truth_info = {}
+for line in proc.stdout:
+    parts = line.rstrip('\n').split('\t')
+    if len(parts) == len(query_field_pairs) + 1:
+        truth_info[parts[0]] = {query_field_pairs[i][0]: parts[i + 1] for i in range(len(query_field_pairs))}
+proc.wait()
+
+def to_num(val):
+    try:
+        return float(val) if val and val != '.' else 0
+    except Exception:
+        return 0
+
+def compute_genotype_counts(info):
+    if is_sv_truth:
+        return info.get('N_HOMREF', '.'), info.get('N_HET', '.'), info.get('N_HOMALT', '.')
+    homalt = to_num(info.get('nhomalt', '.'))
+    het = to_num(info.get('AC', '.')) - 2 * homalt
+    homref = to_num(info.get('AN', '.')) / 2 - homalt - het
+    return str(int(homref)), str(int(het)), info.get('nhomalt', '.')
+
+extra_cols = ['match_type', 'truth_ID', 'source_tag', 'filter'] + dyn_cols + ['N_HOMREF', 'N_HET', 'N_HOMALT']
+header_row = '\t'.join(['#CHROM', 'POS', 'REF', 'ALT', 'ID'] + extra_cols)
+
+with open(annotation_tsv) as fin, open(f"{prefix}.tsv", 'w') as fout:
+    fout.write(header_row + '\n')
+    for line in fin:
+        fields = line.rstrip('\n').split('\t')
+        truth_id = fields[6]
+        info = truth_info.get(truth_id, {})
+        dyn_vals = [info.get(f, '.') for f in dyn_cols]
+        homref, het, homalt = compute_genotype_counts(info)
+        fout.write('\t'.join(fields + dyn_vals + [homref, het, homalt]) + '\n')
+
+EOF
+    >>>
+
+    output {
+        File annotated_tsv = "~{prefix}.tsv"
+    }
+
+    RuntimeAttr default_attr = object {
+        cpu_cores: 1,
+        mem_gb: 25,
+        disk_gb: 2 * ceil(size(annotation_tsv, "GB") + size(truth_vcf, "GB")) + 10,
+        boot_disk_gb: 10,
+        preemptible_tries: 1,
+        max_retries: 0
+    }
+    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    runtime {
+        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
+        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
+        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
+        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
+        docker: docker
+        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
+        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+    }
+}
