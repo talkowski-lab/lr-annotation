@@ -10,8 +10,9 @@ workflow MosDepth {
         Array[String] contigs
         String prefix
 
-        Boolean single_contig = true
-        Boolean fast_mode = true
+        Boolean single_contig
+        Boolean fast_mode
+        
         Int? bin_size
 
         File? ref_fa
