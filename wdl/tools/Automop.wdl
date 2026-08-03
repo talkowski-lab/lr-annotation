@@ -61,7 +61,7 @@ def main(workspace_namespace, workspace_name, user):
 
     size_found = False
     run_successful = False
-    with open('fissfc_log.log', 'w') as fissfc_log:
+    with open('~{prefix}.log', 'w') as fissfc_log:
         for line in iter(mop_process.stdout.readline, b''):
             line = line.decode()
             fissfc_log.write(line)
@@ -103,7 +103,7 @@ EOF
     >>>
 
     output {
-        File fissfc_log = "~{prefix}.fissfc_log.log"
+        File fissfc_log = "~{prefix}.log"
     }
 
     RuntimeAttr default_attr = object {
