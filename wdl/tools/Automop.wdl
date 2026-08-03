@@ -9,26 +9,14 @@ workflow Automop {
         String workspace_name
         String user
         Boolean dry_run
-        String prefix
-
-        String automop_docker
-
-        RuntimeAttr? runtime_attr_mop
     }
-
+    
     call MopTask {
         input:
             workspace_namespace = workspace_namespace,
             workspace_name = workspace_name,
             user = user,
-            dry_run = dry_run,
-            prefix = prefix,
-            docker = automop_docker,
-            runtime_attr_override = runtime_attr_mop
-    }
-
-    output {
-        File fissfc_log = MopTask.fissfc_log
+            dry_run = dry_run
     }
 }
 
@@ -38,14 +26,11 @@ task MopTask {
         String workspace_name
         String user
         Boolean dry_run
-        String prefix
-        String docker
-        RuntimeAttr? runtime_attr_override
     }
-
+    
     command <<<
-        set -euo pipefail
-
+        set -xeuo pipefail
+        
         cat <<'EOF' > script.py
 import subprocess
 from datetime import datetime
@@ -57,7 +42,7 @@ def main(workspace_namespace, workspace_name, user):
 
     mop_process = subprocess.Popen(['fissfc', '--yes', '--verbose', 'mop', '-w', workspace_name, '-p', workspace_namespace~{if dry_run then ", '--dry-run'" else ""}],
         stdout=subprocess.PIPE)
-
+    
     size_found = False
     run_successful = False
     with open('fissfc_log.log', 'w') as fissfc_log:
@@ -77,20 +62,20 @@ def main(workspace_namespace, workspace_name, user):
             if line.startswith('Operation completed over'):
                 print('Mopping complete!')
                 run_successful = True
-
+    
     if not size_found:
         raise RuntimeError('No total deleted size found in fissfc output.')
-
+    
     if not run_successful:
         raise RuntimeError('Did not receive "Operation completed" message from fissfc output.')
-
+    
     mop_event = {
-        'user': user,
-        'datetime': datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d-%H-%M-%S'),
-        'workspace_namespace': workspace_namespace,
-        'workspace_name': workspace_name,
-        'size_deleted': size_in_bytes
-    }
+            'user': user,
+            'datetime': datetime.now(pytz.timezone('US/Eastern')).strftime('%Y-%m-%d-%H-%M-%S'),
+            'workspace_namespace': workspace_namespace,
+            'workspace_name': workspace_name,
+            'size_deleted': size_in_bytes
+        }
     db = bigquery.Client(project='broad-dsde-methods-automop')
     db.insert_rows(db.get_table('broad-dsde-methods-automop.automop.mop_events'), [mop_event])
 
@@ -99,30 +84,16 @@ if __name__ == '__main__':
     main('~{workspace_namespace}', '~{workspace_name}', '~{user}')
 EOF
         python script.py
-
-        mv fissfc_log.log ~{prefix}.fissfc_log.log
     >>>
 
     output {
-        File fissfc_log = "~{prefix}.fissfc_log.log"
+        File fissfc_log = "fissfc_log.log"
     }
-
-    RuntimeAttr default_attr = object {
-        cpu_cores: 1,
-        mem_gb: 16,
-        disk_gb: 20,
-        boot_disk_gb: 10,
-        preemptible_tries: 1,
-        max_retries: 0
-    }
-    RuntimeAttr runtime_attr = select_first([runtime_attr_override, default_attr])
+    
     runtime {
-        cpu: select_first([runtime_attr.cpu_cores, default_attr.cpu_cores])
-        memory: select_first([runtime_attr.mem_gb, default_attr.mem_gb]) + " GiB"
-        disks: "local-disk " + select_first([runtime_attr.disk_gb, default_attr.disk_gb]) + " HDD"
-        bootDiskSizeGb: select_first([runtime_attr.boot_disk_gb, default_attr.boot_disk_gb])
-        docker: docker
-        preemptible: select_first([runtime_attr.preemptible_tries, default_attr.preemptible_tries])
-        maxRetries: select_first([runtime_attr.max_retries, default_attr.max_retries])
+        docker: "us.gcr.io/broad-dsde-methods/automop:0.1"
+        preemptible: 0
+        memory: "16 GB"
+        disks: "local-disk 20 HDD"
     }
 }
