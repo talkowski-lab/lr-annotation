@@ -1,0 +1,32 @@
+name: Agents Sync Check
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'AGENTS.md'
+      - '.claude/CLAUDE.md'
+      - '.github/copilot-instructions.md'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'AGENTS.md'
+      - '.claude/CLAUDE.md'
+      - '.github/copilot-instructions.md'
+
+jobs:
+  agents_sync_check:
+    runs-on: ubuntu-latest
+    name: Agents Sync Check
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+
+      - name: Check AGENTS.md <-> CLAUDE.md/copilot-instructions.md sync
+        run: |
+          python .github/scripts/check_agents_sync.py

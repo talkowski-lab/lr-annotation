@@ -358,15 +358,6 @@ workflows:
         - /.*/
 
   - subclass: WDL
-    name: PreprocessGregorVcf
-    primaryDescriptorPath: /wdl/annotation_utils/PreprocessGregorVcf.wdl
-    filters:
-      branches:
-        - main
-      tags:
-        - /.*/
-
-  - subclass: WDL
     name: ResolveHaplotypeOverlaps
     primaryDescriptorPath: /wdl/annotation_utils/ResolveHaplotypeOverlaps.wdl
     filters:

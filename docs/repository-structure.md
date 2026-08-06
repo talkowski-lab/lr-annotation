@@ -17,9 +17,13 @@ scripts/
 dockerfiles/         # Dockerfile.<image-name> (lowercase) for each container, plus build_push.sh and versions.env
 data/
   references/        # Reference genomes, catalogs, BED files
-  base_vcfs/         # Test/base VCF files
+  base_vcfs/         # chr22-only test VCFs for local workflow development
   metadata/          # Sample metadata, pedigrees, ancestry
-  qc_annotations/    # QC annotation outputs
+  platinum_pedigree/ # CEPH/Utah Pedigree 1463 assemblies + variant calls, used for benchmarking
+  count_annotations/ # Count-annotation outputs (AoU, HPRC/HGSVC)
+  callset_plotting/  # Callset QC plotting inputs/outputs
+  archive/           # Deprecated data, scripts and one-off analyses (do not modify)
+notebooks/           # Ad hoc Jupyter notebooks (e.g. Terra cost analysis)
 docs/                # Extended documentation (this file included)
 .github/
   workflows/         # Active GitHub Actions CI
@@ -33,7 +37,7 @@ Workflows are split by role:
 - **`wdl/annotation/`** - top-level annotation workflows, always prefixed `Annotate*`. Each characterizes one aspect of the callset (MEIs, functional consequence, external-database overlap, etc.) and typically outputs a TSV rather than a VCF.
 - **`wdl/annotation_utils/`** - VCF manipulation utilities used to glue the annotation workflows together (splitting, merging, applying TSV annotations back onto a VCF, post-processing).
 - **`wdl/tools/`** - thin wrappers around individual bioinformatics tools (PALMER, TRGT, HiPhase, mosdepth, etc.) that aren't annotation-specific.
-- **`wdl/utils/`** - not directly run. `Structs.wdl` defines the shared `RuntimeAttr` struct; `Helpers.wdl` holds reusable tasks (subsetting, concatenation, sharding, etc.) imported by the other three directories.
+- **`wdl/utils/`** - not directly run. `Structs.wdl` defines the shared `RuntimeAttr` struct; `Helpers.wdl` holds reusable tasks (subsetting, concatenation, sharding, etc.) imported by the other three directories. It also holds importable (but not directly dockstore-registered) sub-workflows used as building blocks by other workflows: `BedtoolsClosestSV.wdl`, `ExactMatch.wdl`, `ScatterVcf.wdl`, `TruvariMatch.wdl`.
 
 Every workflow directly run in the pipeline (i.e. everything in `annotation/`, `annotation_utils/` and `tools/`) must have a matching entry in [`.dockstore.yml`](../.dockstore.yml), under its corresponding `# Annotation Workflows` / `# Annotation Utilities` / `# Tools` section. This is enforced by CI (see below). For the full WDL/task/input style convention, see [Conventions](conventions.md).
 
@@ -75,5 +79,7 @@ Three CI workflows currently run on push/PR to `main`, each gated on the paths t
 | [`wdl-validation.yml`](../.github/workflows/wdl-validation.yml) | `wdl/**` | Runs `womtool validate` over every `.wdl` file. |
 | [`python-linting.yaml`](../.github/workflows/python-linting.yaml) | `scripts/**` | Runs `flake8` over `scripts/`. |
 | [`dockstore-sync.yml`](../.github/workflows/dockstore-sync.yml) | `wdl/**`, `.dockstore.yml` | Runs [`check_dockstore_sync.py`](../.github/scripts/check_dockstore_sync.py), which fails if any active workflow in `wdl/annotation`, `wdl/annotation_utils` or `wdl/tools` is missing a `.dockstore.yml` entry (or vice versa), aside from the allowlisted external-repo workflows `AnnotateAF` and `QcAnnotations`. |
+
+A [`pyproject.toml`](../pyproject.toml) `[tool.black]` section pins `line-length = 88` for local formatting with `black`, but this is not run in CI - only `flake8` is enforced.
 
 A Docker build/push CI pipeline (triggering on `dockerfiles/**` changes, authenticating to GCP via `google-github-actions/auth`) was also designed, but is intentionally **not active** - it would require a `GCP_SA_KEY` service-account secret to be configured in the repo, which hasn't been set up. Until then, images are built and pushed locally via `dockerfiles/build_push.sh`.

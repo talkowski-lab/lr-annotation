@@ -47,7 +47,7 @@ HiPhase was run twice per sample - once with the TRGT VCF and once without - the
 4. **[IntegrateTRs](../wdl/annotation_utils/IntegrateTRs.wdl)** ([docs](workflows.md#integratetrs)) - combined the TRGT VCF with the base phased VCF, flagging overlapping variants.
 
 ### Backbone Phasing
-Backbone phasing was used to extend HiPhase phase blocks by linking them using a phased truth set:
+Backbone phasing was used to extend HiPhase phase blocks by linking them using a phased truth set - the HGSVC2024v1.0 combined truth VCF and the HPRC v2.0 pangenome ("wave") VCF:
 1. **[BackbonePhase](../wdl/tools/BackbonePhase.wdl)** ([docs](workflows.md#backbonephase)) - transferred phasing from a set of truth base VCFs onto the target cohort VCF to connect phase blocks.
 2. **[MergeBackbonePhased](../wdl/annotation_utils/MergeBackbonePhased.wdl)** ([docs](workflows.md#mergebackbonephased)) - merged the backbone-phased VCFs into the final cohort phased VCF.
 
